@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add `from roomkit_tools import Read` for direct RoomKit registration with
+  `tools=[Read(root="./workspace")]`, including lazy asynchronous initialization.
+- Prepare the Python `0.1.0a1` read-only preview with a Linux x86_64 stable-ABI
+  wheel, source distribution and isolated installation checks for both artifacts.
+- Add an on-demand distribution workflow; it builds and validates artifacts
+  without publishing packages or releases automatically.
+
 - Scan reads in bounded chunks, retaining only the requested page, with UTF-8,
   BOM/CRLF, byte-limit and cancellation behavior preserved. Host file limits
   remain explicit; the full file is scanned to validate text and hash its bytes.

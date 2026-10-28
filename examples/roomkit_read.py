@@ -34,8 +34,7 @@ from roomkit import (
     WebSocketChannel,
 )
 from roomkit.providers.ai import AIProvider, AIResponse, AIToolCall, MockAIProvider
-from roomkit_tools import ReadTool
-from roomkit_tools.roomkit import ReadToolAdapter
+from roomkit_tools import Read
 
 
 def make_provider(live: bool) -> AIProvider:
@@ -68,11 +67,10 @@ def make_provider(live: bool) -> AIProvider:
 
 async def main(root: Path, live: bool) -> None:
     # The host chooses the directory and the tool; the model supplies only arguments.
-    read = await ReadTool.create(root, max_lines=20)
     agent = AIChannel(
         "agent",
         provider=make_provider(live),
-        tools=[ReadToolAdapter(read)],
+        tools=[Read(root=root, max_lines=20)],
         system_prompt="Use read to answer from notes.txt. Only report results actually returned.",
     )
     calls: list[ToolCallEvent] = []

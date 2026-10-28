@@ -148,13 +148,44 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 
 ## Python
 
-The first binding supports CPython 3.12+ and is validated on Linux. Install from
-this checkout with Rust and [uv](https://docs.astral.sh/uv/) available:
+The `0.1.0a1` preview exposes **read only**. Its prebuilt wheel supports ordinary
+CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a1)
+using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-uv venv
-uv pip install .
+gh release download v0.1.0a1 --repo roomkit-live/roomkit-tools \
+  --pattern '*.whl' --dir dist
+python3 -m venv .venv
+.venv/bin/python -m pip install \
+  './dist/roomkit_tools-0.1.0a1-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
+
+The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for
+standalone use. The repository and release are currently private; this version
+is not on PyPI.
+
+Select the tool directly in an existing RoomKit agent:
+
+```python
+from roomkit import AIChannel
+from roomkit_tools import Read
+
+agent = AIChannel(
+    "agent",
+    provider=provider,  # Your configured RoomKit AI provider.
+    tools=[Read(root="./workspace", max_lines=20)],
+)
+```
+
+`Read` includes the RoomKit adapter. Construction captures the absolute root;
+the first call resolves the directory and validates limits asynchronously in
+Rust. The directory must exist by then. Failed or cancelled initialization can
+be retried. Each tool is selected explicitly; no other tools are registered.
+RoomKit retains schema validation, permissions, hooks and turn cancellation.
+No RoomKit Rust checkout or separate server is needed.
+
+For direct Python use without RoomKit:
 
 ```python
 import asyncio
@@ -182,32 +213,17 @@ omit OS diagnostics and host paths. Cancellation remains `asyncio.CancelledError
 Async construction keeps root resolution off the Python event loop. Each call
 has its own cancellation scope, and tools can be reused across event loops.
 
-To opt into RoomKit Python, install `uv pip install '.[roomkit]'` and register
-`ReadToolAdapter(await ReadTool.create(root))` from `roomkit_tools.roomkit` in an
-`AIChannel`'s `tools` list. The adapter exposes the derived input schema, returns
-both result representations, and distinguishes refusal from resource failure.
-RoomKit retains validation, permissions, hooks and turn cancellation. Importing
-the standalone package does not import or require RoomKit.
+`Read` exposes the Rust-derived input schema through RoomKit's `Tool` protocol
+and returns both result representations. Refusal and resource failure stay
+distinct. The lower-level `roomkit_tools.roomkit.ReadToolAdapter` remains
+available for an already-created `ReadTool`. Importing `roomkit_tools` and
+configuring `Read` does not import or require RoomKit; calling its RoomKit
+handler does.
 
-The two bridges have different jobs: PyO3 lets Python call Rust in the same
-process; `ReadToolAdapter` makes that callable conform to RoomKit's `Tool`
-protocol (`definition` and `handler`). The adapter is already included in this
-package. It requires neither `roomkit-rs` nor a separate Rust server.
-
-```python
-from roomkit import AIChannel
-from roomkit_tools import ReadTool
-from roomkit_tools.roomkit import ReadToolAdapter
-
-# Inside your async setup, with your chosen RoomKit AI provider:
-read = await ReadTool.create("./workspace", max_lines=20)
-agent = AIChannel("agent", provider=provider, tools=[ReadToolAdapter(read)])
-```
-
-Run the complete [RoomKit read example](examples/roomkit_read.py):
+Run the complete [RoomKit read example](examples/roomkit_read.py) from a checkout
+with the wheel installed:
 
 ```sh
-uv pip install '.[roomkit]'
 .venv/bin/python examples/roomkit_read.py
 ```
 
@@ -219,7 +235,7 @@ is read by Rust. This mode is checked by `make python-check` and CI.
 For a running vLLM server with tool calling configured:
 
 ```sh
-uv pip install 'roomkit[vllm]>=0.110,<0.112'
+.venv/bin/python -m pip install 'roomkit[vllm]>=0.110,<0.112'
 export OPENAI_BASE_URL=http://localhost:8000/v1
 export OPENAI_MODEL=your-served-model
 # Set OPENAI_API_KEY too if the server requires authentication.
@@ -233,7 +249,14 @@ It runs once in the console; it does not start an HTTP server or a chat page.
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns
 its revision. Other tools, platforms and free-threaded builds remain outside
-the validated Python slice. Nothing is published to PyPI.
+the validated Python slice.
+
+To build from this checkout instead, install Rust and [uv](https://docs.astral.sh/uv/):
+
+```sh
+uv venv
+uv pip install '.[roomkit]'
+```
 
 ## License
 

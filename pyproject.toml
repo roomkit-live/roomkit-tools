@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "roomkit-tools"
-version = "0.1.0"
+version = "0.1.0a1"
 description = "Individually selectable Rust tools with an asynchronous Python API"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -16,6 +16,10 @@ classifiers = [
     "Framework :: AsyncIO",
     "Typing :: Typed",
 ]
+
+[project.urls]
+Repository = "https://github.com/roomkit-live/roomkit-tools"
+Issues = "https://github.com/roomkit-live/roomkit-tools/issues"
 
 [project.optional-dependencies]
 roomkit = ["roomkit>=0.110,<0.112"]

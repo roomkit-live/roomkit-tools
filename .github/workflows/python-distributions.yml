@@ -1,0 +1,56 @@
+name: Python distributions
+
+# Build and test artifacts on demand. Publishing is a separate maintainer step.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Linux x86_64 distributions
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: python -m pip install 'uv>=0.9,<1'
+      - name: Build optimized stable-ABI wheel and source distribution
+        run: |
+          uv tool run --from 'maturin>=1.15,<2' maturin build --locked --release --strip --compatibility manylinux_2_34 --auditwheel check --interpreter python --out dist
+          uv tool run --from 'maturin>=1.15,<2' maturin sdist --out dist
+      - name: Hash distributions
+        working-directory: dist
+        run: sha256sum *.whl *.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
+
+  validate:
+    name: Install distributions on Python ${{ matrix.python }}
+    needs: build
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        python: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: python -m pip install 'uv>=0.9,<1'
+      - uses: actions/download-artifact@v8
+        with:
+          name: python-distributions
+          path: dist
+      - name: Check downloaded files
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS
+      - name: Validate standalone and RoomKit installations
+        run: python scripts/check-python.py --wheel dist/*.whl --sdist dist/*.tar.gz

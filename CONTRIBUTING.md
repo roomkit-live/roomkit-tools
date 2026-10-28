@@ -50,6 +50,33 @@ minimum supported RoomKit release for adapter tests. CI runs on Python 3.12 and
 3.14. Use `uv tool run --from 'maturin>=1.15,<2' maturin build --locked` to build
 a wheel without installing it. No package is published by these commands.
 
+## Python preview distributions
+
+The Python version is in `pyproject.toml`; Rust crates keep their own versions.
+The `Python distributions` workflow builds an optimized, stripped CPython
+3.12+ stable-ABI wheel for Linux x86_64 (glibc 2.34+) and an sdist. It audits the
+wheel's library requirements and installs both artifacts independently on
+Python 3.12 and 3.14, including the RoomKit extra and the runnable example.
+The workflow has read-only repository permissions and does not publish.
+
+After the normal gates pass on the intended commit, run it from that branch or
+tag using `gh workflow run python-distributions.yml --ref main`. Wait for the
+entire run to succeed, then download its `python-distributions` artifact with
+`gh run download RUN_ID --name python-distributions --dir dist`. Check
+`SHA256SUMS` from that directory. Create the release tag on the run's exact
+commit, matching the Python version, and attach those distributions and checksums.
+Use a prerelease for alpha versions. Publishing on PyPI is a separate step.
+
+To repeat the artifact checks locally with CPython 3.12+, Rust and uv:
+
+```sh
+python3 scripts/check-python.py --wheel dist/*.whl --sdist dist/*.tar.gz
+```
+
+The check builds from the source distribution only; wheel installation does not
+compile Rust. Internal planning and integration assets are excluded from both
+archives. Keep public package metadata, examples and release notes in English.
+
 ## Code and dependencies
 
 - Code, comments, examples and developer documentation use English. Keep

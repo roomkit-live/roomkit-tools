@@ -9,11 +9,13 @@ from ._native import (
     UnsupportedResourceError,
 )
 from .fs import ReadTool
+from .roomkit import Read
 
 __all__ = [
     "AccessRefusedError",
     "InvalidInputError",
     "LimitExceededError",
+    "Read",
     "ReadTool",
     "ToolError",
     "ToolIOError",

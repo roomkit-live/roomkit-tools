@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from roomkit import AIChannel
 from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
@@ -19,7 +21,7 @@ from roomkit.providers.ai.base import AIResponse, AIToolCall, AIToolResultPart
 from roomkit.providers.ai.mock import MockAIProvider
 from roomkit.tools.base import Tool
 from roomkit.tools.compose import extract_tools
-from roomkit_tools import ReadTool, ToolIOError
+from roomkit_tools import Read, ReadTool, ToolIOError
 from roomkit_tools.roomkit import ReadToolAdapter
 
 
@@ -58,6 +60,82 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ToolIOError):
             await self.adapter.handler("read", {"path": "missing"})
 
+    async def test_direct_tool_protocol_schema_and_limits(self) -> None:
+        tool = Read(self.root, max_lines=1)
+        self.assertIsInstance(tool, Tool)
+        definitions, handler = extract_tools([tool])
+        self.assertEqual(definitions[0].parameters, ReadTool.definition()["input_schema"])
+        result = json.loads(await handler("read", {"path": "source.txt", "limit": 100}))
+        self.assertEqual(result["text"], "1: first\n")
+        self.assertEqual(result["data"]["next_offset"], 2)
+        with self.assertRaises(ToolFailedError):
+            await Read(self.root, max_file_bytes=1).handler("read", {"path": "source.txt"})
+        with self.assertRaises(ToolRefusedError):
+            await Read(self.root, max_lines=0).handler("read", {"path": "source.txt"})
+
+    async def test_initialization_failure_can_be_retried(self) -> None:
+        child = self.root / "later"
+        tool = Read(child)
+        with self.assertRaises(UnservedToolCallError):
+            await tool.handler("write", {})
+        with self.assertRaises(ToolIOError):
+            await tool.handler("read", {"path": "source.txt"})
+        child.mkdir()
+        (child / "source.txt").write_text("ready\n")
+        self.assertEqual(
+            json.loads(await tool.handler("read", {"path": "source.txt"}))["text"], "1: ready\n"
+        )
+        with self.assertRaises(ToolRefusedError):
+            await tool.handler("read", {"path": "../source.txt"})
+        with self.assertRaises(ToolRefusedError):
+            await Read(child / "source.txt").handler("read", {"path": "source.txt"})
+
+    async def test_relative_root_is_captured_before_first_call(self) -> None:
+        cwd = Path.cwd()
+        try:
+            os.chdir(self.root)
+            tool = Read(".")
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(
+            json.loads(await tool.handler("read", {"path": "source.txt"}))["text"],
+            "1: first\n2: second\n",
+        )
+        self.assertEqual(Path.cwd(), cwd)
+
+    async def test_cancelled_initialization_does_not_poison_concurrent_calls(self) -> None:
+        tool = Read(self.root)
+        original_create = ReadTool.create
+        started = asyncio.Event()
+        proceed = asyncio.Event()
+
+        async def delayed_create(*args, **kwargs):
+            started.set()
+            await proceed.wait()
+            return await original_create(*args, **kwargs)
+
+        with patch.object(ReadTool, "create", side_effect=delayed_create):
+            first = asyncio.create_task(tool.handler("read", {"path": "source.txt"}))
+            second = None
+            try:
+                await asyncio.wait_for(started.wait(), 5)
+                second = asyncio.create_task(tool.handler("read", {"path": "source.txt"}))
+                await asyncio.sleep(0)
+                first.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await first
+                proceed.set()
+                result = json.loads(await asyncio.wait_for(second, 5))
+                self.assertEqual(result["text"], "1: first\n2: second\n")
+            finally:
+                first.cancel()
+                tasks = [first]
+                if second is not None:
+                    second.cancel()
+                    tasks.append(second)
+                await asyncio.gather(*tasks, return_exceptions=True)
+        self.assertEqual(json.loads(await tool.handler("read", {"path": "source.txt"})), result)
+
     async def test_real_agent_turn_receives_the_native_result(self) -> None:
         provider = MockAIProvider(
             ai_responses=[
@@ -72,7 +150,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
             ],
             streaming=False,
         )
-        channel = AIChannel("agent", provider=provider, tools=[self.adapter])
+        channel = AIChannel("agent", provider=provider, tools=[Read(root=self.root)])
         binding = ChannelBinding(
             room_id="test-room",
             channel_id="agent",
@@ -107,13 +185,27 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_handler_preserves_asyncio_cancellation(self) -> None:
         (self.root / "large.txt").write_bytes(b"line\n" * (6 * 1024 * 1024))
-        adapter = ReadToolAdapter(await ReadTool.create(self.root, max_file_bytes=32 * 1024 * 1024))
+        adapter = Read(self.root, max_file_bytes=32 * 1024 * 1024)
         task = asyncio.create_task(adapter.handler("read", {"path": "large.txt"}))
         await asyncio.sleep(0)
         self.assertFalse(task.done())
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task
+        # A cancelled first call leaves the tool usable.
+        result = json.loads(await adapter.handler("read", {"path": "source.txt"}))
+        self.assertEqual(result["text"], "1: first\n2: second\n")
+
+
+class ReadLifecycleTests(unittest.TestCase):
+    def test_sync_construction_and_reuse_across_event_loops(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source.txt"
+            tool = Read(root=directory)
+            for index in range(3):
+                source.write_text(f"value {index}\n")
+                result = json.loads(asyncio.run(tool.handler("read", {"path": "source.txt"})))
+                self.assertEqual(result["text"], f"1: value {index}\n")
 
 
 if __name__ == "__main__":

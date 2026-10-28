@@ -16,6 +16,7 @@ from roomkit_tools import (
     AccessRefusedError,
     InvalidInputError,
     LimitExceededError,
+    Read,
     ReadTool,
     ToolError,
     ToolIOError,
@@ -37,6 +38,13 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(importlib.util.find_spec("roomkit"))
         self.assertIn("site-packages", _native.__file__)
         self.assertTrue(_native.__file__.endswith((".so", ".pyd")))
+        # Configuration and schema discovery need neither RoomKit nor an
+        # existing workspace. Resolution happens in the first async handler.
+        tool = Read(self.root / "not-created-yet", max_lines=1)
+        self.assertEqual(tool.definition["parameters"], ReadTool.definition()["input_schema"])
+        self.assertFalse((self.root / "not-created-yet").exists())
+        with self.assertRaises(InvalidInputError):
+            Read("")
 
     async def test_pagination_preserves_structured_results_and_rereads_changes(self) -> None:
         result = await self.tool.read("source.txt", limit=1)
