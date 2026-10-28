@@ -135,6 +135,7 @@ def main() -> None:
             "-v",
             cwd=work,
         )
+        run(str(python), "-I", str(root / "examples/roomkit_read.py"), cwd=work)
 
 
 if __name__ == "__main__":

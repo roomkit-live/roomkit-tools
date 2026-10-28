@@ -7,6 +7,8 @@
   cancellation propagation. Validate isolated wheel installation on CPython.
 - Add a RoomKit Python read adapter using its public Tool protocol, preserving
   schemas, results, refusal/failure distinctions and cancellation.
+- Add a runnable Python RoomKit example with a real Rust read, a scripted model
+  by default and optional vLLM configuration through environment variables.
 
 - Add runtime-independent tool definitions, derived JSON schemas, structured
   results and typed errors.

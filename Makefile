@@ -65,8 +65,8 @@ python-check:
 	$(CARGO) clippy --manifest-path $(PYTHON_MANIFEST) --all-targets --locked -- -D warnings
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(PYTHON_MANIFEST) --no-deps --locked
 	$(CARGO) deny --manifest-path $(PYTHON_MANIFEST) --config deny.toml check
-	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python scripts/check-python.py
-	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python scripts/check-python.py
+	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python examples scripts/check-python.py
+	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python examples scripts/check-python.py
 	$(PYTHON) scripts/check-python.py
 
 python-msrv:

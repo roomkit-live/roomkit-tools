@@ -160,6 +160,47 @@ both result representations, and distinguishes refusal from resource failure.
 RoomKit retains validation, permissions, hooks and turn cancellation. Importing
 the standalone package does not import or require RoomKit.
 
+The two bridges have different jobs: PyO3 lets Python call Rust in the same
+process; `ReadToolAdapter` makes that callable conform to RoomKit's `Tool`
+protocol (`definition` and `handler`). The adapter is already included in this
+package. It requires neither `roomkit-rs` nor a separate Rust server.
+
+```python
+from roomkit import AIChannel
+from roomkit_tools import ReadTool
+from roomkit_tools.roomkit import ReadToolAdapter
+
+# Inside your async setup, with your chosen RoomKit AI provider:
+read = await ReadTool.create("./workspace", max_lines=20)
+agent = AIChannel("agent", provider=provider, tools=[ReadToolAdapter(read)])
+```
+
+Run the complete [RoomKit read example](examples/roomkit_read.py):
+
+```sh
+uv pip install '.[roomkit]'
+.venv/bin/python examples/roomkit_read.py
+```
+
+It creates a temporary `notes.txt`, sends a message through a RoomKit room,
+prints the actual tool result and the assistant reply, and cleans up afterwards.
+The default model is scripted, so no server or credentials are needed; the file
+is read by Rust. This mode is checked by `make python-check` and CI.
+
+For a running vLLM server with tool calling configured:
+
+```sh
+uv pip install 'roomkit[vllm]>=0.110,<0.112'
+export OPENAI_BASE_URL=http://localhost:8000/v1
+export OPENAI_MODEL=your-served-model
+# Set OPENAI_API_KEY too if the server requires authentication.
+.venv/bin/python examples/roomkit_read.py --live
+```
+
+Live mode uses RoomKit's vLLM provider with the environment settings above.
+Only the model connection changes; the registered Rust tool stays the same.
+It runs once in the console; it does not start an HTTP server or a chat page.
+
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. Other tools, platforms, free-threaded builds and streaming large-file
 reads remain outside the validated Python slice. Nothing is published to PyPI.

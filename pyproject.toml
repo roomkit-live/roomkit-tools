@@ -30,7 +30,7 @@ exclude = ["docs/**", "AGENTS.md", "integrations/**", "scripts/roomkit-bakery.py
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-include = ["python/**/*.py", "tests/python/**/*.py", "scripts/check-python.py"]
+include = ["python/**/*.py", "tests/python/**/*.py", "examples/*.py", "scripts/check-python.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
