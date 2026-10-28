@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "examples"]
-exclude = ["adapters/roomkit"]
+exclude = ["adapters/roomkit", "bindings/python"]
 
 [workspace.package]
 version = "0.1.0"

@@ -1,7 +1,11 @@
 /target/
 /adapters/roomkit/target/
+/bindings/python/target/
 /.venv/
 /dist/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
 __pycache__/
 *.py[cod]
 *.profraw

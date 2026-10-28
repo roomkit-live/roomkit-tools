@@ -1,0 +1,43 @@
+[package]
+name = "roomkit-tools-python"
+description = "Optional Python bindings for independent Rust agent tools"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+publish = false
+
+# The standalone Rust workspace must not require a Python interpreter or bridge.
+[workspace]
+resolver = "3"
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+roomkit-tools-core = { path = "../../crates/roomkit-tools-core" }
+roomkit-tools-fs = { path = "../../crates/roomkit-tools-fs" }
+# Stable CPython ABI, with a separate Tokio/asyncio bridge for awaitable I/O.
+pyo3 = { version = "0.30", features = ["abi3-py312"] }
+pyo3-async-runtimes = { version = "0.30", features = ["tokio-runtime"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+
+[lints.rustdoc]
+broken_intra_doc_links = "warn"
+missing_crate_level_docs = "warn"

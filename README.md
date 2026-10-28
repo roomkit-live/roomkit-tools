@@ -7,7 +7,8 @@ intended for use from Rust, Python and RoomKit.
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
 `process_write` and `process_stop`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python bindings and large-file streaming are planned.
+Python currently exposes `read`, with an optional RoomKit Python adapter.
+Bindings for the other tools and large-file streaming are planned.
 Nothing is published to crates.io or PyPI yet.
 
 ## Start here
@@ -50,6 +51,7 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
 | `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` and the five `Process*Toolset` adapters, registered individually. |
+| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Currently exposes `read`. |
 
 There is no global tool registry. A host instantiates the tools it needs
 and chooses which definitions to expose to its model.
@@ -115,7 +117,52 @@ on a sibling `roomkit-rs` checkout. The standalone tools do not require it. Host
 choose which adapters to register and supply their roots, limits and lifecycle.
 RoomKit retains argument validation, policies, hooks and turn cancellation.
 
-Python bindings, large-file streaming and cross-language validation remain planned.
+## Python
+
+The first binding supports CPython 3.12+ and is validated on Linux. Install from
+this checkout with Rust and [uv](https://docs.astral.sh/uv/) available:
+
+```sh
+uv venv
+uv pip install .
+```
+
+```python
+import asyncio
+from roomkit_tools import ReadTool
+
+async def main():
+    tool = await ReadTool.create(".", max_lines=20)
+    result = await tool.read("README.md", limit=5)
+    print(result["text"])
+    print(result["data"]["next_offset"])
+    print(tool.definition()["input_schema"])
+
+asyncio.run(main())
+```
+
+The extension calls the existing Rust `ReadTool`; Python does not reimplement
+file access or schemas. `call(arguments)` accepts the same JSON-shaped input as
+Rust. Results are dictionaries containing both `data` and `text`. Cancelling an
+`asyncio` task cancels its Rust token and future; already-issued filesystem I/O
+may still finish in Tokio's blocking pool. The tool performs no writes.
+
+Errors inherit from `ToolError`: `InvalidInputError`, `AccessRefusedError`,
+`LimitExceededError`, `UnsupportedResourceError` and `ToolIOError`. I/O messages
+omit OS diagnostics and host paths. Cancellation remains `asyncio.CancelledError`.
+Async construction keeps root resolution off the Python event loop. Each call
+has its own cancellation scope, and tools can be reused across event loops.
+
+To opt into RoomKit Python, install `uv pip install '.[roomkit]'` and register
+`ReadToolAdapter(await ReadTool.create(root))` from `roomkit_tools.roomkit` in an
+`AIChannel`'s `tools` list. The adapter exposes the derived input schema, returns
+both result representations, and distinguishes refusal from resource failure.
+RoomKit retains validation, permissions, hooks and turn cancellation. Importing
+the standalone package does not import or require RoomKit.
+
+The native binding is a separate Cargo workspace and uses the stable Python ABI
+from 3.12. Other tools, platforms, free-threaded builds and streaming large-file
+reads remain outside the validated Python slice. Nothing is published to PyPI.
 
 ## License
 

@@ -42,6 +42,14 @@ dependencies; it requires a compatible sibling checkout and is not distributed
 as a published package.
 The adapter owns its dependency versions and lockfile while it is separate.
 
+The optional Python bridge is another separate workspace, `bindings/python`.
+With CPython 3.12+, uv and cargo-deny installed, run `make python-check
+python-msrv`. The check builds a wheel, installs it in a temporary environment
+without Python dependencies, runs the standalone tests, then installs the
+minimum supported RoomKit release for adapter tests. CI runs on Python 3.12 and
+3.14. Use `uv tool run --from 'maturin>=1.15,<2' maturin build --locked` to build
+a wheel without installing it. No package is published by these commands.
+
 ## Code and dependencies
 
 - Code, comments, examples and developer documentation use English. Keep

@@ -7,6 +7,10 @@ yanked = "deny"
 [licenses]
 allow = ["MIT", "Apache-2.0", "Unicode-3.0"]
 confidence-threshold = 0.9
+# PyO3's build-time target detection uses this Apache license exception.
+exceptions = [
+    { crate = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
+]
 
 [bans]
 multiple-versions = "warn"

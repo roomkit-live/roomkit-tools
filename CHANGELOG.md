@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add an optional PyO3/Maturin package exposing the Rust `read` implementation
+  through asyncio, with derived schemas, structured results, typed errors and
+  cancellation propagation. Validate isolated wheel installation on CPython.
+- Add a RoomKit Python read adapter using its public Tool protocol, preserving
+  schemas, results, refusal/failure distinctions and cancellation.
+
 - Add runtime-independent tool definitions, derived JSON schemas, structured
   results and typed errors.
 - Add independent `read`, `list`, `glob` and `grep` tools with root checks,
