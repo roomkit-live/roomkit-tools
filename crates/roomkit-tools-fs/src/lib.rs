@@ -14,6 +14,7 @@ mod mutation;
 mod patch;
 mod paths;
 mod read;
+mod revision;
 mod write;
 
 pub use diff::{DiffHunk, DiffInput, DiffLimits, DiffLine, DiffLineKind, DiffResult, DiffTool};

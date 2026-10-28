@@ -9,7 +9,7 @@ use roomkit::model::{
 use roomkit::testing::RecordingTransport;
 use roomkit::{RoomKit, ToolUse};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
-use roomkit_ai::{AiAgent, ToolContext, ToolError, Toolset};
+use roomkit_ai::{AiAgent, ToolContext, ToolError, ToolOutput, Toolset};
 use roomkit_tools_fs::{GlobTool, GrepTool, ListTool, ReadTool};
 use roomkit_tools_roomkit::{GlobToolset, GrepToolset, ListToolset, ReadToolset};
 use serde_json::{Value, json};
@@ -68,6 +68,34 @@ async fn each_toolset_exposes_only_its_own_capability_and_closes_independently()
         json!({"pattern":"Saturday"}),
     )
     .await;
+}
+
+#[tokio::test]
+async fn grep_context_reaches_roomkit_without_changing_match_pagination() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("notes"), "first\nhit\nlast\n").unwrap();
+    let grep = GrepToolset::new(GrepTool::new(root.path()).await.unwrap());
+    assert_eq!(
+        grep.tools()[0].parameters,
+        GrepTool::definition().input_schema
+    );
+    let input = json!({"pattern":"hit", "context_before":1, "context_after":1, "limit":1});
+    let call = ToolCall::new("grep", "grep", serde_json::from_value(input).unwrap());
+    let ToolOutput::Json(result) = grep.call(call, context()).await.unwrap() else {
+        panic!("expected JSON")
+    };
+    let found = &result["data"]["matches"][0];
+    assert_eq!(found["line"], 2);
+    assert_eq!(
+        found["context_before"][0],
+        json!({"number":1, "text":"first"})
+    );
+    assert_eq!(
+        found["context_after"][0],
+        json!({"number":3, "text":"last"})
+    );
+    assert!(result["data"]["next_offset"].is_null());
+    assert_eq!(result["data"]["truncated"], false);
 }
 
 async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>) {

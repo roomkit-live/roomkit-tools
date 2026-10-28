@@ -27,14 +27,16 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
         )
         .await?;
     print!("{}", result.text);
+    let mut revision = result.data.revision;
     for (old, new) in [
         ("Orders\n", "Orders\n44 | Alice | 1 pen\n"),
         ("43 | Taylor | 2 notebooks", "43 | Taylor | 3 notebooks"),
         ("44 | Alice | 1 pen\n", ""),
     ] {
-        let result = edit
-            .edit(EditInput::new("orders.txt", old, new), &cancel)
-            .await?;
+        let mut input = EditInput::new("orders.txt", old, new);
+        input.expected_revision = Some(revision);
+        let result = edit.edit(input, &cancel).await?;
+        revision = result.data.revision;
         print!("{}", result.text);
     }
     let read = ReadTool::new(root.path())
@@ -43,7 +45,9 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
         .await?;
     print!("{}", read.text);
     Ok(
-        if read.text == "1: Orders\n2: 43 | Taylor | 3 notebooks\n" {
+        if read.text == "1: Orders\n2: 43 | Taylor | 3 notebooks\n"
+            && read.data.revision == revision
+        {
             ExitCode::SUCCESS
         } else {
             ExitCode::FAILURE

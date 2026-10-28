@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-use crate::{MutationWorkspace, mutation};
+use crate::{MutationWorkspace, mutation, revision};
 
 /// Replace an exact, nonempty piece of a UTF-8 text file.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -20,6 +20,9 @@ pub struct EditInput {
     /// Replace every non-overlapping occurrence. Defaults to false (exactly one).
     #[serde(default)]
     pub replace_all: bool,
+    /// Optional content revision returned by read/write/edit. Refuses a changed file.
+    #[serde(default)]
+    pub expected_revision: Option<String>,
 }
 
 impl EditInput {
@@ -34,6 +37,7 @@ impl EditInput {
             old_text: old_text.into(),
             new_text: new_text.into(),
             replace_all: false,
+            expected_revision: None,
         }
     }
 }
@@ -67,6 +71,8 @@ pub struct EditResult {
     pub bytes_before: usize,
     /// File bytes after the edit.
     pub bytes_after: usize,
+    /// SHA-256 revision of the resulting raw bytes, including BOM and line endings.
+    pub revision: String,
 }
 
 /// Exact text replacement preserving all bytes outside matched spans.
@@ -107,7 +113,7 @@ impl EditTool {
     pub fn definition() -> Definition {
         Definition::new::<EditInput, EditResult>(
             "edit",
-            "Replace exact old_text with new_text in an existing UTF-8 file. Read the file first. Whitespace and line endings must match exactly. Refuses zero or multiple occurrences unless replace_all: true; old_text must not be empty. Empty new_text removes the matched text, not the file. Preserves unmatched bytes and reports replacements and sizes. Leaf symlinks are refused.",
+            "Replace exact old_text with new_text in an existing UTF-8 file. Read the file first and pass its revision as expected_revision to refuse stale edits. Whitespace and line endings must match exactly. Refuses zero or multiple occurrences unless replace_all: true; old_text must not be empty. Empty new_text removes the matched text, not the file. Preserves unmatched bytes and reports replacements, sizes and the new revision. Leaf symlinks are refused.",
         )
     }
 
@@ -140,6 +146,7 @@ impl EditTool {
                         std::io::Error::from(std::io::ErrorKind::NotFound),
                     )
                 })?;
+                revision::check(input.expected_revision.as_deref(), Some(&before.bytes))?;
                 let source = mutation::validate_text(&before.bytes)?;
                 let count = source.matches(&input.old_text).count();
                 if count == 0 {
@@ -168,16 +175,21 @@ impl EditTool {
                     })?;
                 mutation::check_cancel(cancel)?;
                 let changed = input.old_text != input.new_text;
-                if changed {
+                let revision = if changed {
                     let after = source.replace(&input.old_text, &input.new_text);
+                    let revision = revision::of(after.as_bytes());
                     mutation::commit(&path, Some(&before), after.as_bytes(), maximum, cancel)?;
-                }
+                    revision
+                } else {
+                    revision::of(&before.bytes)
+                };
                 let data = EditResult {
                     path: relative,
                     replacements: count,
                     changed,
                     bytes_before: before.bytes.len(),
                     bytes_after: size,
+                    revision,
                 };
                 let text = format!(
                     "edit {:?}: replacements={}, changed={}, bytes_before={}, bytes_after={}\n",

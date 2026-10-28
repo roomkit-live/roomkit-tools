@@ -182,6 +182,60 @@ fn call(name: &str, input: Value) -> ToolCall {
 }
 
 #[tokio::test]
+async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("notes");
+    std::fs::write(&path, "count=1\nowner=Alex\n").unwrap();
+    let read = ReadToolset::new(ReadTool::new(root.path()).await.unwrap());
+    let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+    let edit = EditToolset::new(EditTool::from_workspace(workspace.clone()));
+    let write = WriteToolset::new(WriteTool::from_workspace(workspace));
+    let ToolOutput::Json(original) = read
+        .call(call("read", json!({"path":"notes", "limit":1})), context())
+        .await
+        .unwrap()
+    else {
+        panic!("expected JSON")
+    };
+    let revision = &original["data"]["revision"];
+    assert!(revision.as_str().unwrap().starts_with("sha256:"));
+    assert!(
+        edit.tools()[0].parameters["properties"]
+            .get("expected_revision")
+            .is_some()
+    );
+    std::fs::write(&path, "count=1\nowner=Drew\n").unwrap();
+    let stale_edit = json!({"path":"notes", "old_text":"count=1", "new_text":"count=2", "expected_revision":revision});
+    assert!(matches!(
+        edit.call(call("edit", stale_edit.clone()), context()).await,
+        Err(ToolError::Refused(_))
+    ));
+    assert!(matches!(write.call(call("write", json!({"path":"notes", "content":"replaced", "overwrite":true, "expected_revision":revision})), context()).await, Err(ToolError::Refused(_))));
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        "count=1\nowner=Drew\n"
+    );
+    let ToolOutput::Json(current) = read
+        .call(call("read", json!({"path":"notes"})), context())
+        .await
+        .unwrap()
+    else {
+        panic!("expected JSON")
+    };
+    let mut fresh = stale_edit;
+    fresh["expected_revision"] = current["data"]["revision"].clone();
+    let ToolOutput::Json(changed) = edit.call(call("edit", fresh), context()).await.unwrap() else {
+        panic!("expected JSON")
+    };
+    assert_eq!(changed["data"]["changed"], true);
+    assert_ne!(changed["data"]["revision"], current["data"]["revision"]);
+    assert_eq!(
+        std::fs::read_to_string(path).unwrap(),
+        "count=2\nowner=Drew\n"
+    );
+}
+
+#[tokio::test]
 async fn adapters_keep_overwrite_and_ambiguity_refusals_and_close_independently() {
     let root = tempfile::tempdir().unwrap();
     let workspace = MutationWorkspace::new(root.path()).await.unwrap();

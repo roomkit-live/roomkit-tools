@@ -20,6 +20,8 @@ serde_json = "1"
 schemars = "1.2"
 globset = "0.4"
 regex = "1"
+# Content revisions for optimistic filesystem mutations; never in core.
+sha2 = "0.10"
 thiserror = "2"
 # Runtime dependencies belong to the tools, never the contracts crate.
 tokio = { version = "1", default-features = false }

@@ -464,6 +464,7 @@ dependencies = [
  "roomkit-tools-core",
  "schemars",
  "serde",
+ "sha2",
  "tempfile",
  "tokio",
  "tokio-util",

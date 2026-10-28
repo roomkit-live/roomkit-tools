@@ -16,7 +16,7 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
     std::fs::create_dir(directory.path().join("info"))?;
     std::fs::write(
         directory.path().join("info/hours.txt"),
-        "Saturday: 08:30-16:00\n",
+        "Opening hours\nSaturday: 08:30-16:00\n",
     )?;
     let cancel = CancellationToken::new();
     let listing = ListTool::new(directory.path())
@@ -29,9 +29,11 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
         .glob(GlobInput::new("**/*.txt"), &cancel)
         .await?;
     print!("glob:\n{}", paths.text);
+    let mut search = GrepInput::new("Saturday");
+    search.context_before = 1;
     let matches = GrepTool::new(directory.path())
         .await?
-        .grep(GrepInput::new("Saturday"), &cancel)
+        .grep(search, &cancel)
         .await?;
     print!("grep:\n{}", matches.text);
     let Some(found) = paths.data.entries.first() else {
@@ -45,7 +47,13 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
     Ok(
         if listing.data.entries.len() == 1
             && matches.data.matches.len() == 1
-            && read.text == "1: Saturday: 08:30-16:00\n"
+            && matches.data.matches.first().is_some_and(|found| {
+                found
+                    .context_before
+                    .first()
+                    .is_some_and(|line| line.text == "Opening hours")
+            })
+            && read.text == "1: Opening hours\n2: Saturday: 08:30-16:00\n"
         {
             ExitCode::SUCCESS
         } else {

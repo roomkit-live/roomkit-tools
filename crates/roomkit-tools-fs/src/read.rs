@@ -5,9 +5,12 @@ use crate::paths::Root;
 use roomkit_tools_core::{Definition, Error, Output};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::fs::{self, File};
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio_util::sync::CancellationToken;
+
+const READ_CHUNK_BYTES: usize = 64 * 1024;
 
 /// A request to read a page of UTF-8 text.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -42,7 +45,8 @@ const fn first_line() -> NonZeroUsize {
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub struct ReadLimits {
-    /// Maximum bytes ingested from one file. Default: 8 MiB.
+    /// Maximum bytes scanned from one file. Default: 8 MiB. Memory is page-bounded;
+    /// raise this limit explicitly to read larger files.
     pub max_file_bytes: usize,
     /// Maximum bytes in the numbered text returned to the model. Default: 50 KiB.
     pub max_output_bytes: usize,
@@ -80,6 +84,9 @@ pub struct ReadPage {
     pub truncated: bool,
     /// First line of the next page, or `None` at EOF.
     pub next_offset: Option<usize>,
+    /// SHA-256 revision of all raw file bytes, including BOM and line endings.
+    /// Pass as `expected_revision` to write/edit to refuse stale changes.
+    pub revision: String,
 }
 
 /// A read-only tool restricted to regular files beneath a host-selected root.
@@ -130,7 +137,7 @@ impl ReadTool {
     pub fn definition() -> Definition {
         Definition::new::<ReadInput, ReadPage>(
             "read",
-            "Read a page of UTF-8 text from a file inside the configured workspace. Lines are numbered from one. Large pages return next_offset; binary files and files above the host's ingestion limit are refused.",
+            "Read a page of UTF-8 text from a file inside the configured workspace. Lines are numbered from one. Large pages return next_offset. Returns a revision of the whole file; pass it as expected_revision to write/edit to refuse stale changes. The full file is scanned with bounded memory; binary files and files above the host's ingestion limit are refused.",
         )
     }
 
@@ -174,72 +181,344 @@ impl ReadTool {
             operation: "open the file",
             source,
         })?;
-        let mut bytes = Vec::new();
-        file.take(maximum + 1)
-            .read_to_end(&mut bytes)
+        scan(file.take(maximum + 1), &path, &input, self.limits).await
+    }
+}
+
+async fn scan(
+    mut reader: impl AsyncRead + Unpin,
+    path: &Path,
+    input: &ReadInput,
+    limits: ReadLimits,
+) -> Result<Output<ReadPage>, Error> {
+    let mut page = Page::new(input, limits);
+    let mut hash = Sha256::new();
+    let mut buffer = vec![0; READ_CHUNK_BYTES];
+    let mut pending = 0;
+    let mut ingested = 0;
+    let mut first = true;
+    loop {
+        let count = reader
+            .read(buffer.split_at_mut(pending).1)
             .await
             .map_err(|source| Error::Io {
                 operation: "read the file",
                 source,
             })?;
-        if bytes.len() > self.limits.max_file_bytes {
+        if count > limits.max_file_bytes - ingested {
             return Err(Error::LimitExceeded("file exceeds max_file_bytes".into()));
         }
-        let bytes = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(&bytes);
-        let text = std::str::from_utf8(bytes)
-            .map_err(|_| Error::Unsupported("file is not UTF-8 text".into()))?;
-        if text.contains('\0') {
+        ingested += count;
+        let length = pending + count;
+        let bytes = buffer.split_at(length).0;
+        hash.update(bytes.split_at(pending).1);
+        if bytes.contains(&0) {
             return Err(Error::Unsupported("file contains binary NUL bytes".into()));
         }
-        render_page(&path, text, &input, self.limits)
+        let (text, complete) = match std::str::from_utf8(bytes) {
+            Ok(text) => (text, length),
+            Err(error) if error.error_len().is_none() && count > 0 => {
+                let complete = error.valid_up_to();
+                let text = std::str::from_utf8(bytes.split_at(complete).0)
+                    .map_err(|_| Error::Unsupported("file is not UTF-8 text".into()))?;
+                (text, complete)
+            }
+            Err(_) => return Err(Error::Unsupported("file is not UTF-8 text".into())),
+        };
+        if !text.is_empty() {
+            let text = if first {
+                first = false;
+                text.strip_prefix('\u{feff}').unwrap_or(text)
+            } else {
+                text
+            };
+            page.push(text)?;
+        }
+        if count == 0 {
+            break;
+        }
+        buffer.copy_within(complete..length, 0);
+        pending = length - complete;
+        // A buffered/in-memory reader may always be ready. Yield between bounded
+        // chunks so cancellation can also interrupt long scans of such readers.
+        tokio::task::yield_now().await;
+    }
+    page.finish(path, crate::revision::finish(hash))
+}
+
+struct Page {
+    offset: usize,
+    limit: usize,
+    bytes: usize,
+    number: usize,
+    total: usize,
+    current: String,
+    line_open: bool,
+    oversized: bool,
+    lines: Vec<ReadLine>,
+    text: String,
+    next_offset: Option<usize>,
+}
+
+impl Page {
+    fn new(input: &ReadInput, limits: ReadLimits) -> Self {
+        Self {
+            offset: input.offset.get(),
+            limit: input
+                .limit
+                .map_or(limits.max_lines, NonZeroUsize::get)
+                .min(limits.max_lines),
+            bytes: limits.max_output_bytes,
+            number: 1,
+            total: 0,
+            current: String::new(),
+            line_open: false,
+            oversized: false,
+            lines: Vec::new(),
+            text: String::new(),
+            next_offset: None,
+        }
+    }
+
+    fn push(&mut self, text: &str) -> Result<(), Error> {
+        for part in text.split_inclusive('\n') {
+            self.line_open = true;
+            let fragment = part.strip_suffix('\n').unwrap_or(part);
+            if self.number >= self.offset && self.next_offset.is_none() {
+                if self.lines.len() >= self.limit {
+                    self.next_offset = Some(self.number);
+                } else if !self.oversized {
+                    // Keep at most the output bound, even for a single huge line.
+                    // Prefix/newline costs and CRLF removal are settled at its end.
+                    if fragment.len() > self.bytes - self.text.len() - self.current.len() {
+                        self.oversized = true;
+                        self.current.clear();
+                    } else {
+                        self.current.push_str(fragment);
+                    }
+                }
+            }
+            if part.ends_with('\n') {
+                if self.current.ends_with('\r') {
+                    self.current.pop();
+                }
+                self.end_line()?;
+            }
+        }
+        Ok(())
+    }
+
+    fn end_line(&mut self) -> Result<(), Error> {
+        if self.number >= self.offset && self.next_offset.is_none() {
+            let prefix = format!("{}: ", self.number);
+            let size = prefix
+                .len()
+                .saturating_add(self.current.len())
+                .saturating_add(1);
+            if self.oversized || size > self.bytes - self.text.len() {
+                if self.lines.is_empty() {
+                    return Err(Error::LimitExceeded(
+                        "one line exceeds max_output_bytes".into(),
+                    ));
+                }
+                self.next_offset = Some(self.number);
+            } else {
+                self.text.push_str(&prefix);
+                self.text.push_str(&self.current);
+                self.text.push('\n');
+                self.lines.push(ReadLine {
+                    number: self.number,
+                    text: std::mem::take(&mut self.current),
+                });
+            }
+        }
+        self.current.clear();
+        self.oversized = false;
+        self.line_open = false;
+        self.total = self.number;
+        self.number = self
+            .number
+            .checked_add(1)
+            .ok_or_else(|| Error::LimitExceeded("file has too many lines to represent".into()))?;
+        Ok(())
+    }
+
+    fn finish(mut self, path: &Path, revision: String) -> Result<Output<ReadPage>, Error> {
+        if self.line_open {
+            self.end_line()?;
+        }
+        if self.offset > self.total && !(self.offset == 1 && self.total == 0) {
+            return Err(Error::InvalidInput(
+                "offset is beyond the end of the file".into(),
+            ));
+        }
+        Ok(Output::new(
+            ReadPage {
+                path: path.display().to_string(),
+                lines: self.lines,
+                truncated: self.next_offset.is_some(),
+                next_offset: self.next_offset,
+                revision,
+            },
+            self.text,
+        ))
     }
 }
 
-fn render_page(
-    path: &Path,
-    text: &str,
-    input: &ReadInput,
-    limits: ReadLimits,
-) -> Result<Output<ReadPage>, Error> {
-    let offset = input.offset.get();
-    let total = text.lines().count();
-    if offset > total && !(offset == 1 && total == 0) {
-        return Err(Error::InvalidInput(
-            "offset is beyond the end of the file".into(),
-        ));
+#[cfg(test)]
+mod tests {
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+
+    use tokio::io::ReadBuf;
+
+    use super::*;
+
+    struct Fragmented<'a> {
+        bytes: &'a [u8],
+        chunk: usize,
     }
-    let limit = input
-        .limit
-        .map_or(limits.max_lines, NonZeroUsize::get)
-        .min(limits.max_lines);
-    let mut lines = Vec::new();
-    let mut rendered = String::new();
-    let mut next_offset = None;
-    for (index, line) in text.lines().enumerate().skip(offset - 1) {
-        let number = index + 1;
-        let numbered = format!("{number}: {line}\n");
-        if lines.len() >= limit || numbered.len() > limits.max_output_bytes - rendered.len() {
-            if lines.is_empty() {
-                return Err(Error::LimitExceeded(
-                    "one line exceeds max_output_bytes".into(),
+
+    impl AsyncRead for Fragmented<'_> {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            buffer: &mut ReadBuf<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            let this = self.get_mut();
+            assert!(buffer.remaining() <= READ_CHUNK_BYTES);
+            let count = this.chunk.min(this.bytes.len()).min(buffer.remaining());
+            let (chunk, remaining) = this.bytes.split_at(count);
+            buffer.put_slice(chunk);
+            this.bytes = remaining;
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[tokio::test]
+    async fn fragmented_utf8_bom_and_line_endings_match_standard_text_lines() {
+        for text in [
+            "",
+            "\u{feff}",
+            "\u{feff}π🦀\r\n\nlast\r",
+            "\r\n\r\nx\n",
+            "x\r",
+        ] {
+            let source: Vec<_> = text
+                .strip_prefix('\u{feff}')
+                .unwrap_or(text)
+                .lines()
+                .collect();
+            for chunk in 1..=8 {
+                for offset in 1..=source.len().max(1) {
+                    let mut input = ReadInput::new("fragmented");
+                    input.offset = NonZeroUsize::new(offset).unwrap();
+                    input.limit = NonZeroUsize::new(2);
+                    let result = scan(
+                        Fragmented {
+                            bytes: text.as_bytes(),
+                            chunk,
+                        },
+                        Path::new("fragmented"),
+                        &input,
+                        ReadLimits::default(),
+                    )
+                    .await
+                    .unwrap();
+                    let expected: Vec<_> = source
+                        .iter()
+                        .enumerate()
+                        .skip(offset - 1)
+                        .take(2)
+                        .map(|(i, text)| ReadLine {
+                            number: i + 1,
+                            text: (*text).to_owned(),
+                        })
+                        .collect();
+                    assert_eq!(
+                        result.data.lines, expected,
+                        "chunk={chunk}, offset={offset}"
+                    );
+                    assert_eq!(
+                        result.data.next_offset,
+                        (offset + 1 < source.len()).then_some(offset + 2)
+                    );
+                    assert_eq!(result.data.revision, crate::revision::of(text.as_bytes()));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_bytes_after_a_full_page_are_still_refused() {
+        for bytes in [b"valid\n\xff".as_slice(), b"valid\n\xf0\x9f", b"valid\n\0"] {
+            for chunk in 1..=8 {
+                let mut input = ReadInput::new("fragmented");
+                input.limit = NonZeroUsize::new(1);
+                assert!(matches!(
+                    scan(
+                        Fragmented { bytes, chunk },
+                        Path::new("fragmented"),
+                        &input,
+                        ReadLimits::default(),
+                    )
+                    .await,
+                    Err(Error::Unsupported(_))
                 ));
             }
-            next_offset = Some(number);
-            break;
         }
-        rendered.push_str(&numbered);
-        lines.push(ReadLine {
-            number,
-            text: line.to_owned(),
-        });
     }
-    Ok(Output::new(
-        ReadPage {
-            path: path.display().to_string(),
-            lines,
-            truncated: next_offset.is_some(),
-            next_offset,
-        },
-        rendered,
-    ))
+
+    #[tokio::test]
+    async fn a_scan_refuses_growth_past_the_ingestion_budget() {
+        let limits = ReadLimits {
+            max_file_bytes: 4,
+            ..ReadLimits::default()
+        };
+        assert!(matches!(
+            scan(
+                Fragmented {
+                    bytes: b"a\nb\nc\n",
+                    chunk: 2
+                },
+                Path::new("growing"),
+                &ReadInput::new("growing"),
+                limits,
+            )
+            .await,
+            Err(Error::LimitExceeded(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn ready_readers_yield_so_an_in_progress_scan_can_be_cancelled() {
+        let mut reader = Fragmented {
+            bytes: b"a\nb\nc\n",
+            chunk: 2,
+        };
+        let input = ReadInput::new("fragmented");
+        let cancel = CancellationToken::new();
+        {
+            let scan = scan(
+                &mut reader,
+                Path::new("fragmented"),
+                &input,
+                ReadLimits::default(),
+            );
+            tokio::pin!(scan);
+            // One poll consumes a chunk and reaches the cooperative yield.
+            std::future::poll_fn(|ctx| {
+                assert!(scan.as_mut().poll(ctx).is_pending());
+                Poll::Ready(())
+            })
+            .await;
+            cancel.cancel();
+            let result = tokio::select! { biased;
+                () = cancel.cancelled() => Err(Error::Cancelled),
+                result = scan => result,
+            };
+            assert!(matches!(result, Err(Error::Cancelled)));
+        }
+        assert_eq!(reader.bytes, b"b\nc\n");
+    }
 }

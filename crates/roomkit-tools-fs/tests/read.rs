@@ -128,6 +128,35 @@ async fn a_file_above_the_ingestion_budget_is_refused() {
 }
 
 #[tokio::test]
+async fn large_files_and_huge_unrequested_lines_do_not_expand_the_page() {
+    use std::io::{Read, Write};
+
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("large.txt");
+    let mut file = std::fs::File::create(&path).unwrap();
+    // Generate long surrounding lines without allocating the fixture in memory.
+    std::io::copy(&mut std::io::repeat(b'x').take(12 * 1024 * 1024), &mut file).unwrap();
+    file.write_all("\nselected π\r\n".as_bytes()).unwrap();
+    std::io::copy(&mut std::io::repeat(b'y').take(12 * 1024 * 1024), &mut file).unwrap();
+    drop(file);
+    let mut limits = ReadLimits::default();
+    limits.max_file_bytes = 32 * 1024 * 1024;
+    limits.max_output_bytes = 32;
+    let tool = ReadTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(limits)
+        .unwrap();
+    let mut input = ReadInput::new("large.txt");
+    input.offset = NonZeroUsize::new(2).unwrap();
+    input.limit = NonZeroUsize::new(1);
+    let output = tool.read(input, &CancellationToken::new()).await.unwrap();
+    assert_eq!(output.text, "2: selected π\n");
+    assert_eq!(output.data.next_offset, Some(3));
+    assert_eq!(output.data.lines.len(), 1);
+}
+
+#[tokio::test]
 async fn a_line_that_cannot_fit_is_reported_instead_of_silently_lost() {
     let (_directory, tool) = fixture(b"long line\n").await;
     let mut limits = ReadLimits::default();

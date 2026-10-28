@@ -31,8 +31,9 @@ make fmt-check clippy test doc check-core-deps examples
 Without arguments, `read_file` uses a temporary directory and checks its result.
 With a path, it reads that file beneath the current directory and prints the
 first bounded page. `discover_files` checks `list → glob → grep → read` in a
-temporary directory. `edit_orders` creates, adds, changes and removes customer
-orders in a temporary file. `shell_command` reads two temporary files through a
+temporary directory, including grep context. `edit_orders` creates, adds, changes
+and removes customer orders, carrying a content revision between mutations.
+`shell_command` reads two temporary files through a
 real shell and checks both output streams. `patch_hours` compares a proposal,
 previews and applies a batch, then verifies equality. `process_session` sends an
 order through persistent stdin, reads the response and releases the job. No example needs a model
@@ -59,15 +60,24 @@ and chooses which definitions to expose to its model.
 `ReadTool` returns complete lines, one-based numbers and a continuation
 offset. Defaults are 2,000 lines, 50 KiB of rendered output and 8 MiB of
 file input. It rejects non-text files, files above the ingestion bound,
-and an individual line that cannot fit in a page. The implementation
-currently reads the bounded file before paging it; streaming large-file
-reads are planned. The host owns the root and limits.
+and an individual line that cannot fit in a page. It scans in 64 KiB chunks,
+retaining only the page and a bounded current line. Raise
+`ReadLimits::max_file_bytes` explicitly for larger files; the default remains
+8 MiB. The entire file is still scanned to validate UTF-8/NUL and compute a
+`revision`, including when only a small page was requested. Cancellation can
+interrupt the scan between chunks. The host owns the root and limits.
 
 `list` returns a directory's immediate entries and types. `glob` searches paths
 recursively; `grep` searches matching text lines with an optional file glob.
 Results are sorted and paginated. Hidden entries are included, ignore files
 are not applied, and recursive scans do not follow child symlinks. Traversal,
 ingestion and output have explicit bounds; exceeding a scan bound is an error.
+`grep` accepts optional `context_before` and `context_after` line counts (zero
+by default, at most `GrepLimits::max_context_lines`, default 20 per side). Each
+match carries its own numbered context; overlapping windows may repeat lines.
+Offsets count matching lines only. A match and its context fit together in a
+page or are deferred together; an oversized single group is an explicit error.
+In text output, matches use `path:line:` and context uses `path-line-`.
 
 `write` creates complete UTF-8 files and requires `overwrite: true` to replace
 existing text. `edit` replaces exact text, refusing zero or multiple matches
@@ -78,6 +88,25 @@ require existing parent directories and refuse leaf symlinks. Share one
 Cancellation before commit leaves the destination unchanged; a commit that has
 already started may finish. Root and snapshot checks do not prevent hostile
 concurrent path replacement or guarantee coordination with external writers.
+
+`read`, `write` and `edit` return a content `revision` (`sha256:` plus the digest
+of all raw file bytes, including BOM and line endings). Pass it as
+`expected_revision` to `write` or `edit` to refuse a stale mutation, even when
+the target passage still matches or the file's timestamp did not change.
+The check runs under the shared mutation lock. Overwriting still requires
+`overwrite: true`; a revision also requires the destination to exist. Omitting
+it preserves the original behavior. Successful mutations return the resulting
+revision, so hosts can carry it forward without hidden per-agent read state.
+This is optimistic content checking, not a filesystem compare-and-swap or a
+snapshot guarantee during external concurrent writes. `patch` already uses
+exact expected source contents and retains that contract.
+
+```rust,ignore
+let page = read.read(ReadInput::new("notes.txt"), &cancel).await?;
+let mut input = EditInput::new("notes.txt", "count=1", "count=2");
+input.expected_revision = Some(page.data.revision);
+let result = edit.edit(input, &cancel).await?;
+```
 
 `shell` uses `/bin/sh -c`, closed stdin and the host's environment and permissions.
 It retains 32 KiB per output stream by default, preserving the beginning and end.
@@ -202,8 +231,9 @@ Only the model connection changes; the registered Rust tool stays the same.
 It runs once in the console; it does not start an HTTP server or a chat page.
 
 The native binding is a separate Cargo workspace and uses the stable Python ABI
-from 3.12. Other tools, platforms, free-threaded builds and streaming large-file
-reads remain outside the validated Python slice. Nothing is published to PyPI.
+from 3.12. The existing read binding uses the same chunked Rust scan and returns
+its revision. Other tools, platforms and free-threaded builds remain outside
+the validated Python slice. Nothing is published to PyPI.
 
 ## License
 

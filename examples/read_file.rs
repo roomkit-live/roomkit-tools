@@ -26,6 +26,7 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
             .read(ReadInput::new(path), &CancellationToken::new())
             .await?;
         print!("{}", result.text);
+        println!("[Revision: {}]", result.data.revision);
         if let Some(offset) = result.data.next_offset {
             println!("[More lines remain; next offset: {offset}]");
         }

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Scan reads in bounded chunks, retaining only the requested page, with UTF-8,
+  BOM/CRLF, byte-limit and cancellation behavior preserved. Host file limits
+  remain explicit; the full file is scanned to validate text and hash its bytes.
+- Return content revisions from read/write/edit and accept optional
+  `expected_revision` on write/edit to refuse stale mutations before writing.
+- Add bounded context lines to grep results while preserving match-based
+  pagination and whole-result output limits.
+
 - Add an optional PyO3/Maturin package exposing the Rust `read` implementation
   through asyncio, with derived schemas, structured results, typed errors and
   cancellation propagation. Validate isolated wheel installation on CPython.

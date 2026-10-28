@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib.util
 import json
 import os
@@ -47,6 +48,7 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
                     "lines": [{"number": 1, "text": "first π"}],
                     "truncated": True,
                     "next_offset": 2,
+                    "revision": "sha256:" + hashlib.sha256(self.source.read_bytes()).hexdigest(),
                 },
                 "text": "1: first π\n",
             },
@@ -54,9 +56,12 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
         last = await self.tool.read(self.source, offset=result["data"]["next_offset"])
         self.assertEqual(last["text"], "2: second\n3: last\n")
         self.assertIsNone(last["data"]["next_offset"])
+        self.assertEqual(last["data"]["revision"], result["data"]["revision"])
         self.assertEqual(self.source.read_bytes(), "\ufefffirst π\r\nsecond\r\nlast".encode())
         self.source.write_text("changed\n")
-        self.assertEqual((await self.tool.read("source.txt"))["text"], "1: changed\n")
+        changed = await self.tool.read("source.txt")
+        self.assertEqual(changed["text"], "1: changed\n")
+        self.assertNotEqual(changed["data"]["revision"], result["data"]["revision"])
 
     def test_definition_is_the_rust_schema_and_each_copy_is_independent(self) -> None:
         definition = self.tool.definition()

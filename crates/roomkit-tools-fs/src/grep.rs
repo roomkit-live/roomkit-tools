@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
@@ -9,6 +10,7 @@ use tokio::fs::{self, File};
 use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 
+use crate::ReadLine;
 use crate::paths::{self, PathEntry, PathKind, Root, first_entry, workspace_path};
 
 /// Search UTF-8 file contents, one match per matching line.
@@ -29,6 +31,12 @@ pub struct GrepInput {
     /// Ignore Unicode letter case. Defaults to false.
     #[serde(default)]
     pub ignore_case: bool,
+    /// Lines of context before each match. Defaults to zero; bounded by the host.
+    #[serde(default)]
+    pub context_before: usize,
+    /// Lines of context after each match. Defaults to zero; bounded by the host.
+    #[serde(default)]
+    pub context_after: usize,
     /// One-based match offset, ordered by path then line.
     #[serde(default = "first_entry")]
     pub offset: NonZeroUsize,
@@ -46,6 +54,8 @@ impl GrepInput {
             include: None,
             literal: false,
             ignore_case: false,
+            context_before: 0,
+            context_after: 0,
             offset: first_entry(),
             limit: None,
         }
@@ -61,6 +71,12 @@ pub struct GrepMatch {
     pub line: usize,
     /// Complete source line without its line ending.
     pub text: String,
+    /// Complete preceding source lines. Nearby matches may share context.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context_before: Vec<ReadLine>,
+    /// Complete following source lines. Context does not advance the match offset.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context_after: Vec<ReadLine>,
 }
 
 /// Matching lines and continuation information.
@@ -94,6 +110,9 @@ pub struct GrepLimits {
     pub max_file_bytes: usize,
     /// Maximum bytes ingested across all scanned files in one call. Default: 32 MiB.
     pub max_total_bytes: usize,
+    /// Maximum requested context lines on either side of a match. Default: 20.
+    /// Zero disables context without disabling ordinary matching.
+    pub max_context_lines: usize,
 }
 
 impl Default for GrepLimits {
@@ -105,6 +124,7 @@ impl Default for GrepLimits {
             max_depth: 32,
             max_file_bytes: 8 * 1024 * 1024,
             max_total_bytes: 32 * 1024 * 1024,
+            max_context_lines: 20,
         }
     }
 }
@@ -160,7 +180,7 @@ impl GrepTool {
     pub fn definition() -> Definition {
         Definition::new::<GrepInput, GrepPage>(
             "grep",
-            "Search UTF-8 file contents by regex or literal text, with an optional file glob. Returns complete matching lines, paths and line numbers. Hidden files are included, child symlinks are not followed, and binary files are skipped and counted. Match offsets start at 1; continue with next_offset.",
+            "Search UTF-8 file contents by regex or literal text, with an optional file glob. Returns complete matching lines, paths and line numbers. Optional context_before/context_after add surrounding source lines to each match (host-bounded, default 0). Hidden files are included, child symlinks are not followed, and binary files are skipped and counted. Match offsets count matches only, starting at 1; continue with next_offset.",
         )
     }
 
@@ -221,6 +241,13 @@ impl GrepTool {
     }
 
     async fn search(&self, input: &GrepInput) -> Result<Output<GrepPage>, Error> {
+        if input.context_before > self.limits.max_context_lines
+            || input.context_after > self.limits.max_context_lines
+        {
+            return Err(Error::LimitExceeded(
+                "requested grep context exceeds max_context_lines".into(),
+            ));
+        }
         if input.pattern.is_empty() || input.pattern.len() > 4096 {
             return Err(Error::InvalidInput(
                 "grep pattern must contain 1 to 4096 bytes".into(),
@@ -262,12 +289,31 @@ impl GrepTool {
                 page.data.skipped_files += 1;
                 continue;
             }
-            for (index, line) in source.lines().enumerate() {
+            let mut preceding = VecDeque::new();
+            let mut lines = source.lines().enumerate();
+            while let Some((index, line)) = lines.next() {
                 if index % 256 == 0 {
                     tokio::task::yield_now().await;
                 }
-                if regex.is_match(line) && !page.push(&file.path, index + 1, line)? {
+                if regex.is_match(line)
+                    && !page.push(
+                        &file.path,
+                        index + 1,
+                        line,
+                        &preceding,
+                        lines
+                            .clone()
+                            .take(input.context_after)
+                            .map(|(i, text)| (i + 1, text)),
+                    )?
+                {
                     break 'files;
+                }
+                if input.context_before > 0 {
+                    if preceding.len() == input.context_before {
+                        preceding.pop_front();
+                    }
+                    preceding.push_back((index + 1, line));
                 }
             }
         }
@@ -339,29 +385,65 @@ impl Matches {
             bytes: limits.max_output_bytes,
         }
     }
-    fn push(&mut self, path: &str, line: usize, text: &str) -> Result<bool, Error> {
+    fn push<'a>(
+        &mut self,
+        path: &str,
+        line: usize,
+        text: &str,
+        before: &VecDeque<(usize, &str)>,
+        after: impl Iterator<Item = (usize, &'a str)>,
+    ) -> Result<bool, Error> {
         self.seen += 1;
         if self.seen < self.offset {
             return Ok(true);
         }
-        let rendered = format!("{path:?}:{line}: {text}\n");
-        if self.data.matches.len() >= self.limit || rendered.len() > self.bytes - self.text.len() {
-            if self.data.matches.is_empty() {
-                return Err(Error::LimitExceeded(
-                    "one matching line exceeds max_output_bytes".into(),
-                ));
+        if self.data.matches.len() >= self.limit {
+            return self.end_page();
+        }
+        let mut rendered = String::new();
+        let mut context_before = Vec::new();
+        let mut context_after = Vec::new();
+        let budget = self.bytes - self.text.len();
+        for &(number, source) in before {
+            if !render_line(&mut rendered, path, number, source, false, budget) {
+                return self.end_page();
             }
-            self.data.truncated = true;
-            self.data.next_offset = Some(self.seen);
-            return Ok(false);
+            context_before.push(ReadLine {
+                number,
+                text: source.to_owned(),
+            });
+        }
+        if !render_line(&mut rendered, path, line, text, true, budget) {
+            return self.end_page();
+        }
+        for (number, source) in after {
+            if !render_line(&mut rendered, path, number, source, false, budget) {
+                return self.end_page();
+            }
+            context_after.push(ReadLine {
+                number,
+                text: source.to_owned(),
+            });
         }
         self.text.push_str(&rendered);
         self.data.matches.push(GrepMatch {
             path: path.to_owned(),
             line,
             text: text.to_owned(),
+            context_before,
+            context_after,
         });
         Ok(true)
+    }
+    fn end_page(&mut self) -> Result<bool, Error> {
+        if self.data.matches.is_empty() {
+            return Err(Error::LimitExceeded(
+                "one matching line and its context exceed max_output_bytes".into(),
+            ));
+        }
+        self.data.truncated = true;
+        self.data.next_offset = Some(self.seen);
+        Ok(false)
     }
     fn finish(self) -> Result<Output<GrepPage>, Error> {
         if self.offset > self.seen && !(self.offset == 1 && self.seen == 0) {
@@ -371,4 +453,26 @@ impl Matches {
         }
         Ok(Output::new(self.data, self.text))
     }
+}
+
+fn render_line(
+    output: &mut String,
+    path: &str,
+    number: usize,
+    text: &str,
+    matched: bool,
+    budget: usize,
+) -> bool {
+    let prefix = if matched {
+        format!("{path:?}:{number}: ")
+    } else {
+        format!("{path:?}-{number}- ")
+    };
+    if prefix.len().saturating_add(text.len()).saturating_add(1) > budget - output.len() {
+        return false;
+    }
+    output.push_str(&prefix);
+    output.push_str(text);
+    output.push('\n');
+    true
 }
