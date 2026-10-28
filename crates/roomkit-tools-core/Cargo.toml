@@ -1,0 +1,17 @@
+[package]
+name = "roomkit-tools-core"
+description = "Runtime-independent contracts for individually selectable agent tools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

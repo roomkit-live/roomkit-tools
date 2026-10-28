@@ -1,0 +1,21 @@
+/target/
+/adapters/roomkit/target/
+/.venv/
+/dist/
+__pycache__/
+*.py[cod]
+*.profraw
+
+# Local credentials and demo databases must not be published.
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+
+# Local planning and internal end-to-end integration assets.
+/AGENTS.md
+/docs/
+/integrations/roomkit-rs/bakery-read.patch
+/scripts/roomkit-bakery.py

@@ -1,0 +1,45 @@
+[package]
+name = "roomkit-tools-roomkit"
+description = "Select individual roomkit-tools through RoomKit Rust's Toolset interface"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+publish = false
+
+# Optional integration workspace: the standalone tools build without a
+# roomkit-rs checkout. During this prototype both repositories are siblings.
+[workspace]
+resolver = "3"
+
+[dependencies]
+roomkit = { path = "../../../roomkit-rs/crates/roomkit" }
+roomkit-ai = { path = "../../../roomkit-rs/crates/roomkit-ai" }
+roomkit-tools-core = { path = "../../crates/roomkit-tools-core" }
+roomkit-tools-fs = { path = "../../crates/roomkit-tools-fs" }
+roomkit-tools-process = { path = "../../crates/roomkit-tools-process" }
+serde_json = "1"
+tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+allow_attributes = "warn"
+
+[lints.rustdoc]
+broken_intra_doc_links = "warn"
+missing_crate_level_docs = "warn"

@@ -1,0 +1,43 @@
+[package]
+name = "roomkit-tools-examples"
+description = "Standalone agent tool examples that check their results"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+roomkit-tools-fs.workspace = true
+roomkit-tools-process.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+tokio-util.workspace = true
+
+[lints]
+workspace = true
+
+[[example]]
+name = "read_file"
+path = "read_file.rs"
+
+[[example]]
+name = "discover_files"
+path = "discover_files.rs"
+
+[[example]]
+name = "edit_orders"
+path = "edit_orders.rs"
+
+[[example]]
+name = "shell_command"
+path = "shell_command.rs"
+
+[[example]]
+name = "patch_hours"
+path = "patch_hours.rs"
+
+
+[[example]]
+name = "process_session"
+path = "process_session.rs"

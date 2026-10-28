@@ -1,0 +1,52 @@
+//! Create, add, update and remove customer orders with independent Rust tools.
+
+#![expect(
+    clippy::print_stdout,
+    reason = "the example displays completed mutations"
+)]
+
+use std::error::Error;
+use std::process::ExitCode;
+
+use roomkit_tools_fs::{
+    EditInput, EditTool, MutationWorkspace, ReadInput, ReadTool, WriteInput, WriteTool,
+};
+use tokio_util::sync::CancellationToken;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<ExitCode, Box<dyn Error>> {
+    let root = tempfile::tempdir()?;
+    let workspace = MutationWorkspace::new(root.path()).await?;
+    let write = WriteTool::from_workspace(workspace.clone());
+    let edit = EditTool::from_workspace(workspace);
+    let cancel = CancellationToken::new();
+    let result = write
+        .write(
+            WriteInput::new("orders.txt", "Orders\n43 | Taylor | 2 notebooks\n"),
+            &cancel,
+        )
+        .await?;
+    print!("{}", result.text);
+    for (old, new) in [
+        ("Orders\n", "Orders\n44 | Alice | 1 pen\n"),
+        ("43 | Taylor | 2 notebooks", "43 | Taylor | 3 notebooks"),
+        ("44 | Alice | 1 pen\n", ""),
+    ] {
+        let result = edit
+            .edit(EditInput::new("orders.txt", old, new), &cancel)
+            .await?;
+        print!("{}", result.text);
+    }
+    let read = ReadTool::new(root.path())
+        .await?
+        .read(ReadInput::new("orders.txt"), &cancel)
+        .await?;
+    print!("{}", read.text);
+    Ok(
+        if read.text == "1: Orders\n2: 43 | Taylor | 3 notebooks\n" {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        },
+    )
+}
