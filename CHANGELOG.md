@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Release Python preview `0.1.0a9` with independently selectable `web_fetch`:
+  Rust `WebFetchTool`, standalone Python `WebFetchTool`, RoomKit Python
+  `WebFetch` and Rust `WebFetchToolset`. No shell, model or RoomKit dependency
+  is required by the new web crate.
+- Fetch UTF-8 HTTP(S) text as Markdown, text or source, preserving code and
+  resolving links against the actual final URL. Expose HTTP status, byte counts
+  and preview truncation; support gzip with a decoded-body limit.
+- Keep exact-origin access rules and private-network exceptions on the host;
+  validate and pin DNS addresses on each redirect, disable ambient proxies and
+  URL credentials, and apply an overall deadline and cancellation.
+- Validate real local HTTP responses across Rust and Python with shared fixtures,
+  including redirects, compression, encoding, size limits and cancellations.
+  Add standalone Rust and RoomKit Python examples with independent verification.
+
 - Release Python preview `0.1.0a8` with optional Rust `OutputStore` disk copies
   for shell and persistent processes, selected by the host. Existing previews
   and result shapes stay unchanged when disabled.

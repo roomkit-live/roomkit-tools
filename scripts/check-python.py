@@ -39,6 +39,21 @@ def main() -> None:
             env={**os.environ, "ROOMKIT_CONTRACT_RESULTS": str(reference)},
             check=True,
         )
+        web_reference = work / "rust-web.json"
+        subprocess.run(
+            [
+                "cargo",
+                "test",
+                "--locked",
+                "-p",
+                "roomkit-tools-examples",
+                "--test",
+                "web_contracts",
+            ],
+            cwd=root,
+            env={**os.environ, "ROOMKIT_WEB_RESULTS": str(web_reference)},
+            check=True,
+        )
         wheels = work / "wheels"
         if options.wheel:
             wheel = options.wheel.resolve()
@@ -63,6 +78,7 @@ def main() -> None:
             names = archive.namelist()
             assert any(name.endswith((".so", ".pyd")) for name in names), names
             assert "roomkit_tools/py.typed" in names, names
+            assert "roomkit_tools/licenses/web_transport.txt" in names, names
             assert not any(
                 name.startswith(("docs/", "integrations/"))
                 or "bakery" in name
@@ -121,6 +137,7 @@ def main() -> None:
             run_tests(python, root, work, "test_shell.py")
             run_tests(python, root, work, "test_process.py")
             run_tests(python, root, work, "test_output.py")
+            run_tests(python, root, work, "test_web.py", web_reference=web_reference)
             run_tests(python, root, work, "test_contracts.py", reference=reference)
             run(str(python), "-I", str(root / "examples/discover_files.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/edit_file.py"), cwd=work)
@@ -142,10 +159,17 @@ def main() -> None:
             run(str(python), "-I", str(root / "examples/roomkit_read.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_output.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/roomkit_web.py"), cwd=work)
 
 
 def run_tests(
-    python: Path, root: Path, work: Path, pattern: str, *, reference: Path | None = None
+    python: Path,
+    root: Path,
+    work: Path,
+    pattern: str,
+    *,
+    reference: Path | None = None,
+    web_reference: Path | None = None,
 ) -> None:
     subprocess.run(
         [
@@ -163,7 +187,11 @@ def run_tests(
             "-v",
         ],
         cwd=work,
-        env={**os.environ, "ROOMKIT_CONTRACT_RESULTS": str(reference)} if reference else None,
+        env={
+            **os.environ,
+            **({"ROOMKIT_CONTRACT_RESULTS": str(reference)} if reference else {}),
+            **({"ROOMKIT_WEB_RESULTS": str(web_reference)} if web_reference else {}),
+        },
         check=True,
     )
 

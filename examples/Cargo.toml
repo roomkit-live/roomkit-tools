@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 roomkit-tools-fs.workspace = true
 roomkit-tools-process.workspace = true
+roomkit-tools-web.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 tokio-util.workspace = true
@@ -18,6 +19,7 @@ tokio-util.workspace = true
 roomkit-tools-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tokio = { workspace = true, features = ["net", "io-util"] }
 
 [lints]
 workspace = true
@@ -50,3 +52,7 @@ path = "process_session.rs"
 [[example]]
 name = "read_output"
 path = "read_output.rs"
+
+[[example]]
+name = "fetch_page"
+path = "fetch_page.rs"

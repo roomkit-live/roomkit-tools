@@ -21,6 +21,7 @@ use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool,
 };
+use roomkit_tools_web::WebFetchTool;
 use tokio_util::sync::CancellationToken;
 
 // Each adapter exposes one capability. Composing toolsets remains the host's
@@ -122,6 +123,12 @@ toolset!(
     /// The host and model must inspect these; a served call is not proof that
     /// every requested change was applied. Closing cancels between effects.
     PatchToolset, PatchTool, patch, "patch"
+);
+
+toolset!(
+    /// Fetch textual HTTP content under host origin rules and resource bounds.
+    /// Closing cancels calls; issued blocking conversion may finish later.
+    WebFetchToolset, WebFetchTool, fetch, "web_fetch"
 );
 
 fn tool_error(error: &Error) -> ToolError {

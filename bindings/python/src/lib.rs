@@ -135,6 +135,7 @@ mod mutation;
 mod output;
 mod process;
 mod runtime;
+mod web;
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -317,6 +318,7 @@ rooted_binding!(
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     runtime::install(module)?;
     module.add_class::<Cancellation>()?;
+    module.add_class::<web::PythonWebFetchTool>()?;
     module.add_class::<PythonReadTool>()?;
     module.add_class::<PythonListTool>()?;
     module.add_class::<PythonGlobTool>()?;

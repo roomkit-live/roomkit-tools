@@ -13,6 +13,7 @@ publish = false
 resolver = "3"
 
 [dependencies]
+roomkit-tools-web = { path = "../../crates/roomkit-tools-web" }
 roomkit = { path = "../../../roomkit-rs/crates/roomkit" }
 roomkit-ai = { path = "../../../roomkit-rs/crates/roomkit-ai" }
 roomkit-tools-core = { path = "../../crates/roomkit-tools-core" }
@@ -23,7 +24,7 @@ tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
 
 [dev-dependencies]
 tempfile = "3"
-tokio = { version = "1", features = ["macros", "rt"] }
+tokio = { version = "1", features = ["macros", "rt", "net", "io-util"] }
 
 [lints.rust]
 unsafe_code = "forbid"

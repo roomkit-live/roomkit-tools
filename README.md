@@ -3,12 +3,12 @@
 Individually selectable tools for coding agents, implemented in Rust and
 intended for use from Rust, Python and RoomKit.
 
-**Status: filesystem, shell and persistent process tools in Rust and RoomKit.** The workspace provides
+**Status: filesystem, process, output archive and web fetch tools in Rust and RoomKit.** The workspace provides
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
-`process_write`, `process_stop`, `output_read` and `output_forget`, each independently selectable.
+`process_write`, `process_stop`, `output_read`, `output_forget` and `web_fetch`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python exposes the same sixteen tools, directly selectable in RoomKit.
-Further large-file and lifecycle validation remains planned.
+Python exposes the same seventeen tools, directly selectable in RoomKit.
+Shared contracts and lifecycle regressions cover the implemented capabilities.
 Nothing is published to crates.io or PyPI yet.
 
 ## Start here
@@ -26,6 +26,7 @@ cargo run --example shell_command
 cargo run --example patch_hours
 cargo run --example process_session
 cargo run --example read_output
+cargo run --example fetch_page
 make fmt-check clippy test doc check-core-deps examples
 ```
 
@@ -39,7 +40,8 @@ real shell and checks both output streams. `patch_hours` compares a proposal,
 previews and applies a batch, then verifies equality. `process_session` sends an
 order through persistent stdin, reads the response and releases the job.
 `read_output` retrieves a diagnostic from the middle of an archived log without
-rerunning the command. These Rust examples need no model or RoomKit installation.
+rerunning the command. `fetch_page` follows a local HTTP redirect and checks
+the Markdown result. These Rust examples need no model or RoomKit installation.
 
 The toolchain is pinned in `rust-toolchain.toml`; the MSRV is Rust 1.92.
 Once `cargo-deny` is installed, `make all` runs all local gates. See
@@ -52,9 +54,10 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | `roomkit-tools-core` | Definitions with derived JSON schemas, structured output and typed errors; no I/O or async runtime. |
 | `roomkit-tools-fs` | `ReadTool`, `ListTool`, `GlobTool`, `GrepTool`, `WriteTool`, `EditTool`, `DiffTool`, `PatchTool`: bounded operations beneath an explicit root. |
 | `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup; optional `OutputStore` for disk copies, reads and release. |
+| `roomkit-tools-web` | Independent `WebFetchTool`: HTTP(S) GET, host origin policy, Markdown/text/source conversion, deadlines and byte limits. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
-| `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` the five `Process*Toolset` adapters, `OutputReadToolset` and `OutputForgetToolset`, registered individually. |
-| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes the eight filesystem tools, shell, five persistent-process tools and two output-archive tools. |
+| `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` the five `Process*Toolset` adapters, `OutputReadToolset`, `OutputForgetToolset` and `WebFetchToolset`, registered individually. |
+| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes the eight filesystem tools, shell, five persistent-process tools two output-archive tools and web fetch. |
 
 There is no global tool registry. A host instantiates the tools it needs
 and chooses which definitions to expose to its model.
@@ -139,11 +142,66 @@ Linux is the initial validation platform. Root canonicalization is an
 access check for a host-controlled workspace, not an OS sandbox.
 Sandbox execution is outside this workspace.
 
+## Web fetching
+
+`web_fetch` makes HTTP(S) GET requests and returns Markdown by default, visible
+text with `format="text"`, or the source with `format="html"`. HTML conversion
+preserves code and resolves links against the final URL. Script/style/hidden
+subtrees are omitted from Markdown/text. There is no JavaScript execution,
+browser session or web search. Non-HTML text is preserved in every format.
+This first version supports UTF-8/ASCII textual MIME types and gzip. Other
+encodings and binary resources produce an explicit unsupported-content error.
+
+```python
+from roomkit_tools import WebFetch
+
+# Add just this capability to an existing RoomKit agent.
+agent = AIChannel("agent", provider=provider, tools=[WebFetch()])
+
+# Standalone async Python, with the same native implementation:
+from roomkit_tools import WebFetchTool
+result = await WebFetchTool().fetch("https://example.com", format="markdown")
+print(result["data"]["final_url"], result["data"]["http_ok"])
+print(result["text"])
+```
+
+The host can restrict `allowed_origins` to exact scheme/host/effective-port
+origins. `None` allows public destinations; `[]` denies all. Private, loopback,
+link-local and reserved addresses are refused unless the host explicitly adds
+the exact origin to `private_origins`; this never bypasses `allowed_origins`.
+Each redirect repeats origin and DNS checks. Validated IP addresses are pinned
+for the connection while TLS checks the original hostname. Ambient proxies,
+cookies and URL credentials are disabled. No custom authentication/header API
+is provided. These controls apply to this tool, not other selected capabilities.
+
+Default bounds: 8 KiB URL, 5 MiB decoded body, 5 MiB converted text, 50 KiB
+returned content, 10 redirects, 30-second total deadline (host maximum 120
+seconds). The deadline includes DNS, redirects, downloads and conversion.
+Hosts configure these through `WebFetchLimits` or Python constructor keywords.
+An oversized download is refused, including streaming/decompressed responses;
+a preview is clipped only after successful bounded ingestion and conversion.
+`response_bytes`, `content_bytes`, `omitted_bytes` and `truncated` distinguish
+these stages. A clipped preview has no archive or continuation cursor.
+`status`, `http_ok` and `final_url` describe the actual final HTTP response;
+non-2xx responses remain data if their body is supported. Transport failures,
+refused destinations, limits and unsupported content are typed tool errors.
+
+HTML conversion runs outside the async executor with two slots per tool (shared
+by clones). It checks at most 100,000 visited nodes, 128 levels, expanded link
+bytes and converted bytes. The HTML parser builds a DOM and the final Markdown
+size is checked after conversion: these are work/output bounds, not strict peak
+memory limits. Cancellation drops network work; issued DNS and blocking HTML
+work may finish later. Fetched content remains untrusted reference data.
+
+Run `python examples/roomkit_web.py` for a self-checking local demonstration,
+or add `--live` with `OPENAI_BASE_URL` and `OPENAI_MODEL` for vLLM. The local
+server supplies sample HTML only; HTTP fetching and conversion execute in Rust.
+
 ## API documentation and integration
 
 Run `cargo doc --workspace --no-deps --open` for tool inputs, outputs and limits.
 Schemas are derived from the Rust types used by each implementation. The core
-depends only on Serde, serde_json, Schemars and thiserror; filesystem and process
+depends only on Serde, serde_json, Schemars and thiserror; filesystem, process and network
 I/O and the Tokio runtime belong to the implementation crates.
 
 The optional `adapters/roomkit` workspace currently uses local path dependencies
@@ -153,18 +211,18 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 
 ## Python
 
-The `0.1.0a8` preview exposes **read, list, glob, grep, write, edit, diff, patch,
-shell, the five process tools, output_read and output_forget**. Its prebuilt wheel supports ordinary
+The `0.1.0a9` preview exposes **read, list, glob, grep, write, edit, diff, patch,
+shell, the five process tools, output_read, output_forget and web_fetch**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a8)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a9)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a8 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a9 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a8-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a9-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for

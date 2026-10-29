@@ -15,6 +15,7 @@ from ._native import (
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .output import OutputStore
 from .process import ProcessSession, ShellTool
+from .web import WebFetchTool
 from .workspace import Workspace
 
 type _BoundTool = (
@@ -27,6 +28,7 @@ type _BoundTool = (
     | DiffTool
     | PatchTool
     | ShellTool
+    | WebFetchTool
 )
 
 
@@ -440,3 +442,18 @@ class OutputForget(_OutputAdapter):
     """Explicitly release finished output archives from the selected store."""
 
     _name = "output_forget"
+
+
+class WebFetch(_ToolAdapter):
+    """Select HTTP fetching independently, with host-configured origin rules.
+
+    Keyword arguments are the same as WebFetchTool. Construction performs no I/O.
+    """
+
+    _tool_type = WebFetchTool
+
+    def __init__(self, **configuration: Any) -> None:
+        self._tool = WebFetchTool(**configuration)
+
+    async def _get_tool(self) -> WebFetchTool:
+        return self._tool

@@ -77,11 +77,13 @@ The check builds from the source distribution only; wheel installation does not
 compile Rust. Internal planning and integration assets are excluded from both
 archives. Keep public package metadata, examples and release notes in English.
 
-`tests/fixtures/contracts.json` supplies common reference scenarios for all 16
+`tests/fixtures/contracts.json` supplies common reference scenarios for the 16 filesystem/process/archive
 tools, including optional archive paging and explicit release. The Rust integration test checks expected behavior and file bytes.
 `make python-check` also generates fresh Rust results and compares each installed
 Python package against their complete JSON envelopes and final file bytes. Only
 temporary root paths are normalized; error categories are mapped across languages.
+`tests/fixtures/web.json` adds the `web_fetch` HTTP cases, served locally in
+both languages; installed Python results must match fresh Rust envelopes.
 Process observations wait for explicit state or byte counts. These maintainer
 checks need Rust; installing and using the prebuilt wheel still does not.
 The shared cases complement the larger per-language suites for concurrency,

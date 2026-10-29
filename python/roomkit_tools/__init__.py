@@ -27,8 +27,10 @@ from .roomkit import (
     ProcessWrite,
     Read,
     Shell,
+    WebFetch,
     Write,
 )
+from .web import WebFetchTool
 from .workspace import Workspace
 
 __all__ = [
@@ -66,4 +68,6 @@ __all__ = [
     "Workspace",
     "Write",
     "WriteTool",
+    "WebFetch",
+    "WebFetchTool",
 ]
