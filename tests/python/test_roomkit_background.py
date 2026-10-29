@@ -39,14 +39,18 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(15):
                 demo = await example.automatic(Path(root), worker=ParallelWorker())
             self.assertEqual([t["end"] for t in demo.tasks.values()], ["completed", "cancelled"])
-            self.assertEqual(len(demo.posts), 1)
+            self.assertEqual(len(demo.handoffs), 1)
+            self.assertFalse(demo.posts)
 
-    async def test_interactive_commands_work_without_a_speaker_model(self):
+    async def test_interactive_commands_only_use_the_speaker_for_returned_outcomes(self):
         example = load_example()
 
-        class UnusedSpeaker(example.MockAIProvider):
+        class ResultSpeaker(example.SpeakerProvider):
             async def generate(self, context):
-                raise AssertionError("Terminal commands must not ask the model to act")
+                text = str(context.messages[-1].content)
+                if not text.startswith("[Instruction from the application:"):
+                    raise AssertionError("Terminal commands must not ask the model to act")
+                return await super().generate(context)
 
         lines = [
             "/start",
@@ -70,11 +74,12 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
         ):
             async with asyncio.timeout(15):
                 demo = await example.interactive(
-                    Path(root), UnusedSpeaker(), example.WorkerProvider(), True
+                    Path(root), ResultSpeaker(), example.WorkerProvider(), True
                 )
             self.assertEqual([t["end"] for t in demo.tasks.values()], ["cancelled", "cancelled"])
             self.assertEqual(len({t["child_room_id"] for t in demo.tasks.values()}), 2)
-            self.assertFalse(demo.answers)
+            self.assertEqual(len(demo.answers), 2)
+            self.assertEqual(len(demo.deliveries), 2)
             self.assertTrue(all(e.channel_id == "researcher" for e in demo.tools))
             text = output.getvalue()
             self.assertIn("one task at a time", text)
@@ -100,8 +105,11 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("A docstring documents", output.getvalue())
             self.assertEqual(len(demo.tasks), 1)
             self.assertEqual(demo.latest()["end"], "cancelled")
-            self.assertEqual(len(demo.posts), 1)
-            self.assertEqual(next(iter(demo.posts.values())).metadata["task_status"], "cancelled")
+            self.assertFalse(demo.posts)
+            self.assertEqual(len(demo.handoffs), 1)
+            self.assertEqual(
+                next(iter(demo.handoffs.values())).metadata["task_status"], "cancelled"
+            )
             self.assertEqual(output.getvalue().count("Verified:"), 1)
 
     async def test_host_commands_restart_after_completion_and_reject_unknown_tasks(self):
@@ -121,7 +129,7 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
                     await terminal.handle("/cancel", "unknown")
                     self.assertIsNone(first["end"])
                     await terminal.handle("/release", first["task_id"])
-                    await demo.until(lambda: first["end"] == "completed" and demo.posts, "no post")
+                    await demo.until(lambda: demo.delivery_finished(first), "no relay")
                     await terminal.handle("/check", first["task_id"])
                     await terminal.handle("/cancel")
                     await terminal.handle("/release")
@@ -133,7 +141,8 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
                     await terminal.handle("/cancel")
                     demo.verify_task(first)
                     demo.verify_task(second)
-                    self.assertEqual(len(demo.posts), 2)
+                    self.assertEqual(len(demo.deliveries), 2)
+                    self.assertFalse(demo.posts)
                     self.assertIn("unknown task id", output.getvalue())
                     self.assertIn("nothing to cancel", output.getvalue())
                     self.assertIn("nothing to release", output.getvalue())
@@ -197,7 +206,14 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(15):
                 demo = await example.automatic(Path(root))
             self.assertEqual([t["end"] for t in demo.tasks.values()], ["completed", "cancelled"])
-            self.assertEqual(len(demo.posts), 1)
+            self.assertFalse(demo.posts)
+            self.assertEqual(len(demo.handoffs), 1)
+            self.assertEqual(len(demo.deliveries), 1)
+            completed = next(iter(demo.tasks.values()))
+            reply = demo.task_replies(completed)
+            self.assertEqual(len(reply), 1)
+            self.assertIn("The background analysis found:", reply[0].content.body)
+            self.assertFalse(reply[0].content.body.startswith("Result of the task"))
             self.assertEqual(demo.turns.count(example.CHAT), 2)
             self.assertEqual(len(demo.gate.cancelled), 1)
             self.assertEqual(
@@ -225,6 +241,8 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(task["end"], "cancelled")
                 self.assertIn(child, demo.gate.cancelled)
                 self.assertFalse(demo.posts)
+                self.assertFalse(demo.handoffs)
+                self.assertFalse(demo.deliveries)
                 self.assertFalse(demo.gate.releases[child].is_set())
             finally:
                 await demo.close()
@@ -262,9 +280,123 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(15):
                 demo = await example.automatic(Path(root))
             completed = next(iter(demo.tasks.values()))
-            demo.posts.clear()
+            replies = list(demo.answers)
+            demo.answers.clear()
+            with self.assertRaisesRegex(RuntimeError, "no assistant reply"):
+                demo.verify_task(completed)
+            demo.answers[:] = replies
+            demo.handoffs.clear()
             with self.assertRaisesRegex(RuntimeError, "exactly one result"):
                 demo.verify_task(completed)
             await asyncio.to_thread(Path(root, "shipping.py").write_text, "changed\n")
             with self.assertRaisesRegex(RuntimeError, "source changed"):
                 demo.verify_files()
+
+    async def test_completed_worker_waits_for_assistant_reply_and_keeps_chat_separate(self):
+        example = load_example()
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        class SlowSpeaker(example.SpeakerProvider):
+            async def generate(self, context):
+                if str(context.messages[-1].content).startswith(
+                    "[Instruction from the application:"
+                ):
+                    entered.set()
+                    await release.wait()
+                return await super().generate(context)
+
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()) as output:
+            demo = example.BackgroundDemo(Path(root), speaker=SlowSpeaker())
+            try:
+                async with asyncio.timeout(15):
+                    await demo.open()
+                    await demo.start()
+                    await entered.wait()
+                    task = demo.latest()
+                    self.assertEqual(task["end"], "completed")
+                    self.assertIn("assistant reply pending", demo.state(task))
+                    await example.TerminalCommands(demo).handle("/check")
+                    self.assertIn("verification pending", output.getvalue())
+                    await demo.say(example.CHAT)
+                    self.assertFalse(demo.task_replies(task))
+                    self.assertTrue(demo.answers)
+                    release.set()
+                    await demo.until(lambda: demo.delivery_finished(task), "relay unfinished")
+                    demo.verify_task(task)
+                    replies = demo.task_replies(task)
+                    self.assertEqual(len(replies), 1)
+                    self.assertNotIn("A docstring documents", replies[0].content.body)
+                    self.assertFalse(demo.posts)
+            finally:
+                await demo.close()
+
+    async def test_empty_assistant_reply_does_not_validate_worker_completion(self):
+        example = load_example()
+
+        class SilentSpeaker(example.SpeakerProvider):
+            async def generate(self, context):
+                if str(context.messages[-1].content).startswith(
+                    "[Instruction from the application:"
+                ):
+                    return example.AIResponse(content="")
+                return await super().generate(context)
+
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()):
+            async with asyncio.timeout(15):
+                with self.assertRaisesRegex(RuntimeError, "no assistant reply"):
+                    await example.automatic(Path(root), speaker=SilentSpeaker())
+
+    async def test_close_cancels_the_assistant_turn_receiving_the_result(self):
+        example = load_example()
+        entered, cancelled = asyncio.Event(), asyncio.Event()
+
+        class HeldSpeaker(example.SpeakerProvider):
+            async def generate(self, context):
+                if str(context.messages[-1].content).startswith(
+                    "[Instruction from the application:"
+                ):
+                    entered.set()
+                    try:
+                        await asyncio.Event().wait()
+                    except asyncio.CancelledError:
+                        cancelled.set()
+                        raise
+                return await super().generate(context)
+
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()):
+            demo = example.BackgroundDemo(Path(root), speaker=HeldSpeaker())
+            try:
+                async with asyncio.timeout(15):
+                    await demo.open()
+                    await demo.start()
+                    await entered.wait()
+                    await demo.close()
+                    self.assertTrue(cancelled.is_set())
+                    self.assertEqual(demo.latest()["end"], "completed")
+                    self.assertFalse(demo.task_replies(demo.latest()))
+                    self.assertFalse(demo.posts)
+            finally:
+                await demo.close()
+
+    async def test_blocked_delivery_never_falls_back_to_posting_the_report(self):
+        example = load_example()
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()):
+            demo = example.BackgroundDemo(Path(root))
+            try:
+                async with asyncio.timeout(15):
+                    await demo.open()
+
+                    @demo.kit.hook(example.HookTrigger.BEFORE_DELIVER)
+                    async def refuse(event, context):
+                        return example.HookResult.block("Blocked for this test")
+
+                    await demo.start()
+                    task = demo.latest()
+                    await demo.until(lambda: demo.delivery_finished(task), "delivery unfinished")
+                    self.assertEqual(task["end"], "completed")
+                    self.assertFalse(demo.answers)
+                    self.assertFalse(demo.posts)
+                    with self.assertRaisesRegex(RuntimeError, "expected exactly one result"):
+                        demo.verify_task(task)
+            finally:
+                await demo.close()

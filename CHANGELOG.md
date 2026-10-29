@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Return background results to the main assistant with RoomKit's `relay`
+  mode, so it presents the findings in the conversation. Verify the internal
+  delivery and its linked assistant reply, and distinguish worker completion
+  from a pending reply. Keep terminal task commands independent of the model.
+
 - Make the background example's terminal commands execute through RoomKit's
   host API, independently of model tool selection. Add `/list`, explicit pause
   states, fresh task launches after completion and idempotent cancellation

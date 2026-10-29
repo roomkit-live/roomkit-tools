@@ -943,13 +943,17 @@ The worker selects only `CodeOutline`, `Grep` and `Read` from this package.
 The essential wiring, after registering both channels, is:
 
 ```python
-kit.setup_background(assistant, worker="researcher", hand_back="post")
+kit.setup_background(assistant, worker="researcher", hand_back="relay")
 kit.setup_task_tools(assistant)
 ```
 
 Each request gets a new child room and task id, using the configured researcher
-profile. Its report is posted directly to the parent conversation, without
-another model turn to paraphrase it. This example allows one active task and
+profile. RoomKit returns its result through `kit.deliver()`, as an internal
+instruction addressed to the main assistant. The assistant takes a new model
+turn to explain the findings in the conversation's language. The worker's
+report is not published directly. RoomKit also supports `hand_back="post"`
+for applications that want a direct report without that additional model turn.
+This example allows one active task and
 eight launches per session. The worker has a ten-round, ten-minute tool-loop
 budget; the demonstration pause lasts at most five minutes.
 
@@ -958,14 +962,19 @@ to call a tool. `/start` calls `kit.start_task` for a new analysis; `/status`
 and `/list` show observed task states; `/cancel` calls `kit.cancel_task` for the
 latest task. Repeating `/start` after completion creates a new task and child
 room. Starting while another task runs is refused. Cancelling an ended task
-reports its actual state. Host cancellation posts a cancellation notice.
+reports its actual state. Host cancellation notifies the assistant, which
+acknowledges it; cancellation through the assistant's own tool suppresses an
+extra notification turn.
 Ordinary requests still go to the main assistant, which retains its task tools.
 With `--hold`, the demo deliberately pauses the
 worker's `code_outline` call until `/release`, making concurrent conversation
 and cancellation easy to observe. Omit `--hold` to run without that pause.
-Status distinguishes the demo pause from an unpaused running task. `/check`
-verifies the latest finished task, or reports verification pending while it
-runs. `/status`, `/cancel`, `/release` and `/check` also accept a task id from
+Status distinguishes the demo pause, an unpaused running task and a completed
+worker whose assistant reply is still pending. `/check` verifies actual worker
+tools, one result delivery and a completed assistant reply linked to that
+result. It reports verification pending until the reply finishes; an absent
+or interrupted reply does not validate the scenario. `/status`, `/cancel`,
+`/release` and `/check` also accept a task id from
 this conversation. `/help` lists commands; unknown slash commands stay local.
 `quit` closes the tasks and removes
 the temporary project without repeating that verification report.
@@ -976,13 +985,14 @@ requested alongside the paused outline have the same five-minute allowance.
 
 The automatic modes control the same pause: first they verify a separate chat
 reply and running status, then release the worker and check its actual tool
-results and one result delivery. A second task exercises cancellation of the
-pending call. File bytes must remain unchanged. Scripted checks require no
+results, one result delivery and the assistant's reply. A second task exercises
+cancellation of the pending call. File bytes must remain unchanged. Scripted checks require no
 service; `--live` uses the configured vLLM for both agents. These automatic
 modes exercise model task tools, and fail explicitly if a model only claims
 to start or cancel work without doing so. Tests also cover
 shutdown with a pending call, repeated launch refusal, host/model capacity
-sharing and terminal commands with a speaker that cannot call tools.
+sharing, terminal commands independent of model tool selection, an empty
+assistant reply, and shutdown while the assistant is receiving a result.
 
 This is an orchestration example using the existing a12 package. It adds no
 task tools to the native catalogue or new task scheduler. Agent profiles are
