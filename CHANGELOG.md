@@ -2,13 +2,24 @@
 
 ## Unreleased
 
+- Extend the Python preview to `0.1.0a6` with `ProcessSession` and individually
+  selectable `ProcessStart`, `ProcessStatus`, `ProcessRead`, `ProcessWrite` and
+  `ProcessStop` RoomKit tools. Reuse the Rust manager, schemas, host limits,
+  byte cursors, explicit stdin/EOF, partial writes and process-group cleanup.
+- Share one lazy native registry per session across tools and event loops;
+  isolate separately constructed sessions. Add explicit async lifecycle handling,
+  cancellation-resistant shutdown and recovery semantics for interrupted calls.
+- Validate multi-turn RoomKit use, isolation, retention, partial effects and
+  cleanup. Add a runnable standalone process example and enable faulthandler
+  in Python test subprocesses for native crash diagnostics.
+
 - Extend the Python preview to `0.1.0a5` with a directly selectable `Shell`
   RoomKit tool and standalone asynchronous `ShellTool` API. The bridge calls
   roomkit-tools-process with its derived schemas, host limits, separate bounded
   streams, exit/timeout metadata and owned Unix process-group cleanup.
 - Validate native/Python/RoomKit cancellation, child cleanup, loop shutdown,
   concurrent calls, environment/cwd behavior and agent execution. Add a runnable
-  shell example; persistent process bindings remain planned.
+  shell example.
 
 - Extend the Python preview to `0.1.0a4` with independently selectable `Diff`
   and `Patch` RoomKit tools and standalone `DiffTool`/`PatchTool` APIs.

@@ -7,8 +7,8 @@ intended for use from Rust, Python and RoomKit.
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
 `process_write` and `process_stop`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python exposes `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch` and `shell`, directly selectable in RoomKit.
-Bindings for the other tools and large-file streaming are planned.
+Python exposes the same fourteen tools, directly selectable in RoomKit.
+Further large-file and lifecycle validation remains planned.
 Nothing is published to crates.io or PyPI yet.
 
 ## Start here
@@ -52,7 +52,7 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
 | `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` and the five `Process*Toolset` adapters, registered individually. |
-| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch` and `shell`. |
+| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes the eight filesystem tools, shell and five persistent-process tools. |
 
 There is no global tool registry. A host instantiates the tools it needs
 and chooses which definitions to expose to its model.
@@ -125,7 +125,8 @@ not parse Git-style text patches or provide multi-file rollback. File parents
 must exist; moves create the destination before removing the source.
 
 The five `process_*` tools manage jobs across calls with trusted host owner keys.
-RoomKit scopes them to the conversation and agent. Output has byte cursors and
+The Rust RoomKit adapters scope them to the conversation and agent; Python hosts
+provide a separate `ProcessSession` per conversation/agent. Output has byte cursors and
 explicit retention gaps; stop can also release the record. Output is retained in
 bounded memory, with no durable full-output archive. Reading does not consume
 output or close stdin. Send EOF explicitly through `process_write` when needed.
@@ -148,17 +149,18 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 
 ## Python
 
-The `0.1.0a5` preview exposes **read, list, glob, grep, write, edit, diff, patch and shell**. Its prebuilt wheel supports ordinary
+The `0.1.0a6` preview exposes **read, list, glob, grep, write, edit, diff, patch,
+shell and the five process tools**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a5)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a6)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a5 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a6 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a5-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a6-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for
@@ -401,6 +403,88 @@ already-performed effects are not rolled back. Linux is validated. The existing
 Rust implementation returns an unsupported error on non-Unix platforms.
 See [the standalone shell example](examples/run_shell.py):
 `.venv/bin/python examples/run_shell.py`.
+
+For commands that must remain alive across calls, share an explicit session:
+
+```python
+from roomkit_tools import (
+    ProcessSession, ProcessStart, ProcessStatus, ProcessRead, ProcessWrite, ProcessStop,
+)
+
+# Inside an async function; keep this scope alive for the conversation.
+async with ProcessSession(root="./workspace") as processes:
+    agent = AIChannel(
+        "agent",
+        provider=provider,
+        tools=[
+            ProcessStart(processes), ProcessStatus(processes), ProcessRead(processes),
+            ProcessWrite(processes), ProcessStop(processes),
+        ],
+    )
+    # Register the agent and run the conversation here, closing RoomKit before
+    # leaving this scope. Only the selected tools are exposed.
+```
+
+`ProcessSession` owns a distinct Rust manager with one host-selected owner.
+Create one session per conversation/agent requiring isolation: the Python Tool
+handler does not receive a trusted conversation identity. Sharing a session
+deliberately shares all its jobs. IDs such as `p1` are local record identifiers,
+not OS PIDs or secrets, and can coincide across sessions. There is no global
+registry or cross-session quota. Passing a `Workspace` supplies only its path;
+processes do not acquire the filesystem mutation lock or run in a sandbox.
+
+Standalone callers use `await processes.start("cat")`, `.status(process_id)`,
+`.read(process_id, stdout_offset=0, stderr_offset=0, max_bytes=None)`,
+`.write(process_id, "Hello\n", close_stdin=False)` and `.stop(process_id, forget=True)`.
+All return the existing Rust `data`/`text` dictionaries. `.call(name, arguments)`
+and `.definition(name)` expose each `process_*` contract and its derived schemas.
+`status()` lists retained jobs, including completed ones. `start` returns an ID
+with open stdin, not proof of command completion. Commands use `/bin/sh -c`
+with the same host permissions, environment and initial-cwd boundary as shell.
+
+`read` immediately observes available output without consuming it or sending
+EOF. Use each stream's `next_offset` separately. Empty output while running
+means nothing new is available yet. The journal retains the most recent bytes;
+`omitted_bytes` reports data already evicted. Concatenate the raw `bytes` arrays
+before decoding UTF-8 split across pages; each page's `text` is a lossy view.
+`write` sends exactly the supplied UTF-8 bytes, including only explicitly supplied
+newlines. Inspect `complete`, `bytes_written`, `stdin_closed` and `error`: timeout,
+cancellation or exit can leave a partial write. Accepted bytes do not prove the
+child consumed them. Send EOF explicitly with `close_stdin=True` when requested.
+
+| Session constructor option | Default |
+| --- | --- |
+| `max_processes` / `max_processes_per_owner` | 32 / 8 retained jobs; both apply to the session's single owner |
+| `max_command_bytes` | 16 KiB UTF-8 |
+| `max_output_bytes` | 1 MiB recent raw bytes per stream per job |
+| `max_read_bytes` | 16 KiB per stream per call |
+| `max_write_bytes` | 64 KiB UTF-8 per call |
+| `write_timeout_ms` | 1,000 ms |
+| `default_timeout_ms` / `max_timeout_ms` | 300,000 / 3,600,000 ms process lifetime |
+
+All bounds must be positive. Per-owner quota cannot exceed total quota, the
+write deadline cannot exceed 60 seconds, and default lifetime cannot exceed
+the maximum (at most 24 hours). A requested lifetime is capped by the host.
+Completed jobs retain output and consume quota until `stop(..., forget=True)`
+or session shutdown. `stop` targets the Unix process group, waits up to two
+seconds and reports `forgotten=False` if cleanup is still pending.
+
+`await processes.close()` permanently closes the session, stops owned jobs and
+waits up to two seconds: `True` means cleanup finished and records were released;
+`False` means cleanup continues and the host can await `close()` again. Context
+exit calls it and raises `ToolError` if cleanup remains pending. `.closed` means
+shutdown was requested, not necessarily finished. The last session/tool reference
+also requests cleanup on drop; prefer explicit context management and keep the
+host/native runtime alive for cleanup. Escaped process groups and abrupt host
+termination remain outside the cleanup guarantee.
+
+Cancelling `read`, `status` or `write` does not terminate the job. A cancelled
+start may have already spawned; recover its record with `status()` before retrying.
+A cancelled write may have delivered bytes; do not blindly replay it. Once
+issued, stop and close continue even if their Python awaiter is cancelled.
+See [the standalone process example](examples/run_process.py), which verifies
+exact newline bytes, paged reads with open stdin, explicit EOF and normal exit:
+`.venv/bin/python examples/run_process.py`.
 
 Errors inherit from `ToolError`: `InvalidInputError`, `AccessRefusedError`,
 `LimitExceededError`, `UnsupportedResourceError` and `ToolIOError`. I/O messages

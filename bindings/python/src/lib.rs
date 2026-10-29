@@ -132,6 +132,7 @@ host_options!(
 );
 
 mod mutation;
+mod process;
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -321,6 +322,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PythonGrepTool>()?;
     module.add_class::<PythonDiffTool>()?;
     module.add_class::<PythonShellTool>()?;
+    module.add_class::<process::PythonProcessSession>()?;
     module.add_class::<mutation::PythonWorkspace>()?;
     module.add_class::<mutation::PythonWriteTool>()?;
     module.add_class::<mutation::PythonEditTool>()?;

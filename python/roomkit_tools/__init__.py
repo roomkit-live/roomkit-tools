@@ -9,8 +9,23 @@ from ._native import (
     UnsupportedResourceError,
 )
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
-from .process import ShellTool
-from .roomkit import Diff, Edit, Glob, Grep, List, Patch, Read, Shell, Write
+from .process import ProcessSession, ShellTool
+from .roomkit import (
+    Diff,
+    Edit,
+    Glob,
+    Grep,
+    List,
+    Patch,
+    ProcessRead,
+    ProcessStart,
+    ProcessStatus,
+    ProcessStop,
+    ProcessWrite,
+    Read,
+    Shell,
+    Write,
+)
 from .workspace import Workspace
 
 __all__ = [
@@ -29,6 +44,12 @@ __all__ = [
     "ListTool",
     "Patch",
     "PatchTool",
+    "ProcessRead",
+    "ProcessSession",
+    "ProcessStart",
+    "ProcessStatus",
+    "ProcessStop",
+    "ProcessWrite",
     "Read",
     "ReadTool",
     "Shell",

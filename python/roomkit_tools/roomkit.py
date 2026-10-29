@@ -13,7 +13,7 @@ from ._native import (
     UnsupportedResourceError,
 )
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
-from .process import ShellTool
+from .process import ProcessSession, ShellTool
 from .workspace import Workspace
 
 type _BoundTool = (
@@ -49,13 +49,16 @@ class _ToolAdapter:
         if name != self.definition["name"]:
             raise UnservedToolCallError(name)
         try:
-            tool = await self._get_tool()
-            result = await tool.call(arguments)
+            result = await self._call(arguments)
         except (InvalidInputError, AccessRefusedError) as error:
             raise ToolRefusedError(str(error)) from error
         except (LimitExceededError, UnsupportedResourceError) as error:
             raise ToolFailedError(str(error)) from error
         return json.dumps(result, ensure_ascii=False)
+
+    async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        tool = await self._get_tool()
+        return await tool.call(arguments)
 
     async def _get_tool(self) -> _BoundTool:
         raise NotImplementedError
@@ -344,3 +347,60 @@ class Shell(_ConfiguredTool):
             default_timeout_ms=default_timeout_ms,
             max_timeout_ms=max_timeout_ms,
         )
+
+
+class _ProcessAdapter(_ToolAdapter):
+    _name: ClassVar[str]
+
+    def __init__(self, session: ProcessSession) -> None:
+        if not isinstance(session, ProcessSession):
+            raise TypeError("process tools require a shared ProcessSession")
+        self._session = session
+
+    @property
+    def definition(self) -> dict[str, Any]:
+        """Expose this capability only, using the original Rust input schema."""
+        definition = ProcessSession.definition(self._name)
+        return {
+            "name": definition["name"],
+            "description": definition["description"],
+            "parameters": definition["input_schema"],
+        }
+
+    async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return await self._session.call(self._name, arguments)
+
+
+class ProcessStart(_ProcessAdapter):
+    """Start persistent jobs in a host-selected ProcessSession.
+
+    Pass the same session to selected process tools and close it at conversation
+    shutdown. Python's Tool protocol supplies no room identity: create a separate
+    session for each conversation/agent that must be isolated.
+    """
+
+    _name = "process_start"
+
+
+class ProcessStatus(_ProcessAdapter):
+    """Inspect retained jobs in the supplied ProcessSession without changing them."""
+
+    _name = "process_status"
+
+
+class ProcessRead(_ProcessAdapter):
+    """Read available output in a ProcessSession; never writes or closes stdin."""
+
+    _name = "process_read"
+
+
+class ProcessWrite(_ProcessAdapter):
+    """Write exact text or explicit EOF in a ProcessSession; partial writes are reported."""
+
+    _name = "process_write"
+
+
+class ProcessStop(_ProcessAdapter):
+    """Stop and optionally forget a retained job in the supplied ProcessSession."""
+
+    _name = "process_stop"
