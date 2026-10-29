@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Pin the optional Rust adapter's engine dependencies to an immutable Git
+  revision so applications can consume it without sibling checkouts.
+
 - Release Python preview `0.1.0a11` with optional Rust `OpenAISearch` and its
   Python backend factory, usable through the existing WebSearch API. Keep the
   search model/key independent of the RoomKit agent provider.

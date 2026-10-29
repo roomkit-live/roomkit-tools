@@ -7,16 +7,16 @@ rust-version = "1.92"
 license = "MIT"
 publish = false
 
-# Optional integration workspace: the standalone tools build without a
-# roomkit-rs checkout. During this prototype both repositories are siblings.
+# Optional integration workspace. Pin the same engine revision as consuming
+# hosts so this adapter works from Git without a sibling engine checkout.
 [workspace]
 resolver = "3"
 
 [dependencies]
 roomkit-tools-search = { path = "../../crates/roomkit-tools-search" }
 roomkit-tools-web = { path = "../../crates/roomkit-tools-web" }
-roomkit = { path = "../../../roomkit-rs/crates/roomkit" }
-roomkit-ai = { path = "../../../roomkit-rs/crates/roomkit-ai" }
+roomkit = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "526078ccf6908bd3135c3d9dc299cdca465469f3" }
+roomkit-ai = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "526078ccf6908bd3135c3d9dc299cdca465469f3" }
 roomkit-tools-core = { path = "../../crates/roomkit-tools-core" }
 roomkit-tools-fs = { path = "../../crates/roomkit-tools-fs" }
 roomkit-tools-process = { path = "../../crates/roomkit-tools-process" }

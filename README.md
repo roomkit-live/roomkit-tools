@@ -208,8 +208,9 @@ Schemas are derived from the Rust types used by each implementation. The core
 depends only on Serde, serde_json, Schemars and thiserror; filesystem, process and network
 I/O and the Tokio runtime belong to the implementation crates.
 
-The optional `adapters/roomkit` workspace currently uses local path dependencies
-on a sibling `roomkit-rs` checkout. The standalone tools do not require it. Hosts
+The optional `adapters/roomkit` workspace pins an immutable Git revision of
+`roomkit-rs`; it does not require a sibling checkout. Fetching the private engine
+currently requires Git read access. The standalone tools do not require it. Hosts
 choose which adapters to register and supply their roots, limits and lifecycle.
 RoomKit retains argument validation, policies, hooks and turn cancellation.
 

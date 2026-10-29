@@ -2,6 +2,8 @@
 #![cfg(unix)]
 #![expect(clippy::unwrap_used, reason = "a broken fixture must fail the test")]
 
+mod common;
+
 use roomkit::model::{ChannelId, ChannelType, EventContent, InboundMessage, RoomId, ToolCall};
 use roomkit::testing::RecordingTransport;
 use roomkit::{RoomKit, ToolUse};
@@ -33,7 +35,7 @@ async fn real_agent_receives_shell_output_or_a_policy_refusal() {
                 ShellTool::new(root.path()).await.unwrap(),
             ))
             .unwrap();
-        let kit = RoomKit::new();
+        let kit = RoomKit::new(roomkit::RoomKitOptions::default());
         if refused {
             kit.before_tool_use("deny_shell", |_, _| async {
                 Ok(ToolUse::block("Commands disabled"))
@@ -44,23 +46,25 @@ async fn real_agent_receives_shell_output_or_a_policy_refusal() {
         kit.register_channel(chat.clone()).unwrap();
         kit.register_channel(agent).unwrap();
         let conversation = RoomId::new("example").unwrap();
-        kit.create_room(&conversation).await.unwrap();
-        for channel in [chat.id(), &id] {
-            kit.attach(&conversation, channel).await.unwrap();
-        }
+        common::attach(&kit, &conversation, [chat.id(), &id])
+            .await
+            .unwrap();
         let result = kit
-            .process_inbound_in(
-                &conversation,
+            .process_inbound(
                 InboundMessage::new(
                     chat.id().clone(),
                     "test-user",
                     EventContent::text("Run the shell command"),
                 ),
+                roomkit::ProcessInboundOptions {
+                    room_id: Some(conversation.clone()),
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();
         assert!(result.error.is_none());
-        kit.idle().await;
+        roomkit::testing::idle(&kit).await;
         let requests = model.requests();
         assert_eq!(requests.len(), 2);
         assert_eq!(requests[0].tools.len(), 1);
@@ -88,7 +92,7 @@ async fn real_agent_receives_shell_output_or_a_policy_refusal() {
                 "done"
             );
         }
-        kit.shutdown().await;
+        kit.close().await.unwrap();
     }
 }
 

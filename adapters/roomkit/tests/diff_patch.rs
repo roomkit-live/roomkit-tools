@@ -1,6 +1,8 @@
 //! Actual RoomKit turns compare, preview, apply and verify a multi-file change.
 #![expect(clippy::unwrap_used, reason = "broken fixtures must fail tests")]
 
+mod common;
+
 use roomkit::model::{ChannelId, ChannelType, EventContent, InboundMessage, RoomId, ToolCall};
 use roomkit::testing::RecordingTransport;
 use roomkit::{RoomKit, ToolUse};
@@ -66,7 +68,7 @@ async fn scenario(refused: bool) -> Vec<Value> {
             MutationWorkspace::new(root.path()).await.unwrap(),
         )))
         .unwrap();
-    let kit = RoomKit::new();
+    let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     if refused {
         kit.before_tool_use("deny_patch", |event, _| async move {
             Ok(if event.call.name == "patch" {
@@ -81,23 +83,25 @@ async fn scenario(refused: bool) -> Vec<Value> {
     kit.register_channel(chat.clone()).unwrap();
     kit.register_channel(agent).unwrap();
     let conversation = RoomId::new("example").unwrap();
-    kit.create_room(&conversation).await.unwrap();
-    for channel in [chat.id(), &id] {
-        kit.attach(&conversation, channel).await.unwrap();
-    }
+    common::attach(&kit, &conversation, [chat.id(), &id])
+        .await
+        .unwrap();
     let result = kit
-        .process_inbound_in(
-            &conversation,
+        .process_inbound(
             InboundMessage::new(
                 chat.id().clone(),
                 "test-user",
                 EventContent::text("Compare, preview, apply and verify the hours."),
             ),
+            roomkit::ProcessInboundOptions {
+                room_id: Some(conversation.clone()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
     assert!(result.error.is_none());
-    kit.idle().await;
+    roomkit::testing::idle(&kit).await;
     let requests = model.requests();
     assert_eq!(requests.len(), 5);
     assert_eq!(
@@ -137,7 +141,7 @@ async fn scenario(refused: bool) -> Vec<Value> {
     assert_eq!(root.path().join("obsolete").exists(), refused);
     assert_eq!(root.path().join("orders").exists(), refused);
     assert_eq!(root.path().join("archived-orders").exists(), !refused);
-    kit.shutdown().await;
+    kit.close().await.unwrap();
     outputs
 }
 

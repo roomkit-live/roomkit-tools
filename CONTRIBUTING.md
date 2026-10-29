@@ -35,11 +35,11 @@ In an offline environment with a populated Cargo cache and advisory database,
 That checks the cached advisories only; CI refreshes them online.
 
 The optional Rust adapter lives in the separate `adapters/roomkit` workspace.
-With `roomkit-rs` beside this checkout, run `make roomkit-check roomkit-msrv`.
+With Git read access to `roomkit-rs`, run `make roomkit-check roomkit-msrv`.
 These explicit gates are not part of the standalone `make all` or CI, which
-must work without a RoomKit checkout. The adapter currently uses local path
-dependencies; it requires a compatible sibling checkout and is not distributed
-as a published package.
+must work without engine access. The adapter pins an immutable engine Git
+revision and is not distributed as a published package. Consumers should use
+that same source URL and revision to share RoomKit types.
 The adapter owns its dependency versions and lockfile while it is separate.
 
 The optional Python bridge is another separate workspace, `bindings/python`.

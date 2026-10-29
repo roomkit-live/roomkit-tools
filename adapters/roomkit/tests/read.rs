@@ -2,6 +2,8 @@
 
 #![expect(clippy::unwrap_used, reason = "a broken fixture must fail the test")]
 
+mod common;
+
 use roomkit::model::{
     ChannelId, ChannelType, EventContent, EventType, InboundMessage, RoomId, ToolCall,
     ToolCallOutcome,
@@ -134,7 +136,7 @@ async fn turn(tools: ReadToolset, arguments: &str, blocked: bool) -> (ToolCallOu
     let agent = AiAgent::new(agent_id.clone(), model.clone())
         .with_tools(tools)
         .unwrap();
-    let kit = RoomKit::new();
+    let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     if blocked {
         kit.before_tool_use("deny_read", |_, _| async {
             Ok(ToolUse::block("Reading is disabled"))
@@ -145,23 +147,25 @@ async fn turn(tools: ReadToolset, arguments: &str, blocked: bool) -> (ToolCallOu
     kit.register_channel(chat.clone()).unwrap();
     kit.register_channel(agent).unwrap();
     let room = RoomId::new("example").unwrap();
-    kit.create_room(&room).await.unwrap();
-    for channel in [chat.id(), &agent_id] {
-        kit.attach(&room, channel).await.unwrap();
-    }
+    common::attach(&kit, &room, [chat.id(), &agent_id])
+        .await
+        .unwrap();
     let result = kit
-        .process_inbound_in(
-            &room,
+        .process_inbound(
             InboundMessage::new(
                 chat.id().clone(),
                 "alice",
                 EventContent::text("When are you open?"),
             ),
+            roomkit::ProcessInboundOptions {
+                room_id: Some(room.clone()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
     assert!(result.error.is_none(), "{result:?}");
-    kit.idle().await;
+    roomkit::testing::idle(&kit).await;
     let deliveries = chat.deliveries();
     let outcome = deliveries
         .iter()
@@ -190,7 +194,7 @@ async fn turn(tools: ReadToolset, arguments: &str, blocked: bool) -> (ToolCallOu
         chat.texts()
             .contains(&"Answer after the tool result.".to_owned())
     );
-    kit.shutdown().await;
+    kit.close().await.unwrap();
     (outcome, result)
 }
 

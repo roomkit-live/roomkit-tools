@@ -2,6 +2,8 @@
 
 #![expect(clippy::unwrap_used, reason = "a broken fixture must fail the test")]
 
+mod common;
+
 use roomkit::model::{
     ChannelId, ChannelType, EventContent, EventType, InboundMessage, RoomId, ToolCall,
     ToolCallOutcome,
@@ -130,7 +132,7 @@ async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>) {
         .unwrap()
         .with_tools(ReadToolset::new(ReadTool::new(root.path()).await.unwrap()))
         .unwrap();
-    let kit = RoomKit::new();
+    let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     if block_list {
         kit.before_tool_use("deny_list", |event, _| async move {
             Ok(if event.call.name == "list" {
@@ -145,23 +147,25 @@ async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>) {
     kit.register_channel(chat.clone()).unwrap();
     kit.register_channel(agent).unwrap();
     let conversation = RoomId::new("example").unwrap();
-    kit.create_room(&conversation).await.unwrap();
-    for channel in [chat.id(), &id] {
-        kit.attach(&conversation, channel).await.unwrap();
-    }
+    common::attach(&kit, &conversation, [chat.id(), &id])
+        .await
+        .unwrap();
     let result = kit
-        .process_inbound_in(
-            &conversation,
+        .process_inbound(
             InboundMessage::new(
                 chat.id().clone(),
                 "alice",
                 EventContent::text("Find the hours file and read Saturday's hours."),
             ),
+            roomkit::ProcessInboundOptions {
+                room_id: Some(conversation.clone()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
     assert!(result.error.is_none(), "{result:?}");
-    kit.idle().await;
+    roomkit::testing::idle(&kit).await;
     let requests = model.requests();
     assert_eq!(requests.len(), 5);
     assert_eq!(
@@ -194,7 +198,7 @@ async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>) {
         chat.texts()
             .contains(&"On Saturday we open from 08:30 to 16:00.".to_owned())
     );
-    kit.shutdown().await;
+    kit.close().await.unwrap();
     (results, outcomes)
 }
 

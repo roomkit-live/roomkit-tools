@@ -2,6 +2,8 @@
 #![cfg(unix)]
 #![expect(clippy::unwrap_used, reason = "fixture errors must fail tests")]
 
+mod common;
+
 use roomkit::model::{ChannelId, ChannelType, EventContent, InboundMessage, RoomId, ToolCall};
 use roomkit::testing::RecordingTransport;
 use roomkit::{RoomKit, ToolUse};
@@ -172,28 +174,28 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
         .unwrap()
         .with_tools(ProcessStopToolset::new(manager))
         .unwrap();
-    let kit = RoomKit::new();
+    let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     let chat = RecordingTransport::new(ChannelId::new("chat").unwrap(), ChannelType::WEBSOCKET);
     kit.register_channel(chat.clone()).unwrap();
     kit.register_channel(agent).unwrap();
     let room = RoomId::new("example").unwrap();
-    kit.create_room(&room).await.unwrap();
-    for channel in [chat.id(), &id] {
-        kit.attach(&room, channel).await.unwrap();
-    }
+    common::attach(&kit, &room, [chat.id(), &id]).await.unwrap();
     for request in [
         "Start the process and send order 43",
         "Stop it and read its output",
     ] {
         let result = kit
-            .process_inbound_in(
-                &room,
+            .process_inbound(
                 InboundMessage::new(chat.id().clone(), "test-user", EventContent::text(request)),
+                roomkit::ProcessInboundOptions {
+                    room_id: Some(room.clone()),
+                    ..Default::default()
+                },
             )
             .await
             .unwrap();
         assert!(result.error.is_none());
-        kit.idle().await;
+        roomkit::testing::idle(&kit).await;
     }
     let requests = model.requests();
     assert_eq!(requests.len(), 7);
@@ -227,7 +229,7 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
     )
     .unwrap();
     assert_eq!(read["data"]["status"]["state"], "finished");
-    kit.shutdown().await;
+    kit.close().await.unwrap();
 }
 
 #[tokio::test]
@@ -250,7 +252,7 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
             ProcessManager::new(fixture.path()).await.unwrap(),
         ))
         .unwrap();
-    let kit = RoomKit::new();
+    let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     kit.before_tool_use("deny_processes", |_, _| async {
         Ok(ToolUse::block("Processes disabled"))
     })
@@ -259,21 +261,23 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
     kit.register_channel(chat.clone()).unwrap();
     kit.register_channel(agent).unwrap();
     let room = RoomId::new("example").unwrap();
-    kit.create_room(&room).await.unwrap();
-    for channel in [chat.id(), &agent_id] {
-        kit.attach(&room, channel).await.unwrap();
-    }
-    kit.process_inbound_in(
-        &room,
+    common::attach(&kit, &room, [chat.id(), &agent_id])
+        .await
+        .unwrap();
+    kit.process_inbound(
         InboundMessage::new(
             chat.id().clone(),
             "test-user",
             EventContent::text("Run the command"),
         ),
+        roomkit::ProcessInboundOptions {
+            room_id: Some(room.clone()),
+            ..Default::default()
+        },
     )
     .await
     .unwrap();
-    kit.idle().await;
+    roomkit::testing::idle(&kit).await;
     assert!(!fixture.path().join("unexpected").exists());
     assert!(
         model.requests()[1]
@@ -281,5 +285,5 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
             .iter()
             .any(|m| m.text.contains("Processes disabled"))
     );
-    kit.shutdown().await;
+    kit.close().await.unwrap();
 }

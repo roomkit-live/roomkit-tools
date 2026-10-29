@@ -49,7 +49,7 @@ msrv-toolchain:
 hooks:
 	git config core.hooksPath .githooks
 
-# Opt in when roomkit-rs is checked out beside this repository.
+# Opt in with Git read access to the pinned roomkit-rs revision.
 roomkit-check:
 	$(CARGO) fmt --manifest-path $(ROOMKIT_MANIFEST) --all -- --check
 	$(CARGO) clippy --manifest-path $(ROOMKIT_MANIFEST) --all-targets --locked -- -D warnings

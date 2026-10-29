@@ -2,6 +2,8 @@
 
 #![expect(clippy::unwrap_used, reason = "a broken fixture must fail the test")]
 
+mod common;
+
 use roomkit::model::{
     ChannelId, ChannelType, EventContent, EventType, InboundMessage, RoomId, ToolCall,
     ToolCallOutcome,
@@ -67,7 +69,7 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
         .unwrap()
         .with_tools(ReadToolset::new(ReadTool::new(root.path()).await.unwrap()))
         .unwrap();
-    let kit = RoomKit::new();
+    let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     if block_mutations {
         kit.before_tool_use("deny_mutation", |event, _| async move {
             Ok(if matches!(event.call.name.as_str(), "write" | "edit") {
@@ -82,13 +84,11 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
     kit.register_channel(chat.clone()).unwrap();
     kit.register_channel(agent).unwrap();
     let conversation = RoomId::new("example").unwrap();
-    kit.create_room(&conversation).await.unwrap();
-    for channel in [chat.id(), &id] {
-        kit.attach(&conversation, channel).await.unwrap();
-    }
+    common::attach(&kit, &conversation, [chat.id(), &id])
+        .await
+        .unwrap();
     let result = kit
-        .process_inbound_in(
-            &conversation,
+        .process_inbound(
             InboundMessage::new(
                 chat.id().clone(),
                 "alice",
@@ -96,11 +96,15 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
                     "Create, add, update and remove sample customer orders, then read the file.",
                 ),
             ),
+            roomkit::ProcessInboundOptions {
+                room_id: Some(conversation.clone()),
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
     assert!(result.error.is_none(), "{result:?}");
-    kit.idle().await;
+    roomkit::testing::idle(&kit).await;
     let requests = model.requests();
     assert_eq!(requests.len(), 6);
     assert_eq!(
@@ -137,7 +141,7 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
         std::fs::read_dir(root.path()).unwrap().count(),
         usize::from(!block_mutations)
     );
-    kit.shutdown().await;
+    kit.close().await.unwrap();
     (results, outcomes, contents)
 }
 
