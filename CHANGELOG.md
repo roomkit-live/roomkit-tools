@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add a reproducible RoomKit coding example that repairs a temporary project
+  through grep/read/edit/diff/shell, observing a failing test before the fix and
+  passing tests afterward. Verify real calls, unchanged tests and snapshot, the
+  minimal source correction and an independent host test run. Include scripted,
+  optional live-model and interactive chat modes; no tool API change is required.
+- Exercise the coding scenario in installed wheel/source checks and reject
+  fabricated success, missing test execution and changes to the test fixture.
+
 - Extend the Python preview to `0.1.0a6` with `ProcessSession` and individually
   selectable `ProcessStart`, `ProcessStatus`, `ProcessRead`, `ProcessWrite` and
   `ProcessStop` RoomKit tools. Reuse the Rust manager, schemas, host limits,

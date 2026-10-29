@@ -128,6 +128,7 @@ def main() -> None:
             )
             run_tests(python, root, work, "test_roomkit*.py")
             run(str(python), "-I", str(root / "examples/roomkit_read.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
 
 
 def run_tests(python: Path, root: Path, work: Path, pattern: str) -> None:

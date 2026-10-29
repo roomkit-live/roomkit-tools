@@ -525,10 +525,39 @@ Live mode uses RoomKit's vLLM provider with the environment settings above.
 Only the model connection changes; the registered Rust tool stays the same.
 It runs once in the console; it does not start an HTTP server or a chat page.
 
+The [coding example](examples/roomkit_code.py) validates a complete repair through
+five selected tools: `grep`, `read`, `edit`, `diff` and `shell`.
+
+```sh
+.venv/bin/python examples/roomkit_code.py
+.venv/bin/python examples/roomkit_code.py --live
+.venv/bin/python examples/roomkit_code.py --chat
+```
+
+Each run creates a temporary Python project with a boundary-condition bug and
+three standard-library tests. The default provider is scripted; RoomKit, the
+Rust tools and test processes are real. The agent reproduces a failing test,
+finds and reads the function, carries its revision into an exact edit, inspects
+the diff, reruns the tests and reads the corrected source. The host then verifies
+the actual calls before and after the edit, minimal source change, unchanged tests/snapshot and
+an independent test run. Prose alone, missing execution or modified tests fails
+validation. This is a narrow, reproducible scenario, not a general agent benchmark.
+
+`--live` uses the vLLM environment settings above for one turn; `--chat` opens
+an interactive terminal conversation. In chat mode, complete the displayed task
+and type `quit` to run verification. Both live modes apply the same checks as the
+scripted run and can fail if the model omits the required operations. Equivalent
+relative/absolute paths and different discovery or verification order are accepted;
+the failing test and original read must precede the correction, and the passing
+test, diff and corrected read must follow it.
+The temporary project is removed on exit, including on failure. Shell commands
+still run with host permissions; the temporary directory is not a sandbox.
+The scripted example and rejection tests run in `make python-check` and CI.
+
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns
-its revision. Persistent process tools, other platforms and free-threaded builds remain outside
-the validated Python slice.
+its revision. All fourteen tools have Python bindings; other platforms and
+free-threaded builds remain outside the validated Python slice.
 
 To build from this checkout instead, install Rust and [uv](https://docs.astral.sh/uv/):
 
