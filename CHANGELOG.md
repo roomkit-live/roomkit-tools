@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Release Python preview `0.1.0a8` with optional Rust `OutputStore` disk copies
+  for shell and persistent processes, selected by the host. Existing previews
+  and result shapes stay unchanged when disabled.
+- Add independent `output_read` and `output_forget` tools in Rust, Python and
+  RoomKit. Byte pages preserve raw output with explicit prefix/completeness
+  metadata, owner isolation, quotas and bounded writer queues. Logs survive
+  process cleanup until explicit release or store shutdown; storage is ephemeral.
+- Add a RoomKit example that recovers a middle diagnostic without rerunning its
+  command, plus regression coverage for binary/Unicode pages, quotas, disk errors,
+  cancellation, live reads and cleanup. Shared Rust/Python fixtures now cover
+  16 tools through seven scenarios and 49 operations.
 - Compare all 14 tools across Rust and installed Python packages using common
   fixtures, complete result envelopes, typed failure categories and final file
   bytes. Cover pagination, Unicode, exact mutations/revisions, patch preview,

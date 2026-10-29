@@ -13,6 +13,7 @@ from ._native import (
     UnsupportedResourceError,
 )
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
+from .output import OutputStore
 from .process import ProcessSession, ShellTool
 from .workspace import Workspace
 
@@ -335,6 +336,7 @@ class Shell(_ConfiguredTool):
         self,
         root: str | os.PathLike[str],
         *,
+        outputs: OutputStore | None = None,
         max_command_bytes: int | None = None,
         max_output_bytes: int | None = None,
         default_timeout_ms: int | None = None,
@@ -342,6 +344,7 @@ class Shell(_ConfiguredTool):
     ) -> None:
         self._configure(
             root,
+            outputs=outputs,
             max_command_bytes=max_command_bytes,
             max_output_bytes=max_output_bytes,
             default_timeout_ms=default_timeout_ms,
@@ -404,3 +407,36 @@ class ProcessStop(_ProcessAdapter):
     """Stop and optionally forget a retained job in the supplied ProcessSession."""
 
     _name = "process_stop"
+
+
+class _OutputAdapter(_ToolAdapter):
+    _name: ClassVar[str]
+
+    def __init__(self, store: OutputStore) -> None:
+        if not isinstance(store, OutputStore):
+            raise TypeError("output tools require an OutputStore")
+        self._store = store
+
+    @property
+    def definition(self) -> dict[str, Any]:
+        definition = OutputStore.definition(self._name)
+        return {
+            "name": definition["name"],
+            "description": definition["description"],
+            "parameters": definition["input_schema"],
+        }
+
+    async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return await self._store.call(self._name, arguments)
+
+
+class OutputRead(_OutputAdapter):
+    """Read an owned disk copy by ID; register independently from output deletion."""
+
+    _name = "output_read"
+
+
+class OutputForget(_OutputAdapter):
+    """Explicitly release finished output archives from the selected store."""
+
+    _name = "output_forget"

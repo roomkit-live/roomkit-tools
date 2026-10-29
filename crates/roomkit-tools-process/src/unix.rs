@@ -41,6 +41,7 @@ pub(crate) async fn run(
     limits: ShellLimits,
     timeout_ms: u64,
     cancel: CancellationToken,
+    outputs: Option<(crate::OutputStore, String)>,
 ) -> Result<Output<ShellResult>, Error> {
     if cancel.is_cancelled() {
         return Err(Error::Cancelled);
@@ -79,6 +80,10 @@ pub(crate) async fn run(
         .ok_or_else(|| io("open shell stderr", std::io::Error::other("missing pipe")))?;
     let mut out = Capture::new(limits.max_output_bytes);
     let mut err = Capture::new(limits.max_output_bytes);
+    if let Some((store, owner)) = &outputs {
+        out.archive(Some(store.begin(owner)));
+        err.archive(Some(store.begin(owner)));
+    }
     let mut timed_out = false;
     let mut cancelled = false;
     let result = tokio::select! {
@@ -113,6 +118,7 @@ pub(crate) async fn run(
         }
         Err(_) => false,
     };
+    tokio::join!(out.finish_archive(), err.finish_archive());
     if cancelled || cancel.is_cancelled() {
         return Err(Error::Cancelled);
     }
@@ -126,7 +132,11 @@ pub(crate) async fn run(
         stdout: out.finish(),
         stderr: err.finish(),
     };
-    let text = format!(
+    Ok(render(data))
+}
+
+fn render(data: ShellResult) -> Output<ShellResult> {
+    let mut text = format!(
         "exit_code={:?}, signal={:?}, timed_out={}, output_complete={}\nstdout:\n{}\nstderr:\n{}",
         data.exit_code,
         data.signal,
@@ -135,5 +145,10 @@ pub(crate) async fn run(
         data.stdout.text,
         data.stderr.text
     );
-    Ok(Output::new(data, text))
+    crate::output::append_metadata(
+        &mut text,
+        data.stdout.archive.as_ref(),
+        data.stderr.archive.as_ref(),
+    );
+    Output::new(data, text)
 }

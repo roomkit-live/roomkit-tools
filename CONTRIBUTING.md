@@ -77,8 +77,8 @@ The check builds from the source distribution only; wheel installation does not
 compile Rust. Internal planning and integration assets are excluded from both
 archives. Keep public package metadata, examples and release notes in English.
 
-`tests/fixtures/contracts.json` supplies common reference scenarios for all 14
-tools. The Rust integration test checks expected behavior and file bytes.
+`tests/fixtures/contracts.json` supplies common reference scenarios for all 16
+tools, including optional archive paging and explicit release. The Rust integration test checks expected behavior and file bytes.
 `make python-check` also generates fresh Rust results and compares each installed
 Python package against their complete JSON envelopes and final file bytes. Only
 temporary root paths are normalized; error categories are mapped across languages.

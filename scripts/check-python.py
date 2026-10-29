@@ -120,6 +120,7 @@ def main() -> None:
             run_tests(python, root, work, "test_diff_patch.py")
             run_tests(python, root, work, "test_shell.py")
             run_tests(python, root, work, "test_process.py")
+            run_tests(python, root, work, "test_output.py")
             run_tests(python, root, work, "test_contracts.py", reference=reference)
             run(str(python), "-I", str(root / "examples/discover_files.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/edit_file.py"), cwd=work)
@@ -140,6 +141,7 @@ def main() -> None:
             run_tests(python, root, work, "test_roomkit*.py")
             run(str(python), "-I", str(root / "examples/roomkit_read.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/roomkit_output.py"), cwd=work)
 
 
 def run_tests(

@@ -9,6 +9,7 @@ from ._native import (
     UnsupportedResourceError,
 )
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
+from .output import OutputStore
 from .process import ProcessSession, ShellTool
 from .roomkit import (
     Diff,
@@ -16,6 +17,8 @@ from .roomkit import (
     Glob,
     Grep,
     List,
+    OutputForget,
+    OutputRead,
     Patch,
     ProcessRead,
     ProcessStart,
@@ -42,6 +45,9 @@ __all__ = [
     "LimitExceededError",
     "List",
     "ListTool",
+    "OutputStore",
+    "OutputRead",
+    "OutputForget",
     "Patch",
     "PatchTool",
     "ProcessRead",

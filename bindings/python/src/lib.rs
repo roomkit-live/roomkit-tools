@@ -9,7 +9,7 @@ use roomkit_tools_fs::{
     DiffInput, DiffLimits, DiffTool, GlobInput, GlobLimits, GlobTool, GrepInput, GrepLimits,
     GrepTool, ListInput, ListLimits, ListTool, ReadInput, ReadLimits, ReadTool,
 };
-use roomkit_tools_process::{ShellInput, ShellLimits, ShellTool};
+use roomkit_tools_process::ShellLimits;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
@@ -132,6 +132,7 @@ host_options!(
 );
 
 mod mutation;
+mod output;
 mod process;
 mod runtime;
 
@@ -312,16 +313,6 @@ rooted_binding!(
     diff
 );
 
-rooted_binding!(
-    PythonShellTool,
-    "_ShellTool",
-    ShellTool,
-    ShellOptions,
-    ShellInput,
-    call,
-    shell
-);
-
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     runtime::install(module)?;
@@ -331,7 +322,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PythonGlobTool>()?;
     module.add_class::<PythonGrepTool>()?;
     module.add_class::<PythonDiffTool>()?;
-    module.add_class::<PythonShellTool>()?;
+    module.add_class::<output::PythonShellTool>()?;
+    module.add_class::<output::PythonOutputStore>()?;
     module.add_class::<process::PythonProcessSession>()?;
     module.add_class::<mutation::PythonWorkspace>()?;
     module.add_class::<mutation::PythonWriteTool>()?;

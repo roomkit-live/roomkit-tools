@@ -8,6 +8,7 @@ from types import TracebackType
 from typing import Any, Self
 
 from . import _native
+from .output import OutputStore
 
 
 class ShellTool:
@@ -19,14 +20,16 @@ class ShellTool:
     Stdin is closed. Unix is implemented; Linux is the validated platform.
     """
 
-    def __init__(self, native: _native._ShellTool) -> None:
+    def __init__(self, native: _native._ShellTool, outputs: OutputStore | None = None) -> None:
         self._native = native
+        self._outputs = outputs
 
     @classmethod
     async def create(
         cls,
         root: str | os.PathLike[str],
         *,
+        outputs: OutputStore | None = None,
         max_command_bytes: int | None = None,
         max_output_bytes: int | None = None,
         default_timeout_ms: int | None = None,
@@ -38,6 +41,8 @@ class ShellTool:
         default runtime and 120 s maximum. Bounds must be positive; the default
         timeout must not exceed the maximum, which cannot exceed 24 hours.
         """
+        if outputs is not None and not isinstance(outputs, OutputStore):
+            raise TypeError("outputs requires an OutputStore")
         options = {
             name: value
             for name, value in {
@@ -51,11 +56,14 @@ class ShellTool:
         cancel = _native._Cancellation()
         try:
             native = await _native._ShellTool.create(
-                os.fspath(root), json.dumps(options, allow_nan=False), cancel
+                os.fspath(root),
+                json.dumps(options, allow_nan=False),
+                cancel,
+                None if outputs is None else outputs._native,
             )
         finally:
             cancel.cancel()
-        return cls(native)
+        return cls(native, outputs)
 
     @staticmethod
     def definition() -> dict[str, Any]:
@@ -121,6 +129,7 @@ class ProcessSession:
         self,
         root: str | os.PathLike[str],
         *,
+        outputs: OutputStore | None = None,
         max_processes: int | None = None,
         max_processes_per_owner: int | None = None,
         max_command_bytes: int | None = None,
@@ -141,6 +150,9 @@ class ProcessSession:
         deadline <= 60 s, and default lifetime <= maximum lifetime <= 24 h.
         """
         path = os.fspath(root)
+        if outputs is not None and not isinstance(outputs, OutputStore):
+            raise TypeError("outputs requires an OutputStore")
+        self._outputs = outputs
         if not path:
             raise _native.InvalidInputError("root must not be empty")
         options = {
@@ -159,7 +171,9 @@ class ProcessSession:
             if value is not None
         }
         self._native = _native._ProcessSession(
-            os.path.abspath(path), json.dumps(options, allow_nan=False)
+            os.path.abspath(path),
+            json.dumps(options, allow_nan=False),
+            None if outputs is None else outputs._native,
         )
 
     @property

@@ -12,7 +12,8 @@ use roomkit_tools_fs::{
     WriteTool,
 };
 use roomkit_tools_process::{
-    ProcessLimits, ProcessManager, ProcessStatusInput, ShellLimits, ShellTool,
+    OutputLimits, OutputStore, ProcessLimits, ProcessManager, ProcessStatusInput, ShellLimits,
+    ShellTool,
 };
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -30,6 +31,7 @@ async fn invoke(
     root: &Path,
     workspace: &MutationWorkspace,
     manager: &ProcessManager,
+    outputs: Option<&OutputStore>,
     step: &Value,
     token: &CancellationToken,
 ) -> Result<Value, Error> {
@@ -59,8 +61,29 @@ async fn invoke(
         "shell" => {
             let mut limits = ShellLimits::default();
             limits.max_output_bytes = 8;
-            call!(ShellTool::new(root).await?.with_limits(limits)?, shell)
+            let mut tool = ShellTool::new(root).await?.with_limits(limits)?;
+            if let Some(outputs) = outputs {
+                tool = tool.with_output_store(outputs.clone());
+            }
+            Ok(
+                serde_json::to_value(tool.shell_owned(OWNER, input(arguments)?, token).await?)
+                    .unwrap(),
+            )
         }
+        "output_read" => Ok(serde_json::to_value(
+            outputs
+                .unwrap()
+                .read(OWNER, input(arguments)?, token)
+                .await?,
+        )
+        .unwrap()),
+        "output_forget" => Ok(serde_json::to_value(
+            outputs
+                .unwrap()
+                .forget(OWNER, input(arguments)?, token)
+                .await?,
+        )
+        .unwrap()),
         "process_start" => process!(start),
         "process_status" => process!(status),
         "process_read" => process!(read),
@@ -175,14 +198,25 @@ async fn run_case(root: &Path, case: &Value, reports: &mut BTreeMap<String, Valu
         std::fs::write(path, bytes(content)).unwrap();
     }
     let workspace = MutationWorkspace::new(root).await.unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let outputs = if case["outputs"] == true {
+        let mut limits = OutputLimits::default();
+        limits.max_read_bytes = 3;
+        Some(OutputStore::new(storage.path(), limits).await.unwrap())
+    } else {
+        None
+    };
     let mut limits = ProcessLimits::default();
     limits.max_output_bytes = 8;
     limits.max_read_bytes = 3;
-    let manager = ProcessManager::new(root)
+    let mut manager = ProcessManager::new(root)
         .await
         .unwrap()
         .with_limits(limits)
         .unwrap();
+    if let Some(outputs) = &outputs {
+        manager = manager.with_output_store(outputs.clone()).unwrap();
+    }
     let mut results = Vec::new();
     for step in case["steps"].as_array().unwrap() {
         if let Some(expected) = step.get("wait") {
@@ -192,10 +226,11 @@ async fn run_case(root: &Path, case: &Value, reports: &mut BTreeMap<String, Valu
         if step["cancelled"] == true {
             token.cancel();
         }
-        let mut result = match invoke(root, &workspace, &manager, step, &token).await {
-            Ok(output) => output,
-            Err(error) => json!({"error": error_name(&error)}),
-        };
+        let mut result =
+            match invoke(root, &workspace, &manager, outputs.as_ref(), step, &token).await {
+                Ok(output) => output,
+                Err(error) => json!({"error": error_name(&error)}),
+            };
         normalize(&mut result, root.to_str().unwrap());
         for (pointer, expected) in step["expect"].as_object().unwrap() {
             assert_eq!(result.pointer(pointer), Some(expected), "{name}: {step}");
@@ -203,6 +238,9 @@ async fn run_case(root: &Path, case: &Value, reports: &mut BTreeMap<String, Valu
         results.push(result);
     }
     assert!(manager.close().await);
+    if let Some(outputs) = outputs {
+        assert!(outputs.close().await);
+    }
     let mut files = BTreeMap::new();
     snapshot(root, root, &mut files);
     let expected = case

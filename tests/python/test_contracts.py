@@ -20,6 +20,7 @@ from roomkit_tools import (
     InvalidInputError,
     LimitExceededError,
     ListTool,
+    OutputStore,
     PatchTool,
     ProcessSession,
     ReadTool,
@@ -90,7 +91,8 @@ class SharedContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             names,
             set(TOOLS)
-            | {"process_start", "process_status", "process_read", "process_write", "process_stop"},
+            | {"process_start", "process_status", "process_read", "process_write", "process_stop"}
+            | {"output_read", "output_forget"},
         )
         for case in fixture["cases"]:
             with (
@@ -113,7 +115,12 @@ class SharedContractTests(unittest.IsolatedAsyncioTestCase):
             path.write_bytes(file_bytes(content))
         workspace = Workspace(root)
         results = []
-        async with ProcessSession(root, max_output_bytes=8, max_read_bytes=3) as session:
+        store = OutputStore(root.parent, max_read_bytes=3)
+        outputs = store if case.get("outputs") else None
+        async with (
+            store,
+            ProcessSession(root, outputs=outputs, max_output_bytes=8, max_read_bytes=3) as session,
+        ):
             for step in case["steps"]:
                 if "wait" in step:
                     async with asyncio.timeout(5):
@@ -125,10 +132,14 @@ class SharedContractTests(unittest.IsolatedAsyncioTestCase):
                                 break
                             await asyncio.sleep(0.005)
                 name = step["tool"]
-                if name.startswith("process_"):
+                if name.startswith("output_"):
+                    tool = store
+                elif name.startswith("process_"):
                     tool = session
                 else:
                     options = {"max_output_bytes": 8} if name == "shell" else {}
+                    if name == "shell":
+                        options["outputs"] = outputs
                     tool = await TOOLS[name].create(workspace, **options)
                 # Use the same pre-cancelled native scope as the Rust fixture,
                 # while exercising the public Python argument/result bridge.
@@ -144,7 +155,7 @@ class SharedContractTests(unittest.IsolatedAsyncioTestCase):
                     with scope:
                         result = await (
                             tool.call(name, step["input"])
-                            if tool is session
+                            if tool is session or tool is store
                             else tool.call(step["input"])
                         )
                 except (

@@ -46,3 +46,7 @@ path = "patch_hours.rs"
 [[example]]
 name = "process_session"
 path = "process_session.rs"
+
+[[example]]
+name = "read_output"
+path = "read_output.rs"

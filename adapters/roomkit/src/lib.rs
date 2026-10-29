@@ -6,7 +6,9 @@
 //! hooks, timeouts and turn cancellation. The filesystem implementation
 //! remains usable without RoomKit.
 
+mod output;
 mod process;
+pub use output::{OutputForgetToolset, OutputReadToolset, ShellToolset};
 
 pub use process::{
     ProcessReadToolset, ProcessStartToolset, ProcessStatusToolset, ProcessStopToolset,
@@ -19,7 +21,6 @@ use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool,
 };
-use roomkit_tools_process::ShellTool;
 use tokio_util::sync::CancellationToken;
 
 // Each adapter exposes one capability. Composing toolsets remains the host's
@@ -108,14 +109,6 @@ toolset!(
     /// Preserves the tool's ambiguity checks, limits and mutation workspace.
     /// Closing cancels calls before commit; an already-started commit may finish.
     EditToolset, EditTool, edit, "edit"
-);
-
-toolset!(
-    /// Foreground shell execution with host-selected limits and initial root.
-    ///
-    /// Commands inherit host permissions; this adapter is not a sandbox. Closing
-    /// or dropping a call requests process-group cleanup in the owned worker.
-    ShellToolset, ShellTool, shell, "shell"
 );
 
 toolset!(

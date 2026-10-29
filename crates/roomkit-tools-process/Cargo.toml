@@ -13,12 +13,13 @@ schemars.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util", "macros", "process", "rt", "time"] }
 tokio-util.workspace = true
+# Private, automatically removed output files; never model-selected paths.
+tempfile.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 serde_json.workspace = true
 
 [lints]

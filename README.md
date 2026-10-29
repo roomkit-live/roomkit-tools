@@ -5,9 +5,9 @@ intended for use from Rust, Python and RoomKit.
 
 **Status: filesystem, shell and persistent process tools in Rust and RoomKit.** The workspace provides
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
-`process_write` and `process_stop`, each independently selectable.
+`process_write`, `process_stop`, `output_read` and `output_forget`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python exposes the same fourteen tools, directly selectable in RoomKit.
+Python exposes the same sixteen tools, directly selectable in RoomKit.
 Further large-file and lifecycle validation remains planned.
 Nothing is published to crates.io or PyPI yet.
 
@@ -25,6 +25,7 @@ cargo run --example edit_orders
 cargo run --example shell_command
 cargo run --example patch_hours
 cargo run --example process_session
+cargo run --example read_output
 make fmt-check clippy test doc check-core-deps examples
 ```
 
@@ -36,8 +37,9 @@ and removes customer orders, carrying a content revision between mutations.
 `shell_command` reads two temporary files through a
 real shell and checks both output streams. `patch_hours` compares a proposal,
 previews and applies a batch, then verifies equality. `process_session` sends an
-order through persistent stdin, reads the response and releases the job. No example needs a model
-or RoomKit installation.
+order through persistent stdin, reads the response and releases the job.
+`read_output` retrieves a diagnostic from the middle of an archived log without
+rerunning the command. These Rust examples need no model or RoomKit installation.
 
 The toolchain is pinned in `rust-toolchain.toml`; the MSRV is Rust 1.92.
 Once `cargo-deny` is installed, `make all` runs all local gates. See
@@ -49,10 +51,10 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | --- | --- |
 | `roomkit-tools-core` | Definitions with derived JSON schemas, structured output and typed errors; no I/O or async runtime. |
 | `roomkit-tools-fs` | `ReadTool`, `ListTool`, `GlobTool`, `GrepTool`, `WriteTool`, `EditTool`, `DiffTool`, `PatchTool`: bounded operations beneath an explicit root. |
-| `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup. |
+| `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup; optional `OutputStore` for disk copies, reads and release. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
-| `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` and the five `Process*Toolset` adapters, registered individually. |
-| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes the eight filesystem tools, shell and five persistent-process tools. |
+| `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` the five `Process*Toolset` adapters, `OutputReadToolset` and `OutputForgetToolset`, registered individually. |
+| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes the eight filesystem tools, shell, five persistent-process tools and two output-archive tools. |
 
 There is no global tool registry. A host instantiates the tools it needs
 and chooses which definitions to expose to its model.
@@ -128,7 +130,9 @@ The five `process_*` tools manage jobs across calls with trusted host owner keys
 The Rust RoomKit adapters scope them to the conversation and agent; Python hosts
 provide a separate `ProcessSession` per conversation/agent. Output has byte cursors and
 explicit retention gaps; stop can also release the record. Output is retained in
-bounded memory, with no durable full-output archive. Reading does not consume
+bounded memory by default. An optional `OutputStore` also keeps a bounded raw
+copy on disk, readable through `output_read` and released through `output_forget`.
+It is temporary storage, without persistence across restarts. Reading does not consume
 output or close stdin. Send EOF explicitly through `process_write` when needed.
 
 Linux is the initial validation platform. Root canonicalization is an
@@ -149,18 +153,18 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 
 ## Python
 
-The `0.1.0a7` preview exposes **read, list, glob, grep, write, edit, diff, patch,
-shell and the five process tools**. Its prebuilt wheel supports ordinary
+The `0.1.0a8` preview exposes **read, list, glob, grep, write, edit, diff, patch,
+shell, the five process tools, output_read and output_forget**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a7)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a8)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a7 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a8 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a7-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a8-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for
@@ -486,6 +490,120 @@ See [the standalone process example](examples/run_process.py), which verifies
 exact newline bytes, paged reads with open stdin, explicit EOF and normal exit:
 `.venv/bin/python examples/run_process.py`.
 
+## Optional command output retention
+
+Pass one host-owned `OutputStore` to the command tools that need disk copies.
+Select `OutputRead` to let the agent retrieve bytes omitted from the memory preview;
+select `OutputForget` only if the agent should also release completed logs.
+
+```python
+from roomkit import AIChannel, RoomKit
+from roomkit_tools import OutputStore, OutputRead, OutputForget, Shell
+
+async with OutputStore() as outputs, RoomKit() as kit:
+    agent = AIChannel(
+        "agent",
+        provider=provider,
+        tools=[
+            Shell("./workspace", outputs=outputs),
+            OutputRead(outputs),
+            OutputForget(outputs),
+        ],
+    )
+    kit.register_channel(agent)
+    # Create/attach the room and run the conversation here.
+```
+
+For persistent jobs, use `async with ProcessSession(root, outputs=outputs)` inside
+that store's context, then select the desired `Process*` tools. Close RoomKit and
+the process session before the output store. Python hosts must create a separate
+store per conversation/agent requiring isolation; sharing a store intentionally
+shares access to its logs. Rust hosts supply trusted owner keys; Rust RoomKit
+adapters derive them from the room and agent. Owners and storage paths are not
+model arguments.
+
+Standalone Python uses the same Rust implementation:
+
+```python
+from roomkit_tools import OutputStore, ShellTool
+
+async with OutputStore() as outputs:
+    shell = await ShellTool.create("./workspace", outputs=outputs, max_output_bytes=16)
+    result = await shell.shell("printf 'a longer diagnostic message'")
+    archive = result["data"]["stdout"]["archive"]
+    if archive["archive_id"] is not None:
+        page = await outputs.read(archive["archive_id"], offset=0, max_bytes=4096)
+        print(page["data"]["text"])
+        print(page["data"]["archive"]["complete"])
+        await outputs.forget(archive["archive_id"])
+```
+
+Without `outputs=`, command result shapes and memory retention are unchanged.
+With it, each stream has archive metadata: `archive_id`, `observed_bytes`,
+`stored_bytes`, `eof`, `finished`, `complete` and `error`. The process forms are
+`stdout_archive` and `stderr_archive` on its status. IDs identify streams in that
+store, never arbitrary host files. stdout and stderr are separate; their global
+ordering is not reconstructed. An ID may be absent when the record quota is full.
+
+`complete` means the source reached EOF, the writer finished without errors,
+and every observed byte was stored. It does not mean the command succeeded or
+captured every possible descendant output: check command status and
+`output_complete` separately. A timeout can still leave a complete copy of the
+bytes captured before termination. An incomplete disk copy is a prefix, with
+an explicit error such as `stream_limit`, `total_limit` or `write_failed`.
+
+`output_read` returns raw `bytes`, display `text`, byte `offset`/`next_offset`,
+`has_more` and the archive snapshot. Reads neither consume data, wait for more,
+rerun commands nor close stdin. `has_more: false` describes only the current
+stored prefix; it can grow while capture/writing continues. Concatenate raw
+bytes before decoding Unicode; display text replaces invalid/split sequences.
+Offsets past the stored prefix are invalid. Requests are capped by the host.
+The JSON array and lossy text add representation overhead to the raw page bound.
+
+| Host option | Default |
+| --- | --- |
+| `max_archives` / `max_archives_per_owner` | 64 / 16 retained streams, including empty and failed copies |
+| `max_stream_bytes` | 8 MiB retained prefix per stream |
+| `max_total_bytes` | 64 MiB shared stored/reserved bytes |
+| `max_read_bytes` | 16 KiB raw bytes per page |
+| `write_timeout_ms` | 1,000 ms to wait for queue capacity or final flush; maximum 60,000 ms |
+
+All bounds are positive. A command normally creates two records. The bounded
+writer queue holds at most eight 8 KiB chunks per stream, plus pending/in-flight
+chunks. Disk I/O runs outside journal locks and async executor threads. Waiting
+for queue capacity can slow capture up to the configured deadline; command
+timeouts still apply. Quota, file creation, write or queue errors disable copying
+with explicit metadata while pipe draining and bounded previews continue.
+Reservations include queued bytes and stay charged after failed writes until
+forget/close. There is no silent eviction or unlimited queue.
+
+Completed logs survive process `forget` and `ProcessSession.close()`.
+`output_forget` refuses active capture/writers, then invalidates the ID and frees
+its reservation. The host's `await outputs.list()` recovers IDs after a cancelled
+command response. `await outputs.close()` permanently refuses reads and new
+records, stops writers and releases retained files; it does not stop commands.
+It waits up to two seconds for writers; `False` means cleanup needs another
+close attempt. An issued close continues if its Python awaiter is cancelled.
+Already-issued filesystem work can outlive cancellation; last-reference cleanup
+only requests shutdown. Keep the host runtime alive for explicit cleanup.
+
+The store creates a private temporary directory beneath an optional host `parent`
+(default: system temporary directory in Python), using anonymous files on Unix.
+It is ephemeral: no fsync durability, restart recovery or export API is promised.
+Linux is validated; this does not add a sandbox or PTY.
+
+Run [the RoomKit log example](examples/roomkit_output.py) with the installed package:
+
+```sh
+python examples/roomkit_output.py
+# With OPENAI_BASE_URL and OPENAI_MODEL already configured:
+python examples/roomkit_output.py --live
+```
+
+It verifies one real shell execution, a truncated preview and exact recovery of
+a middle diagnostic through `output_read`. The default model is scripted; the
+RoomKit loop, native tools, disk reads and verifier are real.
+
 Errors inherit from `ToolError`: `InvalidInputError`, `AccessRefusedError`,
 `LimitExceededError`, `UnsupportedResourceError` and `ToolIOError`. I/O messages
 omit OS diagnostics and host paths. Cancellation remains `asyncio.CancelledError`.
@@ -496,7 +614,7 @@ At normal interpreter exit, an automatic hook cancels outstanding native calls,
 refuses new calls and drains Python-facing tasks and completion callbacks before
 Python finalizes. The hook releases the GIL while waiting; abandoned or cancelled
 awaiters cannot leave callbacks attaching to a finalized interpreter. This does
-not replace explicit `ProcessSession` cleanup or handle abrupt termination.
+not replace explicit `ProcessSession` and `OutputStore` cleanup or handle abrupt termination.
 Already-issued blocking I/O can delay exit until it returns.
 
 The RoomKit classes expose the Rust-derived input schema through its `Tool` protocol
@@ -566,7 +684,7 @@ The scripted example and rejection tests run in `make python-check` and CI.
 
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns
-its revision. All fourteen tools have Python bindings; other platforms and
+its revision. All sixteen tools have Python bindings; other platforms and
 free-threaded builds remain outside the validated Python slice.
 
 To build from this checkout instead, install Rust and [uv](https://docs.astral.sh/uv/):

@@ -1,6 +1,18 @@
 {
-  "version": 1,
+  "version": 2,
   "cases": [
+    {
+      "name": "optional_archive_pages_and_release",
+      "outputs": true,
+      "files": {},
+      "steps": [
+        {"tool": "shell", "input": {"command": "printf 'πabcπXYZ\n'"}, "expect": {"/data/stdout/truncated": true, "/data/stdout/archive/archive_id": "o1", "/data/stdout/archive/complete": true, "/data/stdout/archive/stored_bytes": 11}},
+        {"tool": "output_read", "input": {"archive_id": "o1", "offset": 3, "max_bytes": 100}, "expect": {"/data/bytes": [98, 99, 207], "/data/text": "bc�", "/data/next_offset": 6, "/data/has_more": true}},
+        {"tool": "output_read", "input": {"archive_id": "o1", "offset": 6}, "expect": {"/data/bytes": [128, 88, 89], "/data/text": "�XY", "/data/next_offset": 9}},
+        {"tool": "output_forget", "input": {"archive_id": "o1"}, "expect": {"/data/forgotten": true}},
+        {"tool": "output_read", "input": {"archive_id": "o1"}, "expect": {"/error": "refused"}}
+      ]
+    },
     {
       "name": "text_pages_and_errors",
       "files": {"notes with spaces.txt": "\ufeffHello π\r\nsecond\r\nlast", "empty.txt": "", "binary.dat": [0, 255]},

@@ -17,7 +17,7 @@ use super::{Cancellation, InvalidInputError, ToolError, tool_error};
 
 // Each Python session owns a separate manager with a single trusted owner.
 // Neither the manager nor this key is selected by model arguments.
-const OWNER: &str = "python-session";
+const OWNER: &str = super::output::OWNER;
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -62,6 +62,7 @@ struct SessionState {
     limits: ProcessLimits,
     manager: OnceCell<ProcessManager>,
     closed: CancellationToken,
+    outputs: Option<Arc<super::output::State>>,
 }
 
 impl SessionState {
@@ -72,9 +73,13 @@ impl SessionState {
         let manager = self
             .manager
             .get_or_try_init(|| async {
-                ProcessManager::new(&self.root)
+                let mut manager = ProcessManager::new(&self.root)
                     .await?
-                    .with_limits(self.limits)
+                    .with_limits(self.limits)?;
+                if let Some(outputs) = &self.outputs {
+                    manager = manager.with_output_store(outputs.resolve().await?)?;
+                }
+                Ok::<_, Error>(manager)
             })
             .await?;
         if self.closed.is_cancelled() {
@@ -109,7 +114,12 @@ impl Drop for PythonProcessSession {
 #[pymethods]
 impl PythonProcessSession {
     #[new]
-    fn new(root: PathBuf, options_json: &str) -> PyResult<Self> {
+    #[pyo3(signature = (root, options_json, outputs=None))]
+    fn new(
+        root: PathBuf,
+        options_json: &str,
+        outputs: Option<&super::output::PythonOutputStore>,
+    ) -> PyResult<Self> {
         let options: ProcessOptions = serde_json::from_str(options_json)
             .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
         Ok(Self {
@@ -118,6 +128,7 @@ impl PythonProcessSession {
                 limits: options.limits(),
                 manager: OnceCell::new(),
                 closed: CancellationToken::new(),
+                outputs: outputs.map(|outputs| Arc::clone(&outputs.state)),
             }),
         })
     }

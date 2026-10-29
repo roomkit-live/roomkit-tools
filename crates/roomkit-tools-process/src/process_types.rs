@@ -189,6 +189,12 @@ pub struct ProcessStatus {
     pub stderr_retained_from: u64,
     /// Safe infrastructure failure, if any. No OS diagnostic details are exposed.
     pub error: Option<String>,
+    /// Optional live stdout archive metadata; absent when storage is disabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stdout_archive: Option<crate::OutputArchive>,
+    /// Optional live stderr archive metadata; independent of journal retention.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stderr_archive: Option<crate::OutputArchive>,
 }
 
 /// One raw-byte page and its lossy UTF-8 display, with explicit retention gaps.

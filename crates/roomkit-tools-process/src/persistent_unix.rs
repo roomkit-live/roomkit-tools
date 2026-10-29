@@ -20,10 +20,11 @@ pub(crate) fn launch(
     owner: &str,
     command: &str,
     cwd: &Path,
-    status: ProcessStatus,
+    mut status: ProcessStatus,
     limits: ProcessLimits,
     stop: CancellationToken,
-) -> Result<Arc<Entry>, Error> {
+    outputs: Option<&crate::OutputStore>,
+) -> Result<(Arc<Entry>, ProcessStatus), Error> {
     let mut child = Command::new("/bin/sh")
         .arg("-c")
         .arg(command)
@@ -52,19 +53,34 @@ pub(crate) fn launch(
     let stderr = child.stderr.take().ok_or_else(missing_pipe)?;
     let stdin = child.stdin.take().ok_or_else(missing_pipe)?;
     let (done, receiver) = watch::channel(false);
+    let stdout_archive = outputs.map(|store| store.begin(owner));
+    let stderr_archive = outputs.map(|store| store.begin(owner));
+    let archive_timeout = outputs.map_or(0, crate::OutputStore::write_timeout_ms);
+    status.stdout_archive = stdout_archive.as_ref().map(crate::output::Sink::snapshot);
+    status.stderr_archive = stderr_archive.as_ref().map(crate::output::Sink::snapshot);
     let entry = Arc::new(Entry {
         owner: owner.into(),
         record: Arc::new(Mutex::new(Record {
-            status,
+            status: status.clone(),
             stdout: Journal::new(limits.max_output_bytes),
             stderr: Journal::new(limits.max_output_bytes),
+            stdout_archive: stdout_archive.as_ref().map(crate::output::Sink::view),
+            stderr_archive: stderr_archive.as_ref().map(crate::output::Sink::view),
         })),
         stdin: Mutex::new(Some(stdin)),
         stop,
         done: receiver,
     });
-    tokio::spawn(run(child, group, stdout, stderr, Arc::clone(&entry), done));
-    Ok(entry)
+    tokio::spawn(run(
+        child,
+        group,
+        stdout,
+        stderr,
+        Arc::clone(&entry),
+        done,
+        (stdout_archive, stderr_archive, archive_timeout),
+    ));
+    Ok((entry, status))
 }
 
 fn missing_pipe() -> Error {
@@ -78,9 +94,13 @@ async fn drain(
     stream: &mut (impl AsyncRead + Unpin),
     record: &Mutex<Record>,
     stdout: bool,
+    mut archive: Option<crate::output::Sink>,
 ) -> std::io::Result<()> {
     let mut bytes = vec![0; 8192];
     loop {
+        if let Some(archive) = &mut archive {
+            archive.flush_pending().await;
+        }
         let count = stream.read(&mut bytes).await?;
         let mut record = record.lock().await;
         let journal = if stdout {
@@ -90,10 +110,16 @@ async fn drain(
         };
         if count == 0 {
             journal.eof = true;
+            if let Some(archive) = &mut archive {
+                archive.end(true);
+            }
             return Ok(());
         }
         if let Some(chunk) = bytes.get(..count) {
             journal.push(chunk)?;
+            if let Some(archive) = &mut archive {
+                archive.push(chunk);
+            }
         }
     }
 }
@@ -105,7 +131,13 @@ async fn run(
     mut stderr: ChildStderr,
     entry: Arc<Entry>,
     done: watch::Sender<bool>,
+    archives: (
+        Option<crate::output::Sink>,
+        Option<crate::output::Sink>,
+        u64,
+    ),
 ) {
+    let (stdout_archive, stderr_archive, archive_timeout) = archives;
     let timeout = entry.record.lock().await.status.timeout_ms;
     // Capture outlives the wait/select, so stopping never discards bytes already
     // read while their append is awaiting the record lock.
@@ -114,8 +146,8 @@ async fn run(
     let failed = capture_failed.clone();
     let mut capture = tokio::spawn(async move {
         let result = tokio::try_join!(
-            drain(&mut stdout, &record, true),
-            drain(&mut stderr, &record, false)
+            drain(&mut stdout, &record, true, stdout_archive),
+            drain(&mut stderr, &record, false, stderr_archive)
         );
         if result.is_err() {
             failed.cancel();
@@ -142,6 +174,22 @@ async fn run(
         capture.abort();
         let _joined = capture.await;
     }
+    let (out_archive, err_archive) = {
+        let record = entry.record.lock().await;
+        (record.stdout_archive.clone(), record.stderr_archive.clone())
+    };
+    tokio::join!(
+        async {
+            if let Some(view) = out_archive {
+                view.wait(archive_timeout).await;
+            }
+        },
+        async {
+            if let Some(view) = err_archive {
+                view.wait(archive_timeout).await;
+            }
+        }
+    );
     let error = if execution.is_err() {
         Some("process execution or capture failed")
     } else if stopped.is_err() {

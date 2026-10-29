@@ -22,6 +22,8 @@ pub(crate) struct Record {
     pub(crate) status: ProcessStatus,
     pub(crate) stdout: Journal,
     pub(crate) stderr: Journal,
+    pub(crate) stdout_archive: Option<crate::output::View>,
+    pub(crate) stderr_archive: Option<crate::output::View>,
 }
 
 impl Record {
@@ -31,6 +33,14 @@ impl Record {
         status.stderr_bytes = self.stderr.total;
         status.stdout_retained_from = self.stdout.first();
         status.stderr_retained_from = self.stderr.first();
+        status.stdout_archive = self
+            .stdout_archive
+            .as_ref()
+            .map(crate::output::View::snapshot);
+        status.stderr_archive = self
+            .stderr_archive
+            .as_ref()
+            .map(crate::output::View::snapshot);
         status
     }
 }
@@ -56,6 +66,7 @@ struct Inner {
     limits: ProcessLimits,
     registry: Mutex<Registry>,
     closed: CancellationToken,
+    outputs: Option<crate::OutputStore>,
 }
 
 impl Drop for Inner {
@@ -105,8 +116,26 @@ impl ProcessManager {
                 limits: ProcessLimits::default(),
                 registry: Mutex::new(Registry::default()),
                 closed: CancellationToken::new(),
+                outputs: None,
             }),
         })
+    }
+
+    /// Attach optional output storage before cloning/starting. Closing this manager
+    /// stops capture but keeps disk copies until the store is explicitly closed.
+    ///
+    /// # Errors
+    /// Refuses shared or previously used managers.
+    pub fn with_output_store(mut self, outputs: crate::OutputStore) -> Result<Self, Error> {
+        let inner = Arc::get_mut(&mut self.inner)
+            .ok_or_else(|| Error::Refused("configure output storage before cloning".into()))?;
+        if inner.registry.get_mut().next_id != 0 {
+            return Err(Error::Refused(
+                "configure output storage before starting".into(),
+            ));
+        }
+        inner.outputs = Some(outputs);
+        Ok(self)
     }
 
     /// Set positive host bounds before cloning or starting processes.
@@ -277,27 +306,33 @@ impl ProcessManager {
             stdout_retained_from: 0,
             stderr_retained_from: 0,
             error: None,
+            stdout_archive: None,
+            stderr_archive: None,
         };
         #[cfg(unix)]
         {
-            let entry = crate::persistent_unix::launch(
+            let (entry, status) = crate::persistent_unix::launch(
                 owner,
                 &input.command,
                 &cwd,
                 status.clone(),
                 limits,
                 self.inner.closed.child_token(),
+                self.inner.outputs.as_ref(),
             )?;
             registry.next_id = next;
             registry.entries.insert(status.process_id.clone(), entry);
             // No await after spawn: ownership and the recoverable ID are committed together.
-            Ok(Output::new(
-                status.clone(),
-                format!(
-                    "{} started; use process_read for output\n",
-                    status.process_id
-                ),
-            ))
+            let mut text = format!(
+                "{} started; use process_read for output\n",
+                status.process_id
+            );
+            crate::output::append_metadata(
+                &mut text,
+                status.stdout_archive.as_ref(),
+                status.stderr_archive.as_ref(),
+            );
+            Ok(Output::new(status, text))
         }
         #[cfg(not(unix))]
         {
@@ -343,6 +378,11 @@ impl ProcessManager {
                 "{}: {:?}, end={:?}, exit_code={:?}, signal={:?}",
                 s.process_id, s.state, s.end, s.exit_code, s.signal
             );
+            crate::output::append_metadata(
+                &mut text,
+                s.stdout_archive.as_ref(),
+                s.stderr_archive.as_ref(),
+            );
         }
         Ok(Output::new(states, text))
     }
@@ -371,7 +411,7 @@ impl ProcessManager {
             stdout: record.stdout.page(input.stdout_offset, limit)?,
             stderr: record.stderr.page(input.stderr_offset, limit)?,
         };
-        let text = format!(
+        let mut text = format!(
             "{} {:?}\nstdout (next={}, omitted={}):\n{}\nstderr (next={}, omitted={}):\n{}",
             data.status.process_id,
             data.status.state,
@@ -381,6 +421,11 @@ impl ProcessManager {
             data.stderr.next_offset,
             data.stderr.omitted_bytes,
             data.stderr.text
+        );
+        crate::output::append_metadata(
+            &mut text,
+            data.status.stdout_archive.as_ref(),
+            data.status.stderr_archive.as_ref(),
         );
         Ok(Output::new(data, text))
     }
@@ -456,9 +501,14 @@ impl ProcessManager {
         } else {
             false
         };
-        let text = format!(
+        let mut text = format!(
             "{}: {:?}, forgotten={}\n",
             status.process_id, status.state, forgotten
+        );
+        crate::output::append_metadata(
+            &mut text,
+            status.stdout_archive.as_ref(),
+            status.stderr_archive.as_ref(),
         );
         Ok(Output::new(ProcessStopResult { status, forgotten }, text))
     }

@@ -7,6 +7,7 @@
 
 mod capture;
 mod journal;
+mod output;
 mod persistent;
 #[cfg(unix)]
 mod persistent_unix;
@@ -16,6 +17,10 @@ mod shell;
 mod unix;
 
 pub use capture::CapturedOutput;
+pub use output::{
+    OutputArchive, OutputForgetInput, OutputForgetResult, OutputLimits, OutputPage,
+    OutputReadInput, OutputStore,
+};
 pub use persistent::ProcessManager;
 pub use process_types::*;
 pub use shell::{ShellInput, ShellLimits, ShellResult, ShellTool};

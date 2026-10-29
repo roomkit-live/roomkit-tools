@@ -91,6 +91,7 @@ pub struct ShellResult {
 pub struct ShellTool {
     root: PathBuf,
     limits: ShellLimits,
+    outputs: Option<crate::OutputStore>,
 }
 
 impl ShellTool {
@@ -118,7 +119,16 @@ impl ShellTool {
         Ok(Self {
             root,
             limits: ShellLimits::default(),
+            outputs: None,
         })
+    }
+
+    /// Attach optional output storage. Archive reads use the same trusted owner.
+    /// Standalone `shell` uses owner `default`; multi-owner hosts call `shell_owned`.
+    #[must_use]
+    pub fn with_output_store(mut self, outputs: crate::OutputStore) -> Self {
+        self.outputs = Some(outputs);
+        self
     }
 
     /// Configure positive host limits; the default timeout cannot exceed its cap.
@@ -160,6 +170,20 @@ impl ShellTool {
         input: ShellInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ShellResult>, Error> {
+        self.shell_owned("default", input, cancel).await
+    }
+
+    /// Execute with a trusted archive owner supplied by the host, never the model.
+    ///
+    /// # Errors
+    /// Same failures and cleanup semantics as [`Self::shell`]. Storage failures
+    /// appear in archive metadata and do not change command exit status.
+    pub async fn shell_owned(
+        &self,
+        owner: &str,
+        input: ShellInput,
+        cancel: &CancellationToken,
+    ) -> Result<Output<ShellResult>, Error> {
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
@@ -193,12 +217,17 @@ impl ShellTool {
         #[cfg(unix)]
         {
             let limits = self.limits;
+            let outputs = self
+                .outputs
+                .as_ref()
+                .map(|store| (store.clone(), owner.to_owned()));
             tokio::spawn(crate::unix::run(
                 input.command,
                 cwd,
                 limits,
                 timeout_ms,
                 child_cancel,
+                outputs,
             ))
             .await
             .map_err(|error| Error::Io {

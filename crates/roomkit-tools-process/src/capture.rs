@@ -17,6 +17,9 @@ pub struct CapturedOutput {
     pub omitted_bytes: u64,
     /// Bytes actually read, including discarded bytes.
     pub total_bytes: u64,
+    /// Optional disk copy. Absent when the host did not enable output storage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archive: Option<crate::OutputArchive>,
 }
 
 #[cfg(unix)]
@@ -25,6 +28,7 @@ pub(crate) struct Capture {
     tail: VecDeque<u8>,
     limit: usize,
     total: u64,
+    archive: Option<crate::output::Sink>,
 }
 
 #[cfg(unix)]
@@ -35,6 +39,17 @@ impl Capture {
             tail: VecDeque::new(),
             limit,
             total: 0,
+            archive: None,
+        }
+    }
+
+    pub(crate) fn archive(&mut self, archive: Option<crate::output::Sink>) {
+        self.archive = archive;
+    }
+
+    pub(crate) async fn finish_archive(&mut self) {
+        if let Some(archive) = &mut self.archive {
+            archive.finish().await;
         }
     }
 
@@ -74,6 +89,7 @@ impl Capture {
             truncated: omitted != 0,
             omitted_bytes: omitted,
             total_bytes: self.total,
+            archive: self.archive.as_ref().map(crate::output::Sink::snapshot),
         }
     }
 
@@ -83,12 +99,21 @@ impl Capture {
     ) -> std::io::Result<()> {
         let mut bytes = vec![0; 8192];
         loop {
+            if let Some(archive) = &mut self.archive {
+                archive.flush_pending().await;
+            }
             let count = stream.read(&mut bytes).await?;
             if count == 0 {
+                if let Some(archive) = &mut self.archive {
+                    archive.end(true);
+                }
                 return Ok(());
             }
             if let Some(chunk) = bytes.get(..count) {
                 self.push(chunk);
+                if let Some(archive) = &mut self.archive {
+                    archive.push(chunk);
+                }
             }
         }
     }
