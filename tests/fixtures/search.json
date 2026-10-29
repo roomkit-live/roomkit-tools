@@ -100,6 +100,135 @@
       "type": "application/json",
       "body": "{\"results\": [{\"title\": \"Shipping guide\", \"url\": \"https://example.com/guide\", \"content\": \"Shipping is free at 50. café\"}, {\"title\": \"API\", \"url\": \"https://example.com/api\", \"content\": \"Reference\"}]}",
       "no_length": true
+    },
+    "/openai/answer": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/astral": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Hi 😀 sample\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 3, \"end_index\": 4}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/combining": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"é\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 2}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/parts": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"é\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 1}]}, {\"type\": \"output_text\", \"text\": \"😀\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 1}]}]}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Z\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 1}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/no-search": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/refusal-no-search": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"refusal\", \"refusal\": \"not disclosed\"}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/refusal-after-search": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"refusal\", \"refusal\": \"not disclosed\"}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/incomplete": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"incomplete\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"incomplete\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}, \"incomplete_details\": {\"reason\": \"max_output_tokens\"}}"
+    },
+    "/openai/incomplete-before-search": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"incomplete\", \"error\": null, \"output\": [], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}, \"incomplete_details\": {\"reason\": \"max_output_tokens\"}}"
+    },
+    "/openai/failed": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"failed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/queued": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"queued\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/call-failed": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"failed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/call-pending": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"searching\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/api-error": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": {\"message\": \"private diagnostic\"}, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/wrong-tool": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"function_call\", \"name\": \"shell\"}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/duplicate-id": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/budget": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"web_search_call\", \"id\": \"ws2\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/two-searches": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"web_search_call\", \"id\": \"ws2\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/non-url-source": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"finance\", \"url\": \"private-source\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/bad-url": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"javascript:alert(1)\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/negative-offset": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": -1, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/out-of-range": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 100}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/reverse-span": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 6, \"end_index\": 2}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/pending-message": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"in_progress\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/usage-type": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": \"120\", \"output_tokens\": 30}}"
+    },
+    "/openai/usage-absent": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": null}"
+    },
+    "/openai/uncited": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": []}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/bound-sources": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/0\"}, {\"type\": \"url\", \"url\": \"https://example.com/1\"}, {\"type\": \"url\", \"url\": \"https://example.com/2\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/2\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/too-many-cited": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}, {\"type\": \"output_text\", \"text\": \"Another source\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/other\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 7}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/deadline": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}",
+      "body_delay_ms": 200
+    },
+    "/openai/reasoning": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"reasoning\", \"summary\": [{\"type\": \"summary_text\", \"text\": \"ignored reasoning\"}]}, {\"type\": \"web_search_call\", \"id\": \"ws1\", \"status\": \"completed\", \"action\": {\"type\": \"search\", \"sources\": [{\"type\": \"url\", \"url\": \"https://example.com/guide\"}]}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
+    },
+    "/openai/open-only": {
+      "type": "application/json",
+      "body": "{\"object\": \"response\", \"status\": \"completed\", \"error\": null, \"output\": [{\"type\": \"web_search_call\", \"id\": \"open\", \"status\": \"completed\", \"action\": {\"type\": \"open_page\", \"url\": \"https://example.com\"}}, {\"type\": \"message\", \"status\": \"completed\", \"role\": \"assistant\", \"content\": [{\"type\": \"output_text\", \"text\": \"Café ☕ costs 5.\", \"annotations\": [{\"type\": \"url_citation\", \"url\": \"https://example.com/guide\", \"title\": \"Guide\", \"start_index\": 0, \"end_index\": 6}]}]}], \"usage\": {\"input_tokens\": 120, \"output_tokens\": 30}}"
     }
   },
   "cases": [
@@ -454,6 +583,415 @@
       "expect": {
         "/data/omitted_results": 1,
         "/data/partial": true
+      }
+    },
+    {
+      "name": "openai-answer",
+      "backend": "openai",
+      "path": "/openai/answer",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/provider": "openai",
+        "/data/payload/kind": "answer",
+        "/data/payload/citations/0/end": 9,
+        "/data/payload/sources/0/content": null,
+        "/data/usage/search_requests": 1,
+        "/data/usage/input_tokens": 120,
+        "/data/partial": false
+      }
+    },
+    {
+      "name": "openai-astral",
+      "backend": "openai",
+      "path": "/openai/astral",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/citations/0/start": 3,
+        "/data/payload/citations/0/end": 7
+      }
+    },
+    {
+      "name": "openai-combining",
+      "backend": "openai",
+      "path": "/openai/combining",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/citations/0/end": 3
+      }
+    },
+    {
+      "name": "openai-parts",
+      "backend": "openai",
+      "path": "/openai/parts",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/answer": "é\n\n😀\n\nZ",
+        "/data/payload/citations/1/start": 4,
+        "/data/payload/citations/1/end": 8,
+        "/data/payload/citations/2/start": 10,
+        "/data/payload/sources/0/title": "Guide"
+      }
+    },
+    {
+      "name": "openai-no-search",
+      "backend": "openai",
+      "path": "/openai/no-search",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/kind": "not_performed",
+        "/data/usage/search_requests": 0
+      }
+    },
+    {
+      "name": "openai-refusal-no-search",
+      "backend": "openai",
+      "path": "/openai/refusal-no-search",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/kind": "not_performed"
+      }
+    },
+    {
+      "name": "openai-refusal-after-search",
+      "backend": "openai",
+      "path": "/openai/refusal-after-search",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "refused"
+      }
+    },
+    {
+      "name": "openai-incomplete",
+      "backend": "openai",
+      "path": "/openai/incomplete",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/partial": true,
+        "/data/notices/0": "OpenAI response incomplete: output token limit reached",
+        "/data/payload/kind": "answer"
+      }
+    },
+    {
+      "name": "openai-incomplete-before-search",
+      "backend": "openai",
+      "path": "/openai/incomplete-before-search",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "limit"
+      }
+    },
+    {
+      "name": "openai-failed",
+      "backend": "openai",
+      "path": "/openai/failed",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-queued",
+      "backend": "openai",
+      "path": "/openai/queued",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-call-failed",
+      "backend": "openai",
+      "path": "/openai/call-failed",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-call-pending",
+      "backend": "openai",
+      "path": "/openai/call-pending",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-api-error",
+      "backend": "openai",
+      "path": "/openai/api-error",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-wrong-tool",
+      "backend": "openai",
+      "path": "/openai/wrong-tool",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-duplicate-id",
+      "backend": "openai",
+      "path": "/openai/duplicate-id",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-budget",
+      "backend": "openai",
+      "path": "/openai/budget",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "limit"
+      }
+    },
+    {
+      "name": "openai-two-searches",
+      "backend": "openai",
+      "path": "/openai/two-searches",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/usage/search_requests": 2
+      },
+      "backend_options": {
+        "max_tool_calls": 2
+      }
+    },
+    {
+      "name": "openai-non-url-source",
+      "backend": "openai",
+      "path": "/openai/non-url-source",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-bad-url",
+      "backend": "openai",
+      "path": "/openai/bad-url",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-negative-offset",
+      "backend": "openai",
+      "path": "/openai/negative-offset",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-out-of-range",
+      "backend": "openai",
+      "path": "/openai/out-of-range",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-reverse-span",
+      "backend": "openai",
+      "path": "/openai/reverse-span",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-pending-message",
+      "backend": "openai",
+      "path": "/openai/pending-message",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-usage-type",
+      "backend": "openai",
+      "path": "/openai/usage-type",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "openai-usage-absent",
+      "backend": "openai",
+      "path": "/openai/usage-absent",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/usage/input_tokens": null,
+        "/data/usage/output_tokens": null,
+        "/data/usage/search_requests": 1
+      }
+    },
+    {
+      "name": "openai-uncited",
+      "backend": "openai",
+      "path": "/openai/uncited",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/partial": true,
+        "/data/payload/citations": []
+      }
+    },
+    {
+      "name": "openai-bound-sources",
+      "backend": "openai",
+      "path": "/openai/bound-sources",
+      "input": {
+        "query": "shipping policy",
+        "limit": 1
+      },
+      "expect": {
+        "/data/omitted_results": 2,
+        "/data/partial": true,
+        "/data/payload/citations/0/source_index": 0,
+        "/data/payload/sources/0/url": "https://example.com/2"
+      }
+    },
+    {
+      "name": "openai-too-many-cited",
+      "backend": "openai",
+      "path": "/openai/too-many-cited",
+      "input": {
+        "query": "shipping policy",
+        "limit": 1
+      },
+      "expect": {
+        "/error": "limit"
+      }
+    },
+    {
+      "name": "openai-deadline",
+      "backend": "openai",
+      "path": "/openai/deadline",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2,
+        "timeout_ms": 20
+      },
+      "expect": {
+        "/error": "limit"
+      }
+    },
+    {
+      "name": "openai-reasoning",
+      "backend": "openai",
+      "path": "/openai/reasoning",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/answer": "Café ☕ costs 5."
+      }
+    },
+    {
+      "name": "openai-open-only",
+      "backend": "openai",
+      "path": "/openai/open-only",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/kind": "not_performed",
+        "/data/usage/search_requests": 0
       }
     }
   ]

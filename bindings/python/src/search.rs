@@ -1,7 +1,9 @@
 //! Modular search delegates transport and normalization to Rust.
 use super::{Cancellation, InvalidInputError, ToolError, tool_error};
 use pyo3::prelude::*;
-use roomkit_tools_search::{ExaSearch, OllamaSearch, SearchBackend, SearchInput, WebSearchTool};
+use roomkit_tools_search::{
+    ExaSearch, OllamaSearch, OpenAISearch, SearchBackend, SearchInput, WebSearchTool,
+};
 use std::sync::Arc;
 
 #[pyclass(name = "_WebSearchTool", frozen, module = "roomkit_tools._native")]
@@ -59,6 +61,18 @@ pub(super) struct PythonSearchBackend {
 
 #[pymethods]
 impl PythonSearchBackend {
+    #[staticmethod]
+    fn openai(api_key: &str, options_json: &str, config_json: &str) -> PyResult<Self> {
+        let options = serde_json::from_str(options_json)
+            .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
+        let config = serde_json::from_str(config_json)
+            .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
+        let backend = OpenAISearch::new(api_key, options, config).map_err(|e| tool_error(&e))?;
+        Ok(Self {
+            backend: Arc::new(backend),
+        })
+    }
+
     fn capabilities_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.backend.capabilities())
             .map_err(|_| ToolError::new_err("Unable to serialize search capabilities"))

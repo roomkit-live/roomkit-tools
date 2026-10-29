@@ -3,7 +3,7 @@
 mod search;
 use roomkit_tools_core::Error;
 use roomkit_tools_search::{
-    ExaSearch, OllamaSearch, SearchBackend, SearchHttpConfig, WebSearchTool,
+    ExaSearch, OllamaSearch, OpenAISearch, SearchBackend, SearchHttpConfig, WebSearchTool,
 };
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -40,10 +40,22 @@ async fn shared_search_contracts() {
         if let Some(cap) = case["max_response_bytes"].as_u64() {
             config.max_response_bytes = usize::try_from(cap).unwrap();
         }
-        let backend: Arc<dyn SearchBackend> = if case["backend"] == "exa" {
-            Arc::new(ExaSearch::new(Some("fixture-key"), config).unwrap())
-        } else {
-            Arc::new(OllamaSearch::new("fixture-key", config).unwrap())
+        let backend: Arc<dyn SearchBackend> = match case["backend"].as_str().unwrap() {
+            "exa" => Arc::new(ExaSearch::new(Some("fixture-key"), config).unwrap()),
+            "ollama" => Arc::new(OllamaSearch::new("fixture-key", config).unwrap()),
+            "openai" => {
+                let mut options = case.get("backend_options").cloned().unwrap_or(json!({}));
+                options["model"] = json!("fixture-model");
+                Arc::new(
+                    OpenAISearch::new(
+                        "fixture-key",
+                        serde_json::from_value(options).unwrap(),
+                        config,
+                    )
+                    .unwrap(),
+                )
+            }
+            _ => panic!("unknown fixture backend"),
         };
         assert!(!format!("{backend:?}").contains("fixture-key"));
         let tool = WebSearchTool::new(backend)
@@ -77,7 +89,22 @@ async fn shared_search_contracts() {
         }
         reports.insert(case["name"].as_str().unwrap().into(), result);
     }
-    let seen = server.seen.lock().unwrap();
+    assert_requests(&server.seen.lock().unwrap());
+    if let Ok(path) = std::env::var("ROOMKIT_SEARCH_RESULTS") {
+        std::fs::write(
+            path,
+            serde_json::to_vec(&json!({"fixture":fixture,"reports":reports})).unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "test assertions on fixture requests"
+)]
+fn assert_requests(seen: &[Value]) {
     let ollama = seen.iter().find(|r| r["path"] == "/ollama").unwrap();
     assert_eq!(
         ollama["body"],
@@ -100,11 +127,28 @@ async fn shared_search_contracts() {
             .unwrap()
             .contains("x-api-key: fixture-key")
     );
-    if let Ok(path) = std::env::var("ROOMKIT_SEARCH_RESULTS") {
-        std::fs::write(
-            path,
-            serde_json::to_vec(&json!({"fixture":fixture,"reports":reports})).unwrap(),
-        )
-        .unwrap();
-    }
+    let openai = seen.iter().find(|r| r["path"] == "/openai/answer").unwrap();
+    assert_eq!(openai["body"]["model"], "fixture-model");
+    assert_eq!(openai["body"]["input"], "shipping policy");
+    assert_eq!(openai["body"]["store"], false);
+    assert_eq!(openai["body"]["background"], false);
+    assert_eq!(openai["body"]["stream"], false);
+    assert_eq!(openai["body"]["max_tool_calls"], 1);
+    assert_eq!(openai["body"]["max_output_tokens"], 2048);
+    assert_eq!(openai["body"]["tool_choice"], "required");
+    assert_eq!(
+        openai["body"]["include"],
+        json!(["web_search_call.action.sources"])
+    );
+    assert_eq!(
+        openai["body"]["tools"],
+        json!([{"type":"web_search","search_context_size":"low"}])
+    );
+    assert!(
+        openai["headers"]
+            .as_str()
+            .unwrap()
+            .contains("authorization: Bearer fixture-key")
+    );
+    assert!(openai["body"].get("previous_response_id").is_none());
 }

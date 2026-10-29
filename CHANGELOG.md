@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Release Python preview `0.1.0a11` with optional Rust `OpenAISearch` and its
+  Python backend factory, usable through the existing WebSearch API. Keep the
+  search model/key independent of the RoomKit agent provider.
+- Issue one bounded Responses request with required web search and explicit
+  token/tool-call ceilings. Preserve observed search activity, token usage,
+  partial responses and explicit non-execution; no automatic continuation.
+- Normalize Unicode citation spans to UTF-8 offsets, preserve every cited
+  source under result limits and render visible Markdown citation links.
+- Extend shared Rust/Python HTTP fixtures and RoomKit examples with cited
+  answers, errors, cancellation and source-budget checks. Actual OpenAI API
+  access remains an opt-in live validation with a host-provided key and model.
+
 - Release Python preview `0.1.0a10` with modular `web_search`: an open Rust
   `SearchBackend` trait, optional Exa MCP and Ollama REST implementations, and
   directly selectable `WebSearch(backend=...)` RoomKit adapters.

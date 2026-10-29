@@ -12,6 +12,8 @@ default = []
 exa = ["dep:reqwest", "dep:roomkit-tools-http"]
 ollama = ["dep:reqwest", "dep:roomkit-tools-http"]
 
+openai = ["dep:reqwest", "dep:roomkit-tools-http"]
+
 [dependencies]
 roomkit-tools-core.workspace = true
 roomkit-tools-http = { workspace = true, optional = true }

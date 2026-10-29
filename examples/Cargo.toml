@@ -11,7 +11,7 @@ publish = false
 roomkit-tools-fs.workspace = true
 roomkit-tools-process.workspace = true
 roomkit-tools-web.workspace = true
-roomkit-tools-search = { workspace = true, features = ["exa", "ollama"] }
+roomkit-tools-search = { workspace = true, features = ["exa", "ollama", "openai"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 tokio-util.workspace = true

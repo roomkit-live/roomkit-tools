@@ -91,11 +91,51 @@ class OllamaSearch(SearchBackend):
         )
 
 
+class OpenAISearch(SearchBackend):
+    """Responses web search using an explicit model, key and request budgets.
+
+    One request with required web search, store=False and no conversation history.
+    Returns a cited answer only when a completed search action was observed.
+    No observed search produces not_performed; incomplete answers are marked
+    partial. Malformed/unfinished tool calls fail instead of reporting success.
+    Cancellation stops local waiting, not necessarily remote generation or billing.
+
+    API character spans are normalized to UTF-8 byte offsets in data. The text
+    rendition adds visible Markdown citations. Render those links when displaying
+    answers. limit bounds retained sources; cited sources are never silently lost.
+    Same host-only transport settings and decoded-body bounds as ExaSearch.
+    """
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        max_output_tokens: int = 2048,
+        max_tool_calls: int = 1,
+        endpoint: str | None = None,
+        allowed_origins: list[str] | None = None,
+        private_origins: list[str] | None = None,
+        max_response_bytes: int = 512 * 1024,
+    ) -> None:
+        options = {
+            "model": model,
+            "max_output_tokens": max_output_tokens,
+            "max_tool_calls": max_tool_calls,
+        }
+        self._native = _native._SearchBackend.openai(
+            api_key,
+            json.dumps(options, allow_nan=False),
+            _config(endpoint, allowed_origins, private_origins, max_response_bytes),
+        )
+
+
 class WebSearchTool:
     """Standalone async dictionary API with an explicitly selected backend.
 
     Results, cited generated answers and non-execution have distinct payloads.
-    Built-in Exa/Ollama return direct results only. Check partial/omitted counts.
+    Exa/Ollama return direct results; OpenAI returns an observed-search answer
+    or explicit non-execution. Check partial/omitted counts.
     Sources and notices are untrusted data. Answers are never clipped through
     citations. Full serialized output is bounded; an oversized answer fails.
     Cancellation drops network work; bounded decoding may finish later.

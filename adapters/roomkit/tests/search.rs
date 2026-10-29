@@ -72,3 +72,35 @@ async fn search_is_independently_selectable_and_closing_cancels() {
         Err(ToolError::Refused(_))
     ));
 }
+
+#[path = "../../../tests/support/search.rs"]
+mod http;
+
+#[tokio::test]
+async fn native_openai_answer_preserves_citations_and_usage_through_roomkit() {
+    let server = http::Server::start().await;
+    let mut config = roomkit_tools_search::SearchHttpConfig::default();
+    config.endpoint = Some(format!("{}/openai/answer", server.origin));
+    config.policy.private_origins.push(server.origin.clone());
+    let backend = roomkit_tools_search::OpenAISearch::new(
+        "fixture-key",
+        roomkit_tools_search::OpenAISearchConfig::new("fixture-model"),
+        config,
+    )
+    .unwrap();
+    let tools = WebSearchToolset::new(WebSearchTool::new(Arc::new(backend)));
+    let ToolOutput::Json(result) = tools.call(call("query"), context()).await.unwrap() else {
+        panic!("expected JSON")
+    };
+    assert_eq!(result["data"]["payload"]["kind"], "answer");
+    assert_eq!(result["data"]["payload"]["citations"][0]["end"], 9);
+    assert_eq!(result["data"]["usage"]["search_requests"], 1);
+    assert!(
+        result["text"]
+            .as_str()
+            .unwrap()
+            .contains("[source 1](<https://example.com/guide>)")
+    );
+    assert_eq!(server.seen.lock().unwrap().len(), 1);
+    tools.close().await;
+}

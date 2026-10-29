@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct SearchInput {
     /// Nonempty search query.
     pub query: String,
-    /// Maximum direct results, default five. Not a promise of coverage.
+    /// Maximum retained documents or answer sources, default five. Cited sources must all fit.
     #[serde(default = "default_limit")]
     pub limit: usize,
     /// Total deadline including DNS, HTTP and decoding.
@@ -81,7 +81,7 @@ pub enum SearchPayload {
 /// Optional observed service usage. Missing values are unknown, never estimates.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 pub struct SearchUsage {
-    /// Search requests reported by the provider (not inferred from result count).
+    /// Completed search actions reported by the provider; not a query or billing count.
     pub search_requests: Option<u64>,
     /// Model input tokens reported by the provider.
     pub input_tokens: Option<u64>,
@@ -156,7 +156,7 @@ pub struct SearchResult {
     /// Provider response with common bounds applied.
     #[serde(flatten)]
     pub response: BackendOutput,
-    /// Known direct results omitted to respect the requested count.
+    /// Known direct results or uncited answer sources omitted to respect the requested count.
     pub omitted_results: usize,
 }
 

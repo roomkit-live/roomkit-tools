@@ -1203,7 +1203,9 @@ dependencies = [
 name = "roomkit-tools-search"
 version = "0.1.0"
 dependencies = [
+ "reqwest",
  "roomkit-tools-core",
+ "roomkit-tools-http",
  "schemars",
  "serde",
  "serde_json",

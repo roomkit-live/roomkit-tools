@@ -2,6 +2,7 @@
 
 import importlib.util
 import io
+import json
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -24,6 +25,18 @@ class RoomKitSearchTests(unittest.IsolatedAsyncioTestCase):
             events = await example.run()
         self.assertEqual([e.name for e in events], ["web_search", "web_fetch"])
         self.assertIn("Verified:", output.getvalue())
+
+    async def test_agent_consumes_cited_answer_from_native_openai_backend(self):
+        spec = importlib.util.spec_from_file_location("search_answer_example", EXAMPLE)
+        example = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(example)
+        with redirect_stdout(io.StringIO()):
+            events = await example.run(service="fixture-openai")
+        output = json.loads(events[0].result)
+        self.assertEqual(output["data"]["payload"]["kind"], "answer")
+        self.assertEqual(output["data"]["usage"]["search_requests"], 1)
+        self.assertIn("[source 1](<http://127.0.0.1:", output["text"])
+        self.assertEqual(events[1].name, "web_fetch")
 
     async def test_selected_tool_preserves_failures_and_does_not_register_fetch(self):
         async with SearchServer() as server:

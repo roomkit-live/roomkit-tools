@@ -177,6 +177,14 @@ def main() -> None:
             run(str(python), "-I", str(root / "examples/roomkit_output.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_web.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_search.py"), cwd=work)
+            run(
+                str(python),
+                "-I",
+                str(root / "examples/roomkit_search.py"),
+                "--service",
+                "fixture-openai",
+                cwd=work,
+            )
 
 
 def run_tests(

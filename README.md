@@ -58,7 +58,7 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup; optional `OutputStore` for disk copies, reads and release. |
 | `roomkit-tools-web` | Independent `WebFetchTool`: HTTP(S) GET, host origin policy, Markdown/text/source conversion, deadlines and byte limits. |
 | `roomkit-tools-http` | Shared DNS-pinned HTTP clients, exact-origin policy and bounded body reads. |
-| `roomkit-tools-search` | `WebSearchTool` and an open `SearchBackend` trait; optional `exa` and `ollama` features, both off by default. |
+| `roomkit-tools-search` | `WebSearchTool` and an open `SearchBackend` trait; optional `exa`, `ollama` and `openai` features, all off by default. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
 | `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` the five `Process*Toolset` adapters, `OutputReadToolset`, `OutputForgetToolset` `WebFetchToolset` and `WebSearchToolset`, registered individually. |
 | `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes the eight filesystem tools, shell, five persistent-process tools two output-archive tools, web fetch and search. |
@@ -218,7 +218,7 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 Choose a search backend independently of your agent model. The Rust tool is
 `WebSearchTool::new(Arc<dyn SearchBackend>)`. Implement `SearchBackend` in another
 crate to add a service; there is no closed provider registry. Built-in backends
-are enabled with Cargo features `exa` and/or `ollama`. The RoomKit Rust adapter
+are enabled with Cargo features `exa`, `ollama` and/or `openai`. The RoomKit Rust adapter
 accepts the generic tool without enabling a provider feature itself.
 
 For RoomKit Python:
@@ -240,7 +240,7 @@ agent = AIChannel(
 `ExaSearch` uses [Exa's hosted MCP endpoint](https://exa.ai/mcp) with optional `api_key`; anonymous
 access is subject to service limits. `OllamaSearch` uses the [hosted Ollama REST
 API](https://docs.ollama.com/capabilities/web-search) and requires an explicit account key. A local Ollama installation does not
-provide this web index. Neither backend reads keys from environment variables.
+provide this web index. No backend reads keys from environment variables.
 No search server or second local model needs to be started.
 
 Without RoomKit, use `WebSearchTool(backend=...)` and
@@ -250,7 +250,7 @@ kinds and service limits. A new native backend needs a binding factory to be
 available in Python; there is no Python HTTP fallback.
 
 Input is only `query`, `limit` and `timeout_ms`. The host selects credentials,
-endpoint, origin policy and budgets. Both built-in services return
+endpoint, origin policy and budgets. Exa and Ollama return
 `data.payload.kind == "results"` with ranked URL/title/excerpt entries.
 `partial`, `omitted_results` and per-excerpt `omitted_bytes` expose known
 omissions. Zero results is a valid response, distinct from HTTP/quota failures,
@@ -262,9 +262,50 @@ The contract also supports `answer` with sources and UTF-8 citation offsets,
 and `not_performed` when a model did not search. Common validation checks
 source indexes and character boundaries; oversized answers fail without
 clipping citations. Optional `usage` contains provider-reported counters only.
-These shapes are tested through a custom Rust backend. **OpenAI, Anthropic,
-Gemini and SearXNG backends are not implemented yet.** Provider-native search
-inside the main AI generation is a separate RoomKit integration.
+`OpenAISearch` implements these shapes through a separate
+[Responses web-search request](https://developers.openai.com/api/docs/guides/tools-web-search):
+
+```python
+from roomkit_tools import WebSearch
+from roomkit_tools.search import OpenAISearch
+
+tools = [WebSearch(backend=OpenAISearch(
+    api_key=search_key,
+    model=search_model,          # Explicit model supporting Responses web search.
+    max_tool_calls=1,
+    max_output_tokens=2048,
+))]
+```
+
+The model performs a required web search and generates an answer. The adapter
+only returns `answer` after observing a completed `search` action. A completed
+response without one becomes `not_performed`; it does not forward an unverified
+answer as web evidence. Failed/unfinished tool calls and malformed payloads
+raise errors. Incomplete responses with a completed search and usable text are
+marked `partial`; missing URL citations are also reported explicitly.
+
+One synchronous request uses `store=false`, no history and no streaming,
+background execution, retry or continuation. `max_tool_calls` (1–16) and
+`max_output_tokens` (1–1,000,000) are request ceilings, not monetary budgets.
+A compatible model and funded API access are the host's responsibility; the
+library never selects a model or reads environment variables. Local cancellation
+stops waiting but does not guarantee remote computation or billing has stopped.
+No OpenAI SDK dependency is required.
+
+URL annotations use Unicode character indexes, converted to UTF-8 byte offsets
+before concatenating text parts; `data.payload.answer` keeps the original text.
+The `text` rendition inserts visible Markdown citation links. Hosts displaying
+answers should preserve clickable citations. `limit` bounds retained sources:
+all cited sources are kept, uncited extras are omitted with a count, and a limit
+below the number of cited sources fails explicitly. Citation source indexes are
+remapped when uncited sources are omitted. No generated excerpt is invented.
+`usage.search_requests` counts observed search actions, while token counters are
+copied from the provider when present; absent token usage remains unknown.
+
+**Anthropic, Gemini and SearXNG backends are not implemented yet.** Search inside
+the main AI generation remains a separate RoomKit provider integration. OpenAI
+protocol handling is covered by local response fixtures; these automated tests
+do not establish account/model availability or replace a live API validation.
 
 Defaults: 4096 query bytes, at most 10 requested results, 4096 excerpt bytes per
 source, 128 KiB complete serialized output, 30 s default / 120 s maximum total
@@ -285,22 +326,27 @@ HTTP calls and a scripted RoomKit model. Add `--live` for your configured agent
 model (install `roomkit[vllm]` and set `OPENAI_BASE_URL` / `OPENAI_MODEL`); add `--service exa` for real web search, or `--service ollama` with
 `OLLAMA_API_KEY`. The example application reads these variables explicitly
 (`EXA_API_KEY` is optional). It verifies that a fetched URL came from the actual
-search response. Live services are excluded from automated checks.
+search response. `--service fixture-openai` exercises the Responses backend
+against a local fixture with either the scripted model or `--live` vLLM.
+`--live --service openai` calls the actual OpenAI API and requires
+`OPENAI_SEARCH_API_KEY` and `OPENAI_SEARCH_MODEL`. These search settings are
+separate from `OPENAI_BASE_URL` / `OPENAI_MODEL` for the main vLLM agent.
+Live services are excluded from automated checks.
 
 ## Python
 
-The `0.1.0a10` preview exposes **read, list, glob, grep, write, edit, diff, patch,
+The `0.1.0a11` preview exposes **read, list, glob, grep, write, edit, diff, patch,
 shell, the five process tools, output_read, output_forget, web_fetch and web_search**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a10)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a11)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a10 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a11 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a10-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a11-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for

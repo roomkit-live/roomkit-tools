@@ -15,10 +15,14 @@ pub use roomkit_tools_http::NetworkPolicy;
 mod exa;
 #[cfg(feature = "ollama")]
 mod ollama;
+#[cfg(feature = "openai")]
+mod openai;
 #[cfg(feature = "exa")]
 pub use exa::ExaSearch;
 #[cfg(feature = "ollama")]
 pub use ollama::OllamaSearch;
+#[cfg(feature = "openai")]
+pub use openai::{OpenAISearch, OpenAISearchConfig};
 
 /// Host-only transport configuration; never exposed in model arguments.
 #[derive(Clone, Debug, Deserialize)]
@@ -83,12 +87,15 @@ impl Transport {
         })
     }
 
-    async fn post(
+    async fn post<D>(
         &self,
         body: serde_json::Value,
-        decode: fn(&[u8], &str) -> Result<BackendOutput, Error>,
+        decode: D,
         cancel: &CancellationToken,
-    ) -> Result<BackendOutput, Error> {
+    ) -> Result<BackendOutput, Error>
+    where
+        D: FnOnce(&[u8], &str) -> Result<BackendOutput, Error> + Send + 'static,
+    {
         let client = checked_client(&self.endpoint, &self.policy).await?;
         let bytes = serde_json::to_vec(&body)
             .map_err(|_| Error::InvalidInput("invalid search request".into()))?;

@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from roomkit_tools import AccessRefusedError, InvalidInputError, WebSearchTool, _native
-from roomkit_tools.search import ExaSearch, OllamaSearch
+from roomkit_tools.search import ExaSearch, OllamaSearch, OpenAISearch
 from search_helpers import FIXTURE, SearchServer
 from test_contracts import ERRORS, pointer
 
@@ -31,9 +31,19 @@ class WebSearchTests(unittest.IsolatedAsyncioTestCase):
         async with SearchServer() as server:
             for case in FIXTURE["cases"]:
                 with self.subTest(case=case["name"]):
-                    backend_type = ExaSearch if case["backend"] == "exa" else OllamaSearch
+                    backend_type = {
+                        "exa": ExaSearch,
+                        "ollama": OllamaSearch,
+                        "openai": OpenAISearch,
+                    }[case["backend"]]
+                    options = (
+                        {"model": "fixture-model", **case.get("backend_options", {})}
+                        if case["backend"] == "openai"
+                        else {}
+                    )
                     backend = backend_type(
                         api_key="fixture-key",
+                        **options,
                         endpoint=server.origin + case["path"],
                         private_origins=[server.origin],
                         allowed_origins=[] if case.get("deny") else None,
@@ -62,6 +72,55 @@ class WebSearchTests(unittest.IsolatedAsyncioTestCase):
                             json.dumps(result, sort_keys=True),
                             json.dumps(reference["reports"][case["name"]], sort_keys=True),
                         )
+
+    async def test_openai_wire_contract_and_visible_citations(self):
+        async with SearchServer() as server:
+            backend = OpenAISearch(
+                api_key="fixture-key",
+                model="fixture-model",
+                endpoint=server.origin + "/openai/answer",
+                private_origins=[server.origin],
+                max_tool_calls=2,
+                max_output_tokens=300,
+            )
+            output = await WebSearchTool(backend=backend).search("question", limit=3)
+            body = server.seen[0]["body"]
+            self.assertEqual(body["model"], "fixture-model")
+            self.assertEqual(body["max_tool_calls"], 2)
+            self.assertEqual(body["max_output_tokens"], 300)
+            self.assertFalse(body["store"])
+            self.assertFalse(body["stream"])
+            self.assertNotIn("previous_response_id", body)
+            self.assertNotIn("fixture-key", json.dumps(body))
+            self.assertEqual(backend.capabilities["result_kinds"], ["answer", "not_performed"])
+            self.assertIn("Café ☕ [source 1](<https://example.com/guide>)", output["text"])
+            self.assertEqual(output["data"]["payload"]["citations"][0]["end"], 9)
+
+    async def test_openai_configuration_and_cancel_during_response(self):
+        for options in [
+            {"model": ""},
+            {"model": " x"},
+            {"max_tool_calls": 0},
+            {"max_tool_calls": 17},
+            {"max_output_tokens": 0},
+        ]:
+            with self.subTest(options=options), self.assertRaises(InvalidInputError):
+                OpenAISearch(api_key="fixture-key", **{"model": "fixture-model", **options})
+        async with SearchServer() as server:
+            tool = WebSearchTool(
+                backend=OpenAISearch(
+                    api_key="fixture-key",
+                    model="fixture-model",
+                    endpoint=server.origin + "/openai/deadline",
+                    private_origins=[server.origin],
+                )
+            )
+            task = asyncio.create_task(tool.search("q"))
+            await asyncio.wait_for(server.received.wait(), 5)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await asyncio.wait_for(task, 2)
+            self.assertEqual((await tool.search("next"))["data"]["provider"], "openai")
 
     async def test_cancellation_during_body_and_subsequent_reuse(self):
         async with SearchServer() as server:

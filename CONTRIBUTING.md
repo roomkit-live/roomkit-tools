@@ -119,7 +119,7 @@ Use a subject of at most 72 characters: `type(scope): summary`, for example
 `feat(fs): add paginated text reading`. The optional hook and CI use the
 same checker. Add user-visible changes under `Unreleased` in `CHANGELOG.md`.
 
-Search fixtures in `tests/fixtures/search.json` exercise the two native backends
+Search fixtures in `tests/fixtures/search.json` exercise the native search backends
 through local POST servers. `scripts/check-python.py` compares their complete
 results with fresh Rust reference output. Test provider independence with
 `cargo test -p roomkit-tools-search --no-default-features`; check each optional

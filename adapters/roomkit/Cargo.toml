@@ -24,6 +24,7 @@ serde_json = "1"
 tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
 
 [dev-dependencies]
+roomkit-tools-search = { path = "../../crates/roomkit-tools-search", features = ["openai"] }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt", "net", "io-util"] }
 
