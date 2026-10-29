@@ -149,18 +149,18 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 
 ## Python
 
-The `0.1.0a6` preview exposes **read, list, glob, grep, write, edit, diff, patch,
+The `0.1.0a7` preview exposes **read, list, glob, grep, write, edit, diff, patch,
 shell and the five process tools**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a6)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a7)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a6 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a7 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a6-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a7-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for
@@ -492,6 +492,13 @@ omit OS diagnostics and host paths. Cancellation remains `asyncio.CancelledError
 Async construction keeps root resolution off the Python event loop. Each call
 has its own cancellation scope, and tools can be reused across event loops.
 
+At normal interpreter exit, an automatic hook cancels outstanding native calls,
+refuses new calls and drains Python-facing tasks and completion callbacks before
+Python finalizes. The hook releases the GIL while waiting; abandoned or cancelled
+awaiters cannot leave callbacks attaching to a finalized interpreter. This does
+not replace explicit `ProcessSession` cleanup or handle abrupt termination.
+Already-issued blocking I/O can delay exit until it returns.
+
 The RoomKit classes expose the Rust-derived input schema through its `Tool` protocol
 and return both result representations. Refusal and resource failure stay
 distinct. The lower-level `roomkit_tools.roomkit.ReadToolAdapter` remains
@@ -544,8 +551,11 @@ an independent test run. Prose alone, missing execution or modified tests fails
 validation. This is a narrow, reproducible scenario, not a general agent benchmark.
 
 `--live` uses the vLLM environment settings above for one turn; `--chat` opens
-an interactive terminal conversation. In chat mode, complete the displayed task
-and type `quit` to run verification. Both live modes apply the same checks as the
+an interactive terminal conversation. In chat mode, type `/start` once to send
+the entire task, `/check` for an independent verification, and `quit` to verify
+and exit. Normal input is sent line by line: pasting a multiline block creates
+multiple turns. Full duplicate JSON output is hidden in chat unless `--verbose`
+is supplied. Both live modes apply the same checks as the
 scripted run and can fail if the model omits the required operations. Equivalent
 relative/absolute paths and different discovery or verification order are accepted;
 the failing test and original read must precede the correction, and the passing

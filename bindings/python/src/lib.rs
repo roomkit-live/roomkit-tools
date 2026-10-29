@@ -133,6 +133,7 @@ host_options!(
 
 mod mutation;
 mod process;
+mod runtime;
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -163,9 +164,17 @@ impl ShellOptions {
 }
 
 #[pyclass(name = "_Cancellation", frozen, module = "roomkit_tools._native")]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct Cancellation {
     token: CancellationToken,
+}
+
+impl Default for Cancellation {
+    fn default() -> Self {
+        Self {
+            token: runtime::cancellation_token(),
+        }
+    }
 }
 
 #[pymethods]
@@ -205,7 +214,7 @@ macro_rules! rooted_binding {
             ) -> PyResult<Bound<'py, PyAny>> {
                 let token = cancellation.token.clone();
                 let guard = token.clone().drop_guard();
-                pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                crate::runtime::future_into_py(py, async move {
                     let _guard = guard;
                     let options: $options = serde_json::from_str(&options_json)
                         .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
@@ -240,7 +249,7 @@ macro_rules! rooted_binding {
                 let tool = self.tool.clone();
                 let token = cancellation.token.clone();
                 let guard = token.clone().drop_guard();
-                pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                crate::runtime::future_into_py(py, async move {
                     let _guard = guard;
                     let input: $input = serde_json::from_str(&arguments_json)
                         .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
@@ -315,6 +324,7 @@ rooted_binding!(
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    runtime::install(module)?;
     module.add_class::<Cancellation>()?;
     module.add_class::<PythonReadTool>()?;
     module.add_class::<PythonListTool>()?;

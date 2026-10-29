@@ -261,7 +261,19 @@ def verify_files(root: Path) -> None:
     require((root / "shipping.py").read_bytes() == FIXED.encode(), "source correction is missing")
 
 
-async def run(root: Path, provider: AIProvider, *, chat: bool = False) -> list[ToolCallEvent]:
+async def verify(root: Path, events: list[ToolCallEvent]) -> None:
+    """Check source integrity, tool evidence and an independent test execution."""
+    await asyncio.to_thread(verify_files, root)
+    verify_trace(events, root)
+    shell = await ShellTool.create(root)
+    check_test_result((await shell.shell(test_command()))["data"], fixed=True)
+    print("Verified: failing test reproduced, minimal correction reviewed, three tests now pass.")
+    print("Test file and original snapshot are unchanged; independent host verification passed.")
+
+
+async def run(
+    root: Path, provider: AIProvider, *, chat: bool = False, verbose: bool = False
+) -> list[ToolCallEvent]:
     """Run the selected provider, then independently verify trace, files and tests."""
     workspace = Workspace(root)
     agent = AIChannel(
@@ -284,6 +296,7 @@ async def run(root: Path, provider: AIProvider, *, chat: bool = False) -> list[T
             f"{TASK} The exact test command is {test_command()}. "
             "Execute the requested tools in this turn, then explain their actual results. "
             "Do not simulate calls or infer a test result without running it. "
+            "The scenario requires grep before the edit, even when the file name is known. "
             "Answer in the user's language."
         ),
     )
@@ -297,22 +310,46 @@ async def run(root: Path, provider: AIProvider, *, chat: bool = False) -> list[T
         async def observe(event: ToolCallEvent, _context: RoomContext) -> HookResult:
             if event.result is not None:
                 events.append(event)
-                print(
-                    f"Tool {event.name} {json.dumps(event.arguments)} "
-                    f"(error={event.is_error}): {event.result}"
-                )
+                if not chat or verbose:
+                    print(
+                        f"Tool {event.name} {json.dumps(event.arguments)} "
+                        f"(error={event.is_error}): {event.result}"
+                    )
             return HookResult.allow()
 
         if chat:
             cli = CLIChannel("user", prompt="You: ")
             kit.register_channel(cli)
             await kit.attach_channel("code-demo", "user")
+
+            async def start(_arguments: str) -> None:
+                print("Starting one repair request. Waiting for the agent to finish...")
+                await kit.process_inbound(
+                    InboundMessage(
+                        channel_id="user", sender_id="cli-user", content=TextContent(body=TASK)
+                    ),
+                    room_id="code-demo",
+                )
+                print("Agent turn finished. Type /check for independent verification, or quit.")
+
+            async def check(_arguments: str) -> None:
+                try:
+                    await verify(root, events)
+                except RuntimeError as error:
+                    print(str(error))
+                    print(
+                        "The source can be correct while the required tool scenario is incomplete."
+                    )
+
             await cli.run(
                 kit,
                 room_id="code-demo",
+                commands={"/start": start, "/check": check},
                 welcome=(
-                    f"Temporary project: {root}\n{TASK}\nTest command: {test_command()}\n"
-                    "Ask the agent to complete the task, then type quit to verify and clean up."
+                    f"Temporary project: {root}\n"
+                    "Type /start once to send the complete repair task as a single message.\n"
+                    "Type /check to verify actual results, or quit to verify and clean up.\n"
+                    "Ordinary input is sent one line at a time; do not paste a multiline task."
                 ),
             )
         else:
@@ -334,13 +371,7 @@ async def run(root: Path, provider: AIProvider, *, chat: bool = False) -> list[T
                 room_id="code-demo",
             )
 
-    await asyncio.to_thread(verify_files, root)
-    verify_trace(events, root)
-    # Re-run the unchanged tests as the host, independently of model-selected commands.
-    shell = await ShellTool.create(root)
-    check_test_result((await shell.shell(test_command()))["data"], fixed=True)
-    print("Verified: failing test reproduced, minimal correction reviewed, three tests now pass.")
-    print("Test file and original snapshot are unchanged; independent host verification passed.")
+    await verify(root, events)
     return events
 
 
@@ -349,6 +380,9 @@ def cli(argv: list[str] | None = None) -> None:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--live", action="store_true", help="Run one vLLM agent turn")
     mode.add_argument("--chat", action="store_true", help="Open an interactive vLLM chat")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Also print full tool results in chat"
+    )
     args = parser.parse_args(argv)
     provider = live_provider() if args.live or args.chat else CodingProvider()
     with tempfile.TemporaryDirectory(prefix="roomkit-code-") as directory:
@@ -358,7 +392,7 @@ def cli(argv: list[str] | None = None) -> None:
             "Live vLLM" if args.live or args.chat else "Scripted model; real RoomKit and Rust tools"
         )
         try:
-            asyncio.run(run(root, provider, chat=args.chat))
+            asyncio.run(run(root, provider, chat=args.chat, verbose=args.verbose))
         except RuntimeError as error:
             parser.exit(1, f"{error}\n")
 

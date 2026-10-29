@@ -10,6 +10,7 @@ import unittest
 from contextlib import redirect_stdout
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
 
@@ -26,6 +27,17 @@ class CodingScenarioTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
         await asyncio.to_thread(example.prepare_project, self.root)
+
+    async def test_chat_start_sends_one_request_and_check_does_not_call_the_model(self) -> None:
+        provider = example.CodingProvider()
+        output = io.StringIO()
+        with patch("sys.stdin", io.StringIO("\n/start\n\n/check\nquit\n")), redirect_stdout(output):
+            events = await example.run(self.root, provider, chat=True)
+        self.assertEqual(len(provider.calls), 8)
+        self.assertEqual(len(events), 7)
+        self.assertEqual(output.getvalue().count("Agent turn finished."), 1)
+        self.assertNotIn('Tool shell {"command":', output.getvalue())
+        self.assertIn("Verified:", output.getvalue())
 
     async def test_real_repair_and_fake_test_command_rejection(self) -> None:
         with redirect_stdout(io.StringIO()):

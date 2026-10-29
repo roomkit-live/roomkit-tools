@@ -134,7 +134,7 @@ impl PythonProcessSession {
         let state = Arc::clone(&self.state);
         let token = cancellation.token.clone();
         let guard = token.clone().drop_guard();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        crate::runtime::future_into_py(py, async move {
             let _guard = guard;
             if token.is_cancelled() {
                 return Err(tool_error(&Error::Cancelled));
@@ -171,7 +171,7 @@ impl PythonProcessSession {
         let state = Arc::clone(&self.state);
         let token = cancellation.token.clone();
         let guard = token.clone().drop_guard();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        crate::runtime::future_into_py(py, async move {
             let _guard = guard;
             if token.is_cancelled() {
                 return Err(tool_error(&Error::Cancelled));
@@ -207,7 +207,7 @@ impl PythonProcessSession {
         let worker = self.state.manager.get().cloned().map(|manager| {
             pyo3_async_runtimes::tokio::get_runtime().spawn(async move { manager.close().await })
         });
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        crate::runtime::future_into_py(py, async move {
             match worker {
                 Some(worker) => worker
                     .await

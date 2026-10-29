@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Release the Python preview `0.1.0a7` with an automatic interpreter-exit barrier:
+  cancel outstanding calls, reject new work and drain native bridge tasks and
+  completion callbacks while releasing the GIL. Cover cancelled and abandoned
+  reads, closed event loops and import-only shutdown in subprocess regressions.
+  Public tool APIs and explicit process-session cleanup remain unchanged.
+- Make the coding chat scenario a single `/start` command, add a host-only
+  `/check` command and hide duplicate raw tool output unless `--verbose` is set.
+  Explain line-based input to avoid accidentally submitting a pasted scenario
+  as several independent turns.
 - Add a reproducible RoomKit coding example that repairs a temporary project
   through grep/read/edit/diff/shell, observing a failing test before the fix and
   passing tests afterward. Verify real calls, unchanged tests and snapshot, the

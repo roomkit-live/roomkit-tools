@@ -105,7 +105,7 @@ macro_rules! mutation_binding {
                 let workspace = workspace.clone();
                 let token = cancellation.token.clone();
                 let guard = token.clone().drop_guard();
-                pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                crate::runtime::future_into_py(py, async move {
                     let _guard = guard;
                     let options: $options = serde_json::from_str(&options_json)
                         .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
@@ -141,7 +141,7 @@ macro_rules! mutation_binding {
                 let tool = self.tool.clone();
                 let token = cancellation.token.clone();
                 let guard = token.clone().drop_guard();
-                pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                crate::runtime::future_into_py(py, async move {
                     let _guard = guard;
                     let input: $input = serde_json::from_str(&arguments_json)
                         .map_err(|error| InvalidInputError::new_err(error.to_string()))?;

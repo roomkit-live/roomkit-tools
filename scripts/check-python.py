@@ -105,6 +105,7 @@ def main() -> None:
                 "uv", "pip", "install", "--python", str(python), "--no-deps", str(package), cwd=work
             )
             run_tests(python, root, work, "test_read.py")
+            run_tests(python, root, work, "test_shutdown.py")
             run_tests(python, root, work, "test_discovery.py")
             run_tests(python, root, work, "test_mutations.py")
             run_tests(python, root, work, "test_diff_patch.py")
