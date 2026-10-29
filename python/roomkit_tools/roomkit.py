@@ -13,15 +13,24 @@ from ._native import (
     UnsupportedResourceError,
 )
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
+from .process import ShellTool
 from .workspace import Workspace
 
-type _FilesystemTool = (
-    ReadTool | ListTool | GlobTool | GrepTool | WriteTool | EditTool | DiffTool | PatchTool
+type _BoundTool = (
+    ReadTool
+    | ListTool
+    | GlobTool
+    | GrepTool
+    | WriteTool
+    | EditTool
+    | DiffTool
+    | PatchTool
+    | ShellTool
 )
 
 
 class _ToolAdapter:
-    _tool_type: ClassVar[type[_FilesystemTool]]
+    _tool_type: ClassVar[type[_BoundTool]]
 
     @property
     def definition(self) -> dict[str, Any]:
@@ -48,7 +57,7 @@ class _ToolAdapter:
             raise ToolFailedError(str(error)) from error
         return json.dumps(result, ensure_ascii=False)
 
-    async def _get_tool(self) -> _FilesystemTool:
+    async def _get_tool(self) -> _BoundTool:
         raise NotImplementedError
 
 
@@ -76,9 +85,9 @@ class _ConfiguredTool(_ToolAdapter):
             raise InvalidInputError("root must not be empty")
         self._root = os.path.abspath(path)
         self._limits = limits
-        self._resolved: _FilesystemTool | None = None
+        self._resolved: _BoundTool | None = None
 
-    async def _get_tool(self) -> _FilesystemTool:
+    async def _get_tool(self) -> _BoundTool:
         if self._resolved is None:
             # Each first caller owns its initialization: cancellation cannot
             # poison another call, and no task/lock is tied to an event loop.
@@ -305,4 +314,33 @@ class Patch(_ConfiguredMutation):
             max_comparison_cells=max_comparison_cells,
             max_output_bytes=max_output_bytes,
             max_context_lines=max_context_lines,
+        )
+
+
+class Shell(_ConfiguredTool):
+    """The Rust foreground shell, selectable directly in RoomKit's tools list.
+
+    Captures an absolute root without spawning. First use resolves the root and
+    validates limits asynchronously. A Workspace is accepted as a path only;
+    shell commands do not share its mutation lock or filesystem restrictions.
+    See ShellTool for host permissions, bounds and cancellation semantics.
+    """
+
+    _tool_type = ShellTool
+
+    def __init__(
+        self,
+        root: str | os.PathLike[str],
+        *,
+        max_command_bytes: int | None = None,
+        max_output_bytes: int | None = None,
+        default_timeout_ms: int | None = None,
+        max_timeout_ms: int | None = None,
+    ) -> None:
+        self._configure(
+            root,
+            max_command_bytes=max_command_bytes,
+            max_output_bytes=max_output_bytes,
+            default_timeout_ms=default_timeout_ms,
+            max_timeout_ms=max_timeout_ms,
         )

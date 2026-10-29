@@ -9,7 +9,8 @@ from ._native import (
     UnsupportedResourceError,
 )
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
-from .roomkit import Diff, Edit, Glob, Grep, List, Patch, Read, Write
+from .process import ShellTool
+from .roomkit import Diff, Edit, Glob, Grep, List, Patch, Read, Shell, Write
 from .workspace import Workspace
 
 __all__ = [
@@ -30,6 +31,8 @@ __all__ = [
     "PatchTool",
     "Read",
     "ReadTool",
+    "Shell",
+    "ShellTool",
     "ToolError",
     "ToolIOError",
     "UnsupportedResourceError",

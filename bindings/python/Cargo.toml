@@ -18,6 +18,8 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 roomkit-tools-core = { path = "../../crates/roomkit-tools-core" }
 roomkit-tools-fs = { path = "../../crates/roomkit-tools-fs" }
+# Foreground shell execution and process-group cleanup remain in Rust.
+roomkit-tools-process = { path = "../../crates/roomkit-tools-process" }
 # Stable CPython ABI, with a separate Tokio/asyncio bridge for awaitable I/O.
 pyo3 = { version = "0.30", features = ["abi3-py312"] }
 pyo3-async-runtimes = { version = "0.30", features = ["tokio-runtime"] }

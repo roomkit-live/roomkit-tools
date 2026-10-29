@@ -108,9 +108,11 @@ def main() -> None:
             run_tests(python, root, work, "test_discovery.py")
             run_tests(python, root, work, "test_mutations.py")
             run_tests(python, root, work, "test_diff_patch.py")
+            run_tests(python, root, work, "test_shell.py")
             run(str(python), "-I", str(root / "examples/discover_files.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/edit_file.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/patch_files.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/run_shell.py"), cwd=work)
             # Exercise the declared integration against its minimum release.
             run(
                 "uv",

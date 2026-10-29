@@ -7,7 +7,7 @@ intended for use from Rust, Python and RoomKit.
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
 `process_write` and `process_stop`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python exposes `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff` and `patch`, directly selectable in RoomKit.
+Python exposes `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch` and `shell`, directly selectable in RoomKit.
 Bindings for the other tools and large-file streaming are planned.
 Nothing is published to crates.io or PyPI yet.
 
@@ -52,7 +52,7 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
 | `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` and the five `Process*Toolset` adapters, registered individually. |
-| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff` and `patch`. |
+| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch` and `shell`. |
 
 There is no global tool registry. A host instantiates the tools it needs
 and chooses which definitions to expose to its model.
@@ -148,17 +148,17 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 
 ## Python
 
-The `0.1.0a4` preview exposes **read, list, glob, grep, write, edit, diff and patch**. Its prebuilt wheel supports ordinary
+The `0.1.0a5` preview exposes **read, list, glob, grep, write, edit, diff, patch and shell**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a4)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a5)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a4 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a5 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a4-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a5-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for
@@ -169,7 +169,7 @@ Select the tools directly in an existing RoomKit agent:
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import Diff, Edit, Glob, Grep, List, Patch, Read, Workspace, Write
+from roomkit_tools import Diff, Edit, Glob, Grep, List, Patch, Read, Shell, Workspace, Write
 
 workspace = Workspace("./workspace")
 agent = AIChannel(
@@ -178,7 +178,7 @@ agent = AIChannel(
     tools=[
         Read(root=workspace), List(root=workspace), Glob(root=workspace),
         Grep(root=workspace), Write(root=workspace), Edit(root=workspace),
-        Diff(root=workspace), Patch(root=workspace),
+        Diff(root=workspace), Patch(root=workspace), Shell(root=workspace),
     ],
 )
 ```
@@ -356,6 +356,52 @@ The shared Workspace serializes patch with write/edit, including preparation
 and preview. See [the runnable comparison/patch example](examples/patch_files.py):
 `.venv/bin/python examples/patch_files.py`.
 
+Execute a foreground command:
+
+```python
+from roomkit_tools import ShellTool
+
+shell = await ShellTool.create("./workspace")
+result = await shell.shell("printf ready; printf warning >&2; exit 7", timeout_ms=1000)
+print(result["data"]["stdout"]["text"])  # ready
+print(result["data"]["stderr"]["text"])  # warning
+print(result["data"]["exit_code"])       # 7: a command result, not a tool error.
+```
+
+`Shell(root=...)` is the direct RoomKit form. The standalone method is
+`ShellTool.shell(command, cwd=None, timeout_ms=None)`; `.call(arguments)` accepts
+the Rust schema. The root and per-call cwd select the initial working directory.
+Commands run with `/bin/sh -c`, inherit the Python host's environment and
+permissions, and can access paths outside the root. This is not a sandbox.
+Passing a `Workspace` supplies its path only; shell writes do not share the
+filesystem mutation lock. There is no login shell, PTY, interactive stdin or
+persistent session; stdin receives EOF.
+
+Host constructor bounds are `max_command_bytes` (16 KiB), `max_output_bytes`
+(32 KiB raw bytes per stream), `default_timeout_ms` (10,000) and `max_timeout_ms`
+(120,000). All must be positive; default timeout cannot exceed the maximum,
+and the maximum cannot exceed 24 hours. A requested runtime is capped by the
+host. It starts after spawn, excluding path resolution; termination/reaping
+may extend total elapsed time.
+
+The result preserves separate stdout/stderr, exit code or signal, effective
+timeout and `timed_out`. Each stream retains head/tail output while continuing
+to drain, with `total_bytes`, `omitted_bytes` and `truncated`. Text uses lossy
+UTF-8; replacement characters, omission markers and metadata are additional to
+the raw retention bound. `output_complete` reports whether both pipes reached
+EOF; false means capture stopped early. Nonzero exits and timeouts are normal
+tool results; timeouts retain the output captured before termination.
+
+Timeout, cancellation and normal shell exit stop the Unix process group and
+reap the direct child. Processes that deliberately leave that group are outside
+this cleanup mechanism. Cancelling a Python task raises `CancelledError` and
+requests cleanup in the owned Rust worker; cleanup can finish after that
+exception is delivered. Keep the host process/native runtime alive for cleanup;
+already-performed effects are not rolled back. Linux is validated. The existing
+Rust implementation returns an unsupported error on non-Unix platforms.
+See [the standalone shell example](examples/run_shell.py):
+`.venv/bin/python examples/run_shell.py`.
+
 Errors inherit from `ToolError`: `InvalidInputError`, `AccessRefusedError`,
 `LimitExceededError`, `UnsupportedResourceError` and `ToolIOError`. I/O messages
 omit OS diagnostics and host paths. Cancellation remains `asyncio.CancelledError`.
@@ -397,7 +443,7 @@ It runs once in the console; it does not start an HTTP server or a chat page.
 
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns
-its revision. Process tools, other platforms and free-threaded builds remain outside
+its revision. Persistent process tools, other platforms and free-threaded builds remain outside
 the validated Python slice.
 
 To build from this checkout instead, install Rust and [uv](https://docs.astral.sh/uv/):

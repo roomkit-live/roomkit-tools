@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Extend the Python preview to `0.1.0a5` with a directly selectable `Shell`
+  RoomKit tool and standalone asynchronous `ShellTool` API. The bridge calls
+  roomkit-tools-process with its derived schemas, host limits, separate bounded
+  streams, exit/timeout metadata and owned Unix process-group cleanup.
+- Validate native/Python/RoomKit cancellation, child cleanup, loop shutdown,
+  concurrent calls, environment/cwd behavior and agent execution. Add a runnable
+  shell example; persistent process bindings remain planned.
+
 - Extend the Python preview to `0.1.0a4` with independently selectable `Diff`
   and `Patch` RoomKit tools and standalone `DiffTool`/`PatchTool` APIs.
   Preserve the Rust-derived schemas, exact comparisons, structured operations,

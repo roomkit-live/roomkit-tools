@@ -1,4 +1,4 @@
-//! Optional `CPython` bindings; all filesystem behavior stays in roomkit-tools-fs.
+//! Optional `CPython` bindings; tool behavior stays in the Rust tool crates.
 
 use std::path::PathBuf;
 
@@ -9,6 +9,7 @@ use roomkit_tools_fs::{
     DiffInput, DiffLimits, DiffTool, GlobInput, GlobLimits, GlobTool, GrepInput, GrepLimits,
     GrepTool, ListInput, ListLimits, ListTool, ReadInput, ReadLimits, ReadTool,
 };
+use roomkit_tools_process::{ShellInput, ShellLimits, ShellTool};
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
@@ -132,6 +133,34 @@ host_options!(
 
 mod mutation;
 
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ShellOptions {
+    max_command_bytes: Option<usize>,
+    max_output_bytes: Option<usize>,
+    default_timeout_ms: Option<u64>,
+    max_timeout_ms: Option<u64>,
+}
+
+impl ShellOptions {
+    fn limits(self) -> ShellLimits {
+        let mut limits = ShellLimits::default();
+        if let Some(value) = self.max_command_bytes {
+            limits.max_command_bytes = value;
+        }
+        if let Some(value) = self.max_output_bytes {
+            limits.max_output_bytes = value;
+        }
+        if let Some(value) = self.default_timeout_ms {
+            limits.default_timeout_ms = value;
+        }
+        if let Some(value) = self.max_timeout_ms {
+            limits.max_timeout_ms = value;
+        }
+        limits
+    }
+}
+
 #[pyclass(name = "_Cancellation", frozen, module = "roomkit_tools._native")]
 #[derive(Clone, Debug, Default)]
 struct Cancellation {
@@ -154,9 +183,9 @@ impl Cancellation {
     }
 }
 
-// All read-only bindings own one configured tool and one cancellation token per
-// invocation. There is no registry or Python implementation of filesystem I/O.
-macro_rules! filesystem_binding {
+// Root-configured bindings own one tool and one cancellation token per call.
+// Execution and cleanup remain in Rust; there is no global tool registry.
+macro_rules! rooted_binding {
     ($binding:ident, $name:literal, $tool:ty, $options:ty, $input:ty, $method:ident, $operation:ident) => {
         #[pyclass(name = $name, frozen, module = "roomkit_tools._native")]
         #[derive(Clone, Debug)]
@@ -180,7 +209,7 @@ macro_rules! filesystem_binding {
                     let options: $options = serde_json::from_str(&options_json)
                         .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
                     // Root resolution is async; dropping the bridge future
-                    // cancels it. These tools perform no writes.
+                    // cancels it. Construction does not execute a tool call.
                     if token.is_cancelled() {
                         return Err(tool_error(&Error::Cancelled));
                     }
@@ -226,7 +255,7 @@ macro_rules! filesystem_binding {
     };
 }
 
-filesystem_binding!(
+rooted_binding!(
     PythonReadTool,
     "_ReadTool",
     ReadTool,
@@ -235,7 +264,7 @@ filesystem_binding!(
     read,
     read
 );
-filesystem_binding!(
+rooted_binding!(
     PythonListTool,
     "_ListTool",
     ListTool,
@@ -244,7 +273,7 @@ filesystem_binding!(
     call,
     list
 );
-filesystem_binding!(
+rooted_binding!(
     PythonGlobTool,
     "_GlobTool",
     GlobTool,
@@ -253,7 +282,7 @@ filesystem_binding!(
     call,
     glob
 );
-filesystem_binding!(
+rooted_binding!(
     PythonGrepTool,
     "_GrepTool",
     GrepTool,
@@ -263,7 +292,7 @@ filesystem_binding!(
     grep
 );
 
-filesystem_binding!(
+rooted_binding!(
     PythonDiffTool,
     "_DiffTool",
     DiffTool,
@@ -271,6 +300,16 @@ filesystem_binding!(
     DiffInput,
     call,
     diff
+);
+
+rooted_binding!(
+    PythonShellTool,
+    "_ShellTool",
+    ShellTool,
+    ShellOptions,
+    ShellInput,
+    call,
+    shell
 );
 
 #[pymodule]
@@ -281,6 +320,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PythonGlobTool>()?;
     module.add_class::<PythonGrepTool>()?;
     module.add_class::<PythonDiffTool>()?;
+    module.add_class::<PythonShellTool>()?;
     module.add_class::<mutation::PythonWorkspace>()?;
     module.add_class::<mutation::PythonWriteTool>()?;
     module.add_class::<mutation::PythonEditTool>()?;
