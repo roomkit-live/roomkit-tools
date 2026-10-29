@@ -41,23 +41,47 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([t["end"] for t in demo.tasks.values()], ["completed", "cancelled"])
             self.assertEqual(len(demo.posts), 1)
 
-    async def test_interactive_reports_promises_without_actual_tool_calls(self):
+    async def test_interactive_commands_work_without_a_speaker_model(self):
         example = load_example()
+
+        class UnusedSpeaker(example.MockAIProvider):
+            async def generate(self, context):
+                raise AssertionError("Terminal commands must not ask the model to act")
+
+        lines = [
+            "/start",
+            "/start",
+            "/status",
+            "/list",
+            "/check",
+            "/cancel",
+            "/check",
+            "/cancel",
+            "/start",
+            "/cancel",
+            "/check",
+            "/unknown",
+            "quit",
+        ]
         with (
             tempfile.TemporaryDirectory() as root,
             redirect_stdout(io.StringIO()) as output,
-            patch("builtins.input", side_effect=["/start", "/status", "quit"]),
+            patch("builtins.input", side_effect=lines),
         ):
             async with asyncio.timeout(15):
                 demo = await example.interactive(
-                    Path(root),
-                    example.MockAIProvider(responses=["Done."]),
-                    example.WorkerProvider(),
-                    True,
+                    Path(root), UnusedSpeaker(), example.WorkerProvider(), True
                 )
-            self.assertFalse(demo.tasks)
-            self.assertIn("no successful work_in_background call", output.getvalue())
-            self.assertIn("no successful task_status call", output.getvalue())
+            self.assertEqual([t["end"] for t in demo.tasks.values()], ["cancelled", "cancelled"])
+            self.assertEqual(len({t["child_room_id"] for t in demo.tasks.values()}), 2)
+            self.assertFalse(demo.answers)
+            self.assertTrue(all(e.channel_id == "researcher" for e in demo.tools))
+            text = output.getvalue()
+            self.assertIn("one task at a time", text)
+            self.assertIn("verification pending", text)
+            self.assertIn("nothing to cancel", text)
+            self.assertIn("unknown command", text)
+            self.assertEqual(text.count("Verified:"), 2)
 
     async def test_interactive_plain_input_reaches_the_same_parent_as_slash_commands(self):
         example = load_example()
@@ -76,8 +100,96 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("A docstring documents", output.getvalue())
             self.assertEqual(len(demo.tasks), 1)
             self.assertEqual(demo.latest()["end"], "cancelled")
-            self.assertFalse(demo.posts)
+            self.assertEqual(len(demo.posts), 1)
+            self.assertEqual(next(iter(demo.posts.values())).metadata["task_status"], "cancelled")
             self.assertEqual(output.getvalue().count("Verified:"), 1)
+
+    async def test_host_commands_restart_after_completion_and_reject_unknown_tasks(self):
+        example = load_example()
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()) as output:
+            demo = example.BackgroundDemo(Path(root), held=True)
+            terminal = example.TerminalCommands(demo)
+            try:
+                async with asyncio.timeout(15):
+                    await demo.open()
+                    await terminal.handle("/start")
+                    first = demo.latest()
+                    child = first["child_room_id"]
+                    await demo.until(lambda: child in demo.gate.entered, "worker not entered")
+                    await terminal.handle("/status", first["task_id"])
+                    self.assertIn("paused at code_outline", output.getvalue())
+                    await terminal.handle("/cancel", "unknown")
+                    self.assertIsNone(first["end"])
+                    await terminal.handle("/release", first["task_id"])
+                    await demo.until(lambda: first["end"] == "completed" and demo.posts, "no post")
+                    await terminal.handle("/check", first["task_id"])
+                    await terminal.handle("/cancel")
+                    await terminal.handle("/release")
+                    self.assertEqual(first["end"], "completed")
+                    await terminal.handle("/start")
+                    second = demo.latest()
+                    self.assertNotEqual(first["task_id"], second["task_id"])
+                    self.assertNotEqual(child, second["child_room_id"])
+                    await terminal.handle("/cancel")
+                    demo.verify_task(first)
+                    demo.verify_task(second)
+                    self.assertEqual(len(demo.posts), 2)
+                    self.assertIn("unknown task id", output.getvalue())
+                    self.assertIn("nothing to cancel", output.getvalue())
+                    self.assertIn("nothing to release", output.getvalue())
+            finally:
+                await demo.close()
+
+    async def test_host_and_model_share_capacity_and_failed_start_releases_slot(self):
+        example = load_example()
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()):
+            demo = example.BackgroundDemo(Path(root), held=True)
+            try:
+                async with asyncio.timeout(15):
+                    await demo.open()
+                    with patch.object(demo.kit, "start_task", side_effect=RuntimeError("failed")):
+                        with self.assertRaisesRegex(RuntimeError, "failed"):
+                            await demo.start()
+                    self.assertIsNone(demo.reservation)
+                    await demo.start()
+                    await demo.say(example.START)
+                    self.assertEqual(len(demo.tasks), 1)
+                    self.assertIsNotNone(demo.reservation)
+                    await demo.say(demo.cancel_request())
+                    await demo.say(example.START)
+                    with self.assertRaisesRegex(RuntimeError, "one task at a time"):
+                        await demo.start()
+                    self.assertEqual(len(demo.tasks), 2)
+                    await demo.kit.cancel_task(demo.latest()["task_id"])
+                    for _ in range(6):
+                        task = await demo.start()
+                        await demo.kit.cancel_task(task.id)
+                    with self.assertRaisesRegex(RuntimeError, "eight tasks"):
+                        await demo.start()
+                    self.assertIsNone(demo.reservation)
+            finally:
+                await demo.close()
+
+    async def test_automatic_mode_rejects_a_repeated_start_claim_without_a_new_task(self):
+        example = load_example()
+
+        class RepeatingSpeaker(example.SpeakerProvider):
+            starts = 0
+
+            async def generate(self, context):
+                content = context.messages[-1].content
+                if isinstance(content, str) and content.startswith(example.START):
+                    self.starts += 1
+                    if self.starts > 1:
+                        return example.AIResponse(content="The task is running.")
+                return await super().generate(context)
+
+        speaker = RepeatingSpeaker()
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()):
+            async with asyncio.timeout(15):
+                with self.assertRaisesRegex(RuntimeError, "no new task was observed"):
+                    await example.automatic(Path(root), speaker=speaker)
+                self.assertEqual(speaker.starts, 2)
 
     async def test_complete_and_cancel_with_real_child_tools_and_separate_chat(self):
         example = load_example()

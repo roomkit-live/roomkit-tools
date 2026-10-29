@@ -953,24 +953,36 @@ another model turn to paraphrase it. This example allows one active task and
 eight launches per session. The worker has a ten-round, ten-minute tool-loop
 budget; the demonstration pause lasts at most five minutes.
 
-In chat, `/start` requests the analysis, `/status` asks the assistant to inspect
-task state, and `/cancel` asks it to cancel the latest task. Ordinary questions
-still go to the main assistant. With `--hold`, the demo deliberately pauses the
+In chat, explicit slash commands execute on the host, without asking a model
+to call a tool. `/start` calls `kit.start_task` for a new analysis; `/status`
+and `/list` show observed task states; `/cancel` calls `kit.cancel_task` for the
+latest task. Repeating `/start` after completion creates a new task and child
+room. Starting while another task runs is refused. Cancelling an ended task
+reports its actual state. Host cancellation posts a cancellation notice.
+Ordinary requests still go to the main assistant, which retains its task tools.
+With `--hold`, the demo deliberately pauses the
 worker's `code_outline` call until `/release`, making concurrent conversation
 and cancellation easy to observe. Omit `--hold` to run without that pause.
-`/check` verifies the latest finished task; `quit` closes the tasks and removes
+Status distinguishes the demo pause from an unpaused running task. `/check`
+verifies the latest finished task, or reports verification pending while it
+runs. `/status`, `/cancel`, `/release` and `/check` also accept a task id from
+this conversation. `/help` lists commands; unknown slash commands stay local.
+`quit` closes the tasks and removes
 the temporary project without repeating that verification report.
-Command feedback distinguishes an observed tool call from an unsupported action
-claim by the model. Worker traces are summarized by `/check`, so they do not
-interrupt the main assistant's streamed text. In hold mode, companion calls
+Worker traces are summarized by `/check`, including failed calls and their
+arguments, so they do not interrupt the main assistant's streamed text.
+In hold mode, companion calls
 requested alongside the paused outline have the same five-minute allowance.
 
 The automatic modes control the same pause: first they verify a separate chat
 reply and running status, then release the worker and check its actual tool
 results and one result delivery. A second task exercises cancellation of the
 pending call. File bytes must remain unchanged. Scripted checks require no
-service; `--live` uses the configured vLLM for both agents. Tests also cover
-shutdown with a pending call and repeated launch refusal.
+service; `--live` uses the configured vLLM for both agents. These automatic
+modes exercise model task tools, and fail explicitly if a model only claims
+to start or cancel work without doing so. Tests also cover
+shutdown with a pending call, repeated launch refusal, host/model capacity
+sharing and terminal commands with a speaker that cannot call tools.
 
 This is an orchestration example using the existing a12 package. It adds no
 task tools to the native catalogue or new task scheduler. Agent profiles are

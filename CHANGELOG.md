@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Make the background example's terminal commands execute through RoomKit's
+  host API, independently of model tool selection. Add `/list`, explicit pause
+  states, fresh task launches after completion and idempotent cancellation
+  feedback. Keep model task tools available for natural-language requests.
+
 - Add a RoomKit background-analysis example with read-only Rust tools, concurrent
   conversation, task status, result delivery and cancellation. Provide scripted,
   live and interactive modes with an explicit demo pause; verify child-room

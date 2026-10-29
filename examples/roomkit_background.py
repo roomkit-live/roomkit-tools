@@ -45,7 +45,8 @@ SOURCE = '''class ShippingService:
 '''
 TASK = (
     "Analyze ShippingService.calculate_fee in shipping.py without modifying any file. "
-    "Call code_outline, locate calculate_fee, and read only its start_line to end_line "
+    "Call code_outline with path='shipping.py' (a file, not the project directory), "
+    "locate calculate_fee, and read only its start_line to end_line "
     "using offset and limit. Use grep to locate the threshold comparison. "
     "Explain the boundary bug and suggest the smallest correction, citing actual source lines. "
     "Do not claim to have edited anything or run tests."
@@ -226,14 +227,10 @@ class BackgroundDemo:
         @self.kit.hook(HookTrigger.BEFORE_TOOL_USE)
         async def capacity(event, _context):
             if event.name == "work_in_background":
-                # Reservation happens without yielding, before the tool can start a task.
-                if self.closing or self.reservation is not None:
-                    return HookResult.block(
-                        "This demo runs one task at a time; finish or cancel it."
-                    )
-                if len(self.tasks) >= 8:
-                    return HookResult.block("This demo allows eight tasks; restart for more.")
-                self.reservation = event.tool_call_id
+                try:
+                    self.reserve(event.tool_call_id)
+                except RuntimeError as error:
+                    return HookResult.block(str(error))
             return HookResult.allow()
 
         @self.kit.hook(HookTrigger.ON_TOOL_CALL, execution=HookExecution.ASYNC)
@@ -298,7 +295,31 @@ class BackgroundDemo:
             self.user.register_connection("console", show, room_id=ROOM)
         self.kit.register_channel(self.user)
         await self.kit.attach_channel(ROOM, "user")
+        # Host commands can run before the first inbound message. Bind ordinary
+        # CLI input to the same conversation even after a task has posted there.
+        await self.kit.ensure_participant(ROOM, "user", "developer")
         return self
+
+    def reserve(self, token):
+        # Shared by host commands and model tools, without yielding between
+        # checking capacity and reserving it.
+        if self.closing:
+            raise RuntimeError("This demo is closing.")
+        if self.reservation is not None:
+            raise RuntimeError("This demo runs one task at a time; finish or cancel it.")
+        if len(self.tasks) >= 8:
+            raise RuntimeError("This demo allows eight tasks; restart for more.")
+        self.reservation = token
+
+    async def start(self):
+        token = object()
+        self.reserve(token)
+        try:
+            return await self.kit.start_task(ROOM, "assistant", TASK)
+        except BaseException:
+            if self.reservation is token:
+                self.reservation = None
+            raise
 
     async def say(self, text):
         # A bounded host wait; model/tool deadlines are configured separately.
@@ -319,8 +340,25 @@ class BackgroundDemo:
         require(predicate(), description)
 
     def latest(self):
-        require(bool(self.tasks), "the agent has not started a task")
+        require(bool(self.tasks), "no task has been started")
         return next(reversed(self.tasks.values()))
+
+    def select(self, task_id=""):
+        if not task_id:
+            return self.latest()
+        require(task_id in self.tasks, "unknown task id in this conversation")
+        return self.tasks[task_id]
+
+    def state(self, task):
+        if task["end"]:
+            return task["end"]
+        child = task["child_room_id"]
+        release = self.gate.releases.get(child)
+        if self.gate.held and (release is None or not release.is_set()):
+            if child in self.gate.entered:
+                return "running (paused at code_outline; use /release or /cancel)"
+            return "running (demo pause armed; use /release or /cancel)"
+        return "running"
 
     def cancel_request(self):
         return "Call cancel_task with " + json.dumps({"task_id": self.latest()["task_id"]})
@@ -338,7 +376,14 @@ class BackgroundDemo:
         events = [e for e in self.tools if e.room_id == task["child_room_id"]]
         require(all(e.channel_id == "researcher" for e in events), "unexpected worker")
         if task["end"] == "cancelled":
-            require(not posts, "cancelled tool task posted a late result")
+            # Host cancellation posts a cancellation notice. The model's
+            # cancel_task suppresses that notice for the caller. Neither may
+            # publish a completed worker report after cancellation.
+            require(
+                len(posts) <= 1
+                and all(e.metadata.get("task_status") == "cancelled" for e in posts),
+                "cancelled task posted a late result",
+            )
             return
         require(len(posts) == 1, "expected exactly one result in the parent room")
         successful = {e.name: json.loads(e.result)["data"] for e in events if not e.is_error}
@@ -385,7 +430,12 @@ async def automatic(root, speaker=None, worker=None):
     try:
         await demo.open()
         for cancelled in (False, True):
+            tasks_before = len(demo.tasks)
             await demo.say(START)
+            require(
+                len(demo.tasks) == tasks_before + 1,
+                "no new task was observed after the start request; model text is not execution",
+            )
             task = demo.latest()
             child = task["child_room_id"]
             await demo.until(
@@ -396,10 +446,11 @@ async def automatic(root, speaker=None, worker=None):
             await demo.say(CHAT)
             require(len(demo.answers) > answers_before, "no actual reply to the separate question")
             require(task["end"] is None, "chat did not complete while the worker was pending")
+            calls_before = len(demo.tools)
             await demo.say(STATUS)
             statuses = [
                 json.loads(e.result)
-                for e in demo.tools
+                for e in demo.tools[calls_before:]
                 if e.name == "task_status" and not e.is_error
             ]
             require(
@@ -411,7 +462,15 @@ async def automatic(root, speaker=None, worker=None):
                 "running status not observed",
             )
             if cancelled:
+                calls_before = len(demo.tools)
                 await demo.say(demo.cancel_request())
+                require(
+                    any(
+                        e.name == "cancel_task" and not e.is_error
+                        for e in demo.tools[calls_before:]
+                    ),
+                    "no cancel_task call was observed after the cancellation request",
+                )
                 await demo.until(
                     lambda task=task: task["end"] == "cancelled", "cancellation missing"
                 )
@@ -442,83 +501,108 @@ async def automatic(root, speaker=None, worker=None):
         await demo.close()
 
 
+class TerminalCommands:
+    """Explicit commands use RoomKit's host API, independent of model choices."""
+
+    names = ("/start", "/status", "/list", "/cancel", "/release", "/check", "/help")
+    help = (
+        "/start: start a new analysis. /status or /list: show observed task states.\n"
+        "/cancel: cancel the latest task. /release: release its demo pause.\n"
+        "/check: verify evidence. /status, /cancel, /release and /check accept a task id.\n"
+        "Chat normally while tasks work; their reports arrive automatically.\n"
+        "quit: close tasks and remove the temporary project."
+    )
+
+    def __init__(self, demo):
+        self.demo = demo
+
+    async def handle(self, command, args=""):
+        try:
+            await self.execute(command, args.strip())
+        except RuntimeError as error:
+            print(f"Host: {error}")
+
+    async def execute(self, command, args):
+        demo = self.demo
+        if command in {"/start", "/list", "/help"}:
+            require(not args, f"{command} takes no arguments")
+        if command == "/help":
+            print(self.help)
+        elif command == "/start":
+            task = await demo.start()
+            print(f"Host: started {task.id}; child room {task.child_room_id}.")
+        elif command in {"/status", "/list"}:
+            tasks = [demo.select(args)] if args else demo.tasks.values()
+            if not tasks:
+                print("Host: no tasks in this conversation.")
+            for task in tasks:
+                print(f"Host: {task['task_id']}: {demo.state(task)}")
+        else:
+            task = demo.select(args)
+            task_id = task["task_id"]
+            if command == "/cancel":
+                if task["end"]:
+                    print(f"Host: {task_id} already {task['end']}; nothing to cancel.")
+                else:
+                    cancelled = await demo.kit.cancel_task(task_id)
+                    print(f"Host: {task_id}: {demo.state(task)}; cancelled={cancelled}.")
+            elif command == "/release":
+                if task["end"]:
+                    print(f"Host: {task_id} already {task['end']}; nothing to release.")
+                elif not demo.gate.held:
+                    print("Host: demo pause is off.")
+                else:
+                    demo.gate.release(task["child_room_id"])
+                    print(f"Host: {task_id}: demo pause released; the worker continues.")
+            elif command == "/check":
+                if not task["end"]:
+                    print(f"Host: {task_id}: {demo.state(task)}; verification pending.")
+                    return
+                events = [e for e in demo.tools if e.room_id == task["child_room_id"]]
+                print(f"Host: {task_id}: {task['end']}; child room {task['child_room_id']}")
+                print(
+                    "Observed successful worker tools:",
+                    ", ".join(e.name for e in events if not e.is_error) or "none",
+                )
+                for event in events:
+                    if event.is_error:
+                        state = "cancelled" if event.cancelled else "failed"
+                        print(f"Worker call {state}: {event.name} {json.dumps(event.arguments)}")
+                demo.verify_task(task)
+                print("Verified: actual worker evidence and result delivery; source unchanged.")
+
+    def content(self, line):
+        if line.startswith("/"):
+            print("Host: unknown command. Use /help.")
+            return None
+        return TextContent(body=line)
+
+    def handlers(self):
+        def bind(command):
+            async def run(args):
+                await self.handle(command, args)
+
+            return run
+
+        return {name: bind(name) for name in self.names}
+
+
 async def interactive(root, speaker, worker, held):
     demo = BackgroundDemo(root, speaker, worker, held=held, chat=True)
     try:
         await demo.open()
-
-        async def request_tool(text, name):
-            previous = len(demo.tools)
-            await demo.say(text)
-            calls = [e for e in demo.tools[previous:] if e.name == name and not e.is_error]
-            if not calls:
-                print(
-                    f"Host check: no successful {name} call was observed. "
-                    "The assistant's words alone do not confirm that action; try again."
-                )
-            return calls
-
-        async def start(_args):
-            calls = await request_tool(START, "work_in_background")
-            if calls:
-                receipt = json.loads(calls[-1].result)
-                print(
-                    f"Host check: task_id={receipt.get('task_id')}, status={receipt.get('status')}"
-                )
-
-        async def status(_args):
-            await request_tool(STATUS, "task_status")
-
-        async def cancel(_args):
-            if not demo.tasks:
-                print("No task has been started.")
-                return
-            calls = await request_tool(demo.cancel_request(), "cancel_task")
-            if calls:
-                print(
-                    "Host check: cancellation response = "
-                    + str(json.loads(calls[-1].result).get("status"))
-                )
-
-        async def release(_args):
-            if not demo.tasks:
-                print("No task has been started.")
-                return
-            demo.gate.release(demo.latest()["child_room_id"])
-            print("Demo pause released; the worker continues. You can keep chatting.")
-
-        async def check(_args):
-            try:
-                task = demo.latest()
-                demo.verify_task(task)
-                names = [
-                    e.name
-                    for e in demo.tools
-                    if e.room_id == task["child_room_id"] and not e.is_error
-                ]
-                print(f"Task {task['task_id']}: {task['end']}; child room {task['child_room_id']}")
-                print("Observed successful worker tools:", ", ".join(names) or "none")
-                print("Verified: actual worker evidence and result delivery; source unchanged.")
-            except RuntimeError as error:
-                print(error)
-
+        terminal = TerminalCommands(demo)
         await demo.user.run(
             demo.kit,
             room_id=ROOM,
             sender_id="developer",
-            commands={
-                "/start": start,
-                "/status": status,
-                "/cancel": cancel,
-                "/release": release,
-                "/check": check,
-            },
+            commands=terminal.handlers(),
+            content_factory=terminal.content,
             welcome=(
-                f"Temporary project: {root}\n"
                 "An assistant talks to you; researcher has only code_outline, grep and read.\n"
-                "/start: request an analysis. Chat normally while it works.\n"
-                "/status: ask for task state. /cancel: ask to cancel the latest task.\n"
-                "/check: verify evidence. quit: close tasks and remove the temporary project.\n"
+                "Slash commands run directly on the host, without asking the model.\n"
+                + terminal.help
+                + "\n"
                 + (
                     "DEMO PAUSE ON: code_outline waits for /release (up to 300 seconds).\n"
                     "Try /start, a normal question, /status, then /release or /cancel."
