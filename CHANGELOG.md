@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix the search example's source verification: preserve query parameters,
+  handle normalized URLs/fragments and give the agent immediate feedback when
+  it changes a returned URL. Report incomplete sequences without a traceback.
+
 - Pin the optional Rust adapter's engine dependencies to an immutable Git
   revision so applications can consume it without sibling checkouts.
 

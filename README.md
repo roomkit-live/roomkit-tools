@@ -327,7 +327,12 @@ HTTP calls and a scripted RoomKit model. Add `--live` for your configured agent
 model (install `roomkit[vllm]` and set `OPENAI_BASE_URL` / `OPENAI_MODEL`); add `--service exa` for real web search, or `--service ollama` with
 `OLLAMA_API_KEY`. The example application reads these variables explicitly
 (`EXA_API_KEY` is optional). It verifies that a fetched URL came from the actual
-search response. `--service fixture-openai` exercises the Responses backend
+search response. A demo-only RoomKit hook rejects a fetch of a different URL
+and asks the model to copy the complete source URL, including query parameters.
+Verification tolerates HTTP URL normalization and fragments, but never drops
+tracking or other query parameters. An incomplete sequence exits with an
+observed diagnostic instead of a traceback.
+`--service fixture-openai` exercises the Responses backend
 against a local fixture with either the scripted model or `--live` vLLM.
 `--live --service openai` calls the actual OpenAI API and requires
 `OPENAI_SEARCH_API_KEY` and `OPENAI_SEARCH_MODEL`. These search settings are

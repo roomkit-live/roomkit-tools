@@ -15,6 +15,7 @@ import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from roomkit import (
     AIChannel,
@@ -42,6 +43,72 @@ PAGE = (
     '<p>See <a href="/reference">API reference</a>.</p>'
     "<script>ignored_script_content()</script></body></html>"
 )
+
+
+class SearchVerificationError(RuntimeError):
+    """The demo did not observe its required search-to-fetch sequence."""
+
+
+def url_key(value):
+    """Compare HTTP destinations, preserving the full path and query.
+
+    Fetch normalizes the host/default port/empty path and removes fragments.
+    Query parameters, including tracking parameters, are never discarded here.
+    This is demo verification only, not the tool's network policy.
+    """
+    try:
+        url = urlsplit(value)
+        if url.scheme not in {"http", "https"} or not url.hostname or url.username is not None:
+            return None
+        port = url.port or (443 if url.scheme == "https" else 80)
+        query = url.query if "?" in value.split("#", 1)[0] else None
+        return url.scheme, url.hostname, port, url.path or "/", query
+    except (TypeError, ValueError):
+        return None
+
+
+def returned_urls(searches):
+    return {
+        hit["url"]
+        for result in searches
+        for hit in result["payload"].get("results", result["payload"].get("sources", []))
+    }
+
+
+def matches_source(url, sources):
+    key = url_key(url)
+    return key is not None and any(key == url_key(source) for source in sources)
+
+
+def verify_search_flow(events):
+    """Require a successful fetch of a source observed in an earlier search."""
+    searches, fetched, failures = [], [], []
+    matched = False
+    for event in events:
+        if event.name not in {"web_search", "web_fetch"}:
+            continue
+        if event.is_error:
+            failures.append({"tool": event.name, "error": event.result})
+            continue
+        data = json.loads(event.result)["data"]
+        if event.name == "web_search":
+            searches.append(data)
+        else:
+            fetched.append(data)
+            matched |= data["http_ok"] and matches_source(data["url"], returned_urls(searches))
+    if not matched:
+        observed = {
+            "successful_searches": len(searches),
+            "returned_urls": sorted(returned_urls(searches)),
+            "fetches": [{k: r[k] for k in ("url", "status", "http_ok")} for r in fetched],
+            "tool_errors": failures,
+        }
+        raise SearchVerificationError(
+            "No successful fetch of a previously returned source. "
+            "Copy a source URL including its query parameters. Observed: "
+            + json.dumps(observed, ensure_ascii=False)
+        )
+    return searches, fetched
 
 
 def fixture_answer(url):
@@ -93,7 +160,8 @@ async def documentation():
         tasks.add(task)
         try:
             request = await reader.readuntil(b"\r\n\r\n")
-            path = request.split()[1].decode()
+            target = request.split()[1].decode()
+            path = urlsplit(target).path
             if path in {"/search", "/responses"}:
                 headers = dict(
                     line.split(":", 1) for line in request.decode().split("\r\n")[1:] if ":" in line
@@ -113,13 +181,13 @@ async def documentation():
                     }
                 ).encode()
                 if path == "/responses":
-                    body = json.dumps(fixture_answer(origin + "/guide")).encode()
+                    body = json.dumps(fixture_answer(origin + "/guide?utm_source=openai")).encode()
                 response = (
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
                     + f"Content-Length: {len(body)}\r\n"
                 ).encode()
             elif path == "/guide":
-                seen.append(("fetch", path))
+                seen.append(("fetch", target))
                 body = PAGE.encode()
                 response = (
                     "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
@@ -194,7 +262,10 @@ async def run(provider=None, service="fixture"):
                     private_origins=[origin],
                 )
             fetch = WebFetch(allowed_origins=[origin], private_origins=[origin])
-            provider = provider or scripted(origin + "/guide")
+            source = origin + "/guide"
+            if service == "fixture-openai":
+                source += "?utm_source=openai"
+            provider = provider or scripted(source)
             question = "Find the shipping policy and identify the free-shipping threshold."
         else:
             if service == "exa":
@@ -216,7 +287,9 @@ async def run(provider=None, service="fixture"):
                 raise ValueError("A real search service requires --live for this agent example")
         prompt = (
             question + " First call web_search with limit 2, then call web_fetch on one URL "
-            "actually returned in payload.results or payload.sources. For answer payloads, "
+            "copied from payload.results or payload.sources, including all query parameters "
+            "such as utm_source. Do not choose a different link from the generated answer. "
+            "For answer payloads, "
             "preserve inline citations as visible clickable links. "
             "Read the selected URL as markdown. "
             "Cite the final_url and report "
@@ -235,11 +308,32 @@ async def run(provider=None, service="fixture"):
         await kit.create_room(room_id="web-demo")
         await kit.attach_channel("web-demo", "agent", category=ChannelCategory.INTELLIGENCE)
 
+        @kit.hook(HookTrigger.BEFORE_TOOL_USE, execution=HookExecution.SYNC)
+        async def require_returned_source(
+            event: ToolCallEvent, _context: RoomContext
+        ) -> HookResult:
+            # Demo requirement: give the model actionable feedback while it can
+            # still correct the call, without rewriting its URL or fetching twice.
+            if event.name == "web_fetch":
+                searches = [
+                    json.loads(e.result)["data"]
+                    for e in events
+                    if e.name == "web_search" and not e.is_error
+                ]
+                urls = returned_urls(searches)
+                if not matches_source(event.arguments.get("url"), urls):
+                    return HookResult.block(
+                        "This demo requires web_search before web_fetch. Copy a URL from "
+                        "payload.results or payload.sources exactly, including query parameters "
+                        "such as utm_source. Returned source URLs: " + json.dumps(sorted(urls))
+                    )
+            return HookResult.allow()
+
         @kit.hook(HookTrigger.ON_TOOL_CALL, execution=HookExecution.ASYNC)
         async def observe(event: ToolCallEvent, _context: RoomContext) -> HookResult:
             if event.result is not None:
                 events.append(event)
-                print(f"Tool {event.name}: {event.result}")
+                print(f"Tool {event.name} (error={event.is_error}): {event.result}")
             return HookResult.allow()
 
         user = WebSocketChannel("user")
@@ -257,28 +351,12 @@ async def run(provider=None, service="fixture"):
             ),
             room_id="web-demo",
         )
-        searches = [
-            json.loads(e.result)["data"]
-            for e in events
-            if e.name == "web_search" and not e.is_error
-        ]
-        fetched = [
-            json.loads(e.result)["data"] for e in events if e.name == "web_fetch" and not e.is_error
-        ]
-        urls = {
-            hit["url"]
-            for result in searches
-            for hit in result["payload"].get("results", result["payload"].get("sources", []))
-        }
-        if not searches or not any(r["url"] in urls and r["http_ok"] for r in fetched):
-            raise RuntimeError(
-                "Expected an actual search followed by a successful fetch of a returned URL"
-            )
+        searches, fetched = verify_search_flow(events)
         if service in {"fixture", "fixture-openai"} and (
             not any("**50 units or more**" in r["content"] for r in fetched)
             or [event[0] for event in seen][:2] != ["search", "fetch"]
         ):
-            raise RuntimeError("Expected fixture search followed by the shipping guide")
+            raise SearchVerificationError("Expected fixture search followed by the shipping guide")
         if service == "fixture-openai":
             result = next(r for r in searches if r["provider"] == "openai")
             if (
@@ -286,7 +364,9 @@ async def run(provider=None, service="fixture"):
                 or not result["payload"]["citations"]
                 or result["usage"]["search_requests"] != 1
             ):
-                raise RuntimeError("Expected normalized citations and observed search usage")
+                raise SearchVerificationError(
+                    "Expected normalized citations and observed search usage"
+                )
         print(
             "Verified: search returned sources; "
             "web_fetch read a source actually returned by search."
@@ -329,7 +409,10 @@ def cli(argv=None):
     print("Live vLLM" if args.live else "Scripted model; real RoomKit and Rust HTTP requests")
     if args.service == "fixture-openai":
         print("Local Responses fixture; no request to OpenAI")
-    asyncio.run(run(provider, args.service))
+    try:
+        asyncio.run(run(provider, args.service))
+    except SearchVerificationError as error:
+        parser.exit(1, f"Verification failed: {error}\n")
 
 
 if __name__ == "__main__":
