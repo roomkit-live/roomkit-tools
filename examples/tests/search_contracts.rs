@@ -1,0 +1,110 @@
+//! Compare complete Rust/Python search results against the same HTTP responses.
+#[path = "../../tests/support/search.rs"]
+mod search;
+use roomkit_tools_core::Error;
+use roomkit_tools_search::{
+    ExaSearch, OllamaSearch, SearchBackend, SearchHttpConfig, WebSearchTool,
+};
+use serde_json::{Value, json};
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+
+fn replace(value: &mut Value, from: &str, to: &str) {
+    match value {
+        Value::String(s) => *s = s.replace(from, to),
+        Value::Array(items) => items.iter_mut().for_each(|v| replace(v, from, to)),
+        Value::Object(items) => items.values_mut().for_each(|v| replace(v, from, to)),
+        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
+}
+
+#[tokio::test]
+async fn shared_search_contracts() {
+    let fixture: Value =
+        serde_json::from_str(include_str!("../../tests/fixtures/search.json")).unwrap();
+    let server = search::Server::start().await;
+    let mut reports = serde_json::Map::new();
+    for case in fixture["cases"].as_array().unwrap() {
+        let mut arguments = case["input"].clone();
+        replace(&mut arguments, "$ORIGIN", &server.origin);
+        let mut config = SearchHttpConfig::default();
+        config.endpoint = Some(format!(
+            "{}{}",
+            server.origin,
+            case["path"].as_str().unwrap()
+        ));
+        config.policy.private_origins.push(server.origin.clone());
+        if case["deny"] == true {
+            config.policy.allowed_origins = Some(vec![]);
+        }
+        if let Some(cap) = case["max_response_bytes"].as_u64() {
+            config.max_response_bytes = usize::try_from(cap).unwrap();
+        }
+        let backend: Arc<dyn SearchBackend> = if case["backend"] == "exa" {
+            Arc::new(ExaSearch::new(Some("fixture-key"), config).unwrap())
+        } else {
+            Arc::new(OllamaSearch::new("fixture-key", config).unwrap())
+        };
+        assert!(!format!("{backend:?}").contains("fixture-key"));
+        let tool = WebSearchTool::new(backend)
+            .with_limits(
+                serde_json::from_value(case.get("limits").cloned().unwrap_or(json!({}))).unwrap(),
+            )
+            .unwrap();
+        let token = CancellationToken::new();
+        if case["cancelled"] == true {
+            token.cancel();
+        }
+        let result = tool
+            .search(serde_json::from_value(arguments).unwrap(), &token)
+            .await;
+        let mut result = match result {
+            Ok(value) => serde_json::to_value(value).unwrap(),
+            Err(error) => json!({"error": match error {
+                Error::InvalidInput(_) => "invalid_input", Error::Refused(_) => "refused",
+                Error::LimitExceeded(_) => "limit", Error::Unsupported(_) => "unsupported",
+                Error::Cancelled => "cancelled", Error::Io { .. } => "io", _ => "unknown",
+            }}),
+        };
+        replace(&mut result, &server.origin, "$ORIGIN");
+        for (pointer, expected) in case["expect"].as_object().unwrap() {
+            assert_eq!(
+                result.pointer(pointer),
+                Some(expected),
+                "{}: {result}",
+                case["name"]
+            );
+        }
+        reports.insert(case["name"].as_str().unwrap().into(), result);
+    }
+    let seen = server.seen.lock().unwrap();
+    let ollama = seen.iter().find(|r| r["path"] == "/ollama").unwrap();
+    assert_eq!(
+        ollama["body"],
+        json!({"query":"shipping policy","max_results":2})
+    );
+    assert!(
+        ollama["headers"]
+            .as_str()
+            .unwrap()
+            .contains("authorization: Bearer fixture-key")
+    );
+    let exa = seen.iter().find(|r| r["path"] == "/exa").unwrap();
+    assert_eq!(
+        exa["body"],
+        json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"web_search_exa","arguments":{"query":"shipping policy","numResults":2}}})
+    );
+    assert!(
+        exa["headers"]
+            .as_str()
+            .unwrap()
+            .contains("x-api-key: fixture-key")
+    );
+    if let Ok(path) = std::env::var("ROOMKIT_SEARCH_RESULTS") {
+        std::fs::write(
+            path,
+            serde_json::to_vec(&json!({"fixture":fixture,"reports":reports})).unwrap(),
+        )
+        .unwrap();
+    }
+}

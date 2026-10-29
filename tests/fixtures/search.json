@@ -1,0 +1,460 @@
+{
+  "routes": {
+    "/ollama": {
+      "type": "application/json",
+      "body": "{\"results\": [{\"title\": \"Shipping guide\", \"url\": \"https://example.com/guide\", \"content\": \"Shipping is free at 50. café\"}, {\"title\": \"API\", \"url\": \"https://example.com/api\", \"content\": \"Reference\"}]}"
+    },
+    "/exa": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Title: Shipping guide\\nURL: https://example.com/guide\\nPublished: N/A\\nAuthor: N/A\\nHighlights:\\nShipping is free at 50. café\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}"
+    },
+    "/sse": {
+      "type": "text/event-stream",
+      "body": ": ping\r\nevent: message\r\ndata: {\"jsonrpc\": \"2.0\", \"method\": \"notifications/progress\"}\r\n\r\ndata: {\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Title: Shipping guide\\nURL: https://example.com/guide\\nPublished: N/A\\nAuthor: N/A\\nHighlights:\\nShipping is free at 50. café\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}\r\n\r\n"
+    },
+    "/empty": {
+      "type": "application/json",
+      "body": "{\"results\": []}"
+    },
+    "/exa-empty": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"No search results found. Please try a different query.\"}]}}"
+    },
+    "/note": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Note: Constraints relaxed\\n\\nTitle: Shipping guide\\nURL: https://example.com/guide\\nPublished: N/A\\nAuthor: N/A\\nHighlights:\\nShipping is free at 50. café\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}"
+    },
+    "/tool-error": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"private diagnostic\"}], \"isError\": true}}"
+    },
+    "/rpc-error": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"error\": {\"message\": \"private diagnostic\"}}"
+    },
+    "/wrong-id": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 2, \"result\": {}}"
+    },
+    "/bad-json": {
+      "type": "application/json",
+      "body": "{"
+    },
+    "/bad-exa": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"changed upstream format\"}]}}"
+    },
+    "/missing": {
+      "type": "application/json",
+      "body": "{}"
+    },
+    "/bad-url": {
+      "type": "application/json",
+      "body": "{\"results\": [{\"title\": \"Bad\", \"url\": \"file:///etc/passwd\", \"content\": \"bad\"}]}"
+    },
+    "/credentials": {
+      "type": "application/json",
+      "body": "{\"results\": [{\"title\": \"Bad\", \"url\": \"https://user:secret@example.com\", \"content\": \"bad\"}]}"
+    },
+    "/wrong-type": {
+      "type": "text/html",
+      "body": "{\"results\": []}"
+    },
+    "/auth": {
+      "type": "application/json",
+      "body": "private diagnostic",
+      "status": 401
+    },
+    "/rate": {
+      "type": "application/json",
+      "body": "private diagnostic",
+      "status": 429
+    },
+    "/failure": {
+      "type": "application/json",
+      "body": "private diagnostic",
+      "status": 500
+    },
+    "/redirect": {
+      "type": "application/json",
+      "body": "",
+      "status": 307,
+      "headers": {
+        "Location": "/ollama"
+      }
+    },
+    "/slow": {
+      "type": "application/json",
+      "body": "{\"results\": [{\"title\": \"Shipping guide\", \"url\": \"https://example.com/guide\", \"content\": \"Shipping is free at 50. café\"}, {\"title\": \"API\", \"url\": \"https://example.com/api\", \"content\": \"Reference\"}]}",
+      "body_delay_ms": 200
+    },
+    "/sse-multiline": {
+      "type": "text/event-stream",
+      "body": "data: {\"jsonrpc\":\"2.0\",\ndata: \"id\":1,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"No search results found. Please try a different query.\"}]}}\n\n"
+    },
+    "/sse-duplicate": {
+      "type": "text/event-stream",
+      "body": "data: {\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Title: Shipping guide\\nURL: https://example.com/guide\\nPublished: N/A\\nAuthor: N/A\\nHighlights:\\nShipping is free at 50. caf\\u00e9\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}\n\ndata: {\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Title: Shipping guide\\nURL: https://example.com/guide\\nPublished: N/A\\nAuthor: N/A\\nHighlights:\\nShipping is free at 50. caf\\u00e9\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}\n\n"
+    },
+    "/huge": {
+      "type": "application/json",
+      "body": "{\"results\": [{\"title\": \"Shipping guide\", \"url\": \"https://example.com/guide\", \"content\": \"Shipping is free at 50. café\"}, {\"title\": \"API\", \"url\": \"https://example.com/api\", \"content\": \"Reference\"}]}",
+      "no_length": true
+    }
+  },
+  "cases": [
+    {
+      "name": "ollama",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/provider": "ollama",
+        "/data/payload/results/0/content": "Shipping is free at 50. café",
+        "/data/partial": false
+      }
+    },
+    {
+      "name": "exa",
+      "path": "/exa",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results/0/title": "Shipping guide"
+      }
+    },
+    {
+      "name": "sse",
+      "path": "/sse",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results/1/url": "https://example.com/api"
+      }
+    },
+    {
+      "name": "multiline",
+      "path": "/sse-multiline",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results": []
+      }
+    },
+    {
+      "name": "empty",
+      "path": "/empty",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results": []
+      }
+    },
+    {
+      "name": "exa-empty",
+      "path": "/exa-empty",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results": []
+      }
+    },
+    {
+      "name": "notices",
+      "path": "/note",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/notices": [
+          "Constraints relaxed"
+        ]
+      }
+    },
+    {
+      "name": "tool-error",
+      "path": "/tool-error",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "rpc-error",
+      "path": "/rpc-error",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "wrong-id",
+      "path": "/wrong-id",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "bad-json",
+      "path": "/bad-json",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "bad-exa",
+      "path": "/bad-exa",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "missing",
+      "path": "/missing",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "bad-url",
+      "path": "/bad-url",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "credentials",
+      "path": "/credentials",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "wrong-type",
+      "path": "/wrong-type",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "auth",
+      "path": "/auth",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "refused"
+      }
+    },
+    {
+      "name": "rate",
+      "path": "/rate",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "limit"
+      }
+    },
+    {
+      "name": "failure",
+      "path": "/failure",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "redirect",
+      "path": "/redirect",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "refused"
+      }
+    },
+    {
+      "name": "duplicate",
+      "path": "/sse-duplicate",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "output-cap",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "limit"
+      },
+      "limits": {
+        "max_output_bytes": 10
+      }
+    },
+    {
+      "name": "http-cap",
+      "path": "/huge",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "limit"
+      },
+      "max_response_bytes": 32
+    },
+    {
+      "name": "clip",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results/0/content": "Shipping",
+        "/data/payload/results/0/omitted_bytes": 21,
+        "/data/partial": true
+      },
+      "limits": {
+        "max_content_bytes": 8
+      }
+    },
+    {
+      "name": "deadline",
+      "path": "/slow",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2,
+        "timeout_ms": 20
+      },
+      "expect": {
+        "/error": "limit"
+      }
+    },
+    {
+      "name": "deny",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "refused"
+      },
+      "deny": true
+    },
+    {
+      "name": "cancelled",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/error": "cancelled"
+      },
+      "cancelled": true
+    },
+    {
+      "name": "limit",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 1
+      },
+      "expect": {
+        "/data/omitted_results": 1,
+        "/data/partial": true
+      }
+    }
+  ]
+}

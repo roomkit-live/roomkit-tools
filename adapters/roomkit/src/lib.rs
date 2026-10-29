@@ -21,6 +21,7 @@ use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool,
 };
+use roomkit_tools_search::WebSearchTool;
 use roomkit_tools_web::WebFetchTool;
 use tokio_util::sync::CancellationToken;
 
@@ -129,6 +130,11 @@ toolset!(
     /// Fetch textual HTTP content under host origin rules and resource bounds.
     /// Closing cancels calls; issued blocking conversion may finish later.
     WebFetchToolset, WebFetchTool, fetch, "web_fetch"
+);
+
+toolset!(
+    /// Search using the host-selected backend, preserving typed results and citations.
+    WebSearchToolset, WebSearchTool, search, "web_search"
 );
 
 fn tool_error(error: &Error) -> ToolError {

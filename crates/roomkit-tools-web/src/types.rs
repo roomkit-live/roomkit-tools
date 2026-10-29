@@ -103,15 +103,5 @@ impl Default for WebFetchLimits {
     }
 }
 
-/// Explicit host network scope. Entries are exact HTTP(S) origins, not patterns.
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-#[non_exhaustive]
-pub struct WebFetchPolicy {
-    /// Optional origin allowlist. None allows any otherwise permitted public origin;
-    /// Some(empty) denies every origin. Scheme, host and effective port must match.
-    pub allowed_origins: Option<Vec<String>>,
-    /// Origins allowed to resolve to non-public IPs, for intranet/local servers.
-    /// This does not bypass `allowed_origins`. Default: none.
-    pub private_origins: Vec<String>,
-}
+/// Host network scope shared with other HTTP tools.
+pub use roomkit_tools_http::NetworkPolicy as WebFetchPolicy;

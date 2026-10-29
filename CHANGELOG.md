@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Release Python preview `0.1.0a10` with modular `web_search`: an open Rust
+  `SearchBackend` trait, optional Exa MCP and Ollama REST implementations, and
+  directly selectable `WebSearch(backend=...)` RoomKit adapters.
+- Preserve direct results, cited answers and non-execution as distinct payloads,
+  with capability declarations, observed usage, provider notices and bounded
+  excerpts. Only Exa/Ollama direct search is implemented in this preview.
+- Extract shared HTTP destination policy and body bounds without changing
+  `web_fetch` contracts. Search refuses redirects, sanitizes service failures
+  and propagates cancellation through the existing Python runtime bridge.
+- Compare Rust/Python results with shared HTTP/JSON/SSE fixtures; verify a
+  RoomKit search-to-fetch flow and external Rust backend citation contracts.
+
 - Release Python preview `0.1.0a9` with independently selectable `web_fetch`:
   Rust `WebFetchTool`, standalone Python `WebFetchTool`, RoomKit Python
   `WebFetch` and Rust `WebFetchToolset`. No shell, model or RoomKit dependency

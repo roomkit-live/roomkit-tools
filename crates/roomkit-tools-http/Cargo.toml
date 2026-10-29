@@ -1,0 +1,17 @@
+[package]
+name = "roomkit-tools-http"
+description = "Shared checked HTTP building blocks for agent tools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+roomkit-tools-core.workspace = true
+serde.workspace = true
+reqwest.workspace = true
+tokio = { workspace = true, features = ["net"] }
+
+[lints]
+workspace = true

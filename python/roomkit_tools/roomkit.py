@@ -15,6 +15,7 @@ from ._native import (
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .output import OutputStore
 from .process import ProcessSession, ShellTool
+from .search import SearchBackend, WebSearchTool
 from .web import WebFetchTool
 from .workspace import Workspace
 
@@ -29,6 +30,7 @@ type _BoundTool = (
     | PatchTool
     | ShellTool
     | WebFetchTool
+    | WebSearchTool
 )
 
 
@@ -456,4 +458,16 @@ class WebFetch(_ToolAdapter):
         self._tool = WebFetchTool(**configuration)
 
     async def _get_tool(self) -> WebFetchTool:
+        return self._tool
+
+
+class WebSearch(_ToolAdapter):
+    """Pass WebSearch(backend=ExaSearch()) directly to RoomKit's tools list."""
+
+    _tool_type = WebSearchTool
+
+    def __init__(self, *, backend: SearchBackend, **configuration: Any) -> None:
+        self._tool = WebSearchTool(backend=backend, **configuration)
+
+    async def _get_tool(self) -> WebSearchTool:
         return self._tool

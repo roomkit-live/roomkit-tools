@@ -11,6 +11,7 @@ publish = false
 roomkit-tools-fs.workspace = true
 roomkit-tools-process.workspace = true
 roomkit-tools-web.workspace = true
+roomkit-tools-search = { workspace = true, features = ["exa", "ollama"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 tokio-util.workspace = true
@@ -56,3 +57,7 @@ path = "read_output.rs"
 [[example]]
 name = "fetch_page"
 path = "fetch_page.rs"
+
+[[example]]
+name = "search_web"
+path = "search_web.rs"

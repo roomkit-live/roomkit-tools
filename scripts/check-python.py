@@ -54,6 +54,21 @@ def main() -> None:
             env={**os.environ, "ROOMKIT_WEB_RESULTS": str(web_reference)},
             check=True,
         )
+        search_reference = work / "rust-search.json"
+        subprocess.run(
+            [
+                "cargo",
+                "test",
+                "--locked",
+                "-p",
+                "roomkit-tools-examples",
+                "--test",
+                "search_contracts",
+            ],
+            cwd=root,
+            env={**os.environ, "ROOMKIT_SEARCH_RESULTS": str(search_reference)},
+            check=True,
+        )
         wheels = work / "wheels"
         if options.wheel:
             wheel = options.wheel.resolve()
@@ -138,6 +153,7 @@ def main() -> None:
             run_tests(python, root, work, "test_process.py")
             run_tests(python, root, work, "test_output.py")
             run_tests(python, root, work, "test_web.py", web_reference=web_reference)
+            run_tests(python, root, work, "test_search.py", search_reference=search_reference)
             run_tests(python, root, work, "test_contracts.py", reference=reference)
             run(str(python), "-I", str(root / "examples/discover_files.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/edit_file.py"), cwd=work)
@@ -160,6 +176,7 @@ def main() -> None:
             run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_output.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_web.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/roomkit_search.py"), cwd=work)
 
 
 def run_tests(
@@ -170,6 +187,7 @@ def run_tests(
     *,
     reference: Path | None = None,
     web_reference: Path | None = None,
+    search_reference: Path | None = None,
 ) -> None:
     subprocess.run(
         [
@@ -191,6 +209,7 @@ def run_tests(
             **os.environ,
             **({"ROOMKIT_CONTRACT_RESULTS": str(reference)} if reference else {}),
             **({"ROOMKIT_WEB_RESULTS": str(web_reference)} if web_reference else {}),
+            **({"ROOMKIT_SEARCH_RESULTS": str(search_reference)} if search_reference else {}),
         },
         check=True,
     )

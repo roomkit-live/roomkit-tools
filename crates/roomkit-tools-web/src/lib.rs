@@ -125,36 +125,8 @@ impl WebFetchTool {
             .unwrap_or("")
             .to_owned();
         let html = check_type(&content_type, status)?;
-        if response
-            .headers()
-            .get(header::CONTENT_ENCODING)
-            .is_some_and(|v| v != "identity")
-        {
-            return Err(Error::Unsupported(
-                "unsupported HTTP content encoding".into(),
-            ));
-        }
-        if response
-            .content_length()
-            .is_some_and(|length| length > self.limits.max_response_bytes as u64)
-        {
-            return Err(Error::LimitExceeded(
-                "HTTP body exceeds host byte limit".into(),
-            ));
-        }
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|e| network::io("read HTTP body", e))?
-        {
-            if chunk.len() > self.limits.max_response_bytes.saturating_sub(bytes.len()) {
-                return Err(Error::LimitExceeded(
-                    "HTTP body exceeds host byte limit".into(),
-                ));
-            }
-            bytes.extend_from_slice(&chunk);
-        }
+        let bytes =
+            roomkit_tools_http::read_body(&mut response, self.limits.max_response_bytes).await?;
         let response_bytes = bytes.len();
         let source = String::from_utf8(bytes)
             .map_err(|_| Error::Unsupported("response is not UTF-8 text".into()))?;

@@ -135,6 +135,7 @@ mod mutation;
 mod output;
 mod process;
 mod runtime;
+mod search;
 mod web;
 
 #[derive(Default, Deserialize)]
@@ -319,6 +320,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     runtime::install(module)?;
     module.add_class::<Cancellation>()?;
     module.add_class::<web::PythonWebFetchTool>()?;
+    module.add_class::<search::PythonSearchBackend>()?;
+    module.add_class::<search::PythonWebSearchTool>()?;
     module.add_class::<PythonReadTool>()?;
     module.add_class::<PythonListTool>()?;
     module.add_class::<PythonGlobTool>()?;

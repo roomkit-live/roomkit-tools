@@ -1116,6 +1116,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "roomkit-tools-http"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "roomkit-tools-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "roomkit-tools-process"
 version = "0.1.0"
 dependencies = [
@@ -1137,11 +1147,27 @@ dependencies = [
  "roomkit-tools-core",
  "roomkit-tools-fs",
  "roomkit-tools-process",
+ "roomkit-tools-search",
  "roomkit-tools-web",
  "serde",
  "serde_json",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "roomkit-tools-search"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "roomkit-tools-core",
+ "roomkit-tools-http",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "url",
 ]
 
 [[package]]
@@ -1152,6 +1178,7 @@ dependencies = [
  "markup5ever_rcdom",
  "reqwest",
  "roomkit-tools-core",
+ "roomkit-tools-http",
  "schemars",
  "serde",
  "tokio",

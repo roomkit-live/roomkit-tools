@@ -1,0 +1,30 @@
+[package]
+name = "roomkit-tools-search"
+description = "Selectable web search backends with common typed results"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+exa = ["dep:reqwest", "dep:roomkit-tools-http"]
+ollama = ["dep:reqwest", "dep:roomkit-tools-http"]
+
+[dependencies]
+roomkit-tools-core.workspace = true
+roomkit-tools-http = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+url.workspace = true
+tokio = { workspace = true, features = ["rt", "time", "sync", "macros"] }
+tokio-util.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["net", "io-util"] }
+
+[lints]
+workspace = true
