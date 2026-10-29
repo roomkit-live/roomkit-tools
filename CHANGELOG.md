@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Make background-demo read verification retain earlier valid evidence and
+  report observed ranges, arguments and revisions. Give the worker immediate
+  feedback when its first read omits the required method range or precedes
+  the outline, without rewriting calls or changing the native Read tool.
+
 - Return background results to the main assistant with RoomKit's `relay`
   mode, so it presents the findings in the conversation. Verify the internal
   delivery and its linked assistant reply, and distinguish worker completion

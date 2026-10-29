@@ -980,6 +980,13 @@ this conversation. `/help` lists commands; unknown slash commands stay local.
 the temporary project without repeating that verification report.
 Worker traces are summarized by `/check`, including failed calls and their
 arguments, so they do not interrupt the main assistant's streamed text.
+The method-read check reports outline ranges, read arguments, returned line
+ranges and revisions. It requires at least one complete method read after a
+matching Python outline, with the same file and revision; additional calls
+do not erase earlier valid evidence. A demo-only hook gives the worker
+actionable feedback before an incorrect first read: `offset=start_line` and
+`limit=end_line-start_line+1`, including the method declaration. This leaves
+the native Read tool's general-purpose contract unchanged.
 In hold mode, companion calls
 requested alongside the paused outline have the same five-minute allowance.
 

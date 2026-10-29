@@ -3,9 +3,11 @@
 import asyncio
 import importlib.util
 import io
+import json
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,6 +22,93 @@ def load_example():
 
 
 class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
+    async def test_worker_receives_feedback_and_corrects_a_read_missing_the_declaration(self):
+        example = load_example()
+
+        class RecoveringWorker(example.WorkerProvider):
+            tried_before_outline = False
+            tried_wrong_range = False
+
+            async def generate(self, context):
+                if not self.tried_before_outline:
+                    self.tried_before_outline = True
+                    return example.call("read", {"path": "shipping.py", "offset": 5, "limit": 5})
+                if example.results(context, "code_outline") and not self.tried_wrong_range:
+                    self.tried_wrong_range = True
+                    return example.call("read", {"path": "shipping.py", "offset": 6, "limit": 4})
+                return await super().generate(context)
+
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()):
+            async with asyncio.timeout(15):
+                demo = await example.automatic(Path(root), worker=RecoveringWorker())
+            refused = [e for e in demo.tools if e.name == "read" and e.refused]
+            self.assertEqual(len(refused), 2)
+            self.assertIn("code_outline", refused[0].result)
+            self.assertIn("lines 5-9", refused[1].result)
+            self.assertIn("including its declaration", refused[1].result)
+            task = next(iter(demo.tasks.values()))
+            self.assertEqual(
+                [line["number"] for line in demo.targeted_read(task["child_room_id"])["lines"]],
+                [5, 6, 7, 8, 9],
+            )
+
+    async def test_additional_reads_and_empty_searches_preserve_earlier_valid_evidence(self):
+        example = load_example()
+
+        class ExtraWorker(example.WorkerProvider):
+            async def generate(self, context):
+                reads = example.results(context, "read")
+                searches = example.results(context, "grep")
+                if reads and searches:
+                    if len(reads) == 1:
+                        return example.call("read", {"path": "shipping.py"})
+                    if len(searches) == 1:
+                        return example.call("grep", {"path": "shipping.py", "pattern": "absent"})
+                return await super().generate(context)
+
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()):
+            async with asyncio.timeout(15):
+                demo = await example.automatic(Path(root), worker=ExtraWorker())
+            task = next(iter(demo.tasks.values()))
+            reads = [d for e, d in demo.worker_results(task["child_room_id"]) if e.name == "read"]
+            self.assertEqual([len(d["lines"]) for d in reads], [5, 9])
+            demo.verify_task(task)
+
+    async def test_read_verification_rejects_wrong_range_revision_path_and_order(self):
+        example = load_example()
+        with tempfile.TemporaryDirectory() as root, redirect_stdout(io.StringIO()):
+            async with asyncio.timeout(15):
+                demo = await example.automatic(Path(root))
+            task = next(iter(demo.tasks.values()))
+            original = list(demo.tools)
+            read_index = next(
+                i
+                for i, e in enumerate(original)
+                if e.room_id == task["child_room_id"] and e.name == "read" and not e.is_error
+            )
+            read = original[read_index]
+            for case in ("range", "revision", "path", "order"):
+                with self.subTest(case=case):
+                    demo.tools[:] = original
+                    result = json.loads(read.result)
+                    if case == "range":
+                        result["data"]["lines"] = result["data"]["lines"][1:]
+                    elif case == "revision":
+                        result["data"]["revision"] = "sha256:stale"
+                    elif case == "path":
+                        result["data"]["path"] = str(Path(root) / "other.py")
+                    demo.tools[read_index] = replace(read, result=json.dumps(result))
+                    if case == "order":
+                        demo.tools.insert(0, demo.tools.pop(read_index))
+                    with self.assertRaisesRegex(RuntimeError, "no read matched an earlier"):
+                        demo.verify_task(task)
+                    diagnostics = demo.read_diagnostics(task["child_room_id"])
+                    self.assertIn("calculate_fee=5-9", diagnostics)
+                    self.assertIn(
+                        "returned lines=6-9" if case == "range" else "revision=", diagnostics
+                    )
+            demo.tools[:] = original
+
     async def test_worker_can_request_outline_and_grep_in_the_same_round(self):
         example = load_example()
 

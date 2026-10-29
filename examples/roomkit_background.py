@@ -48,7 +48,9 @@ TASK = (
     "Analyze ShippingService.calculate_fee in shipping.py without modifying any file. "
     "Call code_outline with path='shipping.py' (a file, not the project directory), "
     "locate calculate_fee, and read only its start_line to end_line "
-    "using offset and limit. Use grep to locate the threshold comparison. "
+    "using offset=start_line and limit=end_line-start_line+1. Lines are one-based; "
+    "limit is a line count, not an ending line. Include the method declaration. "
+    "Use grep to locate the threshold comparison. "
     "Explain the boundary bug and suggest the smallest correction, citing actual source lines. "
     "Do not claim to have edited anything or run tests."
 )
@@ -239,12 +241,16 @@ class BackgroundDemo:
         await self.kit.attach_channel(ROOM, "assistant", category=ChannelCategory.INTELLIGENCE)
 
         @self.kit.hook(HookTrigger.BEFORE_TOOL_USE)
-        async def capacity(event, _context):
+        async def validate_call(event, _context):
             if event.name == "work_in_background":
                 try:
                     self.reserve(event.tool_call_id)
                 except RuntimeError as error:
                     return HookResult.block(str(error))
+            if event.channel_id == "researcher" and event.name == "read":
+                feedback = self.read_feedback(event.room_id, event.arguments)
+                if feedback:
+                    return HookResult.block(feedback)
             return HookResult.allow()
 
         @self.kit.hook(HookTrigger.ON_TOOL_CALL, execution=HookExecution.ASYNC)
@@ -434,6 +440,105 @@ class BackgroundDemo:
         require(sorted(p.name for p in self.root.iterdir()) == ["shipping.py"], "unexpected files")
         require((self.root / "shipping.py").read_bytes() == SOURCE.encode(), "source changed")
 
+    def worker_results(self, room):
+        return [
+            (e, json.loads(e.result)["data"])
+            for e in self.tools
+            if e.room_id == room and e.channel_id == "researcher" and not e.is_error
+        ]
+
+    def outlined_method(self, data):
+        if (
+            data["path"] != str(self.root / "shipping.py")
+            or data["language"] != "python"
+            or data["syntax_errors"]
+        ):
+            return None
+        return next(
+            (s for s in data["symbols"] if s["name"] == "calculate_fee" and s["kind"] == "method"),
+            None,
+        )
+
+    def targeted_read(self, room):
+        # Keep earlier evidence: a later outline page, grep or additional read
+        # must not erase an already observed, correctly ordered method read.
+        outlines = []
+        for event, data in self.worker_results(room):
+            if event.name == "code_outline":
+                if method := self.outlined_method(data):
+                    outlines.append((data, method))
+            elif event.name == "read":
+                for outline, method in outlines:
+                    expected = [
+                        {"number": i, "text": text}
+                        for i, text in enumerate(SOURCE.splitlines(), 1)
+                        if method["start_line"] <= i <= method["end_line"]
+                    ]
+                    if (
+                        data["path"] == outline["path"]
+                        and data["revision"] == outline["revision"]
+                        and data["lines"] == expected
+                        and event.arguments.get("offset") == method["start_line"]
+                        and event.arguments.get("limit")
+                        == method["end_line"] - method["start_line"] + 1
+                    ):
+                        return data
+        return None
+
+    def read_feedback(self, room, arguments):
+        # This constraint belongs to the demonstration, not the native Read
+        # tool. Refuse an incomplete first read while the model can correct it;
+        # never rewrite its arguments or fabricate a successful tool result.
+        if self.targeted_read(room) is not None:
+            return None
+        methods = [
+            method
+            for event, data in self.worker_results(room)
+            if event.name == "code_outline" and (method := self.outlined_method(data))
+        ]
+        if not methods:
+            return (
+                'This demo requires code_outline({"path":"shipping.py"}) first. '
+                "Wait for its actual Python outline and locate calculate_fee before reading."
+            )
+        method = methods[-1]
+        start, end = method["start_line"], method["end_line"]
+        expected = {"path": "shipping.py", "offset": start, "limit": end - start + 1}
+        path = arguments.get("path")
+        correct_path = isinstance(path, str) and os.path.abspath(self.root / path) == str(
+            self.root / "shipping.py"
+        )
+        if (
+            correct_path
+            and arguments.get("offset") == expected["offset"]
+            and arguments.get("limit") == expected["limit"]
+        ):
+            return None
+        return (
+            f"This demo requires the whole calculate_fee method, lines {start}-{end}, "
+            "including its declaration. offset is the one-based first line; limit is "
+            "end_line-start_line+1 (a count). Retry read with " + json.dumps(expected)
+        )
+
+    def read_diagnostics(self, room):
+        details = []
+        for event, data in self.worker_results(room):
+            if event.name == "code_outline":
+                method = self.outlined_method(data)
+                span = f"{method['start_line']}-{method['end_line']}" if method else "not found"
+                details.append(
+                    f"outline: calculate_fee={span}, language={data['language']}, "
+                    f"revision={data['revision']}"
+                )
+            elif event.name == "read":
+                lines = data["lines"]
+                span = f"{lines[0]['number']}-{lines[-1]['number']}" if lines else "empty"
+                details.append(
+                    f"read {json.dumps(event.arguments)}: path={data['path']}, "
+                    f"returned lines={span}, count={len(lines)}, revision={data['revision']}"
+                )
+        return "\n".join(details) or "No successful outline/read calls."
+
     def verify_task(self, task):
         self.verify_files()
         require(
@@ -455,30 +560,22 @@ class BackgroundDemo:
                 self.verify_relay(task)
             return
         reply = self.verify_relay(task)
-        successful = {e.name: json.loads(e.result)["data"] for e in events if not e.is_error}
+        successful = self.worker_results(task["child_room_id"])
         require(
-            {"code_outline", "read", "grep"} <= successful.keys(), "missing worker tool evidence"
+            {"code_outline", "read", "grep"} <= {e.name for e, _ in successful},
+            "missing worker tool evidence",
         )
-        outline = successful["code_outline"]
         require(
-            outline["path"] == str(self.root / "shipping.py") and not outline["syntax_errors"],
-            "unexpected outline",
-        )
-        method = next(s for s in outline["symbols"] if s["name"] == "calculate_fee")
-        read = successful["read"]
-        expected = [
-            {"number": i, "text": line}
-            for i, line in enumerate(SOURCE.splitlines(), 1)
-            if method["start_line"] <= i <= method["end_line"]
-        ]
-        require(
-            read["lines"] == expected and read["revision"] == outline["revision"],
-            "method was not read with its actual range/revision",
+            self.targeted_read(task["child_room_id"]) is not None,
+            "no read matched an earlier Python outline's complete method, path and revision.\n"
+            + self.read_diagnostics(task["child_room_id"]),
         )
         require(
             any(
                 m["path"] == "shipping.py" and "subtotal > 50" in m["text"]
-                for m in successful["grep"]["matches"]
+                for event, data in successful
+                if event.name == "grep"
+                for m in data["matches"]
             ),
             "missing comparison in grep",
         )
@@ -640,6 +737,7 @@ class TerminalCommands:
                         state = "cancelled" if event.cancelled else "failed"
                         print(f"Worker call {state}: {event.name} {json.dumps(event.arguments)}")
                 demo.verify_task(task)
+                print(demo.read_diagnostics(task["child_room_id"]))
                 print("Verified: actual worker evidence and result delivery; source unchanged.")
 
     def content(self, line):
