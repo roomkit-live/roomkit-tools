@@ -69,7 +69,7 @@ macro_rules! host_options {
     ($options:ident, $limits:ty, $($field:ident),+ $(,)?) => {
         #[derive(Default, Deserialize)]
         #[serde(deny_unknown_fields)]
-        #[expect(clippy::struct_field_names, reason = "match the Rust tool's public limit names")]
+        #[allow(clippy::struct_field_names, reason = "preserve public Rust limit names, also for single-field options")]
         struct $options {
             $($field: Option<usize>,)+
         }
@@ -119,6 +119,8 @@ host_options!(
     max_total_bytes,
     max_context_lines
 );
+
+mod mutation;
 
 #[pyclass(name = "_Cancellation", frozen, module = "roomkit_tools._native")]
 #[derive(Clone, Debug, Default)]
@@ -258,6 +260,9 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PythonListTool>()?;
     module.add_class::<PythonGlobTool>()?;
     module.add_class::<PythonGrepTool>()?;
+    module.add_class::<mutation::PythonWorkspace>()?;
+    module.add_class::<mutation::PythonWriteTool>()?;
+    module.add_class::<mutation::PythonEditTool>()?;
     let py = module.py();
     module.add("ToolError", py.get_type::<ToolError>())?;
     module.add("InvalidInputError", py.get_type::<InvalidInputError>())?;

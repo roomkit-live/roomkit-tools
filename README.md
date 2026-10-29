@@ -7,7 +7,7 @@ intended for use from Rust, Python and RoomKit.
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
 `process_write` and `process_stop`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python exposes `read`, `list`, `glob` and `grep`, directly selectable in RoomKit.
+Python exposes `read`, `list`, `glob`, `grep`, `write` and `edit`, directly selectable in RoomKit.
 Bindings for the other tools and large-file streaming are planned.
 Nothing is published to crates.io or PyPI yet.
 
@@ -52,7 +52,7 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
 | `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` and the five `Process*Toolset` adapters, registered individually. |
-| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes `read`, `list`, `glob` and `grep`. |
+| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes `read`, `list`, `glob`, `grep`, `write` and `edit`. |
 
 There is no global tool registry. A host instantiates the tools it needs
 and chooses which definitions to expose to its model.
@@ -148,17 +148,17 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 
 ## Python
 
-The `0.1.0a2` preview exposes **read, list, glob and grep**. Its prebuilt wheel supports ordinary
+The `0.1.0a3` preview exposes **read, list, glob, grep, write and edit**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a2)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a3)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a2 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a3 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a2-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a3-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for
@@ -169,13 +169,16 @@ Select the tools directly in an existing RoomKit agent:
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import Glob, Grep, List, Read
+from roomkit_tools import Edit, Glob, Grep, List, Read, Workspace, Write
 
-workspace = "./workspace"
+workspace = Workspace("./workspace")
 agent = AIChannel(
     "agent",
     provider=provider,  # Your configured RoomKit AI provider.
-    tools=[Read(root=workspace), List(root=workspace), Glob(root=workspace), Grep(root=workspace)],
+    tools=[
+        Read(root=workspace), List(root=workspace), Glob(root=workspace),
+        Grep(root=workspace), Write(root=workspace), Edit(root=workspace),
+    ],
 )
 ```
 
@@ -185,6 +188,14 @@ Rust. The directory must exist by then. Failed or cancelled initialization can
 be retried. Each tool is selected explicitly; no other tools are registered.
 RoomKit retains schema validation, permissions, hooks and turn cancellation.
 No RoomKit Rust checkout or separate server is needed.
+
+`Workspace` is an explicit shared root and mutation scope. Passing the same
+object to `Write` and `Edit` serializes their read/prepare/commit operations,
+including concurrent first calls and reuse across event loops. Read-only tools
+accept it as a path and do not acquire that lock. A plain path also works, but
+each mutation tool then owns an independent scope; equal path strings do not
+share a global lock. External editors and separately created workspaces are not
+coordinated by this object.
 
 For direct Python use without RoomKit:
 
@@ -206,7 +217,8 @@ The extension calls the existing Rust tools; Python does not reimplement
 file access or schemas. `call(arguments)` accepts the same JSON-shaped input as
 Rust. Results are dictionaries containing both `data` and `text`. Cancelling an
 `asyncio` task cancels its Rust token and future; already-issued filesystem I/O
-may still finish in Tokio's blocking pool. These tools perform no writes.
+may still finish in Tokio's blocking pool. Mutations also retain the Rust commit
+boundary described below.
 
 The standalone discovery tools use the same construction and result shape:
 
@@ -245,6 +257,49 @@ Omitted bounds retain Rust defaults. Bounds must be positive, except
 call; output pagination is reported explicitly. Run the standalone
 [discovery example](examples/discover_files.py) with
 `.venv/bin/python examples/discover_files.py`; it needs no RoomKit or model.
+
+For standalone mutations, share one workspace and pass the latest revision:
+
+```python
+from roomkit_tools import EditTool, ReadTool, Workspace, WriteTool
+
+# Inside an async function:
+workspace = Workspace("./workspace")
+read = await ReadTool.create(workspace)
+write = await WriteTool.create(workspace)
+edit = await EditTool.create(workspace)
+
+created = await write.write("notes.txt", "Status: draft\n")
+before = await read.read("notes.txt")
+updated = await edit.edit(
+    "notes.txt", "draft", "ready", expected_revision=before["data"]["revision"]
+)
+```
+
+`write(path, content, overwrite=False, expected_revision=None)` writes complete
+UTF-8 content. Replacing an existing file requires `overwrite=True`, including
+when a matching revision is supplied. `edit(path, old_text, new_text,
+replace_all=False, expected_revision=None)` replaces an exact nonempty passage.
+Multiple matches require `replace_all=True`; no matches are refused. Empty
+`new_text` removes the passage and keeps the file. Both preserve raw line endings
+and BOM, refuse leaf symlinks and NUL/binary content, and require existing parent
+directories. No directories are created implicitly.
+
+Both constructors accept `max_file_bytes` (8 MiB by default), bounding source,
+arguments and result as applicable. Results contain changed/created flags or
+replacement counts, byte counts and the resulting content revision. The optional
+`expected_revision` checks the destination inside the shared mutation lock before
+writing; a stale revision is refused even when the selected text still matches.
+It requires an existing destination, so omit it for creation. This is not an OS
+compare-and-swap against external editors. Read before editing or overwriting,
+then use the revision returned by read/write/edit.
+
+Cancellation requests stopping before commit. A commit that has already started
+may finish even if Python receives `CancelledError` or RoomKit times out; the
+Rust worker keeps the shared lock until completion. Read the file before retrying
+an interrupted mutation. See the standalone [mutation example](examples/edit_file.py),
+run with `.venv/bin/python examples/edit_file.py`, for a complete flow including
+stale-revision refusal.
 
 Errors inherit from `ToolError`: `InvalidInputError`, `AccessRefusedError`,
 `LimitExceededError`, `UnsupportedResourceError` and `ToolIOError`. I/O messages
@@ -287,7 +342,7 @@ It runs once in the console; it does not start an HTTP server or a chat page.
 
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns
-its revision. Mutations, process tools, other platforms and free-threaded builds remain outside
+its revision. Diff/patch, process tools, other platforms and free-threaded builds remain outside
 the validated Python slice.
 
 To build from this checkout instead, install Rust and [uv](https://docs.astral.sh/uv/):

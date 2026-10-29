@@ -106,7 +106,9 @@ def main() -> None:
             )
             run_tests(python, root, work, "test_read.py")
             run_tests(python, root, work, "test_discovery.py")
+            run_tests(python, root, work, "test_mutations.py")
             run(str(python), "-I", str(root / "examples/discover_files.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/edit_file.py"), cwd=work)
             # Exercise the declared integration against its minimum release.
             run(
                 "uv",
@@ -118,7 +120,7 @@ def main() -> None:
                 "roomkit==0.110.0",
                 cwd=work,
             )
-            run_tests(python, root, work, "test_roomkit.py")
+            run_tests(python, root, work, "test_roomkit*.py")
             run(str(python), "-I", str(root / "examples/roomkit_read.py"), cwd=work)
 
 

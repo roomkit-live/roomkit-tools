@@ -8,6 +8,7 @@ import os
 from typing import Any, ClassVar, Self
 
 from . import _native
+from .workspace import Workspace
 
 
 class ReadTool:
@@ -264,5 +265,117 @@ class GrepTool(_DiscoveryTool):
                 "context_after": context_after,
                 "offset": offset,
                 "limit": limit,
+            }
+        )
+
+
+class _MutationTool:
+    """JSON bridge for tools sharing an explicit Rust mutation scope."""
+
+    _native_type: ClassVar[type[_native._WriteTool | _native._EditTool]]
+
+    def __init__(self, native: _native._WriteTool | _native._EditTool) -> None:
+        self._native = native
+
+    @classmethod
+    async def create(
+        cls, root: str | os.PathLike[str], *, max_file_bytes: int | None = None
+    ) -> Self:
+        """Resolve the root asynchronously; default file bound: 8 MiB.
+
+        Pass the same Workspace object to write and edit to share serialization.
+        A plain path creates an independent workspace for this tool.
+        """
+        workspace = root if isinstance(root, Workspace) else Workspace(root)
+        options = {} if max_file_bytes is None else {"max_file_bytes": max_file_bytes}
+        cancel = _native._Cancellation()
+        try:
+            native = await cls._native_type.create(
+                workspace._native, json.dumps(options, allow_nan=False), cancel
+            )
+        finally:
+            cancel.cancel()
+        return cls(native)
+
+    @classmethod
+    def definition(cls) -> dict[str, Any]:
+        """Return fresh input/output schemas derived from the Rust types."""
+        return json.loads(cls._native_type.definition_json())
+
+    async def call(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute Rust-validated input and return the data/text envelope.
+
+        Cancellation requests stopping before commit. A commit already started
+        may finish even if Python receives CancelledError; read before retrying.
+        The Rust worker keeps the shared lock until it finishes.
+        """
+        cancel = _native._Cancellation()
+        try:
+            result = await self._native.call(json.dumps(arguments, allow_nan=False), cancel)
+        finally:
+            cancel.cancel()
+        return json.loads(result)
+
+
+class WriteTool(_MutationTool):
+    """Create or explicitly overwrite bounded UTF-8 text beneath a root.
+
+    Parent directories must exist. Leaf symlinks and NUL-containing text are
+    refused. Exact bytes, including BOM and line endings, are preserved.
+    Replacement requires overwrite=True even with expected_revision.
+    """
+
+    _native_type = _native._WriteTool
+
+    async def write(
+        self,
+        path: str | os.PathLike[str],
+        content: str,
+        *,
+        overwrite: bool = False,
+        expected_revision: str | None = None,
+    ) -> dict[str, Any]:
+        """Write complete contents and return flags, byte count and new revision.
+
+        expected_revision is optional; when supplied the destination must
+        already exist and match the revision returned by read/write/edit.
+        """
+        return await self.call(
+            {
+                "path": os.fspath(path),
+                "content": content,
+                "overwrite": overwrite,
+                "expected_revision": expected_revision,
+            }
+        )
+
+
+class EditTool(_MutationTool):
+    """Replace exact text while preserving all unmatched bytes.
+
+    old_text must be nonempty and match exactly once unless replace_all=True.
+    Empty new_text removes the passage, not the file. Arguments, source and
+    result must fit max_file_bytes. Matching uses original whitespace/endings.
+    """
+
+    _native_type = _native._EditTool
+
+    async def edit(
+        self,
+        path: str | os.PathLike[str],
+        old_text: str,
+        new_text: str,
+        *,
+        replace_all: bool = False,
+        expected_revision: str | None = None,
+    ) -> dict[str, Any]:
+        """Edit a file and return replacement count, byte counts and new revision."""
+        return await self.call(
+            {
+                "path": os.fspath(path),
+                "old_text": old_text,
+                "new_text": new_text,
+                "replace_all": replace_all,
+                "expected_revision": expected_revision,
             }
         )

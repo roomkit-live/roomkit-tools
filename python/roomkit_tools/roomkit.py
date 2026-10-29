@@ -12,11 +12,14 @@ from ._native import (
     LimitExceededError,
     UnsupportedResourceError,
 )
-from .fs import GlobTool, GrepTool, ListTool, ReadTool
+from .fs import EditTool, GlobTool, GrepTool, ListTool, ReadTool, WriteTool
+from .workspace import Workspace
+
+type _FilesystemTool = ReadTool | ListTool | GlobTool | GrepTool | WriteTool | EditTool
 
 
 class _ToolAdapter:
-    _tool_type: ClassVar[type[ReadTool | ListTool | GlobTool | GrepTool]]
+    _tool_type: ClassVar[type[_FilesystemTool]]
 
     @property
     def definition(self) -> dict[str, Any]:
@@ -43,7 +46,7 @@ class _ToolAdapter:
             raise ToolFailedError(str(error)) from error
         return json.dumps(result, ensure_ascii=False)
 
-    async def _get_tool(self) -> ReadTool | ListTool | GlobTool | GrepTool:
+    async def _get_tool(self) -> _FilesystemTool:
         raise NotImplementedError
 
 
@@ -71,9 +74,9 @@ class _ConfiguredTool(_ToolAdapter):
             raise InvalidInputError("root must not be empty")
         self._root = os.path.abspath(path)
         self._limits = limits
-        self._resolved: ReadTool | ListTool | GlobTool | GrepTool | None = None
+        self._resolved: _FilesystemTool | None = None
 
-    async def _get_tool(self) -> ReadTool | ListTool | GlobTool | GrepTool:
+    async def _get_tool(self) -> _FilesystemTool:
         if self._resolved is None:
             # Each first caller owns its initialization: cancellation cannot
             # poison another call, and no task/lock is tied to an event loop.
@@ -195,3 +198,44 @@ class Grep(_ConfiguredTool):
             max_total_bytes=max_total_bytes,
             max_context_lines=max_context_lines,
         )
+
+
+class _ConfiguredMutation(_ToolAdapter):
+    _tool_type: ClassVar[type[WriteTool | EditTool]]
+
+    def __init__(self, root: str | os.PathLike[str], *, max_file_bytes: int | None = None) -> None:
+        # Retain one scope even when multiple first calls initialize concurrently.
+        self._workspace = root if isinstance(root, Workspace) else Workspace(root)
+        self._max_file_bytes = max_file_bytes
+        self._resolved: WriteTool | EditTool | None = None
+
+    async def _get_tool(self) -> WriteTool | EditTool:
+        if self._resolved is None:
+            tool = await self._tool_type.create(
+                self._workspace, max_file_bytes=self._max_file_bytes
+            )
+            self._resolved = tool
+        return self._resolved
+
+
+class Write(_ConfiguredMutation):
+    """The Rust write tool, selectable directly in RoomKit's tools list.
+
+    Pass the same Workspace to Write and Edit to serialize their mutations.
+    A plain path creates an independent scope. Root resolution and limit
+    validation happen asynchronously on first use; max_file_bytes defaults to
+    8 MiB. See WriteTool for overwrite/revision and cancellation semantics.
+    """
+
+    _tool_type = WriteTool
+
+
+class Edit(_ConfiguredMutation):
+    """The Rust exact-text edit tool, selectable directly in RoomKit's tools list.
+
+    Pass the same Workspace to Write and Edit to serialize their mutations.
+    max_file_bytes defaults to 8 MiB. The root and limits are resolved on first
+    use. See EditTool for matching rules; a cancelled commit may still finish.
+    """
+
+    _tool_type = EditTool

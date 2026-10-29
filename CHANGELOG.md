@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Extend the Python preview to `0.1.0a3` with `Write` and `Edit` for RoomKit,
+  standalone `WriteTool`/`EditTool` APIs, and an explicit shared `Workspace`.
+  Preserve overwrite consent, exact edits, revisions, bounds, staged commits
+  and the Rust cancellation boundary. Concurrent lazy initialization shares
+  one Rust mutation scope across tools and Python event loops.
+- Validate create/edit/remove workflows, stale revisions, concurrent mutations
+  and cancelled writes through installed wheels/source builds and RoomKit.
+  Add a standalone Python mutation example.
+
 - Extend the Python preview to `0.1.0a2` with independently selectable `List`,
   `Glob` and `Grep` RoomKit tools and standalone `ListTool`, `GlobTool` and
   `GrepTool` APIs. Preserve the Rust schemas, pagination, context, host limits,

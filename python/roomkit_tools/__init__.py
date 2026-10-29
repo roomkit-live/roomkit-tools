@@ -8,11 +8,14 @@ from ._native import (
     ToolIOError,
     UnsupportedResourceError,
 )
-from .fs import GlobTool, GrepTool, ListTool, ReadTool
-from .roomkit import Glob, Grep, List, Read
+from .fs import EditTool, GlobTool, GrepTool, ListTool, ReadTool, WriteTool
+from .roomkit import Edit, Glob, Grep, List, Read, Write
+from .workspace import Workspace
 
 __all__ = [
     "AccessRefusedError",
+    "Edit",
+    "EditTool",
     "Glob",
     "GlobTool",
     "Grep",
@@ -26,4 +29,7 @@ __all__ = [
     "ToolError",
     "ToolIOError",
     "UnsupportedResourceError",
+    "Workspace",
+    "Write",
+    "WriteTool",
 ]
