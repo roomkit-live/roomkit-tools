@@ -105,6 +105,8 @@ def main() -> None:
                 "uv", "pip", "install", "--python", str(python), "--no-deps", str(package), cwd=work
             )
             run_tests(python, root, work, "test_read.py")
+            run_tests(python, root, work, "test_discovery.py")
+            run(str(python), "-I", str(root / "examples/discover_files.py"), cwd=work)
             # Exercise the declared integration against its minimum release.
             run(
                 "uv",

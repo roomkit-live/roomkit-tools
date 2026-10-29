@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Extend the Python preview to `0.1.0a2` with independently selectable `List`,
+  `Glob` and `Grep` RoomKit tools and standalone `ListTool`, `GlobTool` and
+  `GrepTool` APIs. Preserve the Rust schemas, pagination, context, host limits,
+  errors and cancellation; no filesystem behavior is reimplemented in Python.
+- Validate discovery in isolated wheel/source installations and a RoomKit agent
+  turn using all four tools. Add a standalone Python discovery example.
+
 - Add `from roomkit_tools import Read` for direct RoomKit registration with
   `tools=[Read(root="./workspace")]`, including lazy asynchronous initialization.
 - Prepare the Python `0.1.0a1` read-only preview with a Linux x86_64 stable-ABI

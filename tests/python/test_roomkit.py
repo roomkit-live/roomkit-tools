@@ -21,7 +21,17 @@ from roomkit.providers.ai.base import AIResponse, AIToolCall, AIToolResultPart
 from roomkit.providers.ai.mock import MockAIProvider
 from roomkit.tools.base import Tool
 from roomkit.tools.compose import extract_tools
-from roomkit_tools import Read, ReadTool, ToolIOError
+from roomkit_tools import (
+    Glob,
+    GlobTool,
+    Grep,
+    GrepTool,
+    List,
+    ListTool,
+    Read,
+    ReadTool,
+    ToolIOError,
+)
 from roomkit_tools.roomkit import ReadToolAdapter
 
 
@@ -196,6 +206,127 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         result = json.loads(await adapter.handler("read", {"path": "source.txt"}))
         self.assertEqual(result["text"], "1: first\n2: second\n")
 
+    async def test_discovery_selection_schemas_and_error_mapping(self) -> None:
+        for facade, standalone, name, arguments in [
+            (List, ListTool, "list", {}),
+            (Glob, GlobTool, "glob", {"pattern": "*.txt"}),
+            (Grep, GrepTool, "grep", {"pattern": "second", "context_before": 1}),
+        ]:
+            with self.subTest(tool=name):
+                definitions, handler = extract_tools([facade(self.root)])
+                self.assertEqual([definition.name for definition in definitions], [name])
+                self.assertEqual(definitions[0].parameters, standalone.definition()["input_schema"])
+                native = await standalone.create(self.root)
+                self.assertEqual(
+                    json.loads(await handler(name, arguments)), await native.call(arguments)
+                )
+                with self.assertRaises(UnservedToolCallError):
+                    await handler("read", {"path": "source.txt"})
+                with self.assertRaises(ToolRefusedError):
+                    await handler(name, {**arguments, "offset": 0})
+                with self.assertRaises(ToolRefusedError):
+                    await handler(name, {**arguments, "path": ".."})
+                with self.assertRaises(ToolIOError):
+                    await handler(name, {**arguments, "path": "missing"})
+                with self.assertRaises(ToolFailedError):
+                    await facade(self.root, max_output_bytes=1).handler(name, arguments)
+                with self.assertRaises(ToolRefusedError):
+                    await facade(self.root, max_output_bytes=0).handler(name, arguments)
+        with self.assertRaises(ToolFailedError):
+            await Grep(self.root, max_context_lines=0).handler(
+                "grep", {"pattern": "second", "context_before": 1}
+            )
+
+    async def test_discovery_roots_are_independent_and_initialization_is_retryable(self) -> None:
+        child = self.root / "later"
+        for facade, name, arguments in [
+            (List, "list", {}),
+            (Glob, "glob", {"pattern": "*.txt"}),
+            (Grep, "grep", {"pattern": "second"}),
+        ]:
+            tool = facade(child)
+            with self.assertRaises(ToolIOError):
+                await tool.handler(name, arguments)
+            child.mkdir()
+            try:
+                nested = json.loads(await tool.handler(name, arguments))
+                outer = json.loads(await facade(self.root).handler(name, arguments))
+                key = "matches" if name == "grep" else "entries"
+                self.assertEqual(nested["data"][key], [])
+                self.assertNotEqual(outer["data"][key], [])
+            finally:
+                child.rmdir()
+
+    async def test_real_agent_turn_composes_all_four_tools(self) -> None:
+        calls = [
+            ("list", {}),
+            ("glob", {"pattern": "**/*.txt"}),
+            ("grep", {"pattern": "second", "context_before": 1}),
+            ("read", {"path": "source.txt"}),
+        ]
+        provider = MockAIProvider(
+            ai_responses=[
+                AIResponse(
+                    content="",
+                    finish_reason="tool_calls",
+                    tool_calls=[
+                        AIToolCall(id=f"call-{name}", name=name, arguments=arguments),
+                    ],
+                )
+                for name, arguments in calls
+            ]
+            + [AIResponse(content="The file has two lines.")],
+            streaming=False,
+        )
+        channel = AIChannel(
+            "agent",
+            provider=provider,
+            tools=[
+                Read(self.root),
+                List(self.root),
+                Glob(self.root),
+                Grep(self.root),
+            ],
+        )
+        binding = ChannelBinding(
+            room_id="test-room",
+            channel_id="agent",
+            channel_type=ChannelType.AI,
+            category=ChannelCategory.INTELLIGENCE,
+        )
+        context = RoomContext(room=Room(id="test-room"), bindings=[binding])
+        event = RoomEvent(
+            room_id="test-room",
+            source=EventSource(channel_id="user", channel_type=ChannelType.SMS),
+            content=TextContent(
+                body="Discover files, search for second with context, then read it."
+            ),
+        )
+        try:
+            output = await channel.on_event(event, binding, context)
+            if output.response_stream is not None:
+                async for _ in output.response_stream:
+                    pass
+        finally:
+            await channel.close()
+        self.assertEqual(len(provider.calls), 5)
+        parts = [
+            part
+            for message in provider.calls[-1].messages
+            if isinstance(message.content, list)
+            for part in message.content
+            if isinstance(part, AIToolResultPart)
+        ]
+        self.assertEqual(len(parts), 4)
+        self.assertFalse(any(part.is_error for part in parts))
+        results = [json.loads(part.result) for part in parts]
+        self.assertEqual(results[0]["data"]["entries"][0]["path"], "source.txt")
+        self.assertEqual(results[1]["data"]["entries"][0]["path"], "source.txt")
+        self.assertEqual(
+            results[2]["data"]["matches"][0]["context_before"], [{"number": 1, "text": "first"}]
+        )
+        self.assertEqual(results[3]["text"], "1: first\n2: second\n")
+
 
 class ReadLifecycleTests(unittest.TestCase):
     def test_sync_construction_and_reuse_across_event_loops(self) -> None:
@@ -206,6 +337,19 @@ class ReadLifecycleTests(unittest.TestCase):
                 source.write_text(f"value {index}\n")
                 result = json.loads(asyncio.run(tool.handler("read", {"path": "source.txt"})))
                 self.assertEqual(result["text"], f"1: value {index}\n")
+
+    def test_discovery_facades_can_be_used_across_event_loops(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "source.txt").write_text("value\n")
+            for facade, name, arguments in [
+                (List, "list", {}),
+                (Glob, "glob", {"pattern": "*.txt"}),
+                (Grep, "grep", {"pattern": "value"}),
+            ]:
+                tool = facade(directory)
+                first = asyncio.run(tool.handler(name, arguments))
+                second = asyncio.run(tool.handler(name, arguments))
+                self.assertEqual(first, second)
 
 
 if __name__ == "__main__":

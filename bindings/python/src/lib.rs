@@ -5,7 +5,10 @@ use std::path::PathBuf;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use roomkit_tools_core::Error;
-use roomkit_tools_fs::{ReadInput, ReadLimits, ReadTool};
+use roomkit_tools_fs::{
+    GlobInput, GlobLimits, GlobTool, GrepInput, GrepLimits, GrepTool, ListInput, ListLimits,
+    ListTool, ReadInput, ReadLimits, ReadTool,
+};
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
@@ -60,33 +63,62 @@ fn tool_error(error: &Error) -> PyErr {
     }
 }
 
-#[derive(Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-#[expect(
-    clippy::struct_field_names,
-    reason = "match the Rust tool's public limit names"
-)]
-struct ReadOptions {
-    max_file_bytes: Option<usize>,
-    max_output_bytes: Option<usize>,
-    max_lines: Option<usize>,
+// Only supplied host bounds override Rust defaults. Validation remains in each
+// tool's with_limits method; model input schemas still come from its input type.
+macro_rules! host_options {
+    ($options:ident, $limits:ty, $($field:ident),+ $(,)?) => {
+        #[derive(Default, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        #[expect(clippy::struct_field_names, reason = "match the Rust tool's public limit names")]
+        struct $options {
+            $($field: Option<usize>,)+
+        }
+
+        impl $options {
+            fn limits(self) -> $limits {
+                let mut limits = <$limits>::default();
+                $(if let Some(value) = self.$field {
+                    limits.$field = value;
+                })+
+                limits
+            }
+        }
+    };
 }
 
-impl ReadOptions {
-    fn limits(self) -> ReadLimits {
-        let mut limits = ReadLimits::default();
-        if let Some(value) = self.max_file_bytes {
-            limits.max_file_bytes = value;
-        }
-        if let Some(value) = self.max_output_bytes {
-            limits.max_output_bytes = value;
-        }
-        if let Some(value) = self.max_lines {
-            limits.max_lines = value;
-        }
-        limits
-    }
-}
+host_options!(
+    ReadOptions,
+    ReadLimits,
+    max_file_bytes,
+    max_output_bytes,
+    max_lines
+);
+host_options!(
+    ListOptions,
+    ListLimits,
+    max_entries,
+    max_output_bytes,
+    max_scan_entries
+);
+host_options!(
+    GlobOptions,
+    GlobLimits,
+    max_matches,
+    max_output_bytes,
+    max_scan_entries,
+    max_depth
+);
+host_options!(
+    GrepOptions,
+    GrepLimits,
+    max_matches,
+    max_output_bytes,
+    max_scan_entries,
+    max_depth,
+    max_file_bytes,
+    max_total_bytes,
+    max_context_lines
+);
 
 #[pyclass(name = "_Cancellation", frozen, module = "roomkit_tools._native")]
 #[derive(Clone, Debug, Default)]
@@ -110,76 +142,122 @@ impl Cancellation {
     }
 }
 
-#[pyclass(name = "_ReadTool", frozen, module = "roomkit_tools._native")]
-#[derive(Clone, Debug)]
-struct PythonReadTool {
-    tool: ReadTool,
+// All read-only bindings own one configured tool and one cancellation token per
+// invocation. There is no registry or Python implementation of filesystem I/O.
+macro_rules! filesystem_binding {
+    ($binding:ident, $name:literal, $tool:ty, $options:ty, $input:ty, $method:ident, $operation:ident) => {
+        #[pyclass(name = $name, frozen, module = "roomkit_tools._native")]
+        #[derive(Clone, Debug)]
+        struct $binding {
+            tool: $tool,
+        }
+
+        #[pymethods]
+        impl $binding {
+            #[staticmethod]
+            fn create<'py>(
+                py: Python<'py>,
+                root: PathBuf,
+                options_json: String,
+                cancellation: &Cancellation,
+            ) -> PyResult<Bound<'py, PyAny>> {
+                let token = cancellation.token.clone();
+                let guard = token.clone().drop_guard();
+                pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                    let _guard = guard;
+                    let options: $options = serde_json::from_str(&options_json)
+                        .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
+                    // Root resolution is async; dropping the bridge future
+                    // cancels it. These tools perform no writes.
+                    if token.is_cancelled() {
+                        return Err(tool_error(&Error::Cancelled));
+                    }
+                    let tool = <$tool>::new(root)
+                        .await
+                        .and_then(|tool| tool.with_limits(options.limits()))
+                        .map_err(|error| tool_error(&error))?;
+                    if token.is_cancelled() {
+                        return Err(tool_error(&Error::Cancelled));
+                    }
+                    Ok(Self { tool })
+                })
+            }
+
+            #[staticmethod]
+            fn definition_json() -> PyResult<String> {
+                serde_json::to_string(&<$tool>::definition())
+                    .map_err(|_| ToolError::new_err("Unable to serialize the tool definition"))
+            }
+
+            fn $method<'py>(
+                &self,
+                py: Python<'py>,
+                arguments_json: String,
+                cancellation: &Cancellation,
+            ) -> PyResult<Bound<'py, PyAny>> {
+                let tool = self.tool.clone();
+                let token = cancellation.token.clone();
+                let guard = token.clone().drop_guard();
+                pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                    let _guard = guard;
+                    let input: $input = serde_json::from_str(&arguments_json)
+                        .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
+                    let output = tool
+                        .$operation(input, &token)
+                        .await
+                        .map_err(|error| tool_error(&error))?;
+                    serde_json::to_string(&output)
+                        .map_err(|_| ToolError::new_err("Unable to serialize the tool result"))
+                })
+            }
+        }
+    };
 }
 
-#[pymethods]
-impl PythonReadTool {
-    #[staticmethod]
-    fn create<'py>(
-        py: Python<'py>,
-        root: PathBuf,
-        options_json: String,
-        cancellation: &Cancellation,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let token = cancellation.token.clone();
-        let guard = token.clone().drop_guard();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let _guard = guard;
-            let options: ReadOptions = serde_json::from_str(&options_json)
-                .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
-            // The runtime bridge drops this future on Python cancellation.
-            // Root canonicalization is async and performs no writes.
-            if token.is_cancelled() {
-                return Err(tool_error(&Error::Cancelled));
-            }
-            let tool = ReadTool::new(root)
-                .await
-                .and_then(|tool| tool.with_limits(options.limits()))
-                .map_err(|error| tool_error(&error))?;
-            if token.is_cancelled() {
-                return Err(tool_error(&Error::Cancelled));
-            }
-            Ok(Self { tool })
-        })
-    }
-
-    #[staticmethod]
-    fn definition_json() -> PyResult<String> {
-        serde_json::to_string(&ReadTool::definition())
-            .map_err(|_| ToolError::new_err("Unable to serialize the read definition"))
-    }
-
-    fn read<'py>(
-        &self,
-        py: Python<'py>,
-        arguments_json: String,
-        cancellation: &Cancellation,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let tool = self.tool.clone();
-        let token = cancellation.token.clone();
-        let guard = token.clone().drop_guard();
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let _guard = guard;
-            let input: ReadInput = serde_json::from_str(&arguments_json)
-                .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
-            let output = tool
-                .read(input, &token)
-                .await
-                .map_err(|error| tool_error(&error))?;
-            serde_json::to_string(&output)
-                .map_err(|_| ToolError::new_err("Unable to serialize the read result"))
-        })
-    }
-}
+filesystem_binding!(
+    PythonReadTool,
+    "_ReadTool",
+    ReadTool,
+    ReadOptions,
+    ReadInput,
+    read,
+    read
+);
+filesystem_binding!(
+    PythonListTool,
+    "_ListTool",
+    ListTool,
+    ListOptions,
+    ListInput,
+    call,
+    list
+);
+filesystem_binding!(
+    PythonGlobTool,
+    "_GlobTool",
+    GlobTool,
+    GlobOptions,
+    GlobInput,
+    call,
+    glob
+);
+filesystem_binding!(
+    PythonGrepTool,
+    "_GrepTool",
+    GrepTool,
+    GrepOptions,
+    GrepInput,
+    call,
+    grep
+);
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<Cancellation>()?;
     module.add_class::<PythonReadTool>()?;
+    module.add_class::<PythonListTool>()?;
+    module.add_class::<PythonGlobTool>()?;
+    module.add_class::<PythonGrepTool>()?;
     let py = module.py();
     module.add("ToolError", py.get_type::<ToolError>())?;
     module.add("InvalidInputError", py.get_type::<InvalidInputError>())?;

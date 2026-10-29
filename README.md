@@ -7,7 +7,7 @@ intended for use from Rust, Python and RoomKit.
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
 `process_write` and `process_stop`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python currently exposes `read`, with an optional RoomKit Python adapter.
+Python exposes `read`, `list`, `glob` and `grep`, directly selectable in RoomKit.
 Bindings for the other tools and large-file streaming are planned.
 Nothing is published to crates.io or PyPI yet.
 
@@ -52,7 +52,7 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
 | `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` and the five `Process*Toolset` adapters, registered individually. |
-| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Currently exposes `read`. |
+| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes `read`, `list`, `glob` and `grep`. |
 
 There is no global tool registry. A host instantiates the tools it needs
 and chooses which definitions to expose to its model.
@@ -148,37 +148,38 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 
 ## Python
 
-The `0.1.0a1` preview exposes **read only**. Its prebuilt wheel supports ordinary
+The `0.1.0a2` preview exposes **read, list, glob and grep**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a1)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a2)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a1 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a2 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a1-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a2-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for
 standalone use. The repository and release are currently private; this version
 is not on PyPI.
 
-Select the tool directly in an existing RoomKit agent:
+Select the tools directly in an existing RoomKit agent:
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import Read
+from roomkit_tools import Glob, Grep, List, Read
 
+workspace = "./workspace"
 agent = AIChannel(
     "agent",
     provider=provider,  # Your configured RoomKit AI provider.
-    tools=[Read(root="./workspace", max_lines=20)],
+    tools=[Read(root=workspace), List(root=workspace), Glob(root=workspace), Grep(root=workspace)],
 )
 ```
 
-`Read` includes the RoomKit adapter. Construction captures the absolute root;
+Each class includes its RoomKit adapter. Construction captures the absolute root;
 the first call resolves the directory and validates limits asynchronously in
 Rust. The directory must exist by then. Failed or cancelled initialization can
 be retried. Each tool is selected explicitly; no other tools are registered.
@@ -201,11 +202,49 @@ async def main():
 asyncio.run(main())
 ```
 
-The extension calls the existing Rust `ReadTool`; Python does not reimplement
+The extension calls the existing Rust tools; Python does not reimplement
 file access or schemas. `call(arguments)` accepts the same JSON-shaped input as
 Rust. Results are dictionaries containing both `data` and `text`. Cancelling an
 `asyncio` task cancels its Rust token and future; already-issued filesystem I/O
-may still finish in Tokio's blocking pool. The tool performs no writes.
+may still finish in Tokio's blocking pool. These tools perform no writes.
+
+The standalone discovery tools use the same construction and result shape:
+
+```python
+from roomkit_tools import GlobTool, GrepTool, ListTool
+
+# Inside an async function:
+listing = await ListTool.create("./workspace", max_entries=100)
+glob = await GlobTool.create("./workspace")
+grep = await GrepTool.create("./workspace", max_context_lines=5)
+
+directories = await listing.list()
+paths = await glob.glob("**/*.txt")
+matches = await grep.grep("blue", include="**/*.txt", context_before=2)
+```
+
+`list`, `glob` and `grep` accept a one-based `offset` and optional `limit`;
+resume with `data.next_offset`. Grep offsets count matching lines, not context.
+Paths in discovered entries and matches are workspace-relative and usable by
+`read`. Every page rescans; results are not snapshots across external edits.
+Hidden entries are included, ignore files are not applied, and child symlinks
+are not traversed. Grep supports Rust regex syntax, `literal=True`,
+`ignore_case=True`, `include`, `context_before` and `context_after`.
+It skips binary/non-UTF-8 files and reports `data.skipped_files`.
+
+Host bounds are explicit constructor keywords for both APIs:
+
+| Tool | Host bounds and defaults |
+| --- | --- |
+| `List` / `ListTool` | `max_entries=200`, `max_output_bytes=51200`, `max_scan_entries=10000` |
+| `Glob` / `GlobTool` | `max_matches=200`, `max_output_bytes=51200`, `max_scan_entries=10000`, `max_depth=32` |
+| `Grep` / `GrepTool` | Same glob bounds, plus `max_file_bytes=8388608`, `max_total_bytes=33554432`, `max_context_lines=20` per side |
+
+Omitted bounds retain Rust defaults. Bounds must be positive, except
+`max_context_lines=0` disables context. Traversal or ingestion limits fail the
+call; output pagination is reported explicitly. Run the standalone
+[discovery example](examples/discover_files.py) with
+`.venv/bin/python examples/discover_files.py`; it needs no RoomKit or model.
 
 Errors inherit from `ToolError`: `InvalidInputError`, `AccessRefusedError`,
 `LimitExceededError`, `UnsupportedResourceError` and `ToolIOError`. I/O messages
@@ -213,12 +252,12 @@ omit OS diagnostics and host paths. Cancellation remains `asyncio.CancelledError
 Async construction keeps root resolution off the Python event loop. Each call
 has its own cancellation scope, and tools can be reused across event loops.
 
-`Read` exposes the Rust-derived input schema through RoomKit's `Tool` protocol
-and returns both result representations. Refusal and resource failure stay
+The RoomKit classes expose the Rust-derived input schema through its `Tool` protocol
+and return both result representations. Refusal and resource failure stay
 distinct. The lower-level `roomkit_tools.roomkit.ReadToolAdapter` remains
 available for an already-created `ReadTool`. Importing `roomkit_tools` and
-configuring `Read` does not import or require RoomKit; calling its RoomKit
-handler does.
+configuring these tools does not import or require RoomKit; calling their
+RoomKit handlers does.
 
 Run the complete [RoomKit read example](examples/roomkit_read.py) from a checkout
 with the wheel installed:
@@ -248,7 +287,7 @@ It runs once in the console; it does not start an HTTP server or a chat page.
 
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns
-its revision. Other tools, platforms and free-threaded builds remain outside
+its revision. Mutations, process tools, other platforms and free-threaded builds remain outside
 the validated Python slice.
 
 To build from this checkout instead, install Rust and [uv](https://docs.astral.sh/uv/):
