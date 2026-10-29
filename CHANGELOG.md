@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Compare all 14 tools across Rust and installed Python packages using common
+  fixtures, complete result envelopes, typed failure categories and final file
+  bytes. Cover pagination, Unicode, exact mutations/revisions, patch preview,
+  bounded shell output and persistent-process byte cursors with explicit EOF.
 - Release the Python preview `0.1.0a7` with an automatic interpreter-exit barrier:
   cancel outstanding calls, reject new work and drain native bridge tasks and
   completion callbacks while releasing the GIL. Cover cancelled and abandoned

@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "text_pages_and_errors",
+      "files": {"notes with spaces.txt": "\ufeffHello π\r\nsecond\r\nlast", "empty.txt": "", "binary.dat": [0, 255]},
+      "steps": [
+        {"tool": "read", "input": {"path": "notes with spaces.txt", "limit": 1}, "expect": {"/data/lines": [{"number": 1, "text": "Hello π"}], "/data/next_offset": 2, "/data/truncated": true}},
+        {"tool": "read", "input": {"path": "notes with spaces.txt", "offset": 2}, "expect": {"/data/lines": [{"number": 2, "text": "second"}, {"number": 3, "text": "last"}], "/data/next_offset": null}},
+        {"tool": "read", "input": {"path": "empty.txt"}, "expect": {"/data/lines": [], "/data/truncated": false}},
+        {"tool": "read", "input": {"path": "binary.dat"}, "expect": {"/error": "unsupported"}},
+        {"tool": "read", "input": {"path": "absent.txt"}, "expect": {"/error": "io"}},
+        {"tool": "read", "input": {"path": ".."}, "expect": {"/error": "refused"}},
+        {"tool": "read", "input": {"path": "empty.txt", "offset": 0}, "expect": {"/error": "invalid_input"}},
+        {"tool": "read", "input": {"path": "empty.txt", "unknown": true}, "expect": {"/error": "invalid_input"}},
+        {"tool": "read", "input": {"path": "empty.txt"}, "cancelled": true, "expect": {"/error": "cancelled"}}
+      ]
+    },
+    {
+      "name": "discovery_context_and_pages",
+      "files": {".hidden.txt": "hidden\n", ".gitignore": "catalog/\n", "catalog/items.txt": "Widget\nPrice: 12\nTags: blue\n", "catalog/notes.txt": "blueprint\n"},
+      "steps": [
+        {"tool": "list", "input": {"limit": 2}, "expect": {"/data/entries/0/name": ".gitignore", "/data/next_offset": 3}},
+        {"tool": "list", "input": {"offset": 3}, "expect": {"/data/entries": [{"kind": "directory", "name": "catalog", "path": "catalog"}], "/data/truncated": false}},
+        {"tool": "glob", "input": {"pattern": "**/*.txt", "limit": 2}, "expect": {"/data/entries/0/path": ".hidden.txt", "/data/entries/1/path": "catalog/items.txt", "/data/next_offset": 3}},
+        {"tool": "glob", "input": {"pattern": "**/*.txt", "offset": 3}, "expect": {"/data/entries/0/path": "catalog/notes.txt", "/data/next_offset": null}},
+        {"tool": "grep", "input": {"pattern": "blue", "context_before": 2, "limit": 1}, "expect": {"/data/matches/0/context_before": [{"number": 1, "text": "Widget"}, {"number": 2, "text": "Price: 12"}], "/data/matches/0/path": "catalog/items.txt", "/data/next_offset": 2}},
+        {"tool": "grep", "input": {"pattern": "blue", "offset": 2}, "expect": {"/data/matches/0/text": "blueprint", "/data/next_offset": null}},
+        {"tool": "grep", "input": {"pattern": "absent"}, "expect": {"/data/matches": [], "/data/truncated": false}},
+        {"tool": "grep", "input": {"pattern": "["}, "expect": {"/error": "invalid_input"}}
+      ]
+    },
+    {
+      "name": "exact_mutations_and_revisions",
+      "files": {"existing.txt": "\ufeffπ\r\nπ\r\n"},
+      "steps": [
+        {"tool": "write", "input": {"path": "new.txt", "content": "hello\n"}, "expect": {"/data/created": true, "/data/bytes_written": 6}},
+        {"tool": "write", "input": {"path": "new.txt", "content": "replacement"}, "expect": {"/error": "refused"}},
+        {"tool": "edit", "input": {"path": "existing.txt", "old_text": "π", "new_text": "beta"}, "expect": {"/error": "invalid_input"}},
+        {"tool": "edit", "input": {"path": "existing.txt", "old_text": "π", "new_text": "beta", "replace_all": true}, "expect": {"/data/replacements": 2, "/data/changed": true}},
+        {"tool": "edit", "input": {"path": "new.txt", "old_text": "hello", "new_text": "world", "expected_revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000"}, "expect": {"/error": "refused"}},
+        {"tool": "edit", "input": {"path": "new.txt", "old_text": "hello", "new_text": "world", "expected_revision": "sha256:5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"}, "expect": {"/data/replacements": 1, "/data/bytes_after": 6}},
+        {"tool": "read", "input": {"path": "existing.txt"}, "expect": {"/data/lines": [{"number": 1, "text": "beta"}, {"number": 2, "text": "beta"}]}},
+        {"tool": "write", "input": {"path": "new.txt", "content": "stop", "overwrite": true}, "cancelled": true, "expect": {"/error": "cancelled"}}
+      ],
+      "files_after": {"existing.txt": "\ufeffbeta\r\nbeta\r\n", "new.txt": "world\n"}
+    },
+    {
+      "name": "patch_preview_and_apply",
+      "files": {"old.txt": "before\n", "next.txt": "after\n", "remove.txt": "gone\n", "move.txt": "\ufeffπ\r\n"},
+      "steps": [
+        {"tool": "diff", "input": {"old_path": "old.txt", "new_path": "next.txt"}, "expect": {"/data/additions": 1, "/data/deletions": 1, "/data/changed": true}},
+        {"tool": "patch", "input": {"changes": [{"op": "update", "path": "old.txt", "old_content": "before\n", "new_content": "after\n"}]}, "expect": {"/data/dry_run": true, "/data/applied": []}},
+        {"tool": "read", "input": {"path": "old.txt"}, "expect": {"/data/lines": [{"number": 1, "text": "before"}]}},
+        {"tool": "patch", "input": {"dry_run": false, "changes": [{"op": "update", "path": "old.txt", "old_content": "before\n", "new_content": "after\n"}, {"op": "add", "path": "added.txt", "content": "added\n"}, {"op": "move", "from": "move.txt", "to": "moved.txt", "old_content": "\ufeffπ\r\n"}, {"op": "delete", "path": "remove.txt", "old_content": "gone\n"}]}, "expect": {"/data/completed": true, "/data/failure": null}},
+        {"tool": "diff", "input": {"old_path": "old.txt", "new_path": "next.txt"}, "expect": {"/data/changed": false, "/text": ""}}
+      ],
+      "files_after": {"old.txt": "after\n", "next.txt": "after\n", "added.txt": "added\n", "moved.txt": "\ufeffπ\r\n"}
+    },
+    {
+      "name": "shell_streams_and_truncation",
+      "files": {},
+      "steps": [
+        {"tool": "shell", "input": {"command": "printf 0123456789abcdef; printf warning >&2; exit 7"}, "expect": {"/data/exit_code": 7, "/data/stdout/text": "0123\n[... 8 bytes omitted ...]\ncdef", "/data/stdout/total_bytes": 16, "/data/stdout/omitted_bytes": 8, "/data/stderr/text": "warning", "/data/output_complete": true}},
+        {"tool": "shell", "input": {"command": "printf forbidden > unexpected.txt"}, "cancelled": true, "expect": {"/error": "cancelled"}}
+      ]
+    },
+    {
+      "name": "process_cursors_and_explicit_eof",
+      "files": {},
+      "steps": [
+        {"tool": "process_start", "input": {"command": "cat"}, "expect": {"/data/process_id": "p1", "/data/state": "running", "/data/stdin_closed": false}},
+        {"tool": "process_write", "input": {"process_id": "p1", "text": "πabcπXYZ\n"}, "expect": {"/data/bytes_written": 11, "/data/complete": true, "/data/stdin_closed": false}},
+        {"tool": "process_read", "input": {"process_id": "p1"}, "wait": {"/data/0/stdout_bytes": 11}, "expect": {"/data/status/state": "running", "/data/status/stdin_closed": false, "/data/stdout/offset": 3, "/data/stdout/next_offset": 6, "/data/stdout/omitted_bytes": 3, "/data/stdout/bytes": [98, 99, 207], "/data/stdout/text": "bc�", "/data/stdout/eof": false}},
+        {"tool": "process_read", "input": {"process_id": "p1", "stdout_offset": 6}, "expect": {"/data/stdout/bytes": [128, 88, 89], "/data/stdout/text": "�XY", "/data/stdout/omitted_bytes": 0, "/data/stdout/next_offset": 9}},
+        {"tool": "process_read", "input": {"process_id": "p1", "stdout_offset": 9}, "expect": {"/data/stdout/bytes": [90, 10], "/data/stdout/next_offset": 11, "/data/stdout/has_more": false}},
+        {"tool": "process_write", "input": {"process_id": "p1", "close_stdin": true}, "expect": {"/data/complete": true, "/data/stdin_closed": true}},
+        {"tool": "process_status", "input": {"process_id": "p1"}, "wait": {"/data/0/state": "finished"}, "expect": {"/data/0/end": "exited", "/data/0/exit_code": 0, "/data/0/signal": null, "/data/0/output_complete": true}},
+        {"tool": "process_read", "input": {"process_id": "p1", "stdout_offset": 11}, "expect": {"/data/stdout/bytes": [], "/data/stdout/eof": true}},
+        {"tool": "process_read", "input": {"process_id": "p1", "stdout_offset": 12}, "expect": {"/error": "invalid_input"}},
+        {"tool": "process_stop", "input": {"process_id": "p1", "forget": true}, "expect": {"/data/forgotten": true}},
+        {"tool": "process_status", "input": {}, "expect": {"/data": []}},
+        {"tool": "process_read", "input": {"process_id": "p1"}, "expect": {"/error": "refused"}}
+      ]
+    }
+  ]
+}

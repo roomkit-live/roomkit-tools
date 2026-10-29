@@ -315,8 +315,11 @@ dependencies = [
 name = "roomkit-tools-examples"
 version = "0.1.0"
 dependencies = [
+ "roomkit-tools-core",
  "roomkit-tools-fs",
  "roomkit-tools-process",
+ "serde",
+ "serde_json",
  "tempfile",
  "tokio",
  "tokio-util",

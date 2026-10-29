@@ -30,6 +30,15 @@ def main() -> None:
     version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
     with tempfile.TemporaryDirectory(prefix="roomkit-tools-python-") as temporary:
         work = Path(temporary)
+        # Build reference results from the Rust API before comparing installed
+        # Python packages. This is a maintainer check, not an installation step.
+        reference = work / "rust-contracts.json"
+        subprocess.run(
+            ["cargo", "test", "--locked", "-p", "roomkit-tools-examples", "--test", "contracts"],
+            cwd=root,
+            env={**os.environ, "ROOMKIT_CONTRACT_RESULTS": str(reference)},
+            check=True,
+        )
         wheels = work / "wheels"
         if options.wheel:
             wheel = options.wheel.resolve()
@@ -111,6 +120,7 @@ def main() -> None:
             run_tests(python, root, work, "test_diff_patch.py")
             run_tests(python, root, work, "test_shell.py")
             run_tests(python, root, work, "test_process.py")
+            run_tests(python, root, work, "test_contracts.py", reference=reference)
             run(str(python), "-I", str(root / "examples/discover_files.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/edit_file.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/patch_files.py"), cwd=work)
@@ -132,21 +142,27 @@ def main() -> None:
             run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
 
 
-def run_tests(python: Path, root: Path, work: Path, pattern: str) -> None:
-    run(
-        str(python),
-        "-X",
-        "faulthandler",
-        "-I",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        str(root / "tests/python"),
-        "-p",
-        pattern,
-        "-v",
+def run_tests(
+    python: Path, root: Path, work: Path, pattern: str, *, reference: Path | None = None
+) -> None:
+    subprocess.run(
+        [
+            str(python),
+            "-X",
+            "faulthandler",
+            "-I",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            str(root / "tests/python"),
+            "-p",
+            pattern,
+            "-v",
+        ],
         cwd=work,
+        env={**os.environ, "ROOMKIT_CONTRACT_RESULTS": str(reference)} if reference else None,
+        check=True,
     )
 
 
