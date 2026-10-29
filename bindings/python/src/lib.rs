@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
+use roomkit_tools_code::{CodeOutlineInput, CodeOutlineLimits, CodeOutlineTool};
 use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     DiffInput, DiffLimits, DiffTool, GlobInput, GlobLimits, GlobTool, GrepInput, GrepLimits,
@@ -87,6 +88,19 @@ macro_rules! host_options {
     };
 }
 
+host_options!(
+    CodeOutlineOptions,
+    CodeOutlineLimits,
+    max_file_bytes,
+    max_output_bytes,
+    max_symbols,
+    max_scan_symbols,
+    max_scan_nodes,
+    max_depth,
+    max_signature_bytes,
+    default_timeout_ms,
+    max_timeout_ms
+);
 host_options!(
     ReadOptions,
     ReadLimits,
@@ -269,6 +283,15 @@ macro_rules! rooted_binding {
 }
 
 rooted_binding!(
+    PythonCodeOutlineTool,
+    "_CodeOutlineTool",
+    CodeOutlineTool,
+    CodeOutlineOptions,
+    CodeOutlineInput,
+    call,
+    outline
+);
+rooted_binding!(
     PythonReadTool,
     "_ReadTool",
     ReadTool,
@@ -319,6 +342,7 @@ rooted_binding!(
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     runtime::install(module)?;
     module.add_class::<Cancellation>()?;
+    module.add_class::<PythonCodeOutlineTool>()?;
     module.add_class::<web::PythonWebFetchTool>()?;
     module.add_class::<search::PythonSearchBackend>()?;
     module.add_class::<search::PythonWebSearchTool>()?;

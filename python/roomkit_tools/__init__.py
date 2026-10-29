@@ -8,10 +8,12 @@ from ._native import (
     ToolIOError,
     UnsupportedResourceError,
 )
+from .code import CodeOutlineTool
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .output import OutputStore
 from .process import ProcessSession, ShellTool
 from .roomkit import (
+    CodeOutline,
     Diff,
     Edit,
     Glob,
@@ -37,6 +39,8 @@ from .workspace import Workspace
 
 __all__ = [
     "AccessRefusedError",
+    "CodeOutline",
+    "CodeOutlineTool",
     "Diff",
     "DiffTool",
     "Edit",

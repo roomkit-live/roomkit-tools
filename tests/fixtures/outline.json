@@ -1,0 +1,41 @@
+{
+  "files": {
+    "service.py": "# def pretend(): pass\nclass ShippingService:\n    @staticmethod\n    def calculate_fee(subtotal: int) -> int:\n        \"\"\"A class Fake: in a string is not a definition.\"\"\"\n        return 0 if subtotal >= 50 else 5\n\n    async def estimate(self, address):\n        def local():\n            return address\n        return local()\n\ndef helper():\n    pass\n",
+    "service.rs": "// fn pretend() {}\nmod missing;\n#[derive(Debug)]\npub struct Service { value: u64 }\npub enum Kind { Standard, Express }\npub trait Shipping {\n    fn fee(&self, subtotal: u64) -> u64;\n}\nimpl Shipping for Service {\n    fn fee(&self, subtotal: u64) -> u64 {\n        fn inner() {}\n        if subtotal >= 50 { 0 } else { 5 }\n    }\n}\nmod nested { pub fn run() {} }\ntype Cost = u64;\n",
+    "unicode.py": "\ufeffclass Café:\r\n    def coût(self, quantité: int = 42) -> int:\r\n        return quantité\r\n",
+    "broken.py": "def valid():\n    pass\ndef incomplete(\n",
+    "empty.rs": "// no definitions\n",
+    "plain.txt": "def selected():\n    return 42\n",
+    "stub.pyi": "def greet(name: str) -> str: ...\n",
+    "binary.rs": "fn example() {}\u0000"
+  },
+  "cases": [
+    {"name": "python_structure", "input": {"path": "service.py"}, "expect": {"/data/language": "python", "/data/total_symbols": 5, "/data/syntax_errors": false, "/data/symbols/0/name": "ShippingService", "/data/symbols/1/kind": "method", "/data/symbols/1/start_line": 3, "/data/symbols/1/end_line": 6, "/data/symbols/1/parent": 1, "/data/symbols/3/name": "local", "/data/symbols/3/kind": "function", "/data/symbols/3/parent": 3, "/data/symbols/4/parent": null}},
+    {"name": "rust_structure", "input": {"path": "service.rs"}, "expect": {"/data/language": "rust", "/data/syntax_errors": false, "/data/total_symbols": 11, "/data/symbols/0/kind": "module", "/data/symbols/1/start_line": 3, "/data/symbols/4/kind": "method", "/data/symbols/4/parent": 4, "/data/symbols/5/kind": "impl", "/data/symbols/5/name": "Service", "/data/symbols/6/parent": 6, "/data/symbols/7/kind": "function", "/data/symbols/9/parent": 9, "/data/symbols/10/kind": "type_alias"}},
+    {"name": "unicode_crlf_bom", "input": {"path": "unicode.py"}, "expect": {"/data/syntax_errors": false, "/data/symbols/0/name": "Café", "/data/symbols/1/name": "coût", "/data/symbols/1/start_line": 2, "/data/symbols/1/end_line": 3}},
+    {"name": "incomplete_source", "input": {"path": "broken.py"}, "expect": {"/data/syntax_errors": true, "/data/symbols/0/name": "valid"}},
+    {"name": "no_definitions", "input": {"path": "empty.rs"}, "expect": {"/data/symbols": [], "/data/total_symbols": 0, "/data/truncated": false, "/data/next_offset": null}},
+    {"name": "explicit_language", "input": {"path": "plain.txt", "language": "python"}, "expect": {"/data/language": "python", "/data/symbols/0/name": "selected"}},
+    {"name": "unsupported_extension", "input": {"path": "plain.txt"}, "expect": {"/error": "unsupported"}},
+    {"name": "python_stub", "input": {"path": "stub.pyi"}, "expect": {"/data/syntax_errors": false, "/data/symbols/0/name": "greet", "/data/symbols/0/end_line": 1}},
+    {"name": "nul_source", "input": {"path": "binary.rs"}, "expect": {"/error": "unsupported"}},
+    {"name": "first_page", "input": {"path": "service.py", "limit": 2}, "expect": {"/data/total_symbols": 5, "/data/truncated": true, "/data/next_offset": 3}},
+    {"name": "later_page_parent", "input": {"path": "service.py", "offset": 3, "limit": 2}, "expect": {"/data/symbols/0/index": 3, "/data/symbols/0/parent": 1, "/data/next_offset": 5}},
+    {"name": "last_page", "input": {"path": "service.py", "offset": 5}, "expect": {"/data/symbols/0/name": "helper", "/data/truncated": false, "/data/next_offset": null}},
+    {"name": "offset_too_far", "input": {"path": "service.py", "offset": 6}, "expect": {"/error": "invalid_input"}},
+    {"name": "zero_offset", "input": {"path": "service.py", "offset": 0}, "expect": {"/error": "invalid_input"}},
+    {"name": "bad_language", "input": {"path": "service.py", "language": "javascript"}, "expect": {"/error": "invalid_input"}},
+    {"name": "unknown_field", "input": {"path": "service.py", "recursive": true}, "expect": {"/error": "invalid_input"}},
+    {"name": "malformed_revision", "input": {"path": "service.py", "expected_revision": "old"}, "expect": {"/error": "invalid_input"}},
+    {"name": "stale_revision", "input": {"path": "service.py", "expected_revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000"}, "expect": {"/error": "refused"}},
+    {"name": "file_limit", "limits": {"max_file_bytes": 16}, "input": {"path": "service.py"}, "expect": {"/error": "limit"}},
+    {"name": "output_limit", "limits": {"max_output_bytes": 100}, "input": {"path": "service.py"}, "expect": {"/error": "limit"}},
+    {"name": "scan_limit", "limits": {"max_scan_symbols": 1}, "input": {"path": "service.py"}, "expect": {"/error": "limit"}},
+    {"name": "node_limit", "limits": {"max_scan_nodes": 2}, "input": {"path": "service.py"}, "expect": {"/error": "limit"}},
+    {"name": "depth_limit", "limits": {"max_depth": 1}, "input": {"path": "service.py"}, "expect": {"/error": "limit"}},
+    {"name": "clipped_header", "limits": {"max_signature_bytes": 24}, "input": {"path": "unicode.py"}, "expect": {"/data/symbols/1/signature_truncated": true, "/data/symbols/1/end_line": 3}},
+    {"name": "host_page_limit", "limits": {"max_symbols": 1}, "input": {"path": "service.py", "limit": 50}, "expect": {"/data/next_offset": 2, "/data/truncated": true}},
+    {"name": "bad_deadline", "input": {"path": "service.py", "timeout_ms": 0}, "expect": {"/error": "invalid_input"}},
+    {"name": "cancelled", "cancelled": true, "input": {"path": "service.py"}, "expect": {"/error": "cancelled"}}
+  ]
+}

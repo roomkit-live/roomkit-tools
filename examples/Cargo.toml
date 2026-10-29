@@ -8,6 +8,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+roomkit-tools-code.workspace = true
 roomkit-tools-fs.workspace = true
 roomkit-tools-process.workspace = true
 roomkit-tools-web.workspace = true
@@ -61,3 +62,7 @@ path = "fetch_page.rs"
 [[example]]
 name = "search_web"
 path = "search_web.rs"
+
+[[example]]
+name = "outline_code"
+path = "outline_code.rs"

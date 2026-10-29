@@ -1,0 +1,148 @@
+//! Syntax outlines for Rust and Python files, independent of any agent runtime.
+//!
+//! Tree-sitter parses bounded UTF-8 input without executing code. This is not
+//! type resolution, macro expansion, an LSP server or a persistent index.
+
+mod extract;
+mod page;
+mod source;
+#[cfg(test)]
+mod tests;
+mod types;
+
+pub use types::{
+    CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage, CodeSymbol, SymbolKind,
+};
+
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use roomkit_tools_core::{Definition, Error, Output};
+use tokio::sync::Semaphore;
+use tokio_util::sync::CancellationToken;
+
+/// Read-only syntax outlines under a canonical host-selected workspace root.
+///
+/// Clones share two blocking-worker slots. Cancellation/deadlines are checked
+/// cooperatively during parsing and traversal; workers retain their slot until
+/// they stop. Path checks assume a host-controlled workspace, not hostile path
+/// replacement or an operating-system sandbox.
+#[derive(Clone, Debug)]
+pub struct CodeOutlineTool {
+    root: PathBuf,
+    limits: CodeOutlineLimits,
+    workers: Arc<Semaphore>,
+}
+
+impl CodeOutlineTool {
+    /// Resolve the workspace root without changing the working directory.
+    ///
+    /// # Errors
+    /// Returns an I/O error for an inaccessible path or invalid input for a file.
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+        Ok(Self {
+            root: source::root(root.as_ref()).await?,
+            limits: CodeOutlineLimits::default(),
+            workers: Arc::new(Semaphore::new(2)),
+        })
+    }
+
+    /// Configure positive host-owned bounds.
+    ///
+    /// # Errors
+    /// Rejects zero limits, unrepresentable file bounds and deadlines over 24 hours.
+    pub fn with_limits(mut self, limits: CodeOutlineLimits) -> Result<Self, Error> {
+        if [
+            limits.max_file_bytes,
+            limits.max_output_bytes,
+            limits.max_symbols,
+            limits.max_scan_symbols,
+            limits.max_scan_nodes,
+            limits.max_depth,
+            limits.max_signature_bytes,
+            limits.default_timeout_ms,
+            limits.max_timeout_ms,
+        ]
+        .contains(&0)
+            || limits.default_timeout_ms > limits.max_timeout_ms
+            || limits.max_timeout_ms > 86_400_000
+            || u64::try_from(limits.max_file_bytes).map_or(true, |n| n == u64::MAX)
+        {
+            return Err(Error::InvalidInput(
+                "outline limits must be positive and representable; deadlines at most 24 hours"
+                    .into(),
+            ));
+        }
+        self.limits = limits;
+        Ok(self)
+    }
+
+    /// Schemas derived from the actual Rust request and result types.
+    pub fn definition() -> Definition {
+        Definition::new::<CodeOutlineInput, CodeOutlinePage>(
+            "code_outline",
+            "Outline one Rust or Python file without executing it. Returns definitions, signatures, parent indexes and inclusive one-based line ranges. Use read(offset=start_line, limit=end_line-start_line+1) for a selected definition, then edit with its read revision. Check syntax_errors and signature_truncated. offset/next_offset page by symbol, not line; carry expected_revision when continuing after an outline. No type resolution, imports followed or macro expansion.",
+        )
+    }
+
+    /// Analyze one bounded source file and return a page of definitions.
+    ///
+    /// # Errors
+    /// Distinguishes invalid input, paths outside the root, unsupported source,
+    /// I/O failures, exceeded budgets, stale revisions and cancellation.
+    pub async fn outline(
+        &self,
+        input: CodeOutlineInput,
+        cancel: &CancellationToken,
+    ) -> Result<Output<CodeOutlinePage>, Error> {
+        let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
+        if timeout == 0 || timeout > self.limits.max_timeout_ms {
+            return Err(Error::InvalidInput(
+                "timeout_ms must be positive and within the host maximum".into(),
+            ));
+        }
+        let duration = Duration::from_millis(
+            u64::try_from(timeout)
+                .map_err(|_| Error::InvalidInput("timeout_ms is too large".into()))?,
+        );
+        extract::validate_revision(input.expected_revision.as_deref())?;
+        let token = cancel.child_token();
+        let _guard = token.clone().drop_guard();
+        let deadline = Instant::now() + duration;
+        tokio::select! {
+            biased;
+            () = token.cancelled() => Err(Error::Cancelled),
+            result = tokio::time::timeout(duration, self.run(input, token.clone(), deadline)) =>
+                result.map_err(|_| Error::LimitExceeded("code outline deadline exceeded".into()))?,
+        }
+    }
+
+    async fn run(
+        &self,
+        input: CodeOutlineInput,
+        token: CancellationToken,
+        deadline: Instant,
+    ) -> Result<Output<CodeOutlinePage>, Error> {
+        let permit = Arc::clone(&self.workers)
+            .acquire_owned()
+            .await
+            .map_err(|_| Error::Cancelled)?;
+        let (path, language, text) = source::load(
+            &self.root,
+            &input.path,
+            input.language,
+            self.limits.max_file_bytes,
+        )
+        .await?;
+        let limits = self.limits;
+        tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            let control = extract::Control { token, deadline };
+            let data = extract::outline(&text, language, &input, limits, &control)?;
+            page::render(&path, language, data, &input, limits, &control)
+        })
+        .await
+        .map_err(|_| Error::Unsupported("outline worker failed".into()))?
+    }
+}

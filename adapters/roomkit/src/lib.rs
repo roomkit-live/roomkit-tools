@@ -17,6 +17,7 @@ pub use process::{
 
 use roomkit::model::ToolCall;
 use roomkit_ai::{ToolContext, ToolDefinition, ToolError, ToolOutput, Toolset};
+use roomkit_tools_code::CodeOutlineTool;
 use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool,
@@ -67,6 +68,11 @@ macro_rules! toolset {
         }
     };
 }
+
+toolset!(
+    /// Analyze Rust or Python syntax without executing code or following imports.
+    CodeOutlineToolset, CodeOutlineTool, outline, "code_outline"
+);
 
 toolset!(
     /// The `read` tool with its host-selected root and limits.

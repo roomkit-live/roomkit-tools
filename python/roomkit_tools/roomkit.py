@@ -12,6 +12,7 @@ from ._native import (
     LimitExceededError,
     UnsupportedResourceError,
 )
+from .code import CodeOutlineTool
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .output import OutputStore
 from .process import ProcessSession, ShellTool
@@ -20,7 +21,8 @@ from .web import WebFetchTool
 from .workspace import Workspace
 
 type _BoundTool = (
-    ReadTool
+    CodeOutlineTool
+    | ReadTool
     | ListTool
     | GlobTool
     | GrepTool
@@ -102,6 +104,19 @@ class _ConfiguredTool(_ToolAdapter):
             tool = await self._tool_type.create(self._root, **self._limits)
             self._resolved = tool
         return self._resolved
+
+
+class CodeOutline(_ConfiguredTool):
+    """Select Rust/Python syntax outlines directly in RoomKit's tools list.
+
+    Configuration uses CodeOutlineTool.create's host limits. Construction
+    captures the root; the first call resolves it and validates limits in Rust.
+    """
+
+    _tool_type = CodeOutlineTool
+
+    def __init__(self, root: str | os.PathLike[str], **limits: int | None) -> None:
+        self._configure(root, **limits)
 
 
 class Read(_ConfiguredTool):

@@ -69,6 +69,21 @@ def main() -> None:
             env={**os.environ, "ROOMKIT_SEARCH_RESULTS": str(search_reference)},
             check=True,
         )
+        outline_reference = work / "rust-outline.json"
+        subprocess.run(
+            [
+                "cargo",
+                "test",
+                "--locked",
+                "-p",
+                "roomkit-tools-examples",
+                "--test",
+                "outline_contracts",
+            ],
+            cwd=root,
+            env={**os.environ, "ROOMKIT_OUTLINE_RESULTS": str(outline_reference)},
+            check=True,
+        )
         wheels = work / "wheels"
         if options.wheel:
             wheel = options.wheel.resolve()
@@ -94,6 +109,7 @@ def main() -> None:
             assert any(name.endswith((".so", ".pyd")) for name in names), names
             assert "roomkit_tools/py.typed" in names, names
             assert "roomkit_tools/licenses/web_transport.txt" in names, names
+            assert "roomkit_tools/licenses/code_parsing.txt" in names, names
             assert not any(
                 name.startswith(("docs/", "integrations/"))
                 or "bakery" in name
@@ -154,6 +170,7 @@ def main() -> None:
             run_tests(python, root, work, "test_output.py")
             run_tests(python, root, work, "test_web.py", web_reference=web_reference)
             run_tests(python, root, work, "test_search.py", search_reference=search_reference)
+            run_tests(python, root, work, "test_outline.py", outline_reference=outline_reference)
             run_tests(python, root, work, "test_contracts.py", reference=reference)
             run(str(python), "-I", str(root / "examples/discover_files.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/edit_file.py"), cwd=work)
@@ -174,6 +191,7 @@ def main() -> None:
             run_tests(python, root, work, "test_roomkit*.py")
             run(str(python), "-I", str(root / "examples/roomkit_read.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/roomkit_outline.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_output.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_web.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_search.py"), cwd=work)
@@ -196,6 +214,7 @@ def run_tests(
     reference: Path | None = None,
     web_reference: Path | None = None,
     search_reference: Path | None = None,
+    outline_reference: Path | None = None,
 ) -> None:
     subprocess.run(
         [
@@ -218,6 +237,7 @@ def run_tests(
             **({"ROOMKIT_CONTRACT_RESULTS": str(reference)} if reference else {}),
             **({"ROOMKIT_WEB_RESULTS": str(web_reference)} if web_reference else {}),
             **({"ROOMKIT_SEARCH_RESULTS": str(search_reference)} if search_reference else {}),
+            **({"ROOMKIT_OUTLINE_RESULTS": str(outline_reference)} if outline_reference else {}),
         },
         check=True,
     )

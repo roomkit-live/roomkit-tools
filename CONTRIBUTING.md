@@ -125,3 +125,10 @@ results with fresh Rust reference output. Test provider independence with
 `cargo test -p roomkit-tools-search --no-default-features`; check each optional
 feature separately when changing backend dependencies. Service credentials and
 live search calls must not be required by tests or checked examples.
+
+`tests/fixtures/outline.json` compares complete Rust/Python outline envelopes
+for both languages, including source ranges, Unicode, recovered syntax errors,
+pagination, revisions and bounds. `examples/roomkit_outline.py` checks a method
+repair through actual tools and independent file/test verification. Parser
+dependencies stay in `roomkit-tools-code`; the core and filesystem crates must
+not acquire parser or grammar dependencies.

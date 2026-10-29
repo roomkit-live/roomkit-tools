@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Release Python preview `0.1.0a12` with independently selectable `code_outline`
+  in Rust, Python and RoomKit. Analyze Rust/Python definitions, signatures and
+  inclusive source ranges with Tree-sitter in the separate code crate.
+- Preserve parent indexes, raw-file revisions, syntax-error reporting and
+  explicit pagination/signature clipping under host-owned I/O, parser and output
+  bounds. Add shared language contracts and a targeted method-repair example.
+
 - Fix the search example's source verification: preserve query parameters,
   handle normalized URLs/fragments and give the agent immediate feedback when
   it changes a returned URL. Report incomplete sequences without a traceback.
