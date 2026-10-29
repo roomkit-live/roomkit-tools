@@ -132,3 +132,8 @@ pagination, revisions and bounds. `examples/roomkit_outline.py` checks a method
 repair through actual tools and independent file/test verification. Parser
 dependencies stay in `roomkit-tools-code`; the core and filesystem crates must
 not acquire parser or grammar dependencies.
+
+`examples/roomkit_background.py` exercises RoomKit's existing task orchestration
+with real Rust code tools. Its default scripted mode and integration tests run
+with installed artifacts. Completion/cancellation checks coordinate through
+explicit events; no live model or arbitrary task-duration delay is required.

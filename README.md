@@ -929,6 +929,55 @@ The temporary project is removed on exit, including on failure. Shell commands
 still run with host permissions; the temporary directory is not a sandbox.
 The scripted example and rejection tests run in `make python-check` and CI.
 
+The [background example](examples/roomkit_background.py) keeps the conversation
+available while a separate worker analyzes a temporary source file:
+
+```sh
+.venv/bin/python examples/roomkit_background.py
+.venv/bin/python examples/roomkit_background.py --live
+.venv/bin/python examples/roomkit_background.py --chat --hold
+```
+
+RoomKit 0.110 supplies `work_in_background`, `task_status` and `cancel_task`.
+The worker selects only `CodeOutline`, `Grep` and `Read` from this package.
+The essential wiring, after registering both channels, is:
+
+```python
+kit.setup_background(assistant, worker="researcher", hand_back="post")
+kit.setup_task_tools(assistant)
+```
+
+Each request gets a new child room and task id, using the configured researcher
+profile. Its report is posted directly to the parent conversation, without
+another model turn to paraphrase it. This example allows one active task and
+eight launches per session. The worker has a ten-round, ten-minute tool-loop
+budget; the demonstration pause lasts at most five minutes.
+
+In chat, `/start` requests the analysis, `/status` asks the assistant to inspect
+task state, and `/cancel` asks it to cancel the latest task. Ordinary questions
+still go to the main assistant. With `--hold`, the demo deliberately pauses the
+worker's `code_outline` call until `/release`, making concurrent conversation
+and cancellation easy to observe. Omit `--hold` to run without that pause.
+`/check` verifies the latest finished task; `quit` closes the tasks and removes
+the temporary project without repeating that verification report.
+Command feedback distinguishes an observed tool call from an unsupported action
+claim by the model. Worker traces are summarized by `/check`, so they do not
+interrupt the main assistant's streamed text. In hold mode, companion calls
+requested alongside the paused outline have the same five-minute allowance.
+
+The automatic modes control the same pause: first they verify a separate chat
+reply and running status, then release the worker and check its actual tool
+results and one result delivery. A second task exercises cancellation of the
+pending call. File bytes must remain unchanged. Scripted checks require no
+service; `--live` uses the configured vLLM for both agents. Tests also cover
+shutdown with a pending call and repeated launch refusal.
+
+This is an orchestration example using the existing a12 package. It adds no
+task tools to the native catalogue or new task scheduler. Agent profiles are
+preconfigured; creating profiles dynamically and continuing a previous child
+conversation are future work. RoomKit's default runner is in memory; background
+execution here does not imply recovery after a process restart.
+
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns
 its revision. All sixteen tools have Python bindings; other platforms and

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add a RoomKit background-analysis example with read-only Rust tools, concurrent
+  conversation, task status, result delivery and cancellation. Provide scripted,
+  live and interactive modes with an explicit demo pause; verify child-room
+  isolation, unchanged files, launch limits and shutdown cleanup.
+
 - Release Python preview `0.1.0a12` with independently selectable `code_outline`
   in Rust, Python and RoomKit. Analyze Rust/Python definitions, signatures and
   inclusive source ranges with Tree-sitter in the separate code crate.
