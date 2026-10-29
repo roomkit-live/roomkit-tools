@@ -85,11 +85,15 @@ class ReadTool:
 
 
 class _DiscoveryTool:
-    """Shared JSON/cancellation boundary for the three native discovery tools."""
+    """Shared JSON/cancellation boundary for native discovery and comparison tools."""
 
-    _native_type: ClassVar[type[_native._ListTool | _native._GlobTool | _native._GrepTool]]
+    _native_type: ClassVar[
+        type[_native._ListTool | _native._GlobTool | _native._GrepTool | _native._DiffTool]
+    ]
 
-    def __init__(self, native: _native._ListTool | _native._GlobTool | _native._GrepTool) -> None:
+    def __init__(
+        self, native: _native._ListTool | _native._GlobTool | _native._GrepTool | _native._DiffTool
+    ) -> None:
         self._native = native
 
     @classmethod
@@ -272,9 +276,9 @@ class GrepTool(_DiscoveryTool):
 class _MutationTool:
     """JSON bridge for tools sharing an explicit Rust mutation scope."""
 
-    _native_type: ClassVar[type[_native._WriteTool | _native._EditTool]]
+    _native_type: ClassVar[type[_native._WriteTool | _native._EditTool | _native._PatchTool]]
 
-    def __init__(self, native: _native._WriteTool | _native._EditTool) -> None:
+    def __init__(self, native: _native._WriteTool | _native._EditTool | _native._PatchTool) -> None:
         self._native = native
 
     @classmethod
@@ -283,11 +287,15 @@ class _MutationTool:
     ) -> Self:
         """Resolve the root asynchronously; default file bound: 8 MiB.
 
-        Pass the same Workspace object to write and edit to share serialization.
+        Pass the same Workspace object to write, edit and patch to share serialization.
         A plain path creates an independent workspace for this tool.
         """
+        return await cls._create(root, {"max_file_bytes": max_file_bytes})
+
+    @classmethod
+    async def _create(cls, root: str | os.PathLike[str], options: dict[str, int | None]) -> Self:
         workspace = root if isinstance(root, Workspace) else Workspace(root)
-        options = {} if max_file_bytes is None else {"max_file_bytes": max_file_bytes}
+        options = {name: value for name, value in options.items() if value is not None}
         cancel = _native._Cancellation()
         try:
             native = await cls._native_type.create(
@@ -379,3 +387,112 @@ class EditTool(_MutationTool):
                 "expected_revision": expected_revision,
             }
         )
+
+
+class DiffTool(_DiscoveryTool):
+    """Compare two existing UTF-8 files without modifying them.
+
+    Results contain complete structured hunks and a unified-style text preview.
+    BOM and line endings are significant. There is no pagination or clipping:
+    oversized/overly complex comparisons fail explicitly. Reads are not a
+    snapshot against external edits and do not acquire the mutation lock.
+    """
+
+    _native_type = _native._DiffTool
+
+    @classmethod
+    async def create(
+        cls,
+        root: str | os.PathLike[str],
+        *,
+        max_file_bytes: int | None = None,
+        max_lines: int | None = None,
+        max_comparison_cells: int | None = None,
+        max_output_bytes: int | None = None,
+        max_context_lines: int | None = None,
+    ) -> Self:
+        """Resolve the root; omitted limits retain Rust defaults.
+
+        Defaults: 8 MiB/file, 20,000 lines/file, 1,000,000 comparison cells,
+        50 KiB rendered output and 100 context lines/side. Zero context is valid.
+        """
+        return await cls._create(
+            root,
+            {
+                "max_file_bytes": max_file_bytes,
+                "max_lines": max_lines,
+                "max_comparison_cells": max_comparison_cells,
+                "max_output_bytes": max_output_bytes,
+                "max_context_lines": max_context_lines,
+            },
+        )
+
+    async def diff(
+        self,
+        old_path: str | os.PathLike[str],
+        new_path: str | os.PathLike[str],
+        *,
+        context_lines: int = 3,
+    ) -> dict[str, Any]:
+        """Compare files with context capped by the host; no Git history is read."""
+        return await self.call(
+            {
+                "old_path": os.fspath(old_path),
+                "new_path": os.fspath(new_path),
+                "context_lines": context_lines,
+            }
+        )
+
+
+class PatchTool(_MutationTool):
+    """Preview or apply structured add/update/delete/move changes.
+
+    This accepts JSON-shaped changes, not a textual Git/Codex patch. Existing
+    sources must match complete old_content exactly, including BOM/endings.
+    Parents must exist, add/move destinations must be absent, and paths cannot
+    overlap. All operations are prepared before any mutation.
+    """
+
+    _native_type = _native._PatchTool
+
+    @classmethod
+    async def create(
+        cls,
+        root: str | os.PathLike[str],
+        *,
+        max_changes: int | None = None,
+        max_input_bytes: int | None = None,
+        max_file_bytes: int | None = None,
+        max_lines: int | None = None,
+        max_comparison_cells: int | None = None,
+        max_output_bytes: int | None = None,
+        max_context_lines: int | None = None,
+    ) -> Self:
+        """Share a Workspace with write/edit; plain paths create independent scopes.
+
+        Defaults: 32 changes, 16 MiB combined argument bytes, and DiffTool's
+        bounds. max_output_bytes caps combined prepared previews; patch context
+        is three lines capped by max_context_lines. Zero context is valid.
+        """
+        return await cls._create(
+            root,
+            {
+                "max_changes": max_changes,
+                "max_input_bytes": max_input_bytes,
+                "max_file_bytes": max_file_bytes,
+                "max_lines": max_lines,
+                "max_comparison_cells": max_comparison_cells,
+                "max_output_bytes": max_output_bytes,
+                "max_context_lines": max_context_lines,
+            },
+        )
+
+    async def patch(self, changes: list[dict[str, Any]], *, dry_run: bool = True) -> dict[str, Any]:
+        """Preview by default; explicit dry_run=False applies a freshly checked batch.
+
+        Inspect completed, applied and failure: there is no multi-file rollback.
+        A move records destination creation then source removal as two effects.
+        Cancellation can leave committed effects; read files before retrying.
+        Preview results are not evidence of application or a reservation.
+        """
+        return await self.call({"changes": changes, "dry_run": dry_run})

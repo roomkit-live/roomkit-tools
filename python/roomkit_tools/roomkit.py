@@ -12,10 +12,12 @@ from ._native import (
     LimitExceededError,
     UnsupportedResourceError,
 )
-from .fs import EditTool, GlobTool, GrepTool, ListTool, ReadTool, WriteTool
+from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .workspace import Workspace
 
-type _FilesystemTool = ReadTool | ListTool | GlobTool | GrepTool | WriteTool | EditTool
+type _FilesystemTool = (
+    ReadTool | ListTool | GlobTool | GrepTool | WriteTool | EditTool | DiffTool | PatchTool
+)
 
 
 class _ToolAdapter:
@@ -201,19 +203,20 @@ class Grep(_ConfiguredTool):
 
 
 class _ConfiguredMutation(_ToolAdapter):
-    _tool_type: ClassVar[type[WriteTool | EditTool]]
+    _tool_type: ClassVar[type[WriteTool | EditTool | PatchTool]]
 
     def __init__(self, root: str | os.PathLike[str], *, max_file_bytes: int | None = None) -> None:
+        self._configure_mutation(root, max_file_bytes=max_file_bytes)
+
+    def _configure_mutation(self, root: str | os.PathLike[str], **limits: int | None) -> None:
         # Retain one scope even when multiple first calls initialize concurrently.
         self._workspace = root if isinstance(root, Workspace) else Workspace(root)
-        self._max_file_bytes = max_file_bytes
-        self._resolved: WriteTool | EditTool | None = None
+        self._limits = limits
+        self._resolved: WriteTool | EditTool | PatchTool | None = None
 
-    async def _get_tool(self) -> WriteTool | EditTool:
+    async def _get_tool(self) -> WriteTool | EditTool | PatchTool:
         if self._resolved is None:
-            tool = await self._tool_type.create(
-                self._workspace, max_file_bytes=self._max_file_bytes
-            )
+            tool = await self._tool_type.create(self._workspace, **self._limits)
             self._resolved = tool
         return self._resolved
 
@@ -239,3 +242,67 @@ class Edit(_ConfiguredMutation):
     """
 
     _tool_type = EditTool
+
+
+class Diff(_ConfiguredTool):
+    """The Rust file comparison tool, selectable directly in RoomKit's tools list.
+
+    The root and limits resolve asynchronously on first use. See DiffTool for
+    defaults and comparison semantics. This tool performs no mutations.
+    """
+
+    _tool_type = DiffTool
+
+    def __init__(
+        self,
+        root: str | os.PathLike[str],
+        *,
+        max_file_bytes: int | None = None,
+        max_lines: int | None = None,
+        max_comparison_cells: int | None = None,
+        max_output_bytes: int | None = None,
+        max_context_lines: int | None = None,
+    ) -> None:
+        self._configure(
+            root,
+            max_file_bytes=max_file_bytes,
+            max_lines=max_lines,
+            max_comparison_cells=max_comparison_cells,
+            max_output_bytes=max_output_bytes,
+            max_context_lines=max_context_lines,
+        )
+
+
+class Patch(_ConfiguredMutation):
+    """The Rust structured patch tool, selectable directly in RoomKit's tools list.
+
+    Pass the same Workspace to Patch, Write and Edit for shared serialization.
+    dry_run defaults to true. Inspect completed, applied and failure before
+    reporting success; a batch has no multi-file rollback. See PatchTool for
+    bounds and exact-content checks. Initialization is lazy and retryable.
+    """
+
+    _tool_type = PatchTool
+
+    def __init__(
+        self,
+        root: str | os.PathLike[str],
+        *,
+        max_changes: int | None = None,
+        max_input_bytes: int | None = None,
+        max_file_bytes: int | None = None,
+        max_lines: int | None = None,
+        max_comparison_cells: int | None = None,
+        max_output_bytes: int | None = None,
+        max_context_lines: int | None = None,
+    ) -> None:
+        self._configure_mutation(
+            root,
+            max_changes=max_changes,
+            max_input_bytes=max_input_bytes,
+            max_file_bytes=max_file_bytes,
+            max_lines=max_lines,
+            max_comparison_cells=max_comparison_cells,
+            max_output_bytes=max_output_bytes,
+            max_context_lines=max_context_lines,
+        )

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Extend the Python preview to `0.1.0a4` with independently selectable `Diff`
+  and `Patch` RoomKit tools and standalone `DiffTool`/`PatchTool` APIs.
+  Preserve the Rust-derived schemas, exact comparisons, structured operations,
+  preview-by-default behavior, host limits, cancellation and partial results.
+  Patch shares the explicit Workspace mutation scope with write/edit.
+- Validate comparison and batch mutations through isolated wheel/source
+  installations and RoomKit's agent loop. Add a runnable standalone patch example.
+
 - Extend the Python preview to `0.1.0a3` with `Write` and `Edit` for RoomKit,
   standalone `WriteTool`/`EditTool` APIs, and an explicit shared `Workspace`.
   Preserve overwrite consent, exact edits, revisions, bounds, staged commits

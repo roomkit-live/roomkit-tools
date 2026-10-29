@@ -10,8 +10,8 @@ from . import _native
 class Workspace(os.PathLike[str]):
     """An absolute root and a shared Rust mutation lock, initialized lazily.
 
-    Pass the same object as root to Write/Edit or WriteTool/EditTool to
-    serialize their mutations. Read, List, Glob and Grep also accept it as a
+    Pass the same object as root to Write/Edit/Patch or their standalone tools
+    to serialize their mutations. Read, List, Glob, Grep and Diff also accept it as a
     path; reads do not acquire the mutation lock. Construction does not resolve
     the directory or open files.
     The directory must exist on first use. Failures can be retried, and the

@@ -7,7 +7,7 @@ intended for use from Rust, Python and RoomKit.
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
 `process_write` and `process_stop`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python exposes `read`, `list`, `glob`, `grep`, `write` and `edit`, directly selectable in RoomKit.
+Python exposes `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff` and `patch`, directly selectable in RoomKit.
 Bindings for the other tools and large-file streaming are planned.
 Nothing is published to crates.io or PyPI yet.
 
@@ -52,7 +52,7 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
 | `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` and the five `Process*Toolset` adapters, registered individually. |
-| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes `read`, `list`, `glob`, `grep`, `write` and `edit`. |
+| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff` and `patch`. |
 
 There is no global tool registry. A host instantiates the tools it needs
 and chooses which definitions to expose to its model.
@@ -148,17 +148,17 @@ RoomKit retains argument validation, policies, hooks and turn cancellation.
 
 ## Python
 
-The `0.1.0a3` preview exposes **read, list, glob, grep, write and edit**. Its prebuilt wheel supports ordinary
+The `0.1.0a4` preview exposes **read, list, glob, grep, write, edit, diff and patch**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a3)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a4)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a3 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a4 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a3-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a4-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for
@@ -169,7 +169,7 @@ Select the tools directly in an existing RoomKit agent:
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import Edit, Glob, Grep, List, Read, Workspace, Write
+from roomkit_tools import Diff, Edit, Glob, Grep, List, Patch, Read, Workspace, Write
 
 workspace = Workspace("./workspace")
 agent = AIChannel(
@@ -178,6 +178,7 @@ agent = AIChannel(
     tools=[
         Read(root=workspace), List(root=workspace), Glob(root=workspace),
         Grep(root=workspace), Write(root=workspace), Edit(root=workspace),
+        Diff(root=workspace), Patch(root=workspace),
     ],
 )
 ```
@@ -190,7 +191,7 @@ RoomKit retains schema validation, permissions, hooks and turn cancellation.
 No RoomKit Rust checkout or separate server is needed.
 
 `Workspace` is an explicit shared root and mutation scope. Passing the same
-object to `Write` and `Edit` serializes their read/prepare/commit operations,
+object to `Write`, `Edit` and `Patch` serializes their read/prepare/commit operations,
 including concurrent first calls and reuse across event loops. Read-only tools
 accept it as a path and do not acquire that lock. A plain path also works, but
 each mutation tool then owns an independent scope; equal path strings do not
@@ -301,6 +302,60 @@ an interrupted mutation. See the standalone [mutation example](examples/edit_fil
 run with `.venv/bin/python examples/edit_file.py`, for a complete flow including
 stale-revision refusal.
 
+Compare two existing files and preview or apply a batch:
+
+```python
+from roomkit_tools import DiffTool, PatchTool, Workspace
+
+workspace = Workspace("./workspace")
+diff = await DiffTool.create(workspace)
+patch = await PatchTool.create(workspace)
+comparison = await diff.diff("current.txt", "proposed.txt", context_lines=3)
+print(comparison["text"])
+
+changes = [
+    {"op": "update", "path": "current.txt",
+     "old_content": "count=2\n", "new_content": "count=3\n"},
+    {"op": "add", "path": "summary.txt", "content": "Count increased.\n"},
+]
+preview = await patch.patch(changes)  # dry_run=True: no files are changed.
+print(preview["text"])
+result = await patch.patch(changes, dry_run=False)
+print(result["data"]["completed"], result["data"]["applied"], result["data"]["failure"])
+```
+
+`DiffTool` returns complete structured hunks and unified-style text. It compares
+exact UTF-8 bytes, including BOM and line endings, without consulting Git or
+modifying files. Its two reads are not a transactional snapshot. Defaults:
+8 MiB/file, 20,000 lines/file, 1,000,000 comparison cells, 50 KiB rendered output
+and 100 context lines/side. Constructor keywords `max_file_bytes`, `max_lines`,
+`max_comparison_cells`, `max_output_bytes` and `max_context_lines` set those
+bounds; context may be zero. Oversized comparisons fail instead of clipping.
+
+`PatchTool` accepts structured `changes`, not textual Git/Codex patches or the
+text returned by `diff`. Operations are `add` (`path`, `content`), `update`
+(`path`, `old_content`, `new_content`), `delete` (`path`, `old_content`) and
+`move` (`from`, `to`, `old_content`, optional `new_content`). Omitted/null move
+content preserves the source bytes. Existing sources must match the complete
+`old_content` exactly; this is patch's stale-content check, rather than an
+`expected_revision` argument. A numbered or truncated `read` display cannot be
+used verbatim as that content. Paths must be distinct, parents must exist and
+add/move destinations must be absent.
+
+All changes are prepared before writing. An omitted `dry_run` means preview;
+explicit `False` applies a freshly validated batch. Previews do not reserve files.
+Defaults are 32 operations, 16 MiB combined argument bytes, plus the diff bounds
+above; `max_output_bytes` caps the combined prepared previews. Constructor
+keywords also include `max_changes` and `max_input_bytes`. Preview context is
+three lines capped by `max_context_lines`.
+
+Inspect `completed`, `applied` and `failure`: batches do not promise multi-file
+rollback. A move records destination creation and source removal separately.
+Cancellation may leave committed effects; reread affected files before retrying.
+The shared Workspace serializes patch with write/edit, including preparation
+and preview. See [the runnable comparison/patch example](examples/patch_files.py):
+`.venv/bin/python examples/patch_files.py`.
+
 Errors inherit from `ToolError`: `InvalidInputError`, `AccessRefusedError`,
 `LimitExceededError`, `UnsupportedResourceError` and `ToolIOError`. I/O messages
 omit OS diagnostics and host paths. Cancellation remains `asyncio.CancelledError`.
@@ -342,7 +397,7 @@ It runs once in the console; it does not start an HTTP server or a chat page.
 
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns
-its revision. Diff/patch, process tools, other platforms and free-threaded builds remain outside
+its revision. Process tools, other platforms and free-threaded builds remain outside
 the validated Python slice.
 
 To build from this checkout instead, install Rust and [uv](https://docs.astral.sh/uv/):

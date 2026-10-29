@@ -6,8 +6,8 @@ use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
-    GlobInput, GlobLimits, GlobTool, GrepInput, GrepLimits, GrepTool, ListInput, ListLimits,
-    ListTool, ReadInput, ReadLimits, ReadTool,
+    DiffInput, DiffLimits, DiffTool, GlobInput, GlobLimits, GlobTool, GrepInput, GrepLimits,
+    GrepTool, ListInput, ListLimits, ListTool, ReadInput, ReadLimits, ReadTool,
 };
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
@@ -117,6 +117,16 @@ host_options!(
     max_depth,
     max_file_bytes,
     max_total_bytes,
+    max_context_lines
+);
+
+host_options!(
+    DiffOptions,
+    DiffLimits,
+    max_file_bytes,
+    max_lines,
+    max_comparison_cells,
+    max_output_bytes,
     max_context_lines
 );
 
@@ -253,6 +263,16 @@ filesystem_binding!(
     grep
 );
 
+filesystem_binding!(
+    PythonDiffTool,
+    "_DiffTool",
+    DiffTool,
+    DiffOptions,
+    DiffInput,
+    call,
+    diff
+);
+
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<Cancellation>()?;
@@ -260,9 +280,11 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PythonListTool>()?;
     module.add_class::<PythonGlobTool>()?;
     module.add_class::<PythonGrepTool>()?;
+    module.add_class::<PythonDiffTool>()?;
     module.add_class::<mutation::PythonWorkspace>()?;
     module.add_class::<mutation::PythonWriteTool>()?;
     module.add_class::<mutation::PythonEditTool>()?;
+    module.add_class::<mutation::PythonPatchTool>()?;
     let py = module.py();
     module.add("ToolError", py.get_type::<ToolError>())?;
     module.add("InvalidInputError", py.get_type::<InvalidInputError>())?;

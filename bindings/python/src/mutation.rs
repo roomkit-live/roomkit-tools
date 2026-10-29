@@ -6,15 +6,53 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
-    EditInput, EditLimits, EditTool, MutationWorkspace, WriteInput, WriteLimits, WriteTool,
+    EditInput, EditLimits, EditTool, MutationWorkspace, PatchInput, PatchLimits, PatchTool,
+    WriteInput, WriteLimits, WriteTool,
 };
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
-use super::{Cancellation, InvalidInputError, ToolError, tool_error};
+use super::{Cancellation, DiffOptions, InvalidInputError, ToolError, tool_error};
 
 host_options!(WriteOptions, WriteLimits, max_file_bytes);
 host_options!(EditOptions, EditLimits, max_file_bytes);
+
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[expect(
+    clippy::struct_field_names,
+    reason = "preserve public Rust limit names"
+)]
+struct PatchOptions {
+    max_changes: Option<usize>,
+    max_input_bytes: Option<usize>,
+    max_file_bytes: Option<usize>,
+    max_lines: Option<usize>,
+    max_comparison_cells: Option<usize>,
+    max_output_bytes: Option<usize>,
+    max_context_lines: Option<usize>,
+}
+
+impl PatchOptions {
+    fn limits(self) -> PatchLimits {
+        let mut limits = PatchLimits::default();
+        if let Some(value) = self.max_changes {
+            limits.max_changes = value;
+        }
+        if let Some(value) = self.max_input_bytes {
+            limits.max_input_bytes = value;
+        }
+        limits.diff = DiffOptions {
+            max_file_bytes: self.max_file_bytes,
+            max_lines: self.max_lines,
+            max_comparison_cells: self.max_comparison_cells,
+            max_output_bytes: self.max_output_bytes,
+            max_context_lines: self.max_context_lines,
+        }
+        .limits();
+        limits
+    }
+}
 
 /// Lazily resolved host scope shared across tool instances and Python loops.
 #[pyclass(name = "_Workspace", frozen, module = "roomkit_tools._native")]
@@ -136,4 +174,12 @@ mutation_binding!(
     EditOptions,
     EditInput,
     edit
+);
+mutation_binding!(
+    PythonPatchTool,
+    "_PatchTool",
+    PatchTool,
+    PatchOptions,
+    PatchInput,
+    patch
 );
