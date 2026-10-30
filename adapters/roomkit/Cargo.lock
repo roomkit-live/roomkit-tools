@@ -248,7 +248,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -969,7 +969,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1126,7 +1126,7 @@ dependencies = [
 [[package]]
 name = "roomkit"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=660ba20b8b49752dec2a9600a4a60ade7d73d3a3#660ba20b8b49752dec2a9600a4a60ade7d73d3a3"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=6d6adfafb3dc89420ed90c97b4ed30b4a58e4650#6d6adfafb3dc89420ed90c97b4ed30b4a58e4650"
 dependencies = [
  "futures-core",
  "roomkit-core",
@@ -1141,7 +1141,7 @@ dependencies = [
 [[package]]
 name = "roomkit-ai"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=660ba20b8b49752dec2a9600a4a60ade7d73d3a3#660ba20b8b49752dec2a9600a4a60ade7d73d3a3"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=6d6adfafb3dc89420ed90c97b4ed30b4a58e4650#6d6adfafb3dc89420ed90c97b4ed30b4a58e4650"
 dependencies = [
  "futures-core",
  "roomkit",
@@ -1155,7 +1155,7 @@ dependencies = [
 [[package]]
 name = "roomkit-core"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=660ba20b8b49752dec2a9600a4a60ade7d73d3a3#660ba20b8b49752dec2a9600a4a60ade7d73d3a3"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=6d6adfafb3dc89420ed90c97b4ed30b4a58e4650#6d6adfafb3dc89420ed90c97b4ed30b4a58e4650"
 dependencies = [
  "jiff",
  "serde",
@@ -1293,7 +1293,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1598,7 +1598,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

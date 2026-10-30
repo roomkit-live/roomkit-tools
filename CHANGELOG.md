@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Align the RoomKit adapter with the engine fix for Responses stream item assembly.
+- Align the RoomKit adapter with the engine fixes for Responses stream item assembly
+  and optional tool namespaces.
 
 - Align the optional engine integration with the Responses-compatible revision
   supporting renewable provider credentials.
