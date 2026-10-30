@@ -1160,18 +1160,45 @@ Build/install from this checkout, then exercise both configuration modes:
 uv pip install '.[roomkit]'
 python examples/roomkit_agents.py
 python examples/roomkit_agents.py --dynamic
+python examples/roomkit_agents.py --dynamic --parallel
 # With roomkit[vllm], OPENAI_BASE_URL and OPENAI_MODEL configured:
 python examples/roomkit_agents.py --chat --hold --dynamic
 ```
 
 The interactive example allows natural-language delegation or direct host
 commands: `/start researcher`, `/start reviewer`, `/list`, `/cancel [task_id]`,
-`/followup [agent_id] [task]`, `/send [agent_id] [message]`, `/release`, `/pause`
-and `/check`. An omitted agent ID selects the most recent instance. With `--hold`,
-each new instance pauses at `read` until released. `/pause` arms another pause
-for existing instances before a follow-up. The researcher has read/grep/outline; the reviewer has only read.
+`/followup [agent_id] [task]`, `/send [agent_id] [message]`, `/release [agent_id]`,
+`/pause [agent_id]`, `/diagnostics` and `/check`. An omitted agent ID in `/send`
+or `/followup` selects the most recent instance; always pass an explicit ID when
+several instances exist. With `--hold`, each new instance pauses at `read` until
+released. `/pause` arms another pause before a follow-up. Without an ID,
+`/pause` and `/release` affect all existing instances. The researcher has
+read/grep/outline; the reviewer has only read.
 The automated modes verify actual reads per mission, two distinct instances,
 a continuation on the same instance, unchanged source and principal replies. No live service is needed by tests.
+
+The automatic `--parallel` scenario starts both profiles, waits for actual read
+entry in separate child rooms, chats with the principal, sends a unique marker
+only to the researcher, and cancels the reviewer. It verifies that the researcher
+continues, acknowledges the marker and retains it in a new mission on the same
+instance. Reports must reach the principal; the cancelled review stays suppressed.
+Use `--live --dynamic --parallel` to repeat this with the configured model.
+In a fresh interactive `--chat --hold` session, `/parallel` starts both profiles;
+then use natural-language requests or the commands above to exercise the steps.
+The interactive `/check` verifies observed reads, linked replies and unchanged
+source; the complete isolation/marker assertions run in automatic mode.
+
+`/diagnostics` lists the last 32 RoomKit response/error summaries: channel/room,
+loop end reason, visible text length, tool count, rounds and latency, or error
+type/category. Empty text and abnormal endings are printed immediately. These
+summaries omit prompts, thinking, response bodies and raw exception messages;
+RoomKit's own logging remains separate. They use public `ON_AI_RESPONSE` and
+`ON_ERROR` hooks, without replaying requests or tools. In RoomKit 0.110, an empty
+first response or a nonempty response cut by a provider limit can still be
+reported as `completed`. The event does not expose the raw provider finish
+reason, so check text length as well and do not infer a cause from that label.
+An interruption may occur without a final response event; no event is not proof
+of completion. Task state and model-turn diagnostics are separate observations.
 
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns

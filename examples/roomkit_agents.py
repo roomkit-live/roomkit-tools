@@ -11,7 +11,9 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import tempfile
+from collections import deque
 from pathlib import Path
 from uuid import uuid4
 
@@ -75,9 +77,12 @@ class ScriptedWorker(MockAIProvider):
         if context.messages[-1].role != "tool" or not reads:
             return tool_call("read", {"path": "shipping.py"})
         line = next(line for line in reads[-1]["data"]["lines"] if "subtotal >" in line["text"])
+        markers = re.findall(r"PARALLEL_[0-9a-f]{12}", str(context.messages))
+        acknowledgement = f" Verification marker: {markers[-1]}." if markers else ""
         return AIResponse(
             content=f"shipping.py:{line['number']}: {line['text'].strip()}. "
             "Exactly 50 is excluded. Suggested correction: >= 50. No files were modified."
+            + acknowledgement
         )
 
 
@@ -126,31 +131,250 @@ def live_provider():
     )
 
 
-async def run(root, *, dynamic=False, live=False, chat=False, held=False):
+class TurnDiagnostics:
+    """Bounded observations from public RoomKit hooks, without prompt/error bodies."""
+
+    def __init__(self, kit):
+        self.records = deque(maxlen=32)
+
+        @kit.hook(HookTrigger.ON_AI_RESPONSE, execution=HookExecution.ASYNC)
+        async def observed_response(event, _context):
+            record = {
+                "kind": "response",
+                "channel_id": event.channel_id,
+                "room_id": event.room_id,
+                "end_reason": event.loop_end_reason,
+                "text_chars": len(event.response_content.strip()),
+                "tool_calls": event.tool_calls_count,
+                "rounds": event.round_count,
+                "latency_ms": event.latency_ms,
+            }
+            self.records.append(record)
+            if not record["text_chars"] or record["end_reason"] != "completed":
+                print("Host turn diagnostic:", json.dumps(record))
+
+        @kit.hook(HookTrigger.ON_ERROR, execution=HookExecution.ASYNC)
+        async def observed_error(event, _context):
+            # Provider errors may embed URLs, credentials or request bodies.
+            # Surface their classification only; never print raw error text.
+            record = {
+                "kind": "error",
+                "channel_id": event.source.channel_id,
+                "room_id": event.room_id,
+                "error_type": str(event.metadata.get("error_type", "unknown"))[:80],
+                "error_category": str(event.metadata.get("error_category", "unknown"))[:80],
+            }
+            self.records.append(record)
+            print("Host turn diagnostic:", json.dumps(record))
+
+    def show(self):
+        if not self.records:
+            print("Host: no turn completion or error observed yet.")
+        for record in self.records:
+            print("Host turn:", json.dumps(record))
+
+
+class PausedRead:
+    """An instance-owned demo gate; the actual Read tool stays unchanged."""
+
+    def __init__(self, root, *, held):
+        self.read = Read(root=root)
+        self.release = asyncio.Event()
+        self.entered = asyncio.Event()
+        self.agent_id = None
+        self.room_id = None
+        if not held:
+            self.release.set()
+
+    @property
+    def definition(self):
+        return self.read.definition
+
+    async def handler(self, name, arguments):
+        from roomkit.tools.context import current_tool_call
+
+        call = current_tool_call()
+        self.agent_id, self.room_id = call.channel_id, call.room_id
+        self.entered.set()
+        async with asyncio.timeout(300):
+            await self.release.wait()
+        return await self.read.handler(name, arguments)
+
+
+class ParallelScenario:
+    """Host-controlled assertions around real agent tools, rooms and model turns."""
+
+    def __init__(self, kit, backend, scope, pauses, diagnostics):
+        self.kit, self.backend, self.scope = kit, backend, scope
+        self.pauses, self.diagnostics = pauses, diagnostics
+        self.tasks = {}
+        self.message = None
+        self.followup = None
+        self.marker = "PARALLEL_" + uuid4().hex[:12]
+
+    async def start(self):
+        if self.tasks or (await self.backend.status(self.scope))["tasks"]:
+            raise RuntimeError("start the parallel scenario in a fresh demo session")
+        receipts = await asyncio.gather(
+            *(
+                DelegateTask(self.backend).call(
+                    {"profile": profile, "task": TASK}, scope=self.scope
+                )
+                for profile in ("researcher", "reviewer")
+            )
+        )
+        self.tasks = {item["data"]["profile"]: item["data"] for item in receipts}
+        if len({item["agent_id"] for item in self.tasks.values()}) != 2:
+            raise RuntimeError("parallel profiles did not create distinct instances")
+        for profile, record in self.tasks.items():
+            print(f"Host parallel: {profile} task={record['task_id']} agent={record['agent_id']}")
+
+    def pause_for(self, profile):
+        agent_id = self.tasks[profile]["agent_id"]
+        return next(p for p in self.pauses if p.agent_id == agent_id)
+
+    async def states(self):
+        return {item["task_id"]: item for item in (await self.backend.status(self.scope))["tasks"]}
+
+    async def run(self):
+        await self.start()
+        # Wait for actual tool entry, not a guessed inference duration.
+        async with asyncio.timeout(180):
+            await asyncio.gather(*(p.entered.wait() for p in self.pauses))
+        if (
+            len(self.pauses) != 2
+            or self.pause_for("researcher").room_id == self.pause_for("reviewer").room_id
+        ):
+            raise RuntimeError("workers did not enter separate child rooms")
+        initial = await self.states()
+        if len(initial) != 2 or any(r["status"] != "running" for r in initial.values()):
+            raise RuntimeError("both tasks must be running before the chat")
+        print("Host parallel: both agents are running and paused at read.")
+
+        async with asyncio.timeout(180):
+            result = await self.kit.process_inbound(
+                InboundMessage(
+                    channel_id="user",
+                    sender_id="developer",
+                    content=TextContent(
+                        body="Hello! Reply briefly to my greeting while the two workers continue. "
+                        "Do not manage tasks or call tools for this greeting."
+                    ),
+                ),
+                room_id=ROOM,
+            )
+        observed = [
+            r
+            for r in self.diagnostics.records
+            if r["kind"] == "response" and r["channel_id"] == "assistant"
+        ]
+        if (
+            result.error is not None
+            or not observed
+            or not observed[-1]["text_chars"]
+            or observed[-1]["end_reason"] != "completed"
+        ):
+            raise RuntimeError("no completed principal reply while workers were paused")
+        current = await self.states()
+        if len(current) != 2 or any(r["status"] != "running" for r in current.values()):
+            raise RuntimeError("ordinary chat changed the two running tasks")
+        print("Host parallel: principal answered while both workers remained running.")
+
+        researcher, reviewer = self.tasks["researcher"], self.tasks["reviewer"]
+        self.message = (
+            await AgentSend(self.backend).call(
+                {
+                    "agent_id": researcher["agent_id"],
+                    "message": "Focus on exactly 50 units. Include the verification marker "
+                    f"{self.marker} "
+                    "in your report to acknowledge this clarification.",
+                },
+                scope=self.scope,
+            )
+        )["data"]
+        if self.message["status"] != "queued" or not self.message["history_recorded"]:
+            raise RuntimeError("researcher did not accept and retain the clarification")
+        if self.message["task_id"] != researcher["task_id"]:
+            raise RuntimeError("clarification targeted the wrong task")
+        for profile in ("researcher", "reviewer"):
+            events = await self.kit.store.list_events(self.pause_for(profile).room_id, limit=100)
+            recorded = [
+                e
+                for e in events
+                if e.metadata.get("agent_message_id") == self.message["message_id"]
+            ]
+            if len(recorded) != (1 if profile == "researcher" else 0):
+                raise RuntimeError("clarification history crossed instance boundaries")
+        print("Host parallel: clarification queued and recorded only in the researcher room.")
+
+        cancelled = (
+            await CancelTask(self.backend).call({"task_id": reviewer["task_id"]}, scope=self.scope)
+        )["data"]
+        current = await self.states()
+        if not cancelled["cancelled"] or cancelled["task"]["status"] != "cancelled":
+            raise RuntimeError("reviewer was not cancelled")
+        if current[researcher["task_id"]]["status"] != "running":
+            raise RuntimeError("reviewer cancellation affected the researcher")
+        print("Host parallel: reviewer cancelled; researcher remains running.")
+
+        self.pause_for("researcher").release.set()
+        async with asyncio.timeout(180):
+            completed = await self.backend.wait(researcher["task_id"])
+        if (
+            completed["status"] != "completed"
+            or completed["delivery"] != "delivered"
+            or self.marker not in (completed["result"] or "")
+        ):
+            raise RuntimeError("researcher report did not acknowledge the actual clarification")
+        self.followup = (
+            await AgentFollowup(self.backend).call(
+                {
+                    "agent_id": researcher["agent_id"],
+                    "task": FOLLOWUP_TASK
+                    + " Recall the verification marker from the earlier clarification.",
+                },
+                scope=self.scope,
+            )
+        )["data"]
+        async with asyncio.timeout(180):
+            resumed = await self.backend.wait(self.followup["task_id"])
+        if (
+            resumed["agent_id"] != researcher["agent_id"]
+            or resumed["task_id"] == researcher["task_id"]
+        ):
+            raise RuntimeError("follow-up did not reuse the researcher with a new task")
+        if (
+            resumed["status"] != "completed"
+            or resumed["delivery"] != "delivered"
+            or self.marker not in (resumed["result"] or "")
+        ):
+            raise RuntimeError("follow-up did not retain the clarification or deliver its report")
+        final = await self.states()
+        if (
+            len(final) != 3
+            or final[reviewer["task_id"]]["status"] != "cancelled"
+            or final[reviewer["task_id"]]["delivery"] != "suppressed"
+        ):
+            raise RuntimeError("unexpected task creation or cancelled-reviewer delivery")
+        print(
+            "Verified parallel: isolated clarification, independent cancellation, "
+            "continued researcher with retained history and principal delivery."
+        )
+        return {"tasks": list(final.values()), "message": self.message, "marker": self.marker}
+
+
+async def run(root, *, dynamic=False, live=False, chat=False, held=False, parallel=False):
     (root / "shipping.py").write_text(SOURCE)
     scope = AgentScope(ROOM, "assistant")
-    worker_calls, resolutions, replies, gates, handoffs = [], [], [], [], []
+    worker_calls, resolutions, replies, pauses, handoffs = [], [], [], [], []
     provider_factory = live_provider if live or chat else ScriptedWorker
+    held = held or parallel
+    parallel_result = None
 
-    class PausedRead:
-        """Demo-only pause; each instance owns its event. Read remains unchanged."""
-
-        def __init__(self):
-            self.read = Read(root=root)
-            self.release = asyncio.Event()
-            gates.append(self.release)
-            if not held:
-                self.release.set()
-
-        @property
-        def definition(self):
-            return self.read.definition
-
-        async def handler(self, name, arguments):
-            if name == "read":
-                async with asyncio.timeout(300):
-                    await self.release.wait()
-            return await self.read.handler(name, arguments)
+    def paused_read():
+        pause = PausedRead(root, held=held)
+        pauses.append(pause)
+        return pause
 
     def blueprint(profile):
         return AgentConfig(
@@ -164,9 +388,9 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                 "You have no mutation or delegation tools."
             ),
             tools_factory=(
-                (lambda: [PausedRead(), CodeOutline(root=root), Grep(root=root)])
+                (lambda: [paused_read(), CodeOutline(root=root), Grep(root=root)])
                 if profile == "researcher"
-                else (lambda: [PausedRead()])
+                else (lambda: [paused_read()])
             ),
             tool_timeout_seconds=330 if held else 30,
             tool_loop_timeout_seconds=450 if held else 180,
@@ -179,6 +403,7 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
 
     async with RoomKit() as kit:
         await kit.create_room(room_id=ROOM)
+        diagnostics = TurnDiagnostics(kit)
         options = (
             {"resolver": resolve, "allowed_profiles": ("researcher", "reviewer")}
             if dynamic
@@ -315,6 +540,8 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                     else "Host: source unchanged; tool evidence and linked replies checked."
                 )
 
+            scenario = ParallelScenario(kit, backend, scope, pauses, diagnostics)
+
             if chat:
 
                 async def start(args):
@@ -381,15 +608,39 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                 async def send(args):
                     await address(args, followup=False)
 
-                async def pause(_args):
-                    for gate in gates:
-                        gate.clear()
-                    print("Host: existing instances will pause at their next read.")
+                async def gate_action(args, *, release):
+                    selected = [p for p in pauses if not args.strip() or p.agent_id == args.strip()]
+                    if not selected:
+                        print("Host: no matching read pause; wait for tool entry or use /list.")
+                        return
+                    for pause in selected:
+                        if release:
+                            pause.release.set()
+                        else:
+                            pause.release.clear()
+                            pause.entered.clear()
+                    print(
+                        f"Host: {len(selected)} read pause(s) "
+                        f"{'released' if release else 'armed for the next read'}."
+                    )
 
-                async def release(_args):
-                    for gate in gates:
-                        gate.set()
-                    print("Host: current demo pauses released; future instances get fresh pauses.")
+                async def pause(args):
+                    await gate_action(args, release=False)
+
+                async def release(args):
+                    await gate_action(args, release=True)
+
+                async def start_parallel(_args):
+                    if not held:
+                        print("Host: restart with --hold for interactive parallel validation.")
+                        return
+                    try:
+                        await scenario.start()
+                    except (RuntimeError, ToolError) as error:
+                        print("Host:", error)
+
+                async def show_diagnostics(_args):
+                    diagnostics.show()
 
                 async def verify(_args):
                     try:
@@ -403,6 +654,8 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                     sender_id="developer",
                     commands={
                         "/start": start,
+                        "/parallel": start_parallel,
+                        "/diagnostics": show_diagnostics,
                         "/followup": followup,
                         "/send": send,
                         "/pause": pause,
@@ -417,17 +670,24 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                         "researcher: read/grep/code_outline; reviewer: read only.\n"
                         "Ask the assistant to delegate an analysis of shipping.py.\n"
                         "/start researcher or /start reviewer: direct host launch.\n"
+                        "/parallel: launch both profiles in a fresh session.\n"
                         "/followup [agent_id] [task]: continue an idle instance.\n"
                         "/send [agent_id] [message]: clarify a running mission.\n"
                         "/list, /cancel [task_id], /check; quit closes owned tasks.\n"
-                        "Idle agents expire after 5 minutes. /pause arms the next read.\n"
+                        "/diagnostics: recent turn endings and errors (no prompt bodies).\n"
+                        "Idle expiry: 5 minutes. /pause [agent_id] arms the next read.\n"
                         + (
-                            "DEMO PAUSE: read waits for /release (all current instances)."
+                            "DEMO PAUSE: read waits for /release [agent_id] (omit ID for all)."
                             if held
                             else ""
                         )
                     ),
                 )
+            elif parallel:
+                parallel_result = await scenario.run()
+                await check()
+                if len(pauses) != 2 or (dynamic and len(resolutions) != 2):
+                    raise RuntimeError("follow-up unexpectedly resolved a new instance")
             else:
                 for profile in ("researcher", "reviewer"):
                     before = len((await backend.status(scope))["tasks"])
@@ -483,6 +743,7 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
     if (root / "shipping.py").read_text() != SOURCE:
         raise RuntimeError("source changed during shutdown")
     print("Closed: owned agent instances released; source unchanged.")
+    return parallel_result
 
 
 def cli(argv=None):
@@ -492,7 +753,10 @@ def cli(argv=None):
     mode.add_argument("--chat", action="store_true")
     parser.add_argument("--dynamic", action="store_true")
     parser.add_argument("--hold", action="store_true")
+    parser.add_argument("--parallel", action="store_true", help="Verify two concurrent agents")
     args = parser.parse_args(argv)
+    if args.parallel and args.chat:
+        parser.error("use /parallel inside --chat --hold, or --parallel for the automatic scenario")
     if args.hold and not args.chat:
         parser.error("--hold is only for interactive chat")
     with tempfile.TemporaryDirectory(prefix="roomkit-agents-") as temporary:
@@ -504,6 +768,7 @@ def cli(argv=None):
                 live=args.live,
                 chat=args.chat,
                 held=args.hold,
+                parallel=args.parallel,
             )
         )
 

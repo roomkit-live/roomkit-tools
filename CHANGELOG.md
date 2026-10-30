@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add a parallel-agent validation scenario with isolated steering, independent
+  cancellation, retained follow-up history and principal report delivery. Expose
+  per-instance demo pauses and bounded turn diagnostics through public RoomKit
+  hooks, without automatically replaying requests or tools. Exercise static and
+  dynamic configurations, empty/limited responses and provider errors in tests.
+
 - Make unknown-agent refusals distinguish an incorrect ID from an expired
   instance. Return bounded, caller-scoped identifier hints without automatic
   substitution or side effects. Clarify exact ID copying in agent tool schemas

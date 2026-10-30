@@ -196,6 +196,14 @@ def main() -> None:
             run(str(python), "-I", str(root / "examples/roomkit_background.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_agents.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_agents.py"), "--dynamic", cwd=work)
+            run(
+                str(python),
+                "-I",
+                str(root / "examples/roomkit_agents.py"),
+                "--dynamic",
+                "--parallel",
+                cwd=work,
+            )
             run(str(python), "-I", str(root / "examples/roomkit_output.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_web.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_search.py"), cwd=work)

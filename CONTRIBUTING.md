@@ -143,3 +143,9 @@ optional RoomKit backend with static profiles and dynamic resolution. Both modes
 run against installed wheel and sdist artifacts. Rust and standalone Python
 tests cover shared contract validation; RoomKit tests cover caller scope,
 instance isolation, resolution/cancellation races, delivery and resource cleanup.
+The parallel example uses per-instance read gates to verify concurrent chat,
+targeted steering, independent cancellation and history retention on follow-up.
+Its scripted integration tests run with both static and dynamic configuration;
+the artifact gate also runs the dynamic parallel CLI. Turn-diagnostic tests use
+public RoomKit hooks with normal, empty, limited and failing providers, including
+an empty final answer after an actual tool effect to guard against replay.
