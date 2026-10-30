@@ -14,6 +14,7 @@ publish = false
 roomkit-tools-agents = { path = "crates/roomkit-tools-agents" }
 roomkit-tools-core = { path = "crates/roomkit-tools-core" }
 roomkit-tools-code = { path = "crates/roomkit-tools-code" }
+roomkit-tools-image = { path = "crates/roomkit-tools-image" }
 roomkit-tools-fs = { path = "crates/roomkit-tools-fs" }
 roomkit-tools-process = { path = "crates/roomkit-tools-process" }
 roomkit-tools-web = { path = "crates/roomkit-tools-web" }
@@ -27,6 +28,9 @@ globset = "0.4"
 regex = "1"
 # Content revisions for optimistic filesystem mutations; never in core.
 sha2 = "0.10"
+# Local image preparation only; no codecs or image I/O in core or fs.
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
+base64 = "0.22"
 # Optional source outlines: parser and two grammars stay in the code crate.
 tree-sitter = "0.27.1"
 tree-sitter-rust = "0.24.2"

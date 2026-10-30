@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add a separate `view_image` tool in Rust and Python for static PNG, JPEG and
+  WebP. Prepare bounded PNG previews with orientation, resizing, source revisions
+  and explicit resource limits, preserving source files. Keep `read` text-only.
+- Expose `ViewImage` directly in RoomKit Python's tools list with typed image
+  output. Add shared Rust/Python contracts, real vLLM request encoding checks,
+  and a scripted/live vision example. The pinned Rust RoomKit adapter does not
+  yet support image tool results. Available in development builds after a13.
+
 ## 0.1.0a13
 
 - Release the five selectable agent tools and optional RoomKit Python backend.

@@ -18,6 +18,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 roomkit-tools-agents = { path = "../../crates/roomkit-tools-agents" }
 roomkit-tools-code = { path = "../../crates/roomkit-tools-code" }
+roomkit-tools-image = { path = "../../crates/roomkit-tools-image" }
 roomkit-tools-search = { path = "../../crates/roomkit-tools-search", features = ["exa", "ollama", "openai"] }
 roomkit-tools-core = { path = "../../crates/roomkit-tools-core" }
 roomkit-tools-fs = { path = "../../crates/roomkit-tools-fs" }

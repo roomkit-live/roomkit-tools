@@ -19,6 +19,7 @@ from .agents import (
 )
 from .code import CodeOutlineTool
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
+from .image import ViewImageTool
 from .output import OutputStore
 from .process import ProcessSession, ShellTool
 from .roomkit import (
@@ -38,6 +39,7 @@ from .roomkit import (
     ProcessWrite,
     Read,
     Shell,
+    ViewImage,
     WebFetch,
     WebSearch,
     Write,
@@ -47,6 +49,8 @@ from .web import WebFetchTool
 from .workspace import Workspace
 
 __all__ = [
+    "ViewImage",
+    "ViewImageTool",
     "AgentBackend",
     "AgentFollowup",
     "AgentSend",

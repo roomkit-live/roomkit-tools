@@ -89,6 +89,14 @@ checks need Rust; installing and using the prebuilt wheel still does not.
 The shared cases complement the larger per-language suites for concurrency,
 large files, cancellation during I/O and cleanup.
 
+`tests/fixtures/image.json` compares image metadata, complete PNG payloads and
+errors between Rust and installed Python artifacts. Native tests also check
+pixels, alpha, JPEG orientation, static WebP and source preservation. The
+RoomKit tests inspect real vLLM request serialization using a mock HTTP transport;
+they require the vLLM extra only in the test environment, with no server or keys.
+`examples/roomkit_image.py` checks image delivery in scripted mode; its optional
+live mode requires a vision-capable model and a human comparison of the answer.
+
 ## Code and dependencies
 
 - Code, comments, examples and developer documentation use English. Keep

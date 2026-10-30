@@ -10,6 +10,7 @@ use roomkit_tools_fs::{
     DiffInput, DiffLimits, DiffTool, GlobInput, GlobLimits, GlobTool, GrepInput, GrepLimits,
     GrepTool, ListInput, ListLimits, ListTool, ReadInput, ReadLimits, ReadTool,
 };
+use roomkit_tools_image::{ViewImageInput, ViewImageLimits, ViewImageTool};
 use roomkit_tools_process::ShellLimits;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
@@ -90,6 +91,18 @@ macro_rules! host_options {
     };
 }
 
+host_options!(
+    ViewImageOptions,
+    ViewImageLimits,
+    max_file_bytes,
+    max_dimension,
+    max_pixels,
+    max_decode_bytes,
+    max_edge,
+    max_image_bytes,
+    default_timeout_ms,
+    max_timeout_ms
+);
 host_options!(
     CodeOutlineOptions,
     CodeOutlineLimits,
@@ -285,6 +298,15 @@ macro_rules! rooted_binding {
 }
 
 rooted_binding!(
+    PythonViewImageTool,
+    "_ViewImageTool",
+    ViewImageTool,
+    ViewImageOptions,
+    ViewImageInput,
+    call,
+    view
+);
+rooted_binding!(
     PythonCodeOutlineTool,
     "_CodeOutlineTool",
     CodeOutlineTool,
@@ -346,6 +368,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     runtime::install(module)?;
     module.add_class::<Cancellation>()?;
     module.add_class::<PythonCodeOutlineTool>()?;
+    module.add_class::<PythonViewImageTool>()?;
     module.add_class::<web::PythonWebFetchTool>()?;
     module.add_class::<search::PythonSearchBackend>()?;
     module.add_class::<search::PythonWebSearchTool>()?;

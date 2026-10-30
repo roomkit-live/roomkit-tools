@@ -1,0 +1,198 @@
+{
+  "files": {
+    "colors.png": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DwHwyBNAgwAABIyQj4ccUx4AAAAABJRU5ErkJggg==",
+    "wrong.jpg": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DwHwyBNAgwAABIyQj4ccUx4AAAAABJRU5ErkJggg==",
+    "animated.png": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACGFjVEwAAAABAAAAALQt6aAAAAAaZmNUTAAAAAAAAAACAAAAAgAAAAAAAAAAAAEAAQAA5AEz4QAAABNJREFUeJxj+M/A8B8MgTQIMAAASMkI+HHFMeAAAAAASUVORK5CYII=",
+    "corrupt.png": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4",
+    "text.txt": "bm90IGFuIGltYWdl",
+    "other.gif": "R0lGODlh"
+  },
+  "cases": [
+    {
+      "name": "png_pixels",
+      "input": {
+        "path": "colors.png"
+      },
+      "expect": {
+        "/data/width": 2,
+        "/data/height": 2,
+        "/data/resized": false,
+        "/data/image/mime_type": "image/png",
+        "/data/source_mime_type": "image/png",
+        "/data/orientation_applied": false
+      }
+    },
+    {
+      "name": "detect_bytes_not_extension",
+      "input": {
+        "path": "wrong.jpg"
+      },
+      "expect": {
+        "/data/width": 2,
+        "/data/height": 2,
+        "/data/resized": false,
+        "/data/image/mime_type": "image/png",
+        "/data/source_mime_type": "image/png",
+        "/data/orientation_applied": false
+      }
+    },
+    {
+      "name": "resize",
+      "input": {
+        "path": "colors.png"
+      },
+      "expect": {
+        "/data/width": 1,
+        "/data/height": 1,
+        "/data/resized": true
+      },
+      "limits": {
+        "max_edge": 1
+      }
+    },
+    {
+      "name": "input_bound",
+      "input": {
+        "path": "colors.png"
+      },
+      "expect": {
+        "/error": "limit"
+      },
+      "limits": {
+        "max_file_bytes": 1
+      }
+    },
+    {
+      "name": "pixel_bound",
+      "input": {
+        "path": "colors.png"
+      },
+      "expect": {
+        "/error": "limit"
+      },
+      "limits": {
+        "max_pixels": 3
+      }
+    },
+    {
+      "name": "dimension_bound",
+      "input": {
+        "path": "colors.png"
+      },
+      "expect": {
+        "/error": "limit"
+      },
+      "limits": {
+        "max_dimension": 1
+      }
+    },
+    {
+      "name": "decode_bound",
+      "input": {
+        "path": "colors.png"
+      },
+      "expect": {
+        "/error": "limit"
+      },
+      "limits": {
+        "max_decode_bytes": 1
+      }
+    },
+    {
+      "name": "output_bound",
+      "input": {
+        "path": "colors.png"
+      },
+      "expect": {
+        "/error": "limit"
+      },
+      "limits": {
+        "max_image_bytes": 8
+      }
+    },
+    {
+      "name": "animated.png",
+      "input": {
+        "path": "animated.png"
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "corrupt.png",
+      "input": {
+        "path": "corrupt.png"
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "text.txt",
+      "input": {
+        "path": "text.txt"
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "other.gif",
+      "input": {
+        "path": "other.gif"
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": ".",
+      "input": {
+        "path": "."
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "missing",
+      "input": {
+        "path": "missing.png"
+      },
+      "expect": {
+        "/error": "io"
+      }
+    },
+    {
+      "name": "cancelled",
+      "input": {
+        "path": "colors.png"
+      },
+      "expect": {
+        "/error": "cancelled"
+      },
+      "cancelled": true
+    },
+    {
+      "name": "invalid_input",
+      "input": {
+        "path": "colors.png",
+        "unknown": true
+      },
+      "expect": {
+        "/error": "invalid_input"
+      }
+    },
+    {
+      "name": "invalid_timeout",
+      "input": {
+        "path": "colors.png",
+        "timeout_ms": 0
+      },
+      "expect": {
+        "/error": "invalid_input"
+      }
+    }
+  ]
+}
