@@ -4,7 +4,7 @@
 
 mod common;
 
-use roomkit::model::{ChannelId, ChannelType, EventContent, InboundMessage, RoomId, ToolCall};
+use roomkit::model::{ChannelId, ChannelType, InboundMessage, RoomId, TextContent, ToolCall};
 use roomkit::testing::RecordingTransport;
 use roomkit::{RoomKit, ToolUse};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
@@ -186,7 +186,7 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
     ] {
         let result = kit
             .process_inbound(
-                InboundMessage::new(chat.id().clone(), "test-user", EventContent::text(request)),
+                InboundMessage::new(chat.id().clone(), "test-user", TextContent::new(request)),
                 roomkit::ProcessInboundOptions {
                     room_id: Some(room.clone()),
                     ..Default::default()
@@ -268,7 +268,7 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
         InboundMessage::new(
             chat.id().clone(),
             "test-user",
-            EventContent::text("Run the command"),
+            TextContent::new("Run the command"),
         ),
         roomkit::ProcessInboundOptions {
             room_id: Some(room.clone()),

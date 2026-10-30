@@ -5,7 +5,7 @@
 mod common;
 
 use roomkit::model::{
-    ChannelId, ChannelType, EventContent, EventType, InboundMessage, RoomId, ToolCall,
+    ChannelId, ChannelType, EventContent, EventType, InboundMessage, RoomId, TextContent, ToolCall,
     ToolCallOutcome,
 };
 use roomkit::testing::RecordingTransport;
@@ -92,7 +92,7 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
             InboundMessage::new(
                 chat.id().clone(),
                 "alice",
-                EventContent::text(
+                TextContent::new(
                     "Create, add, update and remove sample customer orders, then read the file.",
                 ),
             ),
@@ -127,7 +127,7 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
     let outcomes = chat
         .deliveries()
         .iter()
-        .filter(|delivery| delivery.event.event_type == EventType::ToolCallEnd)
+        .filter(|delivery| delivery.event.r#type == EventType::ToolCallEnd)
         .filter_map(|delivery| {
             if let EventContent::ToolCall(call) = &delivery.event.content {
                 call.outcome

@@ -4,7 +4,7 @@
 
 mod common;
 
-use roomkit::model::{ChannelId, ChannelType, EventContent, InboundMessage, RoomId, ToolCall};
+use roomkit::model::{ChannelId, ChannelType, InboundMessage, RoomId, TextContent, ToolCall};
 use roomkit::testing::RecordingTransport;
 use roomkit::{RoomKit, ToolUse};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
@@ -54,7 +54,7 @@ async fn real_agent_receives_shell_output_or_a_policy_refusal() {
                 InboundMessage::new(
                     chat.id().clone(),
                     "test-user",
-                    EventContent::text("Run the shell command"),
+                    TextContent::new("Run the shell command"),
                 ),
                 roomkit::ProcessInboundOptions {
                     room_id: Some(conversation.clone()),

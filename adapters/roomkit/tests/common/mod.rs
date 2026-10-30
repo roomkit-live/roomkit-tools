@@ -1,13 +1,13 @@
 //! Shared room setup using the pinned engine's public lifecycle API.
 
 use roomkit::model::{ChannelId, RoomId};
-use roomkit::{AttachChannelOptions, CreateRoomOptions, KitError, RoomKit};
+use roomkit::{AttachChannelOptions, CreateRoomOptions, RoomKit, RoomKitError};
 
 pub async fn attach(
     kit: &RoomKit,
     room: &RoomId,
     channels: [&ChannelId; 2],
-) -> Result<(), KitError> {
+) -> Result<(), RoomKitError> {
     kit.create_room(CreateRoomOptions {
         room_id: Some(room.clone()),
         ..Default::default()

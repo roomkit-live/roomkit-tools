@@ -6,6 +6,9 @@ part of an existing published preview.
 
 ## Unreleased
 
+- Align the optional Rust adapter with the consolidated RoomKit engine used by
+  the CLI, retaining individually selected tools and host-owned lifecycles.
+
 - Add independently selectable `docs_list`, `docs_search` and `docs_read` in Rust,
   Python and both RoomKit adapters, over injected documentation backends.
 - Include an optional file backend with bounded immutable Markdown/text snapshots,

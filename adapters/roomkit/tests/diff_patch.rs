@@ -3,7 +3,7 @@
 
 mod common;
 
-use roomkit::model::{ChannelId, ChannelType, EventContent, InboundMessage, RoomId, ToolCall};
+use roomkit::model::{ChannelId, ChannelType, InboundMessage, RoomId, TextContent, ToolCall};
 use roomkit::testing::RecordingTransport;
 use roomkit::{RoomKit, ToolUse};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
@@ -91,7 +91,7 @@ async fn scenario(refused: bool) -> Vec<Value> {
             InboundMessage::new(
                 chat.id().clone(),
                 "test-user",
-                EventContent::text("Compare, preview, apply and verify the hours."),
+                TextContent::new("Compare, preview, apply and verify the hours."),
             ),
             roomkit::ProcessInboundOptions {
                 room_id: Some(conversation.clone()),

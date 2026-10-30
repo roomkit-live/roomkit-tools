@@ -5,7 +5,7 @@
 mod common;
 
 use roomkit::model::{
-    ChannelId, ChannelType, EventContent, EventType, InboundMessage, RoomId, ToolCall,
+    ChannelId, ChannelType, EventContent, EventType, InboundMessage, RoomId, TextContent, ToolCall,
     ToolCallOutcome,
 };
 use roomkit::testing::RecordingTransport;
@@ -155,7 +155,7 @@ async fn turn(tools: ReadToolset, arguments: &str, blocked: bool) -> (ToolCallOu
             InboundMessage::new(
                 chat.id().clone(),
                 "alice",
-                EventContent::text("When are you open?"),
+                TextContent::new("When are you open?"),
             ),
             roomkit::ProcessInboundOptions {
                 room_id: Some(room.clone()),
@@ -171,7 +171,7 @@ async fn turn(tools: ReadToolset, arguments: &str, blocked: bool) -> (ToolCallOu
         .iter()
         .find_map(|delivery| {
             let event = &delivery.event;
-            if event.event_type != EventType::ToolCallEnd {
+            if event.r#type != EventType::ToolCallEnd {
                 return None;
             }
             if let EventContent::ToolCall(row) = &event.content {
