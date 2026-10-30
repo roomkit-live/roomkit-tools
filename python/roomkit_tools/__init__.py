@@ -8,7 +8,15 @@ from ._native import (
     ToolIOError,
     UnsupportedResourceError,
 )
-from .agents import AgentBackend, AgentScope, CancelTask, DelegateTask, TaskStatus
+from .agents import (
+    AgentBackend,
+    AgentFollowup,
+    AgentScope,
+    AgentSend,
+    CancelTask,
+    DelegateTask,
+    TaskStatus,
+)
 from .code import CodeOutlineTool
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .output import OutputStore
@@ -40,6 +48,8 @@ from .workspace import Workspace
 
 __all__ = [
     "AgentBackend",
+    "AgentFollowup",
+    "AgentSend",
     "AgentScope",
     "CancelTask",
     "DelegateTask",

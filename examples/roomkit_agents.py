@@ -1,8 +1,8 @@
-"""Static blueprints or dynamic resolution with the same three agent tools.
+"""Static blueprints or dynamic resolution with the same five agent tools.
 
 Default: scripted providers with real RoomKit and Rust reads. --live uses vLLM;
 --chat is interactive. --dynamic selects the host resolver. Each delegation
-creates a new agent instance, even when its profile has already been used.
+creates a new agent instance; follow-ups retain its conversation and configuration.
 """
 
 from __future__ import annotations
@@ -30,7 +30,9 @@ from roomkit import (
 from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
 from roomkit.providers.ai.base import AIToolResultPart
 from roomkit_tools import (
+    AgentFollowup,
     AgentScope,
+    AgentSend,
     CancelTask,
     CodeOutline,
     DelegateTask,
@@ -53,6 +55,13 @@ TASK = (
     "Cite the observed source line. Do not modify files or claim tests were run."
 )
 
+FOLLOWUP_TASK = (
+    "Continue your earlier analysis. Make a fresh read call on shipping.py with offset=3, "
+    "limit=1 now; previous tool results do not satisfy this new mission. "
+    "Cite the line returned by this call, and propose three boundary test inputs. "
+    "Do not modify files or claim tests were run."
+)
+
 
 class ScriptedWorker(MockAIProvider):
     async def generate(self, context):
@@ -63,7 +72,7 @@ class ScriptedWorker(MockAIProvider):
             for part in message.content
             if isinstance(part, AIToolResultPart) and part.name == "read" and not part.is_error
         ]
-        if not reads:
+        if context.messages[-1].role != "tool" or not reads:
             return tool_call("read", {"path": "shipping.py"})
         line = next(line for line in reads[-1]["data"]["lines"] if "subtotal >" in line["text"])
         return AIResponse(
@@ -89,9 +98,16 @@ class ScriptedSpeaker(MockAIProvider):
         if "<worker_output>" in text:
             report = text.split("<worker_output>", 1)[1].split("</worker_output>", 1)[0].strip()
             return AIResponse(content="The worker found: " + report)
+        if text.startswith("Continue "):
+            return tool_call("agent_followup", {"agent_id": text.split()[1], "task": FOLLOWUP_TASK})
         if text.startswith("Start "):
             return tool_call("delegate_task", {"profile": text.split()[1], "task": TASK})
-        return AIResponse(content="A profile is a blueprint; each task gets a fresh instance.")
+        return AIResponse(
+            content=(
+                "A profile is a blueprint; delegate_task creates an instance, "
+                "agent_followup reuses it."
+            )
+        )
 
 
 def live_provider():
@@ -141,7 +157,11 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
             provider_factory=provider_factory,
             system_prompt=(
                 f"You are the {profile}. Use actual tool results and obey the supplied task. "
-                "Read shipping.py before answering. You have no mutation or delegation tools."
+                "For each mission requiring a read, call read again, "
+                "even with prior results in history. "
+                "Read shipping.py before answering. code_outline accepts a regular file: use "
+                "path=shipping.py, never the project directory. "
+                "You have no mutation or delegation tools."
             ),
             tools_factory=(
                 (lambda: [PausedRead(), CodeOutline(root=root), Grep(root=root)])
@@ -165,7 +185,13 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
             else {"profiles": {name: blueprint(name) for name in ("researcher", "reviewer")}}
         )
         async with RoomKitAgentBackend(kit, scope=scope, **options) as backend:
-            tools = [DelegateTask(backend), TaskStatus(backend), CancelTask(backend)]
+            tools = [
+                DelegateTask(backend),
+                TaskStatus(backend),
+                CancelTask(backend),
+                AgentFollowup(backend),
+                AgentSend(backend),
+            ]
             kit.register_channel(
                 AIChannel(
                     "assistant",
@@ -179,6 +205,9 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                         "After delegate_task, acknowledge its ID and end your turn. Do not poll "
                         "task_status to wait for completion: reports arrive automatically. "
                         "Use task_status for observed state and cancel_task when asked to stop. "
+                        "agent_followup continues an idle agent_id with a new task_id and its "
+                        "existing history. agent_send queues a clarification to a running agent; "
+                        "queued does not mean already read. These take agent_id, not a profile. "
                         "When a worker report arrives, explain it to the user. Never claim an "
                         "action without its tool result. Source file: shipping.py."
                     ),
@@ -189,7 +218,21 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
             @kit.hook(HookTrigger.ON_TOOL_CALL, execution=HookExecution.ASYNC)
             async def observe(event, _context):
                 if event.channel_id.startswith("agent-"):
-                    worker_calls.append(event)
+                    active = [
+                        r
+                        for r in (await backend.status(scope))["tasks"]
+                        if r["agent_id"] == event.channel_id and r["status"] == "running"
+                    ]
+                    worker_calls.append((active[-1]["task_id"] if active else None, event))
+                    print(
+                        f"Host tool: {active[-1]['task_id'] if active else 'unassigned'} "
+                        f"{event.name} {json.dumps(event.arguments)} error={event.is_error}"
+                    )
+                    if event.is_error:
+                        print(
+                            f"Host: {event.channel_id} {event.name} failed; "
+                            f"arguments={json.dumps(event.arguments)}; result={event.result}"
+                        )
 
             @kit.hook(HookTrigger.AFTER_BROADCAST, execution=HookExecution.ASYNC)
             async def reply(event, _context):
@@ -229,13 +272,18 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                         continue
                     observed = [
                         e
-                        for e in worker_calls
-                        if e.channel_id == record["agent_id"]
+                        for task_id, e in worker_calls
+                        if task_id == record["task_id"]
+                        and e.channel_id == record["agent_id"]
                         and e.name == "read"
                         and not e.is_error
                     ]
                     if not observed or record["delivery"] != "delivered":
-                        raise RuntimeError("missing successful read or principal delivery")
+                        raise RuntimeError(
+                            f"{record['task_id']}: missing a fresh successful read "
+                            f"(observed={len(observed)}) or principal delivery "
+                            f"(delivery={record['delivery']})"
+                        )
                     pages = [json.loads(event.result)["data"] for event in observed]
                     if not any(
                         Path(page["path"]) == root / "shipping.py"
@@ -299,6 +347,40 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                     except ToolError as error:
                         print("Host:", error)
 
+                async def address(args, *, followup):
+                    records = (await backend.status(scope))["tasks"]
+                    if not records:
+                        print("Host: no agent instances")
+                        return
+                    words = args.strip().split(maxsplit=1)
+                    agent_id = records[-1]["agent_id"]
+                    content = args.strip()
+                    if words and words[0].startswith("agent-"):
+                        agent_id, content = words[0], words[1] if len(words) > 1 else ""
+                    tool = tools[3] if followup else tools[4]
+                    arguments = {
+                        "agent_id": agent_id,
+                        "task" if followup else "message": content
+                        or (FOLLOWUP_TASK if followup else "Focus on the case subtotal == 50."),
+                    }
+                    try:
+                        print(
+                            "Host:", json.dumps((await tool.call(arguments, scope=scope))["data"])
+                        )
+                    except ToolError as error:
+                        print("Host:", error)
+
+                async def followup(args):
+                    await address(args, followup=True)
+
+                async def send(args):
+                    await address(args, followup=False)
+
+                async def pause(_args):
+                    for gate in gates:
+                        gate.clear()
+                    print("Host: existing instances will pause at their next read.")
+
                 async def release(_args):
                     for gate in gates:
                         gate.set()
@@ -316,6 +398,9 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                     sender_id="developer",
                     commands={
                         "/start": start,
+                        "/followup": followup,
+                        "/send": send,
+                        "/pause": pause,
                         "/status": status,
                         "/list": status,
                         "/cancel": cancel,
@@ -327,7 +412,10 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                         "researcher: read/grep/code_outline; reviewer: read only.\n"
                         "Ask the assistant to delegate an analysis of shipping.py.\n"
                         "/start researcher or /start reviewer: direct host launch.\n"
+                        "/followup [agent_id] [task]: continue an idle instance.\n"
+                        "/send [agent_id] [message]: clarify a running mission.\n"
                         "/list, /cancel [task_id], /check; quit closes owned tasks.\n"
+                        "Idle agents expire after 5 minutes. /pause arms the next read.\n"
                         + (
                             "DEMO PAUSE: read waits for /release (all current instances)."
                             if held
@@ -357,6 +445,25 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                         result = await backend.wait(records[-1]["task_id"])
                         if result["status"] != "completed":
                             raise RuntimeError("worker did not complete")
+                first = records[0]
+                async with asyncio.timeout(180):
+                    await kit.process_inbound(
+                        InboundMessage(
+                            channel_id="user",
+                            sender_id="developer",
+                            content=TextContent(
+                                body=(
+                                    f"Continue {first['agent_id']} using agent_followup: "
+                                    f"{FOLLOWUP_TASK}"
+                                )
+                            ),
+                        ),
+                        room_id=ROOM,
+                    )
+                    records = (await backend.status(scope))["tasks"]
+                    if len(records) != 3 or records[-1]["agent_id"] != first["agent_id"]:
+                        raise RuntimeError("expected a fresh mission on the first instance")
+                    await backend.wait(records[-1]["task_id"])
                 await check()
                 if len({record["agent_id"] for record in records}) != 2:
                     raise RuntimeError("expected two distinct instances")
@@ -365,7 +472,8 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                 if not replies:
                     raise RuntimeError("missing principal response")
                 print(
-                    "Verified: two profiles, distinct instances, real reads and principal replies."
+                    "Verified: two instances, three missions, same-agent continuation, "
+                    "real reads and principal replies."
                 )
     if (root / "shipping.py").read_text() != SOURCE:
         raise RuntimeError("source changed during shutdown")

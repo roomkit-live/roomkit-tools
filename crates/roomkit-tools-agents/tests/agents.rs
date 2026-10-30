@@ -17,6 +17,7 @@ fn receipt() -> TaskInfo {
         delivery: DeliveryState::Pending,
         result: None,
         result_truncated: false,
+        agent_available: true,
     }
 }
 
@@ -136,4 +137,63 @@ fn json_rejects_host_scope_and_limits_utf8_bytes() {
     let schema = DelegateTaskTool::definition().input_schema;
     assert_eq!(schema["additionalProperties"], false);
     assert_eq!(schema["properties"].as_object().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn extensions_fail_explicitly_for_older_backends() {
+    let backend: Arc<dyn AgentBackend> = Arc::new(Backend::default());
+    let scope = AgentScope {
+        room_id: "room".into(),
+        caller_id: "assistant".into(),
+    };
+    assert!(matches!(
+        AgentFollowupTool::new(Arc::clone(&backend))
+            .call(
+                &scope,
+                &FollowupInput {
+                    agent_id: "a1".into(),
+                    task: "Continue".into()
+                }
+            )
+            .await,
+        Err(Error::Unsupported(_))
+    ));
+    assert!(matches!(
+        AgentSendTool::new(backend)
+            .call(
+                &scope,
+                &SendInput {
+                    agent_id: "a1".into(),
+                    message: "Clarify".into()
+                }
+            )
+            .await,
+        Err(Error::Unsupported(_))
+    ));
+    assert!(
+        decode::<FollowupInput>(r#"{"agent_id":"a1","task":"Continue","profile":"other"}"#)
+            .is_err()
+    );
+    assert!(matches!(
+        SendInput {
+            agent_id: "a1".into(),
+            message: "é".repeat(4097)
+        }
+        .validate(),
+        Err(Error::LimitExceeded(_))
+    ));
+    let mut sent = SendResult {
+        agent_id: "a1".into(),
+        task_id: Some("t1".into()),
+        message_id: None,
+        status: SendState::Queued,
+        history_recorded: false,
+    };
+    assert!(sent.validate().is_err());
+    sent.message_id = Some("m1".into());
+    assert!(sent.validate().is_ok());
+    sent.status = SendState::NotRunning;
+    assert!(sent.validate().is_err());
+    sent.message_id = None;
+    assert!(sent.validate().is_ok());
 }

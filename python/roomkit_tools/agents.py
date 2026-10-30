@@ -10,7 +10,13 @@ import json
 from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
 
-from ._native import AccessRefusedError, InvalidInputError, LimitExceededError, _AgentContract
+from ._native import (
+    AccessRefusedError,
+    InvalidInputError,
+    LimitExceededError,
+    UnsupportedResourceError,
+    _AgentContract,
+)
 
 
 @dataclass(frozen=True)
@@ -40,6 +46,10 @@ class AgentBackend(Protocol):
 
     async def cancel(self, scope: AgentScope, *, task_id: str) -> dict[str, Any]: ...
 
+    async def followup(self, scope: AgentScope, *, agent_id: str, task: str) -> dict[str, Any]: ...
+
+    async def send(self, scope: AgentScope, *, agent_id: str, message: str) -> dict[str, Any]: ...
+
 
 class _AgentTool:
     name: ClassVar[str]
@@ -68,7 +78,10 @@ class _AgentTool:
         if not isinstance(scope, AgentScope):
             raise InvalidInputError("an AgentScope supplied by the host is required")
         inputs = json.loads(_AgentContract.input_json(self.name, json.dumps(arguments)))
-        result = await getattr(self._backend, self.method)(scope, **inputs)
+        method = getattr(self._backend, self.method, None)
+        if method is None:
+            raise UnsupportedResourceError(f"backend does not support {self.name}")
+        result = await method(scope, **inputs)
         return json.loads(_AgentContract.output_json(self.name, json.dumps(result)))
 
     async def handler(self, name: str, arguments: dict[str, Any]) -> str:
@@ -86,7 +99,7 @@ class _AgentTool:
             result = await self.call(arguments, scope=AgentScope(room, actor))
         except (InvalidInputError, AccessRefusedError) as error:
             raise ToolRefusedError(str(error)) from error
-        except LimitExceededError as error:
+        except (LimitExceededError, UnsupportedResourceError) as error:
             raise ToolFailedError(str(error)) from error
         call.structured_content = result
         return json.dumps(result, ensure_ascii=False)
@@ -119,3 +132,17 @@ class CancelTask(_AgentTool):
 
     name = "cancel_task"
     method = "cancel"
+
+
+class AgentFollowup(_AgentTool):
+    """Start another mission in a retained idle agent's conversation."""
+
+    name = "agent_followup"
+    method = "followup"
+
+
+class AgentSend(_AgentTool):
+    """Queue a clarification for a running agent, without starting another task."""
+
+    name = "agent_send"
+    method = "send"

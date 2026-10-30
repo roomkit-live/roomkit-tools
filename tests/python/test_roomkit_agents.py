@@ -18,7 +18,9 @@ from roomkit.providers.ai import AIResponse, MockAIProvider
 from roomkit.tools.context import ToolCallContext, tool_turn_context
 from roomkit_tools import (
     AccessRefusedError,
+    AgentFollowup,
     AgentScope,
+    AgentSend,
     CancelTask,
     DelegateTask,
     LimitExceededError,
@@ -121,7 +123,10 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
             result = await backend.wait(task["task_id"])
             self.assertEqual(result["status"], "completed")
             self.assertEqual(result["delivery"], "delivered")
-            self.assertIsNone(self.kit.get_channel(task["agent_id"]))
+            self.assertIsNotNone(self.kit.get_channel(task["agent_id"]))
+            self.assertTrue(result["agent_available"])
+        self.assertEqual([w.closed for w in self.workers], [0, 0])
+        await backend.aclose()
         self.assertEqual([w.closed for w in self.workers], [1, 1])
         self.assertEqual(len(self.speaker.calls), 2)
         replies = [e for e in self.events if e.source.channel_id == "assistant" and e.responds_to]
@@ -180,6 +185,8 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.speaker.calls, [])
         again = await backend.cancel(self.scope, task_id=receipt["task_id"])
         self.assertFalse(again["cancelled"])
+        self.assertEqual(self.workers[0].closed, 0)
+        await backend.aclose()
         self.assertEqual(self.workers[0].closed, 1)
 
     @bounded
@@ -234,6 +241,7 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
             started.set()
 
         await started.wait()
+        await self.workers[0].entered.wait()
         status = await backend.status(self.scope)
         self.assertEqual(len(status["tasks"]), 1)
         await backend.aclose()
@@ -263,7 +271,7 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await backend.status(self.scope))["pending_launches"], 0)
         receipt = await self.launch(backend)
         await backend.wait(receipt["task_id"])
-        self.assertEqual(self.workers[1].closed, 1)
+        self.assertEqual(self.workers[1].closed, 0)
 
     @bounded
     async def test_close_survives_cancelled_waiter_and_releases_all_instances(self):
@@ -337,3 +345,260 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         result = await backend.wait(receipt["task_id"])
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["delivery"], "failed")
+
+    @bounded
+    async def test_followup_keeps_history_instance_and_resolved_configuration(self):
+        requests = []
+
+        async def resolve(request):
+            requests.append(request)
+            return self.config(answer="FIRST_OBSERVATION")
+
+        backend = self.backend(resolver=resolve, allowed_profiles=("reader",))
+        first = await self.launch(backend)
+        await backend.wait(first["task_id"])
+        self.workers[0].answer = "SECOND_OBSERVATION"
+        second = (
+            await AgentFollowup(backend).call(
+                {"agent_id": first["agent_id"], "task": "FOLLOWUP_MARKER"}, scope=self.scope
+            )
+        )["data"]
+        self.assertNotEqual(first["task_id"], second["task_id"])
+        self.assertEqual(first["agent_id"], second["agent_id"])
+        self.assertEqual((await backend.wait(second["task_id"]))["result"], "SECOND_OBSERVATION")
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(len(self.workers), 1)
+        history = str(self.workers[0].calls[-1].messages)
+        for marker in ("Inspect the source", "FIRST_OBSERVATION", "FOLLOWUP_MARKER"):
+            self.assertIn(marker, history)
+        self.assertEqual(
+            len(
+                {
+                    e.metadata["child_room_id"]
+                    for e in self.events
+                    if e.metadata.get("agent_id") == first["agent_id"]
+                    and "child_room_id" in e.metadata
+                }
+            ),
+            1,
+        )
+        before = len(self.workers[0].calls)
+        receipt = await backend.send(self.scope, agent_id=first["agent_id"], message="IDLE_MESSAGE")
+        self.assertEqual(receipt["status"], "not_running")
+        self.assertIsNone(receipt["message_id"])
+        self.assertEqual(len(self.workers[0].calls), before)
+
+    @bounded
+    async def test_followup_busy_scope_and_exact_task_cancellation(self):
+        backend = self.backend(profiles={"reader": self.config()})
+        first = await self.launch(backend)
+        await backend.wait(first["task_id"])
+        worker = self.workers[0]
+        worker.gate = asyncio.Event()
+        worker.entered.clear()
+        second = await backend.followup(self.scope, agent_id=first["agent_id"], task="SECOND")
+        await worker.entered.wait()
+        with self.assertRaises(AccessRefusedError):
+            await backend.followup(self.scope, agent_id=first["agent_id"], task="BUSY")
+        for tool, arguments in (
+            (AgentFollowup(backend), {"agent_id": first["agent_id"], "task": "OTHER"}),
+            (AgentSend(backend), {"agent_id": first["agent_id"], "message": "OTHER"}),
+        ):
+            with self.assertRaises(AccessRefusedError):
+                await tool.call(arguments, scope=AgentScope("foreign", "assistant"))
+        old = await backend.cancel(self.scope, task_id=first["task_id"])
+        self.assertFalse(old["cancelled"])
+        self.assertEqual(
+            (await backend.status(self.scope, task_id=second["task_id"]))["tasks"][0]["status"],
+            "running",
+        )
+        cancelled = await backend.cancel(self.scope, task_id=second["task_id"])
+        self.assertTrue(cancelled["cancelled"])
+        self.assertEqual(cancelled["task"]["status"], "cancelled")
+        worker.gate.set()
+        third = await backend.followup(self.scope, agent_id=first["agent_id"], task="THIRD")
+        self.assertEqual((await backend.wait(third["task_id"]))["status"], "completed")
+        self.assertEqual(len(self.workers), 1)
+
+    @bounded
+    async def test_expired_session_refuses_followup_and_preserves_receipt(self):
+        closed = asyncio.Event()
+
+        class ExpiringWorker(Worker):
+            async def close(self):
+                await super().close()
+                closed.set()
+
+        worker = ExpiringWorker()
+        backend = self.backend(
+            profiles={"reader": AgentConfig(lambda: worker, "Read only.")}, idle_timeout=0.01
+        )
+        first = await self.launch(backend)
+        await backend.wait(first["task_id"])
+        await closed.wait()
+        self.assertFalse((await backend.status(self.scope))["tasks"][0]["agent_available"])
+        with self.assertRaisesRegex(AccessRefusedError, "expired"):
+            await backend.followup(self.scope, agent_id=first["agent_id"], task="LATE")
+        self.assertEqual(worker.closed, 1)
+
+    @bounded
+    async def test_send_reaches_active_loop_and_history_without_new_task(self):
+        from roomkit.providers.ai import AIToolCall
+
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        class Hold:
+            definition = {
+                "name": "hold",
+                "description": "Pause",
+                "parameters": {"type": "object", "properties": {}},
+            }
+
+            async def handler(self, name, arguments):
+                entered.set()
+                await release.wait()
+                return "released"
+
+        class ReadingWorker(Worker):
+            async def generate(self, context):
+                self.calls.append(context)
+                if len(self.calls) == 1:
+                    return AIResponse(
+                        content="",
+                        finish_reason="tool_calls",
+                        tool_calls=[AIToolCall(id="pause", name="hold", arguments={})],
+                    )
+                return AIResponse(content="OBSERVED")
+
+        worker = ReadingWorker()
+        backend = self.backend(
+            profiles={"reader": AgentConfig(lambda: worker, "Read only.", lambda: [Hold()])},
+            max_messages=1,
+        )
+        first = await self.launch(backend)
+        await entered.wait()
+        # Must return while the worker's tool is still blocked.
+        async with asyncio.timeout(2):
+            sent = (
+                await AgentSend(backend).call(
+                    {"agent_id": first["agent_id"], "message": "CLARIFICATION_MARKER"},
+                    scope=self.scope,
+                )
+            )["data"]
+        self.assertEqual(sent["status"], "queued")
+        self.assertTrue(sent["history_recorded"])
+        self.assertEqual(sent["task_id"], first["task_id"])
+        self.assertEqual(len(worker.calls), 1)
+        self.assertEqual(len((await backend.status(self.scope))["tasks"]), 1)
+        with self.assertRaises(LimitExceededError):
+            await backend.send(self.scope, agent_id=first["agent_id"], message="TOO_MANY")
+        release.set()
+        await backend.wait(first["task_id"])
+        self.assertIn("CLARIFICATION_MARKER", str(worker.calls[-1].messages))
+        second = await backend.followup(self.scope, agent_id=first["agent_id"], task="RECALL")
+        await backend.wait(second["task_id"])
+        self.assertIn("CLARIFICATION_MARKER", str(worker.calls[-1].messages))
+
+    @bounded
+    async def test_principal_can_followup_during_result_relay(self):
+        backend = self.backend(profiles={"reader": self.config()})
+        original = self.speaker.generate
+        followups = []
+
+        async def react(context):
+            if not followups:
+                record = (await backend.status(self.scope))["tasks"][0]
+                followups.append(
+                    await backend.followup(
+                        self.scope, agent_id=record["agent_id"], task="One continuation"
+                    )
+                )
+            return await original(context)
+
+        self.speaker.generate = react
+        first = await self.launch(backend)
+        await backend.wait(first["task_id"])
+        await backend.wait(followups[0]["task_id"])
+        self.assertEqual(len(self.workers[0].calls), 2)
+        self.assertEqual(len(self.speaker.calls), 2)
+
+    @bounded
+    async def test_send_reports_partial_history_failure_and_close_owns_inflight_message(self):
+        from types import SimpleNamespace
+
+        backend = self.backend(profiles={"reader": self.config(asyncio.Event())})
+        first = await self.launch(backend)
+        await self.workers[0].entered.wait()
+        agent = first["agent_id"]
+        with patch.object(self.kit, "steer", return_value=1):
+            with patch.object(self.kit, "post", side_effect=RuntimeError("store unavailable")):
+                sent = await backend.send(self.scope, agent_id=agent, message="ACCEPTED")
+            self.assertEqual(sent["status"], "queued")
+            self.assertFalse(sent["history_recorded"])
+            with patch.object(self.kit, "post", return_value=SimpleNamespace(status="blocked")):
+                sent = await backend.send(self.scope, agent_id=agent, message="BLOCKED_HISTORY")
+            self.assertFalse(sent["history_recorded"])
+            entered, release = asyncio.Event(), asyncio.Event()
+
+            async def delayed_post(*args, **kwargs):
+                entered.set()
+                await release.wait()
+                return SimpleNamespace(status="delivered")
+
+            with patch.object(self.kit, "post", side_effect=delayed_post):
+                caller = asyncio.create_task(
+                    backend.send(self.scope, agent_id=agent, message="OWNED")
+                )
+                await entered.wait()
+                caller.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await caller
+                close = asyncio.create_task(backend.aclose())
+                release.set()
+                await close
+            self.assertEqual(self.workers[0].closed, 1)
+            self.assertEqual((await backend.status(self.scope))["tasks"][0]["status"], "cancelled")
+
+    @bounded
+    async def test_failed_followup_submission_preserves_idle_instance_and_task_bound(self):
+        backend = self.backend(profiles={"reader": self.config()}, max_tasks=3)
+        first = await self.launch(backend)
+        await backend.wait(first["task_id"])
+        with patch.object(self.kit.task_runner, "submit", side_effect=RuntimeError("unavailable")):
+            with self.assertRaisesRegex(RuntimeError, "unavailable"):
+                await backend.followup(
+                    self.scope, agent_id=first["agent_id"], task="Failed admission"
+                )
+        records = (await backend.status(self.scope))["tasks"]
+        self.assertEqual(records[-1]["status"], "failed")
+        self.assertTrue(records[-1]["agent_available"])
+        await backend.wait(records[-1]["task_id"])
+        third = await backend.followup(self.scope, agent_id=first["agent_id"], task="Retry")
+        self.assertEqual((await backend.wait(third["task_id"]))["status"], "completed")
+        with self.assertRaises(LimitExceededError):
+            await backend.followup(self.scope, agent_id=first["agent_id"], task="Over capacity")
+
+    @bounded
+    async def test_close_immediately_after_followup_reservation_settles_waiters(self):
+        backend = self.backend(profiles={"reader": self.config()})
+        first = await self.launch(backend)
+        await backend.wait(first["task_id"])
+        entered = asyncio.Event()
+
+        async def unaccepted(*args, **kwargs):
+            entered.set()
+            await asyncio.Event().wait()
+
+        with patch.object(self.kit.task_runner, "submit", side_effect=unaccepted):
+            launch = asyncio.create_task(
+                backend.followup(self.scope, agent_id=first["agent_id"], task="Never accepted")
+            )
+            await entered.wait()
+            await backend.aclose()
+            with self.assertRaises(asyncio.CancelledError):
+                await launch
+        records = (await backend.status(self.scope))["tasks"]
+        last = await backend.wait(records[-1]["task_id"])
+        self.assertNotEqual(last["status"], "running")
+        self.assertFalse(last["agent_available"])
+        self.assertEqual(self.workers[0].closed, 1)

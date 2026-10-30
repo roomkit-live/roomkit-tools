@@ -93,8 +93,8 @@ In text output, matches use `path:line:` and context uses `path-line-`.
 `write` creates complete UTF-8 files and requires `overwrite: true` to replace
 existing text. `edit` replaces exact text, refusing zero or multiple matches
 unless `replace_all: true` permits multiple matches. Both cap files at 8 MiB
-by default. Mutations stage a sibling temporary file before committing; they
-require existing parent directories and refuse leaf symlinks. Share one
+by default. Mutations stage a sibling temporary file before committing and
+refuse leaf symlinks. `write` creates missing parent directories. Share one
 `MutationWorkspace` across selected writers/editors to serialize their work.
 Cancellation before commit leaves the destination unchanged; a commit that has
 already started may finish. Root and snapshot checks do not prevent hostile
@@ -537,8 +537,11 @@ when a matching revision is supplied. `edit(path, old_text, new_text,
 replace_all=False, expected_revision=None)` replaces an exact nonempty passage.
 Multiple matches require `replace_all=True`; no matches are refused. Empty
 `new_text` removes the passage and keeps the file. Both preserve raw line endings
-and BOM, refuse leaf symlinks and NUL/binary content, and require existing parent
-directories. No directories are created implicitly.
+and BOM, and refuse leaf symlinks and NUL/binary content. `write` automatically
+creates missing parent directories (up to 64 levels) inside its root and returns
+them in `created_directories`. Input/revision checks run before directory creation;
+parents can remain if subsequent I/O or cancellation prevents the file commit.
+`edit` requires an existing file; patch operations still require existing parents.
 
 Both constructors accept `max_file_bytes` (8 MiB by default), bounding source,
 arguments and result as applicable. Results contain changed/created flags or
@@ -1010,17 +1013,20 @@ execution here does not imply recovery after a process restart.
 
 ## Agent tools: development API
 
-`delegate_task`, `task_status` and `cancel_task` are independently selectable.
+`delegate_task`, `task_status`, `cancel_task`, `agent_followup` and `agent_send`
+are independently selectable.
 Their Rust crate, `roomkit-tools-agents`, derives schemas from its actual input
 and output types and exposes an open `AgentBackend` trait with boxed futures.
 It has no runtime, model provider or RoomKit dependency. Tool objects only hold
 the injected backend; the backend owns execution and state. A native RoomKit
 Rust backend is not implemented yet.
 
-Python exposes the same validated contracts through `DelegateTask`, `TaskStatus`
-and `CancelTask`. A custom Python backend implements the three async methods
-in `roomkit_tools.agents.AgentBackend`; no Rust callback implementation is
-needed. `tool.call(arguments, scope=AgentScope(...))` works without RoomKit.
+Python exposes the same validated contracts through `DelegateTask`, `TaskStatus`,
+`CancelTask`, `AgentFollowup` and `AgentSend`. A custom Python backend implements
+the corresponding async methods in `roomkit_tools.agents.AgentBackend`; no Rust
+callback implementation is needed. Backends lacking continuation/message support
+return an explicit unsupported error when those tools are selected.
+`tool.call(arguments, scope=AgentScope(...))` works without RoomKit.
 `tool.contract()` exposes both schemas; `tool.definition` and `tool.handler`
 implement RoomKit's Tool protocol. Inputs and normalized outputs are checked
 by Rust, including unknown fields, UTF-8 byte limits and terminal states.
@@ -1030,7 +1036,9 @@ child rooms and `kit.deliver()` relay. Configure it once and select tools:
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import AgentScope, CancelTask, DelegateTask, Read, TaskStatus
+from roomkit_tools import (
+    AgentScope, CancelTask, DelegateTask, AgentFollowup, AgentSend, Read, TaskStatus,
+)
 from roomkit_tools.roomkit_agents import AgentConfig, RoomKitAgentBackend
 
 # kit and its "conversation" room already exist. The host supplies factories
@@ -1049,7 +1057,10 @@ async with RoomKitAgentBackend(
     assistant = AIChannel(
         "assistant",
         provider=make_principal_provider(),
-        tools=[DelegateTask(agents), TaskStatus(agents), CancelTask(agents)],
+        tools=[
+            DelegateTask(agents), TaskStatus(agents), CancelTask(agents),
+            AgentFollowup(agents), AgentSend(agents),
+        ],
     )
     # Register/attach assistant and run the host conversation here.
     # Exit this context before closing kit.
@@ -1059,11 +1070,28 @@ A static profile is a reusable blueprint, not a shared live agent. Each
 delegation creates a unique agent instance and a new child room, with only
 the task as initial context. Provider factories must return fresh instances;
 RoomKit closes each provider when its instance is released. Tools with their
-own sessions remain host-owned. No child continuation or implicit conversation
-inheritance is provided in this first version.
+own sessions remain host-owned. `agent_followup(agent_id, task)` starts a new
+mission on an idle instance, retaining its child room, provider and tools. The
+resolver is not called again. The task ID changes; the agent ID stays the same.
+Prior conversation remains in the store; RoomKit's context limits still govern
+what the model sees. Busy or expired instances refuse follow-ups.
+
+`agent_send(agent_id, message)` queues a clarification to a running loop using
+RoomKit steering. `queued` means accepted for a future tool-round boundary, not
+already read or acted upon. It also records the text in the child conversation
+without starting a new turn, reporting `history_recorded` separately. If that
+write fails, the steering remains accepted: do not blindly resend it. An idle
+agent returns `not_running` and starts nothing; use `agent_followup` instead.
+A final model response may finish before the next steering boundary.
+
+Follow-ups use the public `kit.task_runner.submit()` with the retained child room;
+initial delegations use `kit.delegate()`. Manage these missions through this
+backend's status/cancel tools, not RoomKit's built-in room task catalogue, which
+does not register submissions made directly to the runner. Reports use RoomKit's
+hand-back helper and `kit.deliver()` to let the principal respond naturally.
 
 For dynamic configuration, replace `profiles` with a resolver and an explicit
-allow list; the three tools remain the same:
+allow list; the tools remain the same:
 
 ```python
 async def resolve_agent(request):
@@ -1084,16 +1112,19 @@ agents = RoomKitAgentBackend(
 ```
 
 Resolution runs once per launch, after access and capacity checks. The host
-controls provider, credentials, tools, workspace and deadlines. Model arguments
+controls provider, credentials, tools, workspace and deadlines. Delegation arguments
 contain only `profile` and `task`; allowed profiles also appear in the schema.
+Follow-ups and messages address an existing `agent_id` without changing its configuration.
 The RoomKit handler reads the actual calling channel and room from its tool
 context, then the backend verifies its fixed conversation/principal scope on
 every operation. These checks do not authenticate end users or provide an OS
 sandbox. Apply end-user policy in the host before invoking tools.
 
 Defaults allow two concurrent instances, eight retained tasks, ten seconds for
-resolution and 180 seconds for the worker tool loop. The maximum retained task
-count is 64; ended receipts are retained without silent eviction. Task text is
+resolution and 180 seconds for the worker tool loop. Idle instances expire after
+300 seconds (`idle_timeout`); availability is reported as `agent_available`.
+Messages are limited to 8 KiB and 32 accepted messages per instance (`max_messages`).
+The maximum retained task count is 64; ended receipts are retained without silent eviction. Task text is
 limited to 16 KiB and retained result text to 8 KiB, with `result_truncated`
 explicitly reported. This bound covers the registry's copy, not RoomKit's own
 history or the full report delivered by its relay. A backend is tied to one
@@ -1111,13 +1142,12 @@ Cancelling a caller waiting for delegation does not revoke its accepted launch.
 Recover with `task_status` before retrying: `pending_launches` reports outstanding
 configuration resolutions that do not yet have task IDs. Cancellation and
 `aclose()` own shielded cleanup tasks. Always close the backend before RoomKit;
-close stops its launches/tasks, releases channels/providers and removes its
-hooks. Child-room history remains in the RoomKit store. Cleanup failures are
-reported. Close waits for a principal turn already receiving a report; configure
+close stops its launches/tasks and releases channels/providers. Child-room history
+remains in the RoomKit store. Cleanup failures are reported. Close waits for a principal turn already receiving a report; configure
 that channel's provider/turn deadlines as well. Abrupt process termination is
 outside this in-memory contract.
 
-This API is in the local `0.1.0a13.dev0` development build, not the a12 release.
+This API is in the local `0.1.0a13.dev1` development build, not the a12 release.
 Build/install from this checkout, then exercise both configuration modes:
 
 ```sh
@@ -1130,10 +1160,12 @@ python examples/roomkit_agents.py --chat --hold --dynamic
 
 The interactive example allows natural-language delegation or direct host
 commands: `/start researcher`, `/start reviewer`, `/list`, `/cancel [task_id]`,
-`/release` and `/check`. With `--hold`, each new instance pauses at `read` until
-released. The researcher has read/grep/outline; the reviewer has only read.
-The automated modes verify actual reads, distinct instances, unchanged source
-and result delivery through the principal. No live service is needed by tests.
+`/followup [agent_id] [task]`, `/send [agent_id] [message]`, `/release`, `/pause`
+and `/check`. An omitted agent ID selects the most recent instance. With `--hold`,
+each new instance pauses at `read` until released. `/pause` arms another pause
+for existing instances before a follow-up. The researcher has read/grep/outline; the reviewer has only read.
+The automated modes verify actual reads per mission, two distinct instances,
+a continuation on the same instance, unchanged source and principal replies. No live service is needed by tests.
 
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns

@@ -4,12 +4,15 @@ import copy
 import unittest
 
 from roomkit_tools import (
+    AgentFollowup,
     AgentScope,
+    AgentSend,
     CancelTask,
     DelegateTask,
     InvalidInputError,
     LimitExceededError,
     TaskStatus,
+    UnsupportedResourceError,
 )
 
 RECEIPT = {
@@ -20,6 +23,7 @@ RECEIPT = {
     "delivery": "pending",
     "result": None,
     "result_truncated": False,
+    "agent_available": True,
 }
 
 
@@ -86,3 +90,42 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(definition["input_schema"]["properties"]), {"profile", "task"})
         self.assertFalse(definition["input_schema"]["additionalProperties"])
         self.assertIn("delivery", definition["output_schema"]["properties"])
+
+    async def test_followup_send_contracts_and_missing_backend_extensions(self):
+        scope = AgentScope("room", "assistant")
+        backend = Backend()
+        for tool, arguments in (
+            (AgentFollowup(backend), {"agent_id": "a1", "task": "Continue"}),
+            (AgentSend(backend), {"agent_id": "a1", "message": "Clarify"}),
+        ):
+            with self.assertRaises(UnsupportedResourceError):
+                await tool.call(arguments, scope=scope)
+            with self.assertRaises(InvalidInputError):
+                await tool.call({**arguments, "room_id": "foreign"}, scope=scope)
+
+        async def followup(scope, **arguments):
+            return {**RECEIPT, "task_id": "t2"}
+
+        async def send(scope, **arguments):
+            return {
+                "agent_id": "a1",
+                "task_id": "t2",
+                "message_id": "m1",
+                "status": "queued",
+                "history_recorded": True,
+            }
+
+        backend.followup, backend.send = followup, send
+        result = await AgentFollowup(backend).call(
+            {"agent_id": "a1", "task": "Continue"}, scope=scope
+        )
+        self.assertEqual(result["data"]["task_id"], "t2")
+        result = await AgentSend(backend).call(
+            {"agent_id": "a1", "message": "Clarify"}, scope=scope
+        )
+        self.assertEqual(result["data"]["message_id"], "m1")
+        with self.assertRaises(LimitExceededError):
+            await AgentSend(backend).call({"agent_id": "a1", "message": "é" * 4097}, scope=scope)
+        self.assertEqual(
+            set(AgentSend.contract()["input_schema"]["properties"]), {"agent_id", "message"}
+        )

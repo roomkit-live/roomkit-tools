@@ -75,6 +75,7 @@ class MutationTests(unittest.IsolatedAsyncioTestCase):
                 "changed": True,
                 "bytes_written": len(first.encode()),
                 "revision": revision(first.encode()),
+                "created_directories": [],
             },
         )
         added = await self.edit.edit(
@@ -230,9 +231,9 @@ class MutationTests(unittest.IsolatedAsyncioTestCase):
                 await write.write(path, "changed", overwrite=True)
             with self.assertRaises(AccessRefusedError):
                 await edit.edit(path, "outside", "changed")
-        with self.assertRaises(ToolIOError):
-            await write.write("absent/file.txt", "value")
-        self.assertFalse((child / "absent").exists())
+        created = await write.write("absent/nested/file.txt", "value")
+        self.assertEqual(created["data"]["created_directories"], ["absent", "absent/nested"])
+        self.assertEqual((child / "absent/nested/file.txt").read_text(), "value")
         with self.assertRaises(ToolIOError) as caught:
             await edit.edit("private-missing-file", "a", "b")
         self.assertNotIn("private-missing-file", str(caught.exception))

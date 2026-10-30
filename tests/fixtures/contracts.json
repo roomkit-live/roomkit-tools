@@ -2,6 +2,16 @@
   "version": 2,
   "cases": [
     {
+      "name": "write_creates_missing_parents",
+      "files": {},
+      "steps": [
+        {"tool": "write", "input": {"path": "src/services/client.py", "content": "VALUE = 1\n"}, "expect": {"/data/created": true, "/data/created_directories": ["src", "src/services"]}},
+        {"tool": "write", "input": {"path": "src/services/client.py", "content": "VALUE = 2\n"}, "expect": {"/error": "refused"}},
+        {"tool": "read", "input": {"path": "src/services/client.py"}, "expect": {"/data/lines": [{"number": 1, "text": "VALUE = 1"}]}}
+      ],
+      "files_after": {"src/services/client.py": "VALUE = 1\n"}
+    },
+    {
       "name": "optional_archive_pages_and_release",
       "outputs": true,
       "files": {},

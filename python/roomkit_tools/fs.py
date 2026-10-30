@@ -328,7 +328,7 @@ class _MutationTool:
 class WriteTool(_MutationTool):
     """Create or explicitly overwrite bounded UTF-8 text beneath a root.
 
-    Parent directories must exist. Leaf symlinks and NUL-containing text are
+    Missing parents are created automatically. Leaf symlinks and NUL-containing text are
     refused. Exact bytes, including BOM and line endings, are preserved.
     Replacement requires overwrite=True even with expected_revision.
     """

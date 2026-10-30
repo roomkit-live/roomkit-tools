@@ -11,7 +11,7 @@ use crate::{MutationWorkspace, mutation, revision};
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WriteInput {
-    /// File beneath the configured root. Its parent directory must exist.
+    /// File beneath the configured root. Missing parent directories are created.
     pub path: String,
     /// Complete file contents; written exactly, including BOM and line endings.
     pub content: String,
@@ -65,6 +65,8 @@ pub struct WriteResult {
     pub bytes_written: usize,
     /// SHA-256 revision of the resulting raw bytes, including BOM and line endings.
     pub revision: String,
+    /// Workspace-relative directories created by this call, outermost first.
+    pub created_directories: Vec<String>,
 }
 
 /// Stage and commit complete UTF-8 text files beneath an explicit root.
@@ -105,7 +107,7 @@ impl WriteTool {
     pub fn definition() -> Definition {
         Definition::new::<WriteInput, WriteResult>(
             "write",
-            "Create a UTF-8 text file with complete content. Parent directories must exist. Replacing an existing file requires overwrite: true; read it first and pass its revision as expected_revision to refuse stale overwrites. Paths must stay inside the workspace; leaf symlinks are refused. Returns path, created/changed flags, resulting byte count and revision. Use edit for targeted changes.",
+            "Create a UTF-8 text file with complete content. Missing parent directories are created automatically inside the workspace. Replacing an existing file requires overwrite: true; read it first and pass its revision as expected_revision to refuse stale overwrites. Paths must stay inside the workspace; leaf symlinks are refused. Returns path, created/changed flags, created_directories, byte count and revision. Use edit for targeted changes.",
         )
     }
 
@@ -113,6 +115,7 @@ impl WriteTool {
     ///
     /// Dropping the future requests cancellation; an already-started commit
     /// may still finish. A waiting caller receives success after commit.
+    /// Created parents can remain if later I/O or cancellation prevents commit.
     ///
     /// # Errors
     /// Returns invalid input, root/symlink/overwrite refusal, unsupported text,
@@ -126,7 +129,7 @@ impl WriteTool {
         self.workspace
             .run(cancel, move |root, cancel| {
                 mutation::bounded_text(&input.content, maximum)?;
-                let path = mutation::destination(root, &input.path)?;
+                let (path, parents) = mutation::write_destination(root, &input.path)?;
                 let relative = root.relative(&path)?;
                 let before = mutation::snapshot(&path, maximum)?;
                 revision::check(
@@ -143,6 +146,7 @@ impl WriteTool {
                     .is_none_or(|before| before.bytes != input.content.as_bytes());
                 mutation::check_cancel(cancel)?;
                 let revision = revision::of(input.content.as_bytes());
+                let created_directories = mutation::create_parents(root, &parents, cancel)?;
                 if changed {
                     mutation::commit(
                         &path,
@@ -158,10 +162,15 @@ impl WriteTool {
                     changed,
                     bytes_written: input.content.len(),
                     revision,
+                    created_directories,
                 };
                 let text = format!(
-                    "write {:?}: created={}, changed={}, bytes={}\n",
-                    data.path, data.created, data.changed, data.bytes_written
+                    "write {:?}: created={}, changed={}, bytes={}, created_directories={:?}\n",
+                    data.path,
+                    data.created,
+                    data.changed,
+                    data.bytes_written,
+                    data.created_directories
                 );
                 Ok(Output::new(data, text))
             })

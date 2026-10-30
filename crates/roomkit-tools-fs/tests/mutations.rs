@@ -172,22 +172,26 @@ async fn bounds_cover_existing_input_and_expanded_content_before_writing() {
 }
 
 #[tokio::test]
-async fn missing_parents_are_not_created_and_non_files_are_not_replaced() {
+async fn missing_parents_are_created_and_non_files_are_not_replaced() {
     let root = tempfile::tempdir().unwrap();
     std::fs::create_dir(root.path().join("directory")).unwrap();
     let write = WriteTool::new(root.path()).await.unwrap();
     let edit = EditTool::new(root.path()).await.unwrap();
     let cancel = CancellationToken::new();
+    let result = write
+        .write(WriteInput::new("missing/nested/orders", "a"), &cancel)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.data.created_directories,
+        ["missing", "missing/nested"]
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("missing/nested/orders")).unwrap(),
+        "a"
+    );
     assert!(matches!(
-        write
-            .write(WriteInput::new("missing/orders", "a"), &cancel)
-            .await,
-        Err(Error::Io { .. })
-    ));
-    assert!(!root.path().join("missing").exists());
-    assert!(matches!(
-        edit.edit(EditInput::new("missing", "a", "b"), &cancel)
-            .await,
+        edit.edit(EditInput::new("absent", "a", "b"), &cancel).await,
         Err(Error::Io { .. })
     ));
     assert!(matches!(
@@ -208,6 +212,66 @@ async fn missing_parents_are_not_created_and_non_files_are_not_replaced() {
         ));
     }
     assert!(root.path().join("directory").is_dir());
+}
+
+#[tokio::test]
+async fn rejected_writes_do_not_create_parents() {
+    let root = tempfile::tempdir().unwrap();
+    let tool = WriteTool::new(root.path()).await.unwrap();
+    let cancel = CancellationToken::new();
+    let mut stale = WriteInput::new("new/nested/file", "data");
+    stale.expected_revision = Some(format!("sha256:{}", "0".repeat(64)));
+    for input in [
+        stale,
+        WriteInput::new("new/nested/file", "bad\0text"),
+        WriteInput::new("new/../../outside/file", "data"),
+    ] {
+        assert!(tool.write(input, &cancel).await.is_err());
+        assert!(!root.path().join("new").exists());
+    }
+    let deep = format!("{}file", "a/".repeat(65));
+    assert!(matches!(
+        tool.write(WriteInput::new(deep, "data"), &cancel).await,
+        Err(Error::LimitExceeded(_))
+    ));
+    cancel.cancel();
+    assert!(matches!(
+        tool.write(WriteInput::new("new/file", "data"), &cancel)
+            .await,
+        Err(Error::Cancelled)
+    ));
+    assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn missing_parents_do_not_escape_through_symlinks() {
+    use std::os::unix::fs::symlink;
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    symlink(outside.path(), root.path().join("escape")).unwrap();
+    symlink(root.path().join("absent"), root.path().join("dangling")).unwrap();
+    let tool = WriteTool::new(root.path()).await.unwrap();
+    for path in ["escape/new/file", "dangling/new/file"] {
+        assert!(
+            tool.write(WriteInput::new(path, "data"), &CancellationToken::new())
+                .await
+                .is_err()
+        );
+    }
+    assert!(!outside.path().join("new").exists());
+    assert!(!root.path().join("absent").exists());
+    std::fs::create_dir(root.path().join("inside")).unwrap();
+    symlink(root.path().join("inside"), root.path().join("alias")).unwrap();
+    let result = tool
+        .write(
+            WriteInput::new("alias/new/file", "data"),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.data.path, "inside/new/file");
+    assert_eq!(result.data.created_directories, ["inside/new"]);
 }
 
 #[tokio::test]

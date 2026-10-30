@@ -14,7 +14,8 @@ use crate::paths::Root;
 /// Pass clones to `WriteTool::from_workspace` and `EditTool::from_workspace`
 /// to serialize their complete read/modify/commit operations. Separately
 /// constructed workspaces and external editors do not share this lock.
-/// Existing parent directories are required; leaf symlinks are refused.
+/// Write can create missing parents; other mutations require existing parents.
+/// Leaf symlinks are refused.
 #[derive(Clone, Debug)]
 pub struct MutationWorkspace {
     root: Root,
@@ -128,6 +129,108 @@ pub(crate) fn destination(root: &Root, input: &str) -> Result<PathBuf, Error> {
         ));
     }
     Ok(parent.join(name))
+}
+
+/// Plan missing directories without creating anything before input/revision
+/// validation. Existing-parent paths retain destination's canonical semantics.
+pub(crate) fn write_destination(
+    root: &Root,
+    input: &str,
+) -> Result<(PathBuf, Vec<PathBuf>), Error> {
+    match destination(root, input) {
+        Ok(path) => return Ok((path, Vec::new())),
+        Err(Error::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    let joined = root.path().join(input);
+    if joined
+        .components()
+        .any(|c| c == std::path::Component::ParentDir)
+    {
+        return Err(Error::Refused(
+            "missing-parent paths must not contain '..'".into(),
+        ));
+    }
+    let name = joined
+        .file_name()
+        .ok_or_else(|| Error::InvalidInput("path must name a file".into()))?;
+    let mut ancestor = joined
+        .parent()
+        .ok_or_else(|| Error::InvalidInput("path must have a parent".into()))?;
+    let mut names = Vec::new();
+    loop {
+        match fs::symlink_metadata(ancestor) {
+            Ok(_) => break,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if names.len() == 64 {
+                    return Err(Error::LimitExceeded(
+                        "write creates at most 64 parent directories".into(),
+                    ));
+                }
+                names.push(
+                    ancestor
+                        .file_name()
+                        .ok_or_else(|| Error::InvalidInput("invalid parent path".into()))?
+                        .to_owned(),
+                );
+                ancestor = ancestor
+                    .parent()
+                    .ok_or_else(|| Error::InvalidInput("invalid parent path".into()))?;
+            }
+            Err(error) => return Err(io("inspect the destination parent", error)),
+        }
+    }
+    let mut parent =
+        fs::canonicalize(ancestor).map_err(|e| io("resolve the destination parent", e))?;
+    if !parent.starts_with(root.path()) {
+        return Err(Error::Refused("path is outside the workspace root".into()));
+    }
+    if !parent.is_dir() {
+        return Err(Error::Unsupported(
+            "destination parent must be a directory".into(),
+        ));
+    }
+    let mut missing = Vec::new();
+    for name in names.into_iter().rev() {
+        parent.push(name);
+        missing.push(parent.clone());
+    }
+    Ok((parent.join(name), missing))
+}
+
+/// Create planned parents under the shared workspace lock, rechecking each
+/// resolved ancestor. External filesystem races remain outside this lock.
+pub(crate) fn create_parents(
+    root: &Root,
+    paths: &[PathBuf],
+    cancel: &CancellationToken,
+) -> Result<Vec<String>, Error> {
+    let mut created = Vec::new();
+    for path in paths {
+        check_cancel(cancel)?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| Error::InvalidInput("invalid parent path".into()))?;
+        let resolved =
+            fs::canonicalize(parent).map_err(|e| io("resolve the destination parent", e))?;
+        if !resolved.starts_with(root.path()) {
+            return Err(Error::Refused("path is outside the workspace root".into()));
+        }
+        match fs::create_dir(path) {
+            Ok(()) => created.push(root.relative(path)?),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let resolved =
+                    fs::canonicalize(path).map_err(|e| io("resolve the destination parent", e))?;
+                if !resolved.starts_with(root.path()) || !resolved.is_dir() {
+                    return Err(Error::Refused(
+                        "destination parent changed during creation".into(),
+                    ));
+                }
+            }
+            Err(error) => return Err(io("create a destination parent directory", error)),
+        }
+    }
+    Ok(created)
 }
 
 pub(crate) struct Snapshot {

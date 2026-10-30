@@ -2,13 +2,23 @@
 
 ## Unreleased
 
+- Create missing parent directories automatically in `write`, after validating
+  inputs/revisions and workspace containment. Report `created_directories`;
+  other mutation tools retain their existing directory requirements.
+- Add selectable `agent_followup` and `agent_send` contracts in Rust and Python.
+  The RoomKit backend retains agent sessions with bounded idle expiry, starts
+  new missions in their existing conversation, and queues clarifications through
+  steering with explicit queuing/history receipts. Preserve scope, cancellation,
+  resource ownership and result relay through the principal. Extend the example
+  with follow-up/message commands and per-mission evidence checks.
+
 - Add independently selectable `delegate_task`, `task_status` and `cancel_task`
   facades with Rust-derived contracts and host-injected Rust/Python backends.
   Keep runtime and model-provider dependencies out of the new agents crate.
 - Add an optional scoped RoomKit Python backend with static agent blueprints or
-  dynamic host resolution, fresh instances per task, bounded task retention,
+  dynamic host resolution, fresh instances per delegation, bounded task retention,
   cancellation/cleanup and observed result relay to the principal. Include a
-  scripted/live interactive example. Available in the `0.1.0a13.dev0` development
+  scripted/live interactive example. Available in the `0.1.0a13.dev1` development
   build; no new release is published.
 
 - Make background-demo read verification retain earlier valid evidence and

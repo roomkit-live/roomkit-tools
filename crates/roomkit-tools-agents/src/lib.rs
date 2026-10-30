@@ -44,6 +44,52 @@ pub struct CancelInput {
     pub task_id: String,
 }
 
+/// A new mission in an existing agent conversation.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FollowupInput {
+    /// Agent instance returned by delegation, not a profile or task ID.
+    pub agent_id: String,
+    /// New instructions, at most 16 KiB. The previous conversation is retained.
+    pub task: String,
+}
+
+/// A clarification for the agent's currently running mission.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SendInput {
+    /// Existing agent instance, not a profile or task ID.
+    pub agent_id: String,
+    /// Plain message, at most 8 KiB. Does not change tools or permissions.
+    pub message: String,
+}
+
+/// Observed admission to a running loop; not proof of model consumption.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SendState {
+    /// Queued for the next steering boundary of the active loop.
+    Queued,
+    /// No active loop accepted the message; no new task was started.
+    NotRunning,
+}
+
+/// Receipt for a message to an existing running agent.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SendResult {
+    /// Addressed agent instance.
+    pub agent_id: String,
+    /// Mission targeted by this attempt, if any.
+    pub task_id: Option<String>,
+    /// Accepted message identifier, or None when no loop accepted it.
+    pub message_id: Option<String>,
+    /// Observed queuing outcome, not an acknowledgement from the model.
+    pub status: SendState,
+    /// Whether the message was also saved in the child conversation.
+    pub history_recorded: bool,
+}
+
 /// Observed worker state, independent of delivery to the principal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -90,6 +136,9 @@ pub struct TaskInfo {
     pub result: Option<String>,
     /// Whether the backend clipped the retained result.
     pub result_truncated: bool,
+    /// Whether the agent session is retained. A follow-up also requires it to be idle.
+    #[serde(default)]
+    pub agent_available: bool,
 }
 
 /// Retained tasks, limited to 64; no hidden eviction or pagination.
@@ -139,6 +188,30 @@ pub trait AgentBackend: Debug + Send + Sync {
         scope: &'a AgentScope,
         input: &'a CancelInput,
     ) -> AgentFuture<'a, CancelResult>;
+    /// Start a new mission in a retained, idle agent conversation.
+    fn followup<'a>(
+        &'a self,
+        _scope: &'a AgentScope,
+        _input: &'a FollowupInput,
+    ) -> AgentFuture<'a, TaskInfo> {
+        Box::pin(async {
+            Err(Error::Unsupported(
+                "agent continuation is not supported by this backend".into(),
+            ))
+        })
+    }
+    /// Queue plain text for an active loop. Never silently start another mission.
+    fn send<'a>(
+        &'a self,
+        _scope: &'a AgentScope,
+        _input: &'a SendInput,
+    ) -> AgentFuture<'a, SendResult> {
+        Box::pin(async {
+            Err(Error::Unsupported(
+                "agent messages are not supported by this backend".into(),
+            ))
+        })
+    }
 }
 
 /// Validate and render the same typed contract in native and foreign hosts.
@@ -185,6 +258,37 @@ impl AgentContract for StatusInput {
 impl AgentContract for CancelInput {
     fn validate(&self) -> Result<(), Error> {
         bounded(&self.task_id, "task_id", 256)
+    }
+}
+impl AgentContract for FollowupInput {
+    fn validate(&self) -> Result<(), Error> {
+        bounded(&self.agent_id, "agent_id", 256)?;
+        bounded(&self.task, "task", 16_384)
+    }
+}
+impl AgentContract for SendInput {
+    fn validate(&self) -> Result<(), Error> {
+        bounded(&self.agent_id, "agent_id", 256)?;
+        bounded(&self.message, "message", 8192)
+    }
+}
+impl AgentContract for SendResult {
+    fn validate(&self) -> Result<(), Error> {
+        bounded(&self.agent_id, "agent_id", 256)?;
+        if let Some(id) = &self.task_id {
+            bounded(id, "task_id", 256)?;
+        }
+        if let Some(id) = &self.message_id {
+            bounded(id, "message_id", 256)?;
+        }
+        if (self.status == SendState::Queued
+            && (self.task_id.is_none() || self.message_id.is_none()))
+            || (self.status == SendState::NotRunning
+                && (self.message_id.is_some() || self.history_recorded))
+        {
+            return Err(Error::InvalidInput("inconsistent message receipt".into()));
+        }
+        Ok(())
     }
 }
 impl AgentContract for TaskInfo {
@@ -308,4 +412,20 @@ tool!(
     cancel,
     "cancel_task",
     "Cancel an owned background task. Already ended tasks are unchanged. Inspect cancelled and the returned state; do not infer success."
+);
+tool!(
+    AgentFollowupTool,
+    FollowupInput,
+    TaskInfo,
+    followup,
+    "agent_followup",
+    "Start a new background mission in a retained idle agent's conversation. Use `agent_id` from delegation or `task_status`. Returns a NEW `task_id` for the SAME `agent_id`. Busy or expired agents are refused. Results return to the principal."
+);
+tool!(
+    AgentSendTool,
+    SendInput,
+    SendResult,
+    send,
+    "agent_send",
+    "Send a clarification to an existing agent's running mission. queued means accepted for a future tool-round boundary, not already read by the model. `not_running` starts nothing; use `agent_followup` for an idle agent. Check `history_recorded` before assuming future missions retain the message."
 );
