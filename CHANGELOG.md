@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Align the optional engine integration with the Responses-compatible revision
+  supporting renewable provider credentials.
+
+
 - Expose host-only process observation with trusted owner, command, frozen elapsed
   time and lifecycle notifications. Output chunks do not wake hidden UI monitors.
 
