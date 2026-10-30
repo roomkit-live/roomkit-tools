@@ -15,7 +15,9 @@ artifacts; release-specific changes belong in the changelog.
 The existing [distribution workflow](../.github/workflows/python-distributions.yml)
 builds optimized, stripped CPython 3.12+ stable-ABI wheels for Linux x86_64
 (glibc 2.34+) and source distributions for the base package and optional OCR
-backend. It checks package metadata, hashes the files, and tests wheel/source
+backend. Both wheels are compiled inside a pinned manylinux 2.34 container and
+audited against that baseline; the host runner is not the wheel build environment.
+It checks package metadata, hashes the files, and tests wheel/source
 installations independently on CPython 3.12 and 3.14. The
 workflow has read-only repository permissions and does not upload to an index.
 Other wheel platforms need their own build and validation work before release.
