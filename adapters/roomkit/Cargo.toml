@@ -16,8 +16,8 @@ resolver = "3"
 roomkit-tools-code = { path = "../../crates/roomkit-tools-code" }
 roomkit-tools-search = { path = "../../crates/roomkit-tools-search" }
 roomkit-tools-web = { path = "../../crates/roomkit-tools-web" }
-roomkit = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "ed1ef2a95dc82f16978276e9c33c081f6ea33e0e" }
-roomkit-ai = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "ed1ef2a95dc82f16978276e9c33c081f6ea33e0e" }
+roomkit = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "700ae223e720b692d9bc2143d9259a358a9b993a" }
+roomkit-ai = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "700ae223e720b692d9bc2143d9259a358a9b993a" }
 roomkit-tools-core = { path = "../../crates/roomkit-tools-core" }
 roomkit-tools-fs = { path = "../../crates/roomkit-tools-fs" }
 roomkit-tools-process = { path = "../../crates/roomkit-tools-process" }
