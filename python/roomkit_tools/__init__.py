@@ -8,6 +8,7 @@ from ._native import (
     ToolIOError,
     UnsupportedResourceError,
 )
+from .agents import AgentBackend, AgentScope, CancelTask, DelegateTask, TaskStatus
 from .code import CodeOutlineTool
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .output import OutputStore
@@ -38,6 +39,11 @@ from .web import WebFetchTool
 from .workspace import Workspace
 
 __all__ = [
+    "AgentBackend",
+    "AgentScope",
+    "CancelTask",
+    "DelegateTask",
+    "TaskStatus",
     "AccessRefusedError",
     "CodeOutline",
     "CodeOutlineTool",

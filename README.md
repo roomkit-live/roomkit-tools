@@ -3,11 +3,12 @@
 Individually selectable tools for coding agents, implemented in Rust and
 intended for use from Rust, Python and RoomKit.
 
-**Status: filesystem, process, output archive, web fetch and search tools in Rust and RoomKit.** The workspace provides
+**Status: filesystem, process, output archive, web, search and code tools in Rust and RoomKit.** The workspace provides
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
-`process_write`, `process_stop`, `output_read`, `output_forget`, `web_fetch` and `web_search`, each independently selectable.
+`process_write`, `process_stop`, `output_read`, `output_forget`, `web_fetch`, `web_search` and `code_outline`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python exposes the same eighteen tools, directly selectable in RoomKit.
+Python exposes these tools directly in RoomKit. The development checkout also adds
+three delegation facades over host-injected backends, described below.
 Shared contracts and lifecycle regressions cover the implemented capabilities.
 Nothing is published to crates.io or PyPI yet.
 
@@ -1001,15 +1002,142 @@ shutdown with a pending call, repeated launch refusal, host/model capacity
 sharing, terminal commands independent of model tool selection, an empty
 assistant reply, and shutdown while the assistant is receiving a result.
 
-This is an orchestration example using the existing a12 package. It adds no
-task tools to the native catalogue or new task scheduler. Agent profiles are
-preconfigured; creating profiles dynamically and continuing a previous child
-conversation are future work. RoomKit's default runner is in memory; background
+This orchestration example works with the existing a12 package and preconfigured
+RoomKit agents. The separate development API below adds configurable delegation
+tools; continuing a previous child conversation remains future work.
+RoomKit's default runner is in memory; background
 execution here does not imply recovery after a process restart.
+
+## Agent tools: development API
+
+`delegate_task`, `task_status` and `cancel_task` are independently selectable.
+Their Rust crate, `roomkit-tools-agents`, derives schemas from its actual input
+and output types and exposes an open `AgentBackend` trait with boxed futures.
+It has no runtime, model provider or RoomKit dependency. Tool objects only hold
+the injected backend; the backend owns execution and state. A native RoomKit
+Rust backend is not implemented yet.
+
+Python exposes the same validated contracts through `DelegateTask`, `TaskStatus`
+and `CancelTask`. A custom Python backend implements the three async methods
+in `roomkit_tools.agents.AgentBackend`; no Rust callback implementation is
+needed. `tool.call(arguments, scope=AgentScope(...))` works without RoomKit.
+`tool.contract()` exposes both schemas; `tool.definition` and `tool.handler`
+implement RoomKit's Tool protocol. Inputs and normalized outputs are checked
+by Rust, including unknown fields, UTF-8 byte limits and terminal states.
+
+The optional `RoomKitAgentBackend` uses RoomKit's existing delegation runner,
+child rooms and `kit.deliver()` relay. Configure it once and select tools:
+
+```python
+from roomkit import AIChannel
+from roomkit_tools import AgentScope, CancelTask, DelegateTask, Read, TaskStatus
+from roomkit_tools.roomkit_agents import AgentConfig, RoomKitAgentBackend
+
+# kit and its "conversation" room already exist. The host supplies factories
+# returning fresh AIProvider instances, configured with its model/credentials.
+async with RoomKitAgentBackend(
+    kit,
+    scope=AgentScope("conversation", "assistant"),
+    profiles={
+        "researcher": AgentConfig(
+            provider_factory=make_worker_provider,
+            system_prompt="Analyze source using the supplied tools. Do not modify files.",
+            tools_factory=lambda: [Read(root="./project")],
+        ),
+    },
+) as agents:
+    assistant = AIChannel(
+        "assistant",
+        provider=make_principal_provider(),
+        tools=[DelegateTask(agents), TaskStatus(agents), CancelTask(agents)],
+    )
+    # Register/attach assistant and run the host conversation here.
+    # Exit this context before closing kit.
+```
+
+A static profile is a reusable blueprint, not a shared live agent. Each
+delegation creates a unique agent instance and a new child room, with only
+the task as initial context. Provider factories must return fresh instances;
+RoomKit closes each provider when its instance is released. Tools with their
+own sessions remain host-owned. No child continuation or implicit conversation
+inheritance is provided in this first version.
+
+For dynamic configuration, replace `profiles` with a resolver and an explicit
+allow list; the three tools remain the same:
+
+```python
+async def resolve_agent(request):
+    # request.profile, request.task and request.scope are immutable.
+    # Look up tenant configuration or select an approved model/toolset here.
+    return AgentConfig(
+        provider_factory=make_worker_provider,
+        system_prompt="Inspect the requested source and report observed facts.",
+        tools_factory=lambda: [Read(root="./project")],
+    )
+
+agents = RoomKitAgentBackend(
+    kit,
+    scope=AgentScope("conversation", "assistant"),
+    resolver=resolve_agent,
+    allowed_profiles=("researcher", "reviewer"),
+)
+```
+
+Resolution runs once per launch, after access and capacity checks. The host
+controls provider, credentials, tools, workspace and deadlines. Model arguments
+contain only `profile` and `task`; allowed profiles also appear in the schema.
+The RoomKit handler reads the actual calling channel and room from its tool
+context, then the backend verifies its fixed conversation/principal scope on
+every operation. These checks do not authenticate end users or provide an OS
+sandbox. Apply end-user policy in the host before invoking tools.
+
+Defaults allow two concurrent instances, eight retained tasks, ten seconds for
+resolution and 180 seconds for the worker tool loop. The maximum retained task
+count is 64; ended receipts are retained without silent eviction. Task text is
+limited to 16 KiB and retained result text to 8 KiB, with `result_truncated`
+explicitly reported. This bound covers the registry's copy, not RoomKit's own
+history or the full report delivered by its relay. A backend is tied to one
+asyncio loop and does not persist across restarts.
+
+`task_id`, `agent_id` and `profile` are distinct. `status` describes worker
+execution; `delivery` is independently `pending`, `delivered`, `failed` or
+`suppressed`. A completed worker does not by itself confirm a principal reply.
+The principal receives the report as an internal instruction and answers in
+the conversation. Cancellation suppresses a duplicate cancellation relay; an
+already completed task is unchanged. A delivery failure is reported without
+automatically retrying or rerunning the worker.
+
+Cancelling a caller waiting for delegation does not revoke its accepted launch.
+Recover with `task_status` before retrying: `pending_launches` reports outstanding
+configuration resolutions that do not yet have task IDs. Cancellation and
+`aclose()` own shielded cleanup tasks. Always close the backend before RoomKit;
+close stops its launches/tasks, releases channels/providers and removes its
+hooks. Child-room history remains in the RoomKit store. Cleanup failures are
+reported. Close waits for a principal turn already receiving a report; configure
+that channel's provider/turn deadlines as well. Abrupt process termination is
+outside this in-memory contract.
+
+This API is in the local `0.1.0a13.dev0` development build, not the a12 release.
+Build/install from this checkout, then exercise both configuration modes:
+
+```sh
+uv pip install '.[roomkit]'
+python examples/roomkit_agents.py
+python examples/roomkit_agents.py --dynamic
+# With roomkit[vllm], OPENAI_BASE_URL and OPENAI_MODEL configured:
+python examples/roomkit_agents.py --chat --hold --dynamic
+```
+
+The interactive example allows natural-language delegation or direct host
+commands: `/start researcher`, `/start reviewer`, `/list`, `/cancel [task_id]`,
+`/release` and `/check`. With `--hold`, each new instance pauses at `read` until
+released. The researcher has read/grep/outline; the reviewer has only read.
+The automated modes verify actual reads, distinct instances, unchanged source
+and result delivery through the principal. No live service is needed by tests.
 
 The native binding is a separate Cargo workspace and uses the stable Python ABI
 from 3.12. The existing read binding uses the same chunked Rust scan and returns
-its revision. All sixteen tools have Python bindings; other platforms and
+its revision. The implemented native tools have Python bindings; other platforms and
 free-threaded builds remain outside the validated Python slice.
 
 To build from this checkout instead, install Rust and [uv](https://docs.astral.sh/uv/):

@@ -14,6 +14,8 @@ use roomkit_tools_process::ShellLimits;
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
+mod agents;
+
 pyo3::create_exception!(
     "roomkit_tools",
     ToolError,
@@ -340,6 +342,7 @@ rooted_binding!(
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<agents::PythonAgentContract>()?;
     runtime::install(module)?;
     module.add_class::<Cancellation>()?;
     module.add_class::<PythonCodeOutlineTool>()?;

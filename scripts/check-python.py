@@ -161,6 +161,7 @@ def main() -> None:
                 "uv", "pip", "install", "--python", str(python), "--no-deps", str(package), cwd=work
             )
             run_tests(python, root, work, "test_read.py")
+            run_tests(python, root, work, "test_agents.py")
             run_tests(python, root, work, "test_shutdown.py")
             run_tests(python, root, work, "test_discovery.py")
             run_tests(python, root, work, "test_mutations.py")
@@ -193,6 +194,8 @@ def main() -> None:
             run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_outline.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_background.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/roomkit_agents.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/roomkit_agents.py"), "--dynamic", cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_output.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_web.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_search.py"), cwd=work)

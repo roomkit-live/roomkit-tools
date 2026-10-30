@@ -1119,6 +1119,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "roomkit-tools-agents"
+version = "0.1.0"
+dependencies = [
+ "roomkit-tools-core",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "roomkit-tools-code"
 version = "0.1.0"
 dependencies = [
@@ -1188,6 +1198,7 @@ version = "0.1.0"
 dependencies = [
  "pyo3",
  "pyo3-async-runtimes",
+ "roomkit-tools-agents",
  "roomkit-tools-code",
  "roomkit-tools-core",
  "roomkit-tools-fs",

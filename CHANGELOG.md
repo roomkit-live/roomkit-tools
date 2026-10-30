@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add independently selectable `delegate_task`, `task_status` and `cancel_task`
+  facades with Rust-derived contracts and host-injected Rust/Python backends.
+  Keep runtime and model-provider dependencies out of the new agents crate.
+- Add an optional scoped RoomKit Python backend with static agent blueprints or
+  dynamic host resolution, fresh instances per task, bounded task retention,
+  cancellation/cleanup and observed result relay to the principal. Include a
+  scripted/live interactive example. Available in the `0.1.0a13.dev0` development
+  build; no new release is published.
+
 - Make background-demo read verification retain earlier valid evidence and
   report observed ranges, arguments and revisions. Give the worker immediate
   feedback when its first read omits the required method range or precedes
