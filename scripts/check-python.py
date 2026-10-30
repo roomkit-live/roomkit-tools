@@ -194,6 +194,7 @@ def main() -> None:
             run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_outline.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_background.py"), cwd=work)
+            run(str(python), "-I", str(root / "examples/roomkit_delegate.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_agents.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_agents.py"), "--dynamic", cwd=work)
             run(

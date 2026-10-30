@@ -138,6 +138,8 @@ with real Rust code tools. Its default scripted mode and integration tests run
 with installed artifacts. Completion/cancellation checks coordinate through
 explicit events; no live model or arbitrary task-duration delay is required.
 
+`examples/roomkit_delegate.py` is the small delegated-read integration; its
+scripted mode runs against both installed artifacts, with actual tool evidence.
 `examples/roomkit_agents.py` exercises the packaged delegation facades and the
 optional RoomKit backend with static profiles and dynamic resolution. Both modes
 run against installed wheel and sdist artifacts. Rust and standalone Python

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.1.0a13
+
+- Release the five selectable agent tools and optional RoomKit Python backend.
+  Include a small delegated-read example alongside the lifecycle validation demo.
+
 - Add a parallel-agent validation scenario with isolated steering, independent
   cancellation, retained follow-up history and principal report delivery. Expose
   per-instance demo pauses and bounded turn diagnostics through public RoomKit
@@ -29,8 +34,7 @@
 - Add an optional scoped RoomKit Python backend with static agent blueprints or
   dynamic host resolution, fresh instances per delegation, bounded task retention,
   cancellation/cleanup and observed result relay to the principal. Include a
-  scripted/live interactive example. Available in the `0.1.0a13.dev2` development
-  build; no new release is published.
+  scripted/live interactive example. Available in the `0.1.0a13` preview.
 
 - Make background-demo read verification retain earlier valid evidence and
   report observed ranges, arguments and revisions. Give the worker immediate
@@ -51,6 +55,8 @@
   conversation, task status, result delivery and cancellation. Provide scripted,
   live and interactive modes with an explicit demo pause; verify child-room
   isolation, unchanged files, launch limits and shutdown cleanup.
+
+## Earlier previews
 
 - Release Python preview `0.1.0a12` with independently selectable `code_outline`
   in Rust, Python and RoomKit. Analyze Rust/Python definitions, signatures and

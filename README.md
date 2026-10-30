@@ -7,8 +7,9 @@ intended for use from Rust, Python and RoomKit.
 `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch`, `shell`, `process_start`, `process_status`, `process_read`,
 `process_write`, `process_stop`, `output_read`, `output_forget`, `web_fetch`, `web_search` and `code_outline`, each independently selectable.
 Optional RoomKit Rust adapters expose each tool through the `Toolset` interface.
-Python exposes these tools directly in RoomKit. The development checkout also adds
-three delegation facades over host-injected backends, described below.
+Python exposes these tools directly in RoomKit. Five agent tools add portable
+Rust contracts and facades over host-injected backends, with an optional RoomKit
+Python backend for delegation, status, cancellation, follow-ups and messages.
 Shared contracts and lifecycle regressions cover the implemented capabilities.
 Nothing is published to crates.io or PyPI yet.
 
@@ -56,6 +57,7 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | --- | --- |
 | `roomkit-tools-code` | `CodeOutlineTool`: Rust/Python syntax definitions, bounded signatures, source ranges and revision-consistent pages. |
 | `roomkit-tools-core` | Definitions with derived JSON schemas, structured output and typed errors; no I/O or async runtime. |
+| `roomkit-tools-agents` | Five typed agent contracts and stateless facades over an injected `AgentBackend`; no scheduler or RoomKit dependency. |
 | `roomkit-tools-fs` | `ReadTool`, `ListTool`, `GlobTool`, `GrepTool`, `WriteTool`, `EditTool`, `DiffTool`, `PatchTool`: bounded operations beneath an explicit root. |
 | `roomkit-tools-process` | `ShellTool` for foreground commands; `ProcessManager` for owned persistent jobs, paged output, stdin and cleanup; optional `OutputStore` for disk copies, reads and release. |
 | `roomkit-tools-web` | Independent `WebFetchTool`: HTTP(S) GET, host origin policy, Markdown/text/source conversion, deadlines and byte limits. |
@@ -63,7 +65,7 @@ Once `cargo-deny` is installed, `make all` runs all local gates. See
 | `roomkit-tools-search` | `WebSearchTool` and an open `SearchBackend` trait; optional `exa`, `ollama` and `openai` features, all off by default. |
 | `roomkit-tools-examples` | Standalone examples that verify what they show. |
 | `roomkit-tools-roomkit` | Optional adapters in `adapters/roomkit`: `ReadToolset`, `ListToolset`, `GlobToolset`, `GrepToolset`, `WriteToolset`, `EditToolset`, `DiffToolset`, `PatchToolset`, `ShellToolset` the five `Process*Toolset` adapters, `OutputReadToolset`, `OutputForgetToolset` `WebFetchToolset` and `WebSearchToolset`, registered individually. |
-| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes the eight filesystem tools, shell, five persistent-process tools two output-archive tools, web fetch and search. |
+| `roomkit-tools-python` | Optional CPython extension in `bindings/python`, with an `asyncio` API in `python/roomkit_tools`. Exposes filesystem, shell, process, archive, web, search and outline tools, plus validated agent facades and an optional RoomKit agent backend. |
 
 There is no global tool registry. A host instantiates the tools it needs
 and chooses which definitions to expose to its model.
@@ -401,18 +403,19 @@ Live services are excluded from automated checks.
 
 ## Python
 
-The `0.1.0a12` preview exposes **code_outline, read, list, glob, grep, write, edit, diff, patch,
-shell, the five process tools, output_read, output_forget, web_fetch and web_search**. Its prebuilt wheel supports ordinary
+The `0.1.0a13` preview exposes **code_outline, read, list, glob, grep, write, edit, diff, patch,
+shell, the five process tools, output_read, output_forget, web_fetch, web_search,
+delegate_task, task_status, cancel_task, agent_followup and agent_send**. Its prebuilt wheel supports ordinary
 CPython 3.12+ on Linux x86_64 with glibc 2.34 or newer, tested on Python 3.12 and
-3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a12)
+3.14. Download it from the [GitHub release](https://github.com/roomkit-live/roomkit-tools/releases/tag/v0.1.0a13)
 using an authenticated GitHub CLI, then install it without a Rust compiler:
 
 ```sh
-gh release download v0.1.0a12 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a13 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a12-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a13-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 The `[roomkit]` extra installs the supported RoomKit dependency. Omit it for
@@ -1005,13 +1008,12 @@ shutdown with a pending call, repeated launch refusal, host/model capacity
 sharing, terminal commands independent of model tool selection, an empty
 assistant reply, and shutdown while the assistant is receiving a result.
 
-This orchestration example works with the existing a12 package and preconfigured
-RoomKit agents. The separate development API below adds configurable delegation
-tools; continuing a previous child conversation remains future work.
+This orchestration example works with preconfigured RoomKit agents. The separate
+agent tools below add configurable delegation and same-instance continuation.
 RoomKit's default runner is in memory; background
 execution here does not imply recovery after a process restart.
 
-## Agent tools: development API
+## Agent tools
 
 `delegate_task`, `task_status`, `cancel_task`, `agent_followup` and `agent_send`
 are independently selectable.
@@ -1064,6 +1066,17 @@ async with RoomKitAgentBackend(
     )
     # Register/attach assistant and run the host conversation here.
     # Exit this context before closing kit.
+```
+
+For a complete small example, run [roomkit_delegate.py](examples/roomkit_delegate.py).
+It registers only `DelegateTask` on the principal and `Read` on the researcher,
+then waits for the report before closing the owned backend. The default run
+uses scripted providers, a real RoomKit conversation and an actual Rust file read:
+
+```sh
+python examples/roomkit_delegate.py
+# With roomkit[vllm], OPENAI_BASE_URL and OPENAI_MODEL configured:
+python examples/roomkit_delegate.py --live
 ```
 
 A static profile is a reusable blueprint, not a shared live agent. Each
@@ -1153,8 +1166,8 @@ remains in the RoomKit store. Cleanup failures are reported. Close waits for a p
 that channel's provider/turn deadlines as well. Abrupt process termination is
 outside this in-memory contract.
 
-This API is in the local `0.1.0a13.dev2` development build, not the a12 release.
-Build/install from this checkout, then exercise both configuration modes:
+This API is available in the `0.1.0a13` preview. Install the release wheel above
+or build from this checkout, then exercise both configuration modes:
 
 ```sh
 uv pip install '.[roomkit]'
