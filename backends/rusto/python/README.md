@@ -13,7 +13,9 @@ tools = [Ocr(root="./documents", backend=RustoOcr("./models"))]
 # Pass tools to RoomKit's AIChannel, or use OcrTool.create for standalone calls.
 ```
 
-This is an unreleased development package. From the repository root:
+Prebuilt wheels and source archives are distributed through
+[GitHub previews](https://github.com/roomkit-live/roomkit-tools/releases).
+Install the matching base package alongside this optional backend. From a checkout:
 
 ```sh
 uv pip install . ./backends/rusto/python

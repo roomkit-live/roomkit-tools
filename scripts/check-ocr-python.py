@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate separately installed OCR wheel and sdist; models are optional host input."""
 
+import argparse
 import json
 import os
 import subprocess
@@ -9,6 +10,7 @@ import tarfile
 import tempfile
 import tomllib
 import zipfile
+from email.parser import BytesParser
 from pathlib import Path
 
 
@@ -23,7 +25,16 @@ def main():
         "RUSTUP_TOOLCHAIN",
         tomllib.loads((root / "rust-toolchain.toml").read_text())["toolchain"]["channel"],
     )
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base-wheel", type=Path, help="Validated base package wheel")
+    parser.add_argument("--wheel", type=Path, help="Optional OCR backend wheel")
+    parser.add_argument("--sdist", type=Path, help="Optional OCR backend source archive")
+    options = parser.parse_args()
+    supplied = (options.base_wheel, options.wheel, options.sdist)
+    if any(supplied) and not all(supplied):
+        parser.error("--base-wheel, --wheel and --sdist must be supplied together")
     plugin = root / "backends/rusto/python"
+    project = tomllib.loads((plugin / "pyproject.toml").read_text())["project"]
     # The base bridge must never pull in the heavy optional recognition engine.
     base_tree = subprocess.check_output(
         ["cargo", "tree", "--manifest-path", "bindings/python/Cargo.toml", "--locked"],
@@ -35,31 +46,56 @@ def main():
         work = Path(temporary)
         artifacts = work / "artifacts"
         maturin = ["uv", "tool", "run", "--from", "maturin>=1.15,<2", "maturin"]
-        for project in [root, plugin]:
-            run(
-                *maturin,
-                "build",
-                "--release",
-                "--locked",
-                "--interpreter",
-                sys.executable,
-                "--out",
-                str(artifacts),
-                cwd=project,
-            )
-        run(*maturin, "sdist", "--out", str(artifacts), cwd=plugin)
-        (base,) = artifacts.glob("roomkit_tools-*.whl")
-        (wheel,) = artifacts.glob("roomkit_tools_ocr_rusto-*.whl")
-        (source,) = artifacts.glob("*.tar.gz")
+        if options.base_wheel:
+            base = options.base_wheel.resolve()
+            wheel = options.wheel.resolve()
+            source = options.sdist.resolve()
+        else:
+            for directory in [root, plugin]:
+                run(
+                    *maturin,
+                    "build",
+                    "--release",
+                    "--locked",
+                    "--interpreter",
+                    sys.executable,
+                    "--out",
+                    str(artifacts),
+                    cwd=directory,
+                )
+            run(*maturin, "sdist", "--out", str(artifacts), cwd=plugin)
+            (base,) = artifacts.glob("roomkit_tools-*.whl")
+            (wheel,) = artifacts.glob("roomkit_tools_ocr_rusto-*.whl")
+            (source,) = artifacts.glob("*.tar.gz")
         with zipfile.ZipFile(wheel) as archive:
             names = archive.namelist()
             assert any(n.endswith("/licenses/native_dependencies.txt") for n in names)
             assert any(n.endswith((".so", ".pyd")) for n in names)
             assert not any(n.endswith((".onnx", ".rten")) for n in names)
+            assert not any(
+                n.startswith(("docs/", "integrations/")) or "bakery" in n or n.endswith("AGENTS.md")
+                for n in names
+            )
+            metadata = BytesParser().parsebytes(
+                archive.read(next(n for n in names if n.endswith("/METADATA")))
+            )
+            assert metadata["Name"] == project["name"]
+            assert metadata["Version"] == project["version"]
+            assert metadata["License-Expression"] == "MIT"
+            assert metadata.get_payload().strip() == (plugin / "README.md").read_text().strip()
+            assert metadata.get_all("Requires-Dist", []) == project["dependencies"]
+            assert all(
+                any(n.endswith(f".dist-info/licenses/{notice}") for n in names)
+                for notice in metadata.get_all("License-File", [])
+            )
         with tarfile.open(source) as archive:
             names = archive.getnames()
             assert not any(
-                "/docs/" in n or "bakery" in n or n.endswith("/AGENTS.md") for n in names
+                "/docs/" in n
+                or "/integrations/" in n
+                or "bakery" in n
+                or n.endswith(("/AGENTS.md", ".onnx", ".rten"))
+                for n in names
             )
         reference = work / "rust.json"
         env = {**os.environ, "ROOMKIT_OCR_SOURCE": str(root)}

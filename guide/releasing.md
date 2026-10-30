@@ -13,16 +13,18 @@ is ready for a stable release. Select the final version before building release
 artifacts; release-specific changes belong in the changelog.
 
 The existing [distribution workflow](../.github/workflows/python-distributions.yml)
-builds one optimized, stripped CPython 3.12+ stable-ABI wheel for Linux x86_64
-(glibc 2.34+) and one source distribution. It checks package metadata, hashes the
-files, and tests both artifacts independently on CPython 3.12 and 3.14. The
+builds optimized, stripped CPython 3.12+ stable-ABI wheels for Linux x86_64
+(glibc 2.34+) and source distributions for the base package and optional OCR
+backend. It checks package metadata, hashes the files, and tests wheel/source
+installations independently on CPython 3.12 and 3.14. The
 workflow has read-only repository permissions and does not upload to an index.
 Other wheel platforms need their own build and validation work before release.
 
 ## Prepare and validate a candidate
 
-1. Set the intended version in `pyproject.toml`, update the changelog, and update
-   installation instructions to describe only artifacts that will be shipped.
+1. Set the intended version in `pyproject.toml` and
+   `backends/rusto/python/pyproject.toml`, including the backend dependency floor.
+   Update the changelog and installation instructions to describe only artifacts that will be shipped.
 2. Run `make all`, `make python-check`, and the applicable MSRV checks. Check
    public Markdown links, examples and metadata. Keep internal plans, fixtures
    and credentials out of version control and both distributions.
@@ -63,11 +65,18 @@ To repeat package validation locally, from the repository root:
 uv tool run --from 'twine>=6,<7' twine check --strict \
   release-candidate/*.whl release-candidate/*.tar.gz
 python scripts/check-python.py \
-  --wheel release-candidate/*.whl --sdist release-candidate/*.tar.gz
+  --wheel release-candidate/roomkit_tools-*.whl \
+  --sdist release-candidate/roomkit_tools-*.tar.gz
+python scripts/check-ocr-python.py \
+  --base-wheel release-candidate/roomkit_tools-*.whl \
+  --wheel release-candidate/roomkit_tools_ocr_rusto-*.whl \
+  --sdist release-candidate/roomkit_tools_ocr_rusto-*.tar.gz
 ```
 
-The second command installs the artifacts independently and compares their
-behavior with fresh Rust reference results. It needs Rust and does not upload.
+The validation scripts install the artifacts independently and compare their
+behavior with fresh Rust reference results. They need Rust and do not upload.
+Set `ROOMKIT_OCR_MODELS` to a pre-provisioned model directory to additionally
+check real native recognition and RoomKit delivery; no models are downloaded.
 `twine check` validates metadata and description rendering, not application behavior.
 
 ## Proposed first PyPI publication

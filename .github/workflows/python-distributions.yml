@@ -22,11 +22,16 @@ jobs:
         run: |
           uv tool run --from 'maturin>=1.15,<2' maturin build --locked --release --strip --compatibility manylinux_2_34 --auditwheel check --interpreter python --out dist
           uv tool run --from 'maturin>=1.15,<2' maturin sdist --out dist
+      - name: Build optional OCR backend distributions
+        working-directory: backends/rusto/python
+        run: |
+          uv tool run --from 'maturin>=1.15,<2' maturin build --locked --release --strip --compatibility manylinux_2_34 --auditwheel check --interpreter python --out "$GITHUB_WORKSPACE/dist"
+          uv tool run --from 'maturin>=1.15,<2' maturin sdist --out "$GITHUB_WORKSPACE/dist"
       - name: Check package metadata and description rendering
         run: uv tool run --from 'twine>=6,<7' twine check --strict dist/*.whl dist/*.tar.gz
       - name: Hash distributions
         working-directory: dist
-        run: sha256sum *.whl *.tar.gz > SHA256SUMS
+        run: sha256sum -- *.whl *.tar.gz > SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
           name: python-distributions
@@ -55,4 +60,6 @@ jobs:
         working-directory: dist
         run: sha256sum --check SHA256SUMS
       - name: Validate standalone and RoomKit installations
-        run: python scripts/check-python.py --wheel dist/*.whl --sdist dist/*.tar.gz
+        run: python scripts/check-python.py --wheel dist/roomkit_tools-*.whl --sdist dist/roomkit_tools-*.tar.gz
+      - name: Validate optional OCR wheel and source installations
+        run: python scripts/check-ocr-python.py --base-wheel dist/roomkit_tools-*.whl --wheel dist/roomkit_tools_ocr_rusto-*.whl --sdist dist/roomkit_tools_ocr_rusto-*.tar.gz

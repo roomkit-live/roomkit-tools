@@ -8,7 +8,7 @@ managed separately; APIs may change between previews.
 | Source | Availability |
 | --- | --- |
 | Current checkout | Package version declared in `pyproject.toml` |
-| GitHub preview `v0.1.0a14` | Prebuilt Python wheel and source distribution |
+| GitHub preview `v0.1.0a15` | Base package and optional OCR backend: wheels and source distributions |
 | PyPI | First publication is being prepared; no install-from-PyPI command is available yet |
 | crates.io | No published crates; use a checkout or Git dependency |
 
@@ -51,11 +51,11 @@ Provider-specific extras, such as `roomkit[vllm]`, are installed separately.
 A prebuilt wheel does not require Rust:
 
 ```sh
-gh release download v0.1.0a14 --repo roomkit-live/roomkit-tools \
-  --pattern '*.whl' --pattern 'SHA256SUMS' --dir dist
+gh release download v0.1.0a15 --repo roomkit-live/roomkit-tools \
+  --pattern 'roomkit_tools-*.whl' --pattern 'SHA256SUMS' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a14-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 Compare the downloaded wheel's SHA-256 with its entry in `dist/SHA256SUMS`.
@@ -92,9 +92,21 @@ an actual RoomKit tool call using a scripted provider. Neither needs an API key.
 
 [Documentation index](README.md) · [Project overview](../README.md)
 
-## Optional OCR engine (development source)
+## Optional OCR engine
 
-The source after a14 requires Rust 1.94+ and provides a separate native package
-for RustO. Install `.[roomkit]` and `./backends/rusto/python` from a checkout only
-when selecting that OCR backend. The base package does not include its inference
-dependencies or model weights. See [OCR configuration](ocr.md).
+The `roomkit-tools-ocr-rusto` backend is a separate package. Download its wheel
+only when selecting local OCR:
+
+```sh
+gh release download v0.1.0a15 --repo roomkit-live/roomkit-tools \
+  --pattern 'roomkit_tools_ocr_rusto-*.whl' --dir dist
+python -m pip install \
+  './dist/roomkit_tools-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]' \
+  './dist/roomkit_tools_ocr_rusto-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl'
+```
+
+Use the same Python environment as above and compare both wheel hashes with
+`SHA256SUMS`. Installing both local files lets the dependency resolve without
+looking for the base package on PyPI. Source builds of either package require
+Rust 1.94+. The base package does not include inference dependencies or model
+weights. Provision models explicitly; see [OCR configuration](ocr.md).

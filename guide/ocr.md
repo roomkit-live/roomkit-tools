@@ -11,9 +11,9 @@ Model weights are neither bundled nor downloaded by the tool.
 
 ## Python and RoomKit
 
-This feature is in the development source after `0.1.0a14`. Neither the new
-base build nor the optional engine package has been released to PyPI.
-From a checkout, install the two packages explicitly:
+The base package and optional engine are separate distributions in the
+[GitHub preview](installation.md#optional-ocr-engine). They have not been
+published to PyPI. From a checkout, install both packages explicitly:
 
 ```sh
 python -m pip install '.[roomkit]' ./backends/rusto/python

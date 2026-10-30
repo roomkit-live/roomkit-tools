@@ -6,6 +6,8 @@ part of an existing published preview.
 
 ## Unreleased
 
+## 0.1.0a15
+
 - Add independently selectable plan CRUD in Rust, Python and both RoomKit adapters,
   with injected storage, a bounded memory backend, trusted conversation/agent
   scopes and atomic revision checks. Plans record progress without executing work.

@@ -4,13 +4,13 @@ build-backend = "maturin"
 
 [project]
 name = "roomkit-tools-ocr-rusto"
-version = "0.1.0a15.dev0"
+version = "0.1.0a15"
 description = "Optional RustO OCR backend for roomkit-tools"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE", "licenses/*.txt"]
-dependencies = ["roomkit-tools>=0.1.0a15.dev0,<0.2"]
+dependencies = ["roomkit-tools>=0.1.0a15,<0.2"]
 
 [tool.maturin]
 manifest-path = "Cargo.toml"
