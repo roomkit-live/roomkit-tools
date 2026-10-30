@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 
 use roomkit_tools_core::{Definition, Error, Output};
 use tokio::io::AsyncWriteExt;
@@ -48,6 +48,9 @@ impl Record {
 #[derive(Debug)]
 pub(crate) struct Entry {
     pub(crate) owner: String,
+    pub(crate) command: String,
+    pub(crate) started: Instant,
+    pub(crate) finished: OnceLock<Duration>,
     pub(crate) record: Arc<Mutex<Record>>,
     pub(crate) stdin: Mutex<Option<ChildStdin>>,
     pub(crate) stop: CancellationToken,
@@ -67,12 +70,28 @@ struct Inner {
     registry: Mutex<Registry>,
     closed: CancellationToken,
     outputs: Option<crate::OutputStore>,
+    changes: watch::Sender<()>,
 }
 
 impl Drop for Inner {
     fn drop(&mut self) {
         self.closed.cancel();
     }
+}
+
+/// Host-only observation of a retained process. Never expose this unfiltered
+/// across authorization boundaries; owner keys are supplied by the host.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ObservedProcess {
+    /// Trusted owner key, not a model argument or OS PID.
+    pub owner: String,
+    /// Exact command supplied when starting the process.
+    pub command: String,
+    /// Elapsed runtime, frozen once cleanup finishes.
+    pub elapsed: Duration,
+    /// Authoritative current lifecycle and capture metadata.
+    pub status: ProcessStatus,
 }
 
 /// Host-owned process collection with explicit owner boundaries, independent of RoomKit.
@@ -117,8 +136,46 @@ impl ProcessManager {
                 registry: Mutex::new(Registry::default()),
                 closed: CancellationToken::new(),
                 outputs: None,
+                changes: watch::channel(()).0,
             }),
         })
+    }
+
+    /// Subscribe to coalesced lifecycle changes (start, finish, forget, close).
+    /// Subscribe before taking an observation to avoid a missed wakeup. Output
+    /// bytes do not trigger notifications; page output only when needed.
+    pub fn subscribe(&self) -> watch::Receiver<()> {
+        self.inner.changes.subscribe()
+    }
+
+    /// Inspect all retained jobs for the owning host, including completed jobs.
+    /// This privileged API is deliberately separate from owner-scoped model tools.
+    /// The caller must filter results before presenting them to another principal.
+    pub async fn observe(&self) -> Vec<ObservedProcess> {
+        let entries: Vec<_> = self
+            .inner
+            .registry
+            .lock()
+            .await
+            .entries
+            .values()
+            .cloned()
+            .collect();
+        let mut processes = Vec::with_capacity(entries.len());
+        for entry in entries {
+            let record = entry.record.lock().await;
+            processes.push(ObservedProcess {
+                owner: entry.owner.clone(),
+                command: entry.command.clone(),
+                elapsed: entry
+                    .finished
+                    .get()
+                    .copied()
+                    .unwrap_or_else(|| entry.started.elapsed()),
+                status: record.status(),
+            });
+        }
+        processes
     }
 
     /// Attach optional output storage before cloning/starting. Closing this manager
@@ -321,7 +378,10 @@ impl ProcessManager {
                 self.inner.outputs.as_ref(),
             )?;
             registry.next_id = next;
+            let done = entry.done.clone();
             registry.entries.insert(status.process_id.clone(), entry);
+            self.inner.changes.send_replace(());
+            notify_finished(done, self.inner.changes.clone());
             // No await after spawn: ownership and the recoverable ID are committed together.
             let mut text = format!(
                 "{} started; use process_read for output\n",
@@ -501,6 +561,9 @@ impl ProcessManager {
         } else {
             false
         };
+        if forgotten {
+            self.inner.changes.send_replace(());
+        }
         let mut text = format!(
             "{}: {:?}, forgotten={}\n",
             status.process_id, status.state, forgotten
@@ -553,6 +616,7 @@ impl ProcessManager {
             wait_done(&entry, deadline).await;
             if *entry.done.borrow() {
                 self.inner.registry.lock().await.entries.remove(&id);
+                self.inner.changes.send_replace(());
             } else {
                 // Keep pending cleanup observable to another close call, even
                 // if this waiter times out or is dropped before it completes.
@@ -648,4 +712,16 @@ mod tests {
             .unwrap();
         assert!(manager.close().await);
     }
+}
+
+// Wait on the existing worker signal, without polling output or retaining the
+// manager itself past its owning host.
+#[cfg(unix)]
+fn notify_finished(mut done: watch::Receiver<bool>, changes: watch::Sender<()>) {
+    tokio::spawn(async move {
+        if !*done.borrow_and_update() {
+            let _ = done.changed().await;
+        }
+        changes.send_replace(());
+    });
 }

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Expose host-only process observation with trusted owner, command, frozen elapsed
+  time and lifecycle notifications. Output chunks do not wake hidden UI monitors.
+
 ## 0.1.0a13
 
 - Release the five selectable agent tools and optional RoomKit Python backend.

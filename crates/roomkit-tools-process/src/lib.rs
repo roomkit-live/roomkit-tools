@@ -21,6 +21,6 @@ pub use output::{
     OutputArchive, OutputForgetInput, OutputForgetResult, OutputLimits, OutputPage,
     OutputReadInput, OutputStore,
 };
-pub use persistent::ProcessManager;
+pub use persistent::{ObservedProcess, ProcessManager};
 pub use process_types::*;
 pub use shell::{ShellInput, ShellLimits, ShellResult, ShellTool};
