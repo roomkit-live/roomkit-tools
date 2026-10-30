@@ -1352,6 +1352,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "roomkit-tools-plans"
+version = "0.1.0"
+dependencies = [
+ "roomkit-tools-core",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio-util",
+]
+
+[[package]]
 name = "roomkit-tools-process"
 version = "0.1.0"
 dependencies = [
@@ -1374,6 +1385,7 @@ dependencies = [
  "roomkit-tools-core",
  "roomkit-tools-fs",
  "roomkit-tools-ocr",
+ "roomkit-tools-plans",
  "roomkit-tools-process",
  "roomkit-tools-search",
  "roomkit-tools-web",

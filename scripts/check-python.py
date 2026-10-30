@@ -37,6 +37,13 @@ def main() -> None:
         work = Path(temporary)
         # Build reference results from the Rust API before comparing installed
         # Python packages. This is a maintainer check, not an installation step.
+        plan_reference = work / "rust-plans.json"
+        subprocess.run(
+            ["cargo", "test", "--locked", "-p", "roomkit-tools-plans", "--test", "contracts"],
+            cwd=root,
+            env={**os.environ, "ROOMKIT_PLAN_RESULTS": str(plan_reference)},
+            check=True,
+        )
         reference = work / "rust-contracts.json"
         subprocess.run(
             ["cargo", "test", "--locked", "-p", "roomkit-tools-examples", "--test", "contracts"],
@@ -197,6 +204,7 @@ def main() -> None:
             run_tests(python, root, work, "test_read.py")
             run_tests(python, root, work, "test_ocr.py")
             run_tests(python, root, work, "test_agents.py")
+            run_tests(python, root, work, "test_plans.py", plan_reference=plan_reference)
             run_tests(python, root, work, "test_shutdown.py")
             run_tests(python, root, work, "test_discovery.py")
             run_tests(python, root, work, "test_mutations.py")
@@ -227,6 +235,7 @@ def main() -> None:
                 cwd=work,
             )
             run_tests(python, root, work, "test_roomkit*.py")
+            run(str(python), "-I", str(root / "examples/roomkit_plans.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_read.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_outline.py"), cwd=work)
@@ -262,6 +271,7 @@ def run_tests(
     work: Path,
     pattern: str,
     *,
+    plan_reference: Path | None = None,
     reference: Path | None = None,
     web_reference: Path | None = None,
     search_reference: Path | None = None,
@@ -286,6 +296,7 @@ def run_tests(
         cwd=work,
         env={
             **os.environ,
+            **({"ROOMKIT_PLAN_RESULTS": str(plan_reference)} if plan_reference else {}),
             **({"ROOMKIT_CONTRACT_RESULTS": str(reference)} if reference else {}),
             **({"ROOMKIT_WEB_RESULTS": str(web_reference)} if web_reference else {}),
             **({"ROOMKIT_SEARCH_RESULTS": str(search_reference)} if search_reference else {}),

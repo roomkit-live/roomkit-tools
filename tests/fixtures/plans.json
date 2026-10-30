@@ -1,0 +1,11 @@
+[
+  {"tool":"plan_list","arguments":{}},
+  {"tool":"plan_create","arguments":{"title":"Review shipping","objective":"Validate the fee boundary","steps":[{"step_id":"inspect","description":"Read the source","status":"in_progress"},{"step_id":"test","description":"Test the boundary","status":"pending"}]}},
+  {"tool":"plan_read","arguments":{"plan_id":"plan-1"}},
+  {"tool":"plan_update","arguments":{"plan_id":"plan-1","expected_revision":1,"steps":[{"step_id":"test","description":"Test the boundary","status":"blocked"},{"step_id":"inspect","description":"Read the source","status":"completed"}]}},
+  {"tool":"plan_update","arguments":{"plan_id":"plan-1","expected_revision":2,"title":"Review shipping"}},
+  {"tool":"plan_list","arguments":{}},
+  {"tool":"plan_update","arguments":{"plan_id":"plan-1","expected_revision":2,"steps":[{"step_id":"inspect","description":"Read the source","status":"completed"}]}},
+  {"tool":"plan_delete","arguments":{"plan_id":"plan-1","expected_revision":3}},
+  {"tool":"plan_list","arguments":{}}
+]

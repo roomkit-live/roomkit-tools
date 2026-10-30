@@ -17,6 +17,7 @@ use tokio_util::sync::CancellationToken;
 
 mod agents;
 mod ocr;
+mod plans;
 
 pyo3::create_exception!(
     "roomkit_tools",
@@ -366,6 +367,8 @@ rooted_binding!(
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<agents::PythonAgentContract>()?;
+    module.add_class::<plans::PythonPlanContract>()?;
+    module.add_class::<plans::PythonMemoryPlanBackend>()?;
     runtime::install(module)?;
     module.add_function(wrap_pyfunction!(ocr::ocr_definition_json, module)?)?;
     module.add_class::<Cancellation>()?;

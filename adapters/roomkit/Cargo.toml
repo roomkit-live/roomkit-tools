@@ -14,9 +14,11 @@ resolver = "3"
 
 [features]
 default = []
+plans = ["dep:roomkit-tools-plans"]
 ocr = ["dep:roomkit-tools-ocr"]
 
 [dependencies]
+roomkit-tools-plans = { path = "../../crates/roomkit-tools-plans", optional = true }
 roomkit-tools-ocr = { path = "../../crates/roomkit-tools-ocr", optional = true }
 roomkit-tools-code = { path = "../../crates/roomkit-tools-code" }
 roomkit-tools-search = { path = "../../crates/roomkit-tools-search" }

@@ -6,6 +6,10 @@ part of an existing published preview.
 
 ## Unreleased
 
+- Add independently selectable plan CRUD in Rust, Python and both RoomKit adapters,
+  with injected storage, a bounded memory backend, trusted conversation/agent
+  scopes and atomic revision checks. Plans record progress without executing work.
+
 - Add selectable `ocr` contracts, bounded native execution and positioned text
   results in Rust/Python, with RoomKit adapters for both languages.
 - Supply RustO/RTen as a separate Rust crate and optional Python distribution,

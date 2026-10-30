@@ -16,6 +16,7 @@ name = "_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+roomkit-tools-plans = { path = "../../crates/roomkit-tools-plans" }
 roomkit-tools-ocr = { path = "../../crates/roomkit-tools-ocr" }
 roomkit-tools-agents = { path = "../../crates/roomkit-tools-agents" }
 roomkit-tools-code = { path = "../../crates/roomkit-tools-code" }

@@ -53,6 +53,7 @@ Run `cargo doc --workspace --no-deps --open` for field-level API documentation.
 | `roomkit-tools-http` | Shared DNS-pinned transport, origin policy and body limits |
 | `roomkit-tools-web` | Fetching HTTP text and HTML conversion |
 | `roomkit-tools-search` | Search contracts and optional service backends |
+| `roomkit-tools-plans` | Plan CRUD contracts, injected storage and bounded memory backend |
 | `roomkit-tools-agents` | Agent contracts and facades over an injected `AgentBackend` |
 
 Search features `exa`, `ollama` and `openai` are off by default. Enable only the
@@ -76,11 +77,12 @@ the conversation and agent.
 | --- | --- | --- |
 | Files, outlines, shell/processes, output, web/search | Implemented | Implemented |
 | `view_image` | Implemented | Pending: pinned engine tool output supports text/JSON only |
+| Plan CRUD | Implemented | Implemented with optional `plans` feature |
 | Agent tools | Contracts and injected backend interface | Native RoomKit execution backend not implemented |
 
 RoomKit Python already supports image results and has a packaged agent backend.
 These differences are integration boundaries, not separate tool implementations.
-See [images](images.md) and [agents](agents.md).
+See [images](images.md), [plans](plans.md) and [agents](agents.md).
 
 ## Lifetimes and cancellation
 

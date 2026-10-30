@@ -60,6 +60,7 @@ validation and do not replace deterministic tests.
 | `tests/fixtures/web.json` | HTTP fetching through local servers |
 | `tests/fixtures/search.json` | Search backends through local JSON/SSE fixtures |
 | `tests/fixtures/outline.json` | Source symbols, ranges, revisions, errors and bounds |
+| `tests/fixtures/plans.json` | Plan CRUD envelopes, stable step IDs, revisions and list/delete state |
 | `tests/fixtures/image.json` | Complete image payloads, metadata and refusals |
 
 `scripts/check-python.py` generates fresh Rust results, then compares installed

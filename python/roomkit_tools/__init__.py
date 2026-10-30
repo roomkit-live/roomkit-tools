@@ -22,6 +22,16 @@ from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, Rea
 from .image import ViewImageTool
 from .ocr import OcrBackend, OcrTool
 from .output import OutputStore
+from .plans import (
+    MemoryPlanBackend,
+    PlanBackend,
+    PlanCreate,
+    PlanDelete,
+    PlanList,
+    PlanRead,
+    PlanScope,
+    PlanUpdate,
+)
 from .process import ProcessSession, ShellTool
 from .roomkit import (
     CodeOutline,
@@ -51,6 +61,14 @@ from .web import WebFetchTool
 from .workspace import Workspace
 
 __all__ = [
+    "MemoryPlanBackend",
+    "PlanBackend",
+    "PlanScope",
+    "PlanCreate",
+    "PlanRead",
+    "PlanList",
+    "PlanUpdate",
+    "PlanDelete",
     "Ocr",
     "OcrTool",
     "OcrBackend",

@@ -6,6 +6,12 @@
 //! hooks, timeouts and turn cancellation. The filesystem implementation
 //! remains usable without RoomKit.
 
+#[cfg(feature = "plans")]
+mod plans;
+#[cfg(feature = "plans")]
+pub use plans::{
+    PlanCreateToolset, PlanDeleteToolset, PlanListToolset, PlanReadToolset, PlanUpdateToolset,
+};
 mod output;
 mod process;
 pub use output::{OutputForgetToolset, OutputReadToolset, ShellToolset};

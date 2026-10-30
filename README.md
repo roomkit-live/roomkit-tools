@@ -100,13 +100,14 @@ and the checked examples in `examples/`. No crates are published to crates.io ye
 | Web | `web_fetch`, `web_search` with Exa, Ollama or OpenAI backends | [Web](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/web.md) |
 | Images | `view_image` for static PNG, JPEG and WebP | [Images](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/images.md) |
 | Text recognition | `ocr` with an optional, separately installed RustO backend | [OCR](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/ocr.md) |
+| Planning | `plan_create`, `plan_read`, `plan_list`, `plan_update`, `plan_delete` | [Plans](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/plans.md) |
 | Delegation | `delegate_task`, `task_status`, `cancel_task`, `agent_followup`, `agent_send` | [Agents](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/agents.md) |
 
 All are independently selectable in RoomKit Python. The agent tools use portable
 Rust contracts and an injected execution backend; a RoomKit Python backend is
 included. The optional RoomKit Rust adapter supports the file, code, command and
-web tools, plus OCR behind its `ocr` feature; native agent orchestration and image-result transport are not yet
-implemented there.
+web tools, plus optional `ocr` and `plans` features. Native agent orchestration
+and image-result transport are not yet implemented there.
 
 ## Execution boundaries
 

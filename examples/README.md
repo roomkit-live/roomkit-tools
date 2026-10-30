@@ -58,6 +58,7 @@ tool call; examples inspect actual tool results.
 | Command | Verification |
 | --- | --- |
 | `python examples/roomkit_code.py` | Reproduce a failing test, grep/read/edit/diff, then verify the correction independently |
+| `python examples/roomkit_plans.py` | Scoped plan CRUD through RoomKit; `--live` for interactive chat and `/plans` for actual host state |
 | `python examples/roomkit_outline.py` | Locate a method, read its range, edit with its revision and rerun tests |
 | `python examples/roomkit_output.py` | Retrieve an omitted diagnostic from an archived log without rerunning the command |
 
@@ -146,6 +147,7 @@ and verify their outputs without RoomKit, a model or external credentials.
 | `read_output` | Archived output paging |
 | `fetch_page` | Local HTTP redirect and Markdown conversion |
 | `search_web` | Local search fixture; `--live` explicitly uses Exa |
+| `plan_progress` | Create, read, update, list and delete a versioned plan |
 | `outline_code` | Locate a method and read its source range |
 | `view_image` | Prepare a PNG payload with bounded metadata |
 

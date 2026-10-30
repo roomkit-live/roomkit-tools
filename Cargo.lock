@@ -1523,6 +1523,7 @@ dependencies = [
  "roomkit-tools-core",
  "roomkit-tools-fs",
  "roomkit-tools-image",
+ "roomkit-tools-plans",
  "roomkit-tools-process",
  "roomkit-tools-search",
  "roomkit-tools-web",
@@ -1606,6 +1607,18 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "roomkit-tools-plans"
+version = "0.1.0"
+dependencies = [
+ "roomkit-tools-core",
+ "schemars",
+ "serde",
+ "serde_json",
  "tokio",
  "tokio-util",
 ]
