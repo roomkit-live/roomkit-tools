@@ -1,0 +1,93 @@
+# Release preparation
+
+This page describes the current artifact workflow and the proposed first PyPI
+publication. This repository currently contains a build/validation workflow,
+not a PyPI publishing job. Publisher configuration on PyPI must be verified
+before an upload. Building, validating and uploading are separate operations.
+
+## Current distribution scope
+
+The Python version lives in `pyproject.toml`. Rust crates keep separate versions
+and have `publish = false`. GitHub previews have reached `0.1.0a13`; the current
+source is a development version after that preview. Continue the alpha sequence
+for the first PyPI package rather than implying a stable API with a `1.0` release.
+Select the final version before building release artifacts.
+
+The existing [distribution workflow](../.github/workflows/python-distributions.yml)
+builds one optimized, stripped CPython 3.12+ stable-ABI wheel for Linux x86_64
+(glibc 2.34+) and one source distribution. It checks package metadata, hashes the
+files, and tests both artifacts independently on CPython 3.12 and 3.14. The
+workflow has read-only repository permissions and does not upload to an index.
+Other wheel platforms need their own build and validation work before release.
+
+## Prepare and validate a candidate
+
+1. Set the intended version in `pyproject.toml`, update the changelog, and update
+   installation instructions to describe only artifacts that will be shipped.
+2. Run `make all`, `make python-check`, and the applicable MSRV checks. Check
+   public Markdown links, examples and metadata. Keep internal plans, fixtures
+   and credentials out of version control and both distributions.
+3. Commit the candidate and require successful CI on that exact commit. A job
+   that never starts does not validate a release. Source access for linked public
+   documentation must also be ready before advertising it on PyPI.
+4. Dispatch the distribution workflow on the candidate ref:
+
+   ```sh
+   gh workflow run python-distributions.yml --ref main
+   ```
+
+   Confirm the run's `headSha` matches the candidate and wait for all jobs to pass.
+   Download into a new, empty directory:
+
+   ```sh
+   gh run download RUN_ID --name python-distributions --dir release-candidate
+   cd release-candidate
+   sha256sum --check SHA256SUMS
+   ```
+
+5. Keep the tested files unchanged. Check their version, wheel compatibility tag,
+   license notices and source contents. Tag the exact tested commit when the
+   release is approved. Do not rebuild different bytes for publication.
+
+To repeat package validation locally, from the repository root:
+
+```sh
+uv tool run --from 'twine>=6,<7' twine check --strict \
+  release-candidate/*.whl release-candidate/*.tar.gz
+python scripts/check-python.py \
+  --wheel release-candidate/*.whl --sdist release-candidate/*.tar.gz
+```
+
+The second command installs the artifacts independently and compares their
+behavior with fresh Rust reference results. It needs Rust and does not upload.
+`twine check` validates metadata and description rendering, not application behavior.
+
+## Proposed first PyPI publication
+
+Use [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/using-a-publisher/)
+with GitHub Actions rather than a long-lived upload token. A future dedicated
+publishing job should consume the already-tested distribution artifact, depend
+on successful validation, use a named GitHub environment, and request
+`id-token: write` only in that publishing job.
+
+Before implementing that job, choose the PyPI account or organization that owns
+`roomkit-tools` and confirm the project name. For a new project, a
+[pending trusted publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
+can create it on first upload; registration is not a reservation of the name.
+Its repository, workflow filename and environment must match the publishing job.
+Configure TestPyPI and PyPI separately.
+
+Rehearse on [TestPyPI](https://packaging.python.org/en/latest/guides/using-testpypi/)
+first. Install the standalone candidate with `--no-deps` from that index; install
+RoomKit's dependencies from the normal index separately. This avoids relying on
+TestPyPI's incomplete dependency catalogue. Validate the candidate's import and
+an actual tool call, then publish those same tested files to PyPI when approved.
+
+After publication, verify installation from PyPI in a fresh environment, check
+the project page and links, and change the README's primary installation command
+to the published version. An alpha requires an explicit version or `--pre` where
+appropriate. Do not advertise `pip install roomkit-tools` as available before
+publication succeeds. PyPI does not allow reusing uploaded distribution filenames;
+fix a released artifact with a new version.
+
+[Documentation index](README.md) · [Project overview](../README.md)

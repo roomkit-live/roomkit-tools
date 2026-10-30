@@ -135,6 +135,19 @@ def main() -> None:
             metadata = archive.read(next(n for n in names if n.endswith("/METADATA")))
             metadata = BytesParser().parsebytes(metadata)
             assert metadata["Version"] == version, metadata["Version"]
+            assert metadata["Description-Content-Type"].split(";", 1)[0] == "text/markdown"
+            assert metadata.get_payload().strip() == (root / "README.md").read_text().strip()
+            assert metadata["License-Expression"] == "MIT"
+            license_files = metadata.get_all("License-File", [])
+            assert "LICENSE" in license_files
+            assert all(
+                any(name.endswith(f".dist-info/licenses/{license_file}") for name in names)
+                for license_file in license_files
+            ), "Declared licenses must be included in the wheel"
+            project_urls = tomllib.loads((root / "pyproject.toml").read_text())["project"]["urls"]
+            assert set(metadata.get_all("Project-URL", [])) == {
+                f"{label}, {url}" for label, url in project_urls.items()
+            }
             dependencies = metadata.get_all("Requires-Dist", [])
             assert all(
                 dependency.partition(";")[2].strip().replace("'", '"') == 'extra == "roomkit"'

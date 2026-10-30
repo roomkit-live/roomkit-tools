@@ -22,6 +22,8 @@ jobs:
         run: |
           uv tool run --from 'maturin>=1.15,<2' maturin build --locked --release --strip --compatibility manylinux_2_34 --auditwheel check --interpreter python --out dist
           uv tool run --from 'maturin>=1.15,<2' maturin sdist --out dist
+      - name: Check package metadata and description rendering
+        run: uv tool run --from 'twine>=6,<7' twine check --strict dist/*.whl dist/*.tar.gz
       - name: Hash distributions
         working-directory: dist
         run: sha256sum *.whl *.tar.gz > SHA256SUMS

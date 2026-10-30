@@ -5,19 +5,26 @@ build-backend = "maturin"
 [project]
 name = "roomkit-tools"
 version = "0.1.0a14.dev0"
-description = "Individually selectable Rust tools with an asynchronous Python API"
+description = "Composable Rust tools for coding agents, Python and RoomKit"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
+license-files = ["LICENSE", "python/roomkit_tools/licenses/*.txt"]
+keywords = ["agents", "tools", "rust", "asyncio", "roomkit"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Rust",
     "Framework :: AsyncIO",
     "Typing :: Typed",
 ]
 
 [project.urls]
+Documentation = "https://github.com/roomkit-live/roomkit-tools/blob/main/guide/README.md"
+Changelog = "https://github.com/roomkit-live/roomkit-tools/blob/main/CHANGELOG.md"
 Repository = "https://github.com/roomkit-live/roomkit-tools"
 Issues = "https://github.com/roomkit-live/roomkit-tools/issues"
 

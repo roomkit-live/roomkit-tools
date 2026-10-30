@@ -1,161 +1,110 @@
 # Contributing
 
-Read [the overview](README.md) and the Rust API documentation before changing
-public interfaces. Keep the README and API documentation consistent with the
-implementation and its limits.
+Start with the [project overview](README.md), [public guides](guide/README.md)
+and [Rust API boundaries](guide/rust.md). Keep public behavior, examples and
+resource limits consistent with the implementation.
 
-## Setup
+## Development environment
 
-Rustup selects the toolchain pinned in `rust-toolchain.toml`. Once the
-directory is a Git repository, install the optional commit-message hook:
+Rustup selects the toolchain pinned in `rust-toolchain.toml`; the MSRV is 1.92.
+Install cargo-deny for dependency checks:
 
 ```sh
+cargo install cargo-deny --locked
 make hooks
 ```
 
-## Gates
+`make hooks` enables the optional commit-message hook. Python development also
+requires CPython 3.12+ and [uv](https://docs.astral.sh/uv/). Build/install locally
+with `uv venv` and `uv pip install '.[roomkit]'`. See
+[installation](guide/installation.md) for supported platforms and provider extras.
 
-`make all` runs formatting, Clippy with warnings denied, tests, rustdoc with
-warnings denied, cargo-deny, the core dependency allow list and each
-executable example. Install cargo-deny with `cargo install cargo-deny --locked`.
-The gate fails rather than silently skipping an unavailable checker.
+## Validation gates
 
-Run `make msrv` when adding dependencies or using a newer standard-library
-API. `make msrv-toolchain` installs the workspace's minimum version.
-CI performs the same Rust checks and audits dependencies weekly.
+| Command | Scope |
+| --- | --- |
+| `make fmt` | Format the standalone Rust workspace |
+| `make all` | Formatting, Clippy, tests, rustdoc, dependency policy, core dependency allow list and executable Rust examples |
+| `make msrv-toolchain msrv` | Install/check the minimum Rust toolchain |
+| `make python-check` | Binding lint/docs/dependencies, Python lint, independent wheel/source installs, standalone and RoomKit tests and examples |
+| `make python-msrv` | Check native Python bindings on the MSRV |
+| `make roomkit-check roomkit-msrv` | Optional Rust RoomKit adapter; requires access to its pinned engine source |
 
-```sh
-make fmt
-make all
-make msrv
-```
+Run relevant checks during development, then `make all`. For Python/package
+changes, also run `make python-check`. Run MSRV checks after adding dependencies
+or using newer standard-library APIs. The optional Rust adapter is a separate
+workspace; its gates are deliberately independent of standalone CI.
 
-In an offline environment with a populated Cargo cache and advisory database,
-`CARGO_NET_OFFLINE=true make DENY_FLAGS=--offline all` uses the local data.
-That checks the cached advisories only; CI refreshes them online.
+The Python artifact checks install the package without Python dependencies first,
+then add the minimum supported RoomKit release for adapter tests. The vLLM extra
+is used with a mock HTTP transport for image serialization tests, not a live
+server. CI exercises standard CPython 3.12 and 3.14.
 
-The optional Rust adapter lives in the separate `adapters/roomkit` workspace.
-With Git read access to `roomkit-rs`, run `make roomkit-check roomkit-msrv`.
-These explicit gates are not part of the standalone `make all` or CI, which
-must work without engine access. The adapter pins an immutable engine Git
-revision and is not distributed as a published package. Consumers should use
-that same source URL and revision to share RoomKit types.
-The adapter owns its dependency versions and lockfile while it is separate.
+With populated Cargo caches and an advisory database, an offline check can use
+`CARGO_NET_OFFLINE=true make DENY_FLAGS=--offline all`. This checks cached
+advisories only; normal CI refreshes them. Required checkers must not be silently
+skipped.
 
-The optional Python bridge is another separate workspace, `bindings/python`.
-With CPython 3.12+, uv and cargo-deny installed, run `make python-check
-python-msrv`. The check builds a wheel, installs it in a temporary environment
-without Python dependencies, runs the standalone tests, then installs the
-minimum supported RoomKit release for adapter tests. CI runs on Python 3.12 and
-3.14. Use `uv tool run --from 'maturin>=1.15,<2' maturin build --locked` to build
-a wheel without installing it. No package is published by these commands.
+## Contracts and tests
 
-## Python preview distributions
+Test observable behavior, especially boundaries, side effects, cancellation and
+cleanup. Filesystem scenarios use temporary directories; default checks require
+no external service or credentials. Live-model examples are additional opt-in
+validation and do not replace deterministic tests.
 
-The Python version is in `pyproject.toml`; Rust crates keep their own versions.
-The `Python distributions` workflow builds an optimized, stripped CPython
-3.12+ stable-ABI wheel for Linux x86_64 (glibc 2.34+) and an sdist. It audits the
-wheel's library requirements and installs both artifacts independently on
-Python 3.12 and 3.14, including the RoomKit extra and the runnable example.
-The workflow has read-only repository permissions and does not publish.
+| Shared fixture | Coverage |
+| --- | --- |
+| `tests/fixtures/contracts.json` | Filesystem, commands, persistent processes and output archives |
+| `tests/fixtures/web.json` | HTTP fetching through local servers |
+| `tests/fixtures/search.json` | Search backends through local JSON/SSE fixtures |
+| `tests/fixtures/outline.json` | Source symbols, ranges, revisions, errors and bounds |
+| `tests/fixtures/image.json` | Complete image payloads, metadata and refusals |
 
-After the normal gates pass on the intended commit, run it from that branch or
-tag using `gh workflow run python-distributions.yml --ref main`. Wait for the
-entire run to succeed, then download its `python-distributions` artifact with
-`gh run download RUN_ID --name python-distributions --dir dist`. Check
-`SHA256SUMS` from that directory. Create the release tag on the run's exact
-commit, matching the Python version, and attach those distributions and checksums.
-Use a prerelease for alpha versions. Publishing on PyPI is a separate step.
+`scripts/check-python.py` generates fresh Rust results, then compares installed
+Python packages with complete envelopes and file contents. It normalizes only
+temporary paths and maps typed error categories. The broader suites cover
+concurrency, in-flight cancellation, cleanup and actual RoomKit tool delivery.
+Process tests wait for explicit state or byte counts rather than arbitrary delays.
 
-To repeat the artifact checks locally with CPython 3.12+, Rust and uv:
+Each `examples/*.rs` file must be declared in `examples/Cargo.toml`, check what it
+shows, and exit unsuccessfully if those observations change. The
+[example index](examples/README.md) distinguishes simple integration examples
+from larger validation scenarios.
 
-```sh
-python3 scripts/check-python.py --wheel dist/*.whl --sdist dist/*.tar.gz
-```
+When changing search dependencies, run
+`cargo test -p roomkit-tools-search --no-default-features` and check each affected
+provider feature separately. No provider key belongs in a fixture or test command.
 
-The check builds from the source distribution only; wheel installation does not
-compile Rust. Internal planning and integration assets are excluded from both
-archives. Keep public package metadata, examples and release notes in English.
+## Implementation boundaries
 
-`tests/fixtures/contracts.json` supplies common reference scenarios for the 16 filesystem/process/archive
-tools, including optional archive paging and explicit release. The Rust integration test checks expected behavior and file bytes.
-`make python-check` also generates fresh Rust results and compares each installed
-Python package against their complete JSON envelopes and final file bytes. Only
-temporary root paths are normalized; error categories are mapped across languages.
-`tests/fixtures/web.json` adds the `web_fetch` HTTP cases, served locally in
-both languages; installed Python results must match fresh Rust envelopes.
-Process observations wait for explicit state or byte counts. These maintainer
-checks need Rust; installing and using the prebuilt wheel still does not.
-The shared cases complement the larger per-language suites for concurrency,
-large files, cancellation during I/O and cleanup.
+- Keep `roomkit-tools-core` free of I/O, runtimes, Python and RoomKit dependencies.
+- Derive schemas from the Rust types used by implementations.
+- Put dependency versions in `workspace.dependencies`; consuming crates enable
+  only the features they need. Update the core allow list for any core change.
+- Keep parser/grammar dependencies in the code crate and codecs in the image crate.
+- Keep host configuration, cancellation, ownership and limits explicit.
+- Document public items; return typed failures instead of panicking on caller input.
+- Prefer `#[expect(lint, reason = "...")]` for a justified lint exception.
 
-`tests/fixtures/image.json` compares image metadata, complete PNG payloads and
-errors between Rust and installed Python artifacts. Native tests also check
-pixels, alpha, JPEG orientation, static WebP and source preservation. The
-RoomKit tests inspect real vLLM request serialization using a mock HTTP transport;
-they require the vLLM extra only in the test environment, with no server or keys.
-`examples/roomkit_image.py` checks image delivery in scripted mode; its optional
-live mode requires a vision-capable model and a human comparison of the answer.
+## Documentation and distribution
 
-## Code and dependencies
+Public guides live in `guide/`; runnable examples are indexed in `examples/README.md`.
+The root README is also the Python package description, so its documentation
+links use absolute URLs that work on an index page. Keep it concise; put detailed
+contracts and budgets in the guides. Verify changed snippets and local link targets.
 
-- Code, comments, examples and developer documentation use English. Keep
-  internal planning, local integration assets and personal data out of commits.
-- Public items are documented. Library code returns typed failures rather
-  than panicking on caller input.
-- Prefer `#[expect(lint, reason = "...")]` for a necessary exception.
-- `roomkit-tools-core` contains contracts and pure logic only. No filesystem,
-  processes, sockets, global configuration or async runtime belongs there.
-- Add dependencies to `workspace.dependencies`, then opt into the features
-  needed by each consuming crate. Document their purpose near the declaration.
-- A core dependency must also be reflected in `scripts/check-core-deps.sh`.
-- Keep RoomKit, Python and provider-specific types out of the core and tools.
-- Keep cancellation, resource ownership and result limits explicit.
+Code, comments, examples and public documentation use English and generic data.
+Keep local planning and private integration assets ignored and excluded from
+archives. Do not force-add ignored material. The distribution checker rejects
+internal documentation/integration assets in the wheel and source archive.
 
-## Tests and examples
-
-Test observable behavior, especially boundaries, side effects and cleanup.
-Filesystem tests use temporary directories; they never modify a developer's
-checkout. Tests and examples require no external service or credentials.
-
-Each `examples/*.rs` file is declared in `examples/Cargo.toml`, checks its
-result and returns a failing exit code when its behavior changes.
+See [release preparation](guide/releasing.md) for artifact validation and the
+planned TestPyPI/PyPI flow. The existing distribution workflow only builds and
+tests; it does not publish. Native dependency license notices belong in the
+package's `licenses/` directory and must remain in the wheel.
 
 ## Commits
 
-Use a subject of at most 72 characters: `type(scope): summary`, for example
-`feat(fs): add paginated text reading`. The optional hook and CI use the
-same checker. Add user-visible changes under `Unreleased` in `CHANGELOG.md`.
-
-Search fixtures in `tests/fixtures/search.json` exercise the native search backends
-through local POST servers. `scripts/check-python.py` compares their complete
-results with fresh Rust reference output. Test provider independence with
-`cargo test -p roomkit-tools-search --no-default-features`; check each optional
-feature separately when changing backend dependencies. Service credentials and
-live search calls must not be required by tests or checked examples.
-
-`tests/fixtures/outline.json` compares complete Rust/Python outline envelopes
-for both languages, including source ranges, Unicode, recovered syntax errors,
-pagination, revisions and bounds. `examples/roomkit_outline.py` checks a method
-repair through actual tools and independent file/test verification. Parser
-dependencies stay in `roomkit-tools-code`; the core and filesystem crates must
-not acquire parser or grammar dependencies.
-
-`examples/roomkit_background.py` exercises RoomKit's existing task orchestration
-with real Rust code tools. Its default scripted mode and integration tests run
-with installed artifacts. Completion/cancellation checks coordinate through
-explicit events; no live model or arbitrary task-duration delay is required.
-
-`examples/roomkit_delegate.py` is the small delegated-read integration; its
-scripted mode runs against both installed artifacts, with actual tool evidence.
-`examples/roomkit_agents.py` exercises the packaged delegation facades and the
-optional RoomKit backend with static profiles and dynamic resolution. Both modes
-run against installed wheel and sdist artifacts. Rust and standalone Python
-tests cover shared contract validation; RoomKit tests cover caller scope,
-instance isolation, resolution/cancellation races, delivery and resource cleanup.
-The parallel example uses per-instance read gates to verify concurrent chat,
-targeted steering, independent cancellation and history retention on follow-up.
-Its scripted integration tests run with both static and dynamic configuration;
-the artifact gate also runs the dynamic parallel CLI. Turn-diagnostic tests use
-public RoomKit hooks with normal, empty, limited and failing providers, including
-an empty final answer after an actual tool effect to guard against replay.
+Use `type(scope): summary`, at most 72 characters, for example
+`feat(fs): add paginated text reading`. The hook and CI share the same checker.
+Record user-visible changes under `Unreleased` in [CHANGELOG.md](CHANGELOG.md).
