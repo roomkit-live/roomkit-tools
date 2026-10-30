@@ -6,7 +6,7 @@ resource limits consistent with the implementation.
 
 ## Development environment
 
-Rustup selects the toolchain pinned in `rust-toolchain.toml`; the MSRV is 1.92.
+Rustup selects the toolchain pinned in `rust-toolchain.toml`; the MSRV is 1.94.
 Install cargo-deny for dependency checks:
 
 ```sh
@@ -27,6 +27,8 @@ with `uv venv` and `uv pip install '.[roomkit]'`. See
 | `make all` | Formatting, Clippy, tests, rustdoc, dependency policy, core dependency allow list and executable Rust examples |
 | `make msrv-toolchain msrv` | Install/check the minimum Rust toolchain |
 | `make python-check` | Binding lint/docs/dependencies, Python lint, independent wheel/source installs, standalone and RoomKit tests and examples |
+| `make ocr-python-check` | Optional engine wheel/source installs and RoomKit selection; set `ROOMKIT_OCR_MODELS` for real-model parity |
+| `make ocr-python-msrv` | Check the optional OCR extension on the MSRV |
 | `make python-msrv` | Check native Python bindings on the MSRV |
 | `make roomkit-check roomkit-msrv` | Optional Rust RoomKit adapter; requires access to its pinned engine source |
 

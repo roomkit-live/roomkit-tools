@@ -16,6 +16,7 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 mod agents;
+mod ocr;
 
 pyo3::create_exception!(
     "roomkit_tools",
@@ -366,6 +367,7 @@ rooted_binding!(
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<agents::PythonAgentContract>()?;
     runtime::install(module)?;
+    module.add_function(wrap_pyfunction!(ocr::ocr_definition_json, module)?)?;
     module.add_class::<Cancellation>()?;
     module.add_class::<PythonCodeOutlineTool>()?;
     module.add_class::<PythonViewImageTool>()?;

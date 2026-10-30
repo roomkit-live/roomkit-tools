@@ -21,6 +21,11 @@ def run(*arguments: str, cwd: Path) -> None:
 
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
+    # Extracted sdists live outside the checkout's rustup override.
+    os.environ.setdefault(
+        "RUSTUP_TOOLCHAIN",
+        tomllib.loads((root / "rust-toolchain.toml").read_text())["toolchain"]["channel"],
+    )
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--wheel", type=Path, help="Validate this prebuilt wheel")
     parser.add_argument("--sdist", type=Path, help="Validate this source distribution")
@@ -190,6 +195,7 @@ def main() -> None:
                 "uv", "pip", "install", "--python", str(python), "--no-deps", str(package), cwd=work
             )
             run_tests(python, root, work, "test_read.py")
+            run_tests(python, root, work, "test_ocr.py")
             run_tests(python, root, work, "test_agents.py")
             run_tests(python, root, work, "test_shutdown.py")
             run_tests(python, root, work, "test_discovery.py")

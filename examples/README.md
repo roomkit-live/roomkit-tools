@@ -150,3 +150,11 @@ and verify their outputs without RoomKit, a model or external credentials.
 | `view_image` | Prepare a PNG payload with bounded metadata |
 
 [Documentation index](../guide/README.md) · [Project overview](../README.md)
+
+## Optional local OCR
+
+After installing the separate RustO backend and provisioning local PP-OCRv6
+models, run `python examples/roomkit_ocr.py --models ./models --image
+tests/fixtures/ocr/page.png` (on one line). This exercises real OCR through a
+scripted RoomKit conversation. Add `--live` for the configured vLLM.
+See [OCR](../guide/ocr.md); no model downloads occur in the example.

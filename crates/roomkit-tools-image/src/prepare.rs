@@ -38,7 +38,7 @@ impl Control {
     clippy::needless_pass_by_value,
     reason = "map_err owns decoder errors; diagnostic details are deliberately discarded"
 )]
-fn image_error(error: image::ImageError) -> Error {
+pub(crate) fn image_error(error: image::ImageError) -> Error {
     if matches!(error, image::ImageError::Limits(_)) {
         Error::LimitExceeded("image decoder resource limit exceeded".into())
     } else {
@@ -51,7 +51,7 @@ fn image_error(error: image::ImageError) -> Error {
     clippy::wildcard_enum_match_arm,
     reason = "only three explicit formats are accepted, including after upstream adds formats"
 )]
-fn decoder<'a>(
+pub(crate) fn decoder<'a>(
     bytes: &'a [u8],
     bounds: &ViewImageLimits,
 ) -> Result<(ImageMime, Box<dyn ImageDecoder + 'a>), Error> {

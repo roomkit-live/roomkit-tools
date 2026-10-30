@@ -3,12 +3,17 @@ all-features = true
 
 [advisories]
 yanked = "deny"
+# RustO -> nalgebra -> simba uses the unmaintained paste proc macro at build time.
+# Confined to the optional OCR engine; remove when upstream replaces it.
+ignore = ["RUSTSEC-2024-0436"]
 
 [licenses]
 allow = ["MIT", "Apache-2.0", "Unicode-3.0"]
 confidence-threshold = 0.9
 # PyO3's build-time target detection uses this Apache license exception.
 exceptions = [
+    # RustO detector polygon clipping (Boost Software License).
+    { crate = "clipper2-rust", allow = ["BSL-1.0"] },
     { crate = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
     # Tree-sitter build metadata enables serde_json's ordered-map dependencies.
     { crate = "foldhash", allow = ["Zlib"] },

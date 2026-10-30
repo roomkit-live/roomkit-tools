@@ -3,7 +3,7 @@ name = "roomkit-tools-roomkit"
 description = "Select individual roomkit-tools through RoomKit Rust's Toolset interface"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.94"
 license = "MIT"
 publish = false
 
@@ -12,7 +12,12 @@ publish = false
 [workspace]
 resolver = "3"
 
+[features]
+default = []
+ocr = ["dep:roomkit-tools-ocr"]
+
 [dependencies]
+roomkit-tools-ocr = { path = "../../crates/roomkit-tools-ocr", optional = true }
 roomkit-tools-code = { path = "../../crates/roomkit-tools-code" }
 roomkit-tools-search = { path = "../../crates/roomkit-tools-search" }
 roomkit-tools-web = { path = "../../crates/roomkit-tools-web" }

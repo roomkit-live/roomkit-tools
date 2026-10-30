@@ -15,6 +15,7 @@ from ._native import (
 from .code import CodeOutlineTool
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .image import ViewImageTool
+from .ocr import OcrBackend, OcrTool
 from .output import OutputStore
 from .process import ProcessSession, ShellTool
 from .search import SearchBackend, WebSearchTool
@@ -35,6 +36,7 @@ type _BoundTool = (
     | ShellTool
     | WebFetchTool
     | WebSearchTool
+    | OcrTool
 )
 
 
@@ -536,3 +538,27 @@ class WebSearch(_ToolAdapter):
 
     async def _get_tool(self) -> WebSearchTool:
         return self._tool
+
+
+class Ocr(_ToolAdapter):
+    """Select local OCR with an explicit, independently installed backend."""
+
+    _tool_type = OcrTool
+
+    def __init__(
+        self, root: str | os.PathLike[str], *, backend: OcrBackend, **limits: int | None
+    ) -> None:
+        path = os.fspath(root)
+        if not path:
+            raise InvalidInputError("root must not be empty")
+        self._root = os.path.abspath(path)
+        self._backend = backend
+        self._limits = limits
+        self._resolved: OcrTool | None = None
+
+    async def _get_tool(self) -> OcrTool:
+        if self._resolved is None:
+            tool = await OcrTool.create(self._root, backend=self._backend, **self._limits)
+            if self._resolved is None:
+                self._resolved = tool
+        return self._resolved

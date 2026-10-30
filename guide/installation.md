@@ -17,7 +17,7 @@ future PyPI release has already happened.
 
 ## From source
 
-Use CPython 3.12 or newer, a Rust toolchain satisfying the workspace MSRV (1.92),
+Use CPython 3.12 or newer, a Rust toolchain satisfying the workspace MSRV (1.94),
 and a native linker/build environment. The pinned toolchain in
 [`rust-toolchain.toml`](../rust-toolchain.toml) is used when building in a checkout.
 From its root:
@@ -69,7 +69,7 @@ the repository, not the installed import package.
 | --- | --- |
 | Python interpreter | Standard CPython 3.12 and 3.14; stable ABI targeting 3.12+ |
 | Published preview wheel | Linux x86_64, glibc 2.34+ |
-| Rust minimum | 1.92 |
+| Rust minimum | 1.94 |
 | RoomKit Python adapter | Dependency range `>=0.110,<0.112`; automated checks use 0.110.0 |
 | Shell and persistent processes | Linux; Unix process-group implementation |
 | macOS, Windows, ARM64, musl, PyPy, free-threaded Python | No validated distributions in this project yet |
@@ -91,3 +91,10 @@ operations. With the RoomKit extra, `python examples/roomkit_read.py` also check
 an actual RoomKit tool call using a scripted provider. Neither needs an API key.
 
 [Documentation index](README.md) · [Project overview](../README.md)
+
+## Optional OCR engine (development source)
+
+The source after a14 requires Rust 1.94+ and provides a separate native package
+for RustO. Install `.[roomkit]` and `./backends/rusto/python` from a checkout only
+when selecting that OCR backend. The base package does not include its inference
+dependencies or model weights. See [OCR configuration](ocr.md).

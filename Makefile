@@ -52,12 +52,12 @@ hooks:
 # Opt in with Git read access to the pinned roomkit-rs revision.
 roomkit-check:
 	$(CARGO) fmt --manifest-path $(ROOMKIT_MANIFEST) --all -- --check
-	$(CARGO) clippy --manifest-path $(ROOMKIT_MANIFEST) --all-targets --locked -- -D warnings
-	$(CARGO) test --manifest-path $(ROOMKIT_MANIFEST) --locked
-	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(ROOMKIT_MANIFEST) --no-deps --locked
+	$(CARGO) clippy --manifest-path $(ROOMKIT_MANIFEST) --all-targets --all-features --locked -- -D warnings
+	$(CARGO) test --manifest-path $(ROOMKIT_MANIFEST) --all-features --locked
+	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(ROOMKIT_MANIFEST) --no-deps --all-features --locked
 
 roomkit-msrv:
-	$(CARGO) +$(MSRV) check --manifest-path $(ROOMKIT_MANIFEST) --all-targets --locked
+	$(CARGO) +$(MSRV) check --manifest-path $(ROOMKIT_MANIFEST) --all-targets --all-features --locked
 
 # Optional CPython bridge: the standalone Rust gates remain interpreter-free.
 python-check:
@@ -71,3 +71,16 @@ python-check:
 
 python-msrv:
 	$(CARGO) +$(MSRV) check --manifest-path $(PYTHON_MANIFEST) --all-targets --locked
+
+# Optional OCR engine distribution; set ROOMKIT_OCR_MODELS to run local model parity.
+.PHONY: ocr-python-check ocr-python-msrv
+ocr-python-check:
+	$(CARGO) fmt --manifest-path backends/rusto/python/Cargo.toml --all -- --check
+	$(CARGO) clippy --manifest-path backends/rusto/python/Cargo.toml --all-targets --locked -- -D warnings
+	$(CARGO) deny --manifest-path backends/rusto/python/Cargo.toml --config deny.toml check
+	uv tool run --from 'ruff>=0.14,<1' ruff check backends/rusto/python scripts/check-ocr-python.py
+	uv tool run --from 'ruff>=0.14,<1' ruff format --check backends/rusto/python scripts/check-ocr-python.py
+	$(PYTHON) scripts/check-ocr-python.py
+
+ocr-python-msrv:
+	$(CARGO) +$(MSRV) check --manifest-path backends/rusto/python/Cargo.toml --all-targets --locked

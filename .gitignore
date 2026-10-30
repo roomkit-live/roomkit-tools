@@ -23,3 +23,6 @@ __pycache__/
 /docs/
 /integrations/roomkit-rs/bakery-read.patch
 /scripts/roomkit-bakery.py
+
+/backends/rusto/python/target/
+/backends/rusto/python/dist/

@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "roomkit-tools"
-version = "0.1.0a14"
+version = "0.1.0a15.dev0"
 description = "Composable Rust tools for coding agents, Python and RoomKit"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -41,7 +41,7 @@ exclude = ["docs/**", "AGENTS.md", "integrations/**", "scripts/roomkit-bakery.py
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-include = ["python/**/*.py", "tests/python/**/*.py", "examples/*.py", "scripts/check-python.py"]
+include = ["python/**/*.py", "tests/python/**/*.py", "examples/*.py", "scripts/check-python.py", "scripts/check-ocr-python.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]

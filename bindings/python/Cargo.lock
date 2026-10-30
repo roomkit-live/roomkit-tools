@@ -1301,6 +1301,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "roomkit-tools-ocr"
+version = "0.1.0"
+dependencies = [
+ "roomkit-tools-core",
+ "roomkit-tools-image",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "roomkit-tools-process"
 version = "0.1.0"
 dependencies = [
@@ -1324,6 +1338,7 @@ dependencies = [
  "roomkit-tools-core",
  "roomkit-tools-fs",
  "roomkit-tools-image",
+ "roomkit-tools-ocr",
  "roomkit-tools-process",
  "roomkit-tools-search",
  "roomkit-tools-web",

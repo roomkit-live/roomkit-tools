@@ -18,7 +18,7 @@ tokio-util = { version = "0.7", features = ["rt"] }
 
 A Git dependency can select a crate by package name; pin the exact revision you
 intend to consume. Git access is required while the repository is private.
-The minimum supported Rust version is 1.92.
+The minimum supported Rust version is 1.94.
 
 For a file beneath the current directory:
 
@@ -94,3 +94,7 @@ commands execute with host permissions; the initial directory is not a sandbox.
 See the tool-family guides for exact resource and cancellation boundaries.
 
 [Documentation index](README.md) · [Project overview](../README.md)
+
+OCR uses the separate `roomkit-tools-ocr` contract and optional
+`roomkit-tools-ocr-rusto` engine. Enable the adapter's `ocr` feature for
+`OcrToolset`. See [OCR](ocr.md) for model configuration and native-worker ownership.

@@ -4,9 +4,11 @@
 //! normalized PNG preview plus metadata. Hosts must deliver the image payload as
 //! multimodal content; serializing it into ordinary text does not enable vision.
 
+mod decoded;
 mod prepare;
 mod source;
 mod types;
+pub use decoded::{DecodedImage, ImageWorkspace, decode_rgb};
 
 pub use types::{ImageMime, ImagePayload, ViewImageInput, ViewImageLimits, ViewImageResult};
 

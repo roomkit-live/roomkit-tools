@@ -22,6 +22,8 @@ use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool,
 };
+#[cfg(feature = "ocr")]
+use roomkit_tools_ocr::OcrTool;
 use roomkit_tools_search::WebSearchTool;
 use roomkit_tools_web::WebFetchTool;
 use tokio_util::sync::CancellationToken;
@@ -141,6 +143,12 @@ toolset!(
 toolset!(
     /// Search using the host-selected backend, preserving typed results and citations.
     WebSearchToolset, WebSearchTool, search, "web_search"
+);
+
+#[cfg(feature = "ocr")]
+toolset!(
+    /// Transcribe local images using a separately configured recognition backend.
+    OcrToolset, OcrTool, ocr, "ocr"
 );
 
 fn tool_error(error: &Error) -> ToolError {

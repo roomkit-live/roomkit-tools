@@ -21,6 +21,7 @@ distinguishes development builds from available previews.
 | [Processes and archives](processes.md) | Shell, persistent stdin/stdout, deadlines, logs and cleanup |
 | [Web](web.md) | Fetching, origin policy, search providers, citations and budgets |
 | [Images](images.md) | Supported formats, preview preparation and multimodal results |
+| [OCR](ocr.md) | Local text recognition, separate engines, models and positioned blocks |
 | [Agent delegation](agents.md) | Static/dynamic profiles, messages, follow-ups, task state and delivery |
 
 ## Maintainers

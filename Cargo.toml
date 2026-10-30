@@ -6,7 +6,7 @@ exclude = ["adapters/roomkit", "bindings/python"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.94"
 license = "MIT"
 publish = false
 
@@ -15,6 +15,13 @@ roomkit-tools-agents = { path = "crates/roomkit-tools-agents" }
 roomkit-tools-core = { path = "crates/roomkit-tools-core" }
 roomkit-tools-code = { path = "crates/roomkit-tools-code" }
 roomkit-tools-image = { path = "crates/roomkit-tools-image" }
+roomkit-tools-ocr = { path = "crates/roomkit-tools-ocr" }
+roomkit-tools-ocr-rusto = { path = "crates/roomkit-tools-ocr-rusto" }
+rusto-rs = { version = "=0.3.2", default-features = false }
+rten = { version = "0.27", default-features = false, features = ["onnx_format", "rten_format"] }
+rten-tensor = "0.27"
+ndarray = "0.16"
+rayon = "1"
 roomkit-tools-fs = { path = "crates/roomkit-tools-fs" }
 roomkit-tools-process = { path = "crates/roomkit-tools-process" }
 roomkit-tools-web = { path = "crates/roomkit-tools-web" }

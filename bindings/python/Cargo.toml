@@ -3,7 +3,7 @@ name = "roomkit-tools-python"
 description = "Optional Python bindings for independent Rust agent tools"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.94"
 license = "MIT"
 publish = false
 
@@ -16,6 +16,7 @@ name = "_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+roomkit-tools-ocr = { path = "../../crates/roomkit-tools-ocr" }
 roomkit-tools-agents = { path = "../../crates/roomkit-tools-agents" }
 roomkit-tools-code = { path = "../../crates/roomkit-tools-code" }
 roomkit-tools-image = { path = "../../crates/roomkit-tools-image" }

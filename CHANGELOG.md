@@ -6,6 +6,14 @@ part of an existing published preview.
 
 ## Unreleased
 
+- Add selectable `ocr` contracts, bounded native execution and positioned text
+  results in Rust/Python, with RoomKit adapters for both languages.
+- Supply RustO/RTen as a separate Rust crate and optional Python distribution,
+  with explicit local models, private thread pools and shared engine lifetimes.
+  Neither model downloads nor inference dependencies are imposed on the base
+  Python package. Support EXIF orientation and explicit clockwise rotation.
+- Raise the workspace and Python source-build minimum to Rust 1.94.
+
 ## 0.1.0a14
 
 - Add `view_image` in Rust and Python for static PNG, JPEG and WebP, with bounded
