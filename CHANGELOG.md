@@ -6,6 +6,8 @@ part of an existing published preview.
 
 ## Unreleased
 
+## 0.1.0a14
+
 - Add `view_image` in Rust and Python for static PNG, JPEG and WebP, with bounded
   PNG previews, orientation handling, source revisions and unchanged source files.
   The RoomKit Python adapter returns typed image content; the pinned RoomKit Rust

@@ -7,8 +7,8 @@ managed separately; APIs may change between previews.
 
 | Source | Availability |
 | --- | --- |
-| Current checkout | Development version in `pyproject.toml`; includes `view_image` and host process observation |
-| GitHub preview `v0.1.0a13` | Prebuilt Python wheel and source distribution; includes agent tools, but not `view_image` |
+| Current checkout | Package version declared in `pyproject.toml` |
+| GitHub preview `v0.1.0a14` | Prebuilt Python wheel and source distribution |
 | PyPI | First publication is being prepared; no install-from-PyPI command is available yet |
 | crates.io | No published crates; use a checkout or Git dependency |
 
@@ -48,15 +48,14 @@ Provider-specific extras, such as `roomkit[vllm]`, are installed separately.
 
 ## From an existing GitHub wheel
 
-A prebuilt wheel does not require Rust. This command installs **a13**, so choose
-a source build above to try the newer image tool:
+A prebuilt wheel does not require Rust:
 
 ```sh
-gh release download v0.1.0a13 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a14 --repo roomkit-live/roomkit-tools \
   --pattern '*.whl' --pattern 'SHA256SUMS' --dir dist
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a13-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a14-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 Compare the downloaded wheel's SHA-256 with its entry in `dist/SHA256SUMS`.

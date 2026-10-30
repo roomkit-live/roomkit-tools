@@ -8,10 +8,9 @@ before an upload. Building, validating and uploading are separate operations.
 ## Current distribution scope
 
 The Python version lives in `pyproject.toml`. Rust crates keep separate versions
-and have `publish = false`. GitHub previews have reached `0.1.0a13`; the current
-source is a development version after that preview. Continue the alpha sequence
-for the first PyPI package rather than implying a stable API with a `1.0` release.
-Select the final version before building release artifacts.
+and have `publish = false`. Continue the existing alpha sequence until the API
+is ready for a stable release. Select the final version before building release
+artifacts; release-specific changes belong in the changelog.
 
 The existing [distribution workflow](../.github/workflows/python-distributions.yml)
 builds one optimized, stripped CPython 3.12+ stable-ABI wheel for Linux x86_64
@@ -27,8 +26,9 @@ Other wheel platforms need their own build and validation work before release.
 2. Run `make all`, `make python-check`, and the applicable MSRV checks. Check
    public Markdown links, examples and metadata. Keep internal plans, fixtures
    and credentials out of version control and both distributions.
-3. Commit the candidate and require successful CI on that exact commit. A job
-   that never starts does not validate a release. Source access for linked public
+3. Commit the candidate and validate that exact commit through CI, or the
+   equivalent recorded checks described below if hosted runners are unavailable.
+   A job that never starts does not validate a release. Source access for linked public
    documentation must also be ready before advertising it on PyPI.
 4. Dispatch the distribution workflow on the candidate ref:
 
@@ -48,6 +48,14 @@ Other wheel platforms need their own build and validation work before release.
 5. Keep the tested files unchanged. Check their version, wheel compatibility tag,
    license notices and source contents. Tag the exact tested commit when the
    release is approved. Do not rebuild different bytes for publication.
+
+If hosted runners are unavailable, reproduce the build in a compatible Linux
+container and run the same Rust/binding gates and artifact checks locally. Audit
+the wheel's manylinux compatibility and test both wheel and source installs on
+CPython 3.12 and 3.14. Record the exact commit, container base digest, toolchain,
+checksums, checks performed and hosted-CI limitation with the release. Do not
+relabel a binary that fails compatibility auditing or report local checks as a
+successful hosted CI run. This fallback does not publish to PyPI automatically.
 
 To repeat package validation locally, from the repository root:
 

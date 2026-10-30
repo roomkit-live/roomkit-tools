@@ -8,9 +8,7 @@ Choose the capabilities your agent needs: files, code outlines, commands,
 persistent processes, web access, images and delegated work. The host controls
 workspaces, limits, credentials and resource lifetimes.
 
-**Alpha software.** The current source includes `view_image`; the a13 GitHub
-preview does not. A first PyPI release is being prepared. See
-[installation and compatibility](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/installation.md)
+See [installation and compatibility](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/installation.md)
 for available artifacts and supported platforms.
 
 ## Install from a checkout

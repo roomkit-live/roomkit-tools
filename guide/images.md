@@ -1,8 +1,7 @@
 # Local image viewing
 
-`view_image` is included in the current source tree. It is not in the a13
-preview; see [installation and compatibility](installation.md). It is independent of
-`read`, which keeps its text-only contract, and does not require Python imaging
+`view_image` is independent of `read`, which keeps its text-only contract,
+and does not require Python imaging
 libraries or a model provider for standalone preparation.
 
 Select it directly in a RoomKit Python agent with a vision-capable provider:
