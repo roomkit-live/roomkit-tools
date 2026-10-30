@@ -147,6 +147,7 @@ and verify their outputs without RoomKit, a model or external credentials.
 | `read_output` | Archived output paging |
 | `fetch_page` | Local HTTP redirect and Markdown conversion |
 | `search_web` | Local search fixture; `--live` explicitly uses Exa |
+| `documentation` | Catalogue discovery, literal search and revision-checked document lines |
 | `plan_progress` | Create, read, update, list and delete a versioned plan |
 | `outline_code` | Locate a method and read its source range |
 | `view_image` | Prepare a PNG payload with bounded metadata |
@@ -160,3 +161,11 @@ models, run `python examples/roomkit_ocr.py --models ./models --image
 tests/fixtures/ocr/page.png` (on one line). This exercises real OCR through a
 scripted RoomKit conversation. Add `--live` for the configured vLLM.
 See [OCR](../guide/ocr.md); no model downloads occur in the example.
+
+## Configured documentation
+
+`python examples/roomkit_docs.py` verifies documentation discovery, search and
+revision-checked reading through a scripted RoomKit conversation. Add `--live`
+for one model request or `--chat` to continue with questions. The example's
+configured file catalogue explains agent follow-ups and plan revisions; only
+the three documentation tools are enabled. See [documentation tools](../guide/documentation.md).

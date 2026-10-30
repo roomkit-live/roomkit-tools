@@ -12,6 +12,10 @@ mod plans;
 pub use plans::{
     PlanCreateToolset, PlanDeleteToolset, PlanListToolset, PlanReadToolset, PlanUpdateToolset,
 };
+#[cfg(feature = "docs")]
+mod docs;
+#[cfg(feature = "docs")]
+pub use docs::{DocsListToolset, DocsReadToolset, DocsSearchToolset};
 mod output;
 mod process;
 pub use output::{OutputForgetToolset, OutputReadToolset, ShellToolset};

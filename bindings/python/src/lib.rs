@@ -16,6 +16,7 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 
 mod agents;
+mod docs;
 mod ocr;
 mod plans;
 
@@ -367,6 +368,8 @@ rooted_binding!(
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<agents::PythonAgentContract>()?;
+    module.add_class::<docs::PythonDocsContract>()?;
+    module.add_class::<docs::PythonFileDocs>()?;
     module.add_class::<plans::PythonPlanContract>()?;
     module.add_class::<plans::PythonMemoryPlanBackend>()?;
     runtime::install(module)?;

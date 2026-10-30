@@ -22,6 +22,7 @@ distinguishes development builds from available previews.
 | [Web](web.md) | Fetching, origin policy, search providers, citations and budgets |
 | [Images](images.md) | Supported formats, preview preparation and multimodal results |
 | [OCR](ocr.md) | Local text recognition, separate engines, models and positioned blocks |
+| [Documentation tools](documentation.md) | Configured catalogues, lexical search, source lines and immutable snapshots |
 | [Plans](plans.md) | Selectable CRUD, scoped storage, revisions and declared progress |
 | [Agent delegation](agents.md) | Static/dynamic profiles, messages, follow-ups, task state and delivery |
 

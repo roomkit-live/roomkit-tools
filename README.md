@@ -5,7 +5,7 @@ an asynchronous Python API. Use them directly, or pass individual tools to a
 [RoomKit](https://github.com/roomkit-live/roomkit) agent.
 
 Choose the capabilities your agent needs: files, code outlines, commands,
-persistent processes, web access, images and delegated work. The host controls
+persistent processes, web access, images, documentation and delegated work. The host controls
 workspaces, limits, credentials and resource lifetimes.
 
 See [installation and compatibility](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/installation.md)
@@ -100,13 +100,14 @@ and the checked examples in `examples/`. No crates are published to crates.io ye
 | Web | `web_fetch`, `web_search` with Exa, Ollama or OpenAI backends | [Web](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/web.md) |
 | Images | `view_image` for static PNG, JPEG and WebP | [Images](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/images.md) |
 | Text recognition | `ocr` with an optional, separately installed RustO backend | [OCR](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/ocr.md) |
+| Documentation | `docs_list`, `docs_search`, `docs_read` over a configured file catalogue | [Documentation](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/documentation.md) |
 | Planning | `plan_create`, `plan_read`, `plan_list`, `plan_update`, `plan_delete` | [Plans](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/plans.md) |
 | Delegation | `delegate_task`, `task_status`, `cancel_task`, `agent_followup`, `agent_send` | [Agents](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/agents.md) |
 
 All are independently selectable in RoomKit Python. The agent tools use portable
 Rust contracts and an injected execution backend; a RoomKit Python backend is
 included. The optional RoomKit Rust adapter supports the file, code, command and
-web tools, plus optional `ocr` and `plans` features. Native agent orchestration
+web tools, plus optional `ocr`, `plans` and `docs` features. Native agent orchestration
 and image-result transport are not yet implemented there.
 
 ## Execution boundaries

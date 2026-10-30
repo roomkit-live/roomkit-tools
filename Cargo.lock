@@ -1515,12 +1515,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "roomkit-tools-docs"
+version = "0.1.0"
+dependencies = [
+ "roomkit-tools-core",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "roomkit-tools-examples"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "roomkit-tools-code",
  "roomkit-tools-core",
+ "roomkit-tools-docs",
  "roomkit-tools-fs",
  "roomkit-tools-image",
  "roomkit-tools-plans",

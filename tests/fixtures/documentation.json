@@ -1,0 +1,49 @@
+{
+  "files": {
+    "agents.md": "# Delegation\nUse agent_followup to continue an idle agent.\nUse agent_send for a running mission.\n",
+    "plans.md": "# Plans\nUse expected_revision to avoid stale changes.\n",
+    "empty.txt": "",
+    ".hidden.md": "Hidden content\n",
+    "notes.json": "{}"
+  },
+  "cases": [
+    {
+      "tool": "docs_list",
+      "arguments": {
+        "limit": 2
+      }
+    },
+    {
+      "tool": "docs_list",
+      "arguments": {
+        "offset": 2
+      }
+    },
+    {
+      "tool": "docs_search",
+      "arguments": {
+        "query": "AGENT_FOLLOWUP idle"
+      }
+    },
+    {
+      "tool": "docs_search",
+      "arguments": {
+        "query": "not-a-match"
+      }
+    },
+    {
+      "tool": "docs_read",
+      "arguments": {
+        "document_id": "agents.md",
+        "offset": 2,
+        "limit": 1
+      }
+    },
+    {
+      "tool": "docs_read",
+      "arguments": {
+        "document_id": "empty.txt"
+      }
+    }
+  ]
+}

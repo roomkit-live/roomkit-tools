@@ -37,6 +37,23 @@ def main() -> None:
         work = Path(temporary)
         # Build reference results from the Rust API before comparing installed
         # Python packages. This is a maintainer check, not an installation step.
+        docs_reference = work / "rust-docs.json"
+        subprocess.run(
+            [
+                "cargo",
+                "test",
+                "--locked",
+                "-p",
+                "roomkit-tools-docs",
+                "--features",
+                "files",
+                "--test",
+                "contracts",
+            ],
+            cwd=root,
+            env={**os.environ, "ROOMKIT_DOCS_RESULTS": str(docs_reference)},
+            check=True,
+        )
         plan_reference = work / "rust-plans.json"
         subprocess.run(
             ["cargo", "test", "--locked", "-p", "roomkit-tools-plans", "--test", "contracts"],
@@ -201,6 +218,7 @@ def main() -> None:
             run(
                 "uv", "pip", "install", "--python", str(python), "--no-deps", str(package), cwd=work
             )
+            run_tests(python, root, work, "test_docs.py", docs_reference=docs_reference)
             run_tests(python, root, work, "test_read.py")
             run_tests(python, root, work, "test_ocr.py")
             run_tests(python, root, work, "test_agents.py")
@@ -235,6 +253,7 @@ def main() -> None:
                 cwd=work,
             )
             run_tests(python, root, work, "test_roomkit*.py")
+            run(str(python), "-I", str(root / "examples/roomkit_docs.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_plans.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_read.py"), cwd=work)
             run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
@@ -271,6 +290,7 @@ def run_tests(
     work: Path,
     pattern: str,
     *,
+    docs_reference: Path | None = None,
     plan_reference: Path | None = None,
     reference: Path | None = None,
     web_reference: Path | None = None,
@@ -296,6 +316,7 @@ def run_tests(
         cwd=work,
         env={
             **os.environ,
+            **({"ROOMKIT_DOCS_RESULTS": str(docs_reference)} if docs_reference else {}),
             **({"ROOMKIT_PLAN_RESULTS": str(plan_reference)} if plan_reference else {}),
             **({"ROOMKIT_CONTRACT_RESULTS": str(reference)} if reference else {}),
             **({"ROOMKIT_WEB_RESULTS": str(web_reference)} if web_reference else {}),

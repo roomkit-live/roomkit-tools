@@ -6,6 +6,12 @@ part of an existing published preview.
 
 ## Unreleased
 
+- Add independently selectable `docs_list`, `docs_search` and `docs_read` in Rust,
+  Python and both RoomKit adapters, over injected documentation backends.
+- Include an optional file backend with bounded immutable Markdown/text snapshots,
+  literal ranked search, source lines, provenance, pagination and revision checks.
+  Add scripted/live RoomKit examples; HTTPS is not implemented in this version.
+
 ## 0.1.0a15
 
 - Add independently selectable plan CRUD in Rust, Python and both RoomKit adapters,

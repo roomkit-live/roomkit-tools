@@ -18,6 +18,7 @@ from .agents import (
     TaskStatus,
 )
 from .code import CodeOutlineTool
+from .docs import DocsBackend, DocsList, DocsRead, DocsSearch, FileDocs
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .image import ViewImageTool
 from .ocr import OcrBackend, OcrTool
@@ -61,6 +62,11 @@ from .web import WebFetchTool
 from .workspace import Workspace
 
 __all__ = [
+    "DocsBackend",
+    "DocsList",
+    "DocsRead",
+    "DocsSearch",
+    "FileDocs",
     "MemoryPlanBackend",
     "PlanBackend",
     "PlanScope",

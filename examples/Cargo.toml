@@ -8,6 +8,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+roomkit-tools-docs = { workspace = true, features = ["files"] }
 roomkit-tools-plans.workspace = true
 roomkit-tools-code.workspace = true
 roomkit-tools-image.workspace = true
@@ -77,3 +78,7 @@ path = "view_image.rs"
 [[example]]
 name = "plan_progress"
 path = "plan_progress.rs"
+
+[[example]]
+name = "documentation"
+path = "documentation.rs"
