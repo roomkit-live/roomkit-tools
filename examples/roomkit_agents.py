@@ -208,8 +208,13 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False):
                         "agent_followup continues an idle agent_id with a new task_id and its "
                         "existing history. agent_send queues a clarification to a running agent; "
                         "queued does not mean already read. These take agent_id, not a profile. "
+                        "Copy IDs verbatim from tool results. If an ID is unknown, compare it "
+                        "with task_status and correct it; do not infer expiry or silently replace "
+                        "a request for the same agent with a new delegation. "
                         "When a worker report arrives, explain it to the user. Never claim an "
-                        "action without its tool result. Source file: shipping.py."
+                        "action without its tool result. Proposed tests have predicted outcomes, "
+                        "not observed pass/fail results: these workers cannot execute tests. "
+                        "Source file: shipping.py."
                     ),
                 )
             )

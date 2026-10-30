@@ -602,3 +602,59 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(last["status"], "running")
         self.assertFalse(last["agent_available"])
         self.assertEqual(self.workers[0].closed, 1)
+
+    @bounded
+    async def test_mistyped_agent_id_is_refused_without_replacing_available_instance(self):
+        gate = asyncio.Event()
+        backend = self.backend(profiles={"reader": self.config(gate)})
+        first = await self.launch(backend)
+        await self.workers[0].entered.wait()
+        actual = first["agent_id"]
+        typo = actual[:-3] + actual[-1:]
+        before = await backend.status(self.scope)
+        for tool, arguments in (
+            (AgentFollowup(backend), {"agent_id": typo, "task": "Continue"}),
+            (AgentSend(backend), {"agent_id": typo, "message": "Clarify"}),
+        ):
+            with self.assertRaises(AccessRefusedError) as error:
+                await tool.call(arguments, scope=self.scope)
+            diagnostic = str(error.exception)
+            self.assertIn(json.dumps(typo), diagnostic)
+            self.assertIn(json.dumps(actual), diagnostic)
+            self.assertIn("not evidence that an agent expired", diagnostic)
+            self.assertIn("Copy agent_id exactly from task_status", diagnostic)
+            self.assertEqual(await backend.status(self.scope), before)
+        self.assertEqual(len(self.workers[0].calls), 1)
+        gate.set()
+        await backend.wait(first["task_id"])
+        with self.assertRaises(AccessRefusedError):
+            await backend.followup(self.scope, agent_id=typo, task="Still the same typo")
+        current = (await TaskStatus(backend).call({}, scope=self.scope))["data"]["tasks"][0]
+        self.assertTrue(current["agent_available"])
+        second = (
+            await AgentFollowup(backend).call(
+                {"agent_id": current["agent_id"], "task": "Continue with the exact ID"},
+                scope=self.scope,
+            )
+        )["data"]
+        self.assertEqual(second["agent_id"], actual)
+        self.assertNotEqual(second["task_id"], first["task_id"])
+        self.assertEqual((await backend.wait(second["task_id"]))["status"], "completed")
+        self.assertEqual(len(self.workers), 1)
+        self.assertEqual(len(self.workers[0].calls), 2)
+
+    @bounded
+    async def test_unknown_agent_hints_do_not_disclose_ids_to_foreign_scopes(self):
+        backend = self.backend(profiles={"reader": self.config()})
+        first = await self.launch(backend)
+        await backend.wait(first["task_id"])
+        for scope in (AgentScope("other-room", "assistant"), AgentScope("parent", "other-agent")):
+            for tool, arguments in (
+                (AgentFollowup(backend), {"agent_id": "unknown", "task": "Continue"}),
+                (AgentSend(backend), {"agent_id": "unknown", "message": "Clarify"}),
+            ):
+                with self.assertRaises(AccessRefusedError) as error:
+                    await tool.call(arguments, scope=scope)
+                self.assertNotIn(first["agent_id"], str(error.exception))
+                self.assertNotIn("Known agent_ids", str(error.exception))
+        self.assertEqual(len((await backend.status(self.scope))["tasks"]), 1)

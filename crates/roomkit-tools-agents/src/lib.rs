@@ -48,7 +48,7 @@ pub struct CancelInput {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FollowupInput {
-    /// Agent instance returned by delegation, not a profile or task ID.
+    /// Copy exactly from delegation or `task_status`, not a profile or task ID.
     pub agent_id: String,
     /// New instructions, at most 16 KiB. The previous conversation is retained.
     pub task: String,
@@ -58,7 +58,7 @@ pub struct FollowupInput {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SendInput {
-    /// Existing agent instance, not a profile or task ID.
+    /// Copy exactly from delegation or `task_status`, not a profile or task ID.
     pub agent_id: String,
     /// Plain message, at most 8 KiB. Does not change tools or permissions.
     pub message: String,
@@ -419,7 +419,7 @@ tool!(
     TaskInfo,
     followup,
     "agent_followup",
-    "Start a new background mission in a retained idle agent's conversation. Use `agent_id` from delegation or `task_status`. Returns a NEW `task_id` for the SAME `agent_id`. Busy or expired agents are refused. Results return to the principal."
+    "Start a new background mission in a retained idle agent's conversation. Copy `agent_id` exactly from delegation or `task_status`; never reconstruct or shorten it. An unknown identifier is not evidence of expiry: inspect `task_status` and correct the identifier before retrying. Returns a NEW `task_id` for the SAME `agent_id`. Busy or expired agents are refused. Results return to the principal."
 );
 tool!(
     AgentSendTool,
@@ -427,5 +427,5 @@ tool!(
     SendResult,
     send,
     "agent_send",
-    "Send a clarification to an existing agent's running mission. queued means accepted for a future tool-round boundary, not already read by the model. `not_running` starts nothing; use `agent_followup` for an idle agent. Check `history_recorded` before assuming future missions retain the message."
+    "Send a clarification to an existing agent's running mission. Copy `agent_id` exactly from delegation or `task_status`; never reconstruct or shorten it. queued means accepted for a future tool-round boundary, not already read by the model. `not_running` starts nothing; use `agent_followup` for an idle agent. Check `history_recorded` before assuming future missions retain the message."
 );

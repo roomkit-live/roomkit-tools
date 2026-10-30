@@ -308,7 +308,20 @@ class RoomKitAgentBackend:
 
     def _session(self, agent_id: str) -> _Session:
         if agent_id not in self._sessions:
-            raise AccessRefusedError("unknown agent in this backend")
+            # Callers have already passed _check(scope). Only disclose this
+            # owner's identifiers, and never guess which instance was intended.
+            known = list(self._sessions)[:8]
+            remaining = len(self._sessions) - len(known)
+            more = f" ({remaining} more in task_status)" if remaining else ""
+            raise AccessRefusedError(
+                f"Unknown agent_id {json.dumps(agent_id)} in this backend. "
+                "No task was started and no message was queued. This is an exact "
+                "identifier lookup failure, not evidence that an agent expired. "
+                "Copy agent_id exactly from task_status before retrying; do not "
+                "repeat the same unknown value. Creating another agent does not "
+                "continue the requested instance. Known agent_ids in this scope "
+                f"(availability is separate): {json.dumps(known)}{more}."
+            )
         return self._sessions[agent_id]
 
     async def followup(self, scope: AgentScope, *, agent_id: str, task: str) -> dict[str, Any]:

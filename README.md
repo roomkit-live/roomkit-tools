@@ -1130,6 +1130,12 @@ explicitly reported. This bound covers the registry's copy, not RoomKit's own
 history or the full report delivered by its relay. A backend is tied to one
 asyncio loop and does not persist across restarts.
 
+Agent IDs are opaque: copy them verbatim from receipts or `task_status`.
+An unknown ID is an exact lookup failure, not an availability observation.
+The RoomKit backend refuses it without side effects and returns a bounded list
+of known IDs after checking the caller's scope. It never guesses a replacement.
+Correct the ID before retrying; a new delegation does not resume the same instance.
+
 `task_id`, `agent_id` and `profile` are distinct. `status` describes worker
 execution; `delivery` is independently `pending`, `delivered`, `failed` or
 `suppressed`. A completed worker does not by itself confirm a principal reply.
@@ -1147,7 +1153,7 @@ remains in the RoomKit store. Cleanup failures are reported. Close waits for a p
 that channel's provider/turn deadlines as well. Abrupt process termination is
 outside this in-memory contract.
 
-This API is in the local `0.1.0a13.dev1` development build, not the a12 release.
+This API is in the local `0.1.0a13.dev2` development build, not the a12 release.
 Build/install from this checkout, then exercise both configuration modes:
 
 ```sh

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Make unknown-agent refusals distinguish an incorrect ID from an expired
+  instance. Return bounded, caller-scoped identifier hints without automatic
+  substitution or side effects. Clarify exact ID copying in agent tool schemas
+  and the example, and distinguish proposed tests from executed results.
+
 - Create missing parent directories automatically in `write`, after validating
   inputs/revisions and workspace containment. Report `created_directories`;
   other mutation tools retain their existing directory requirements.
@@ -18,7 +23,7 @@
 - Add an optional scoped RoomKit Python backend with static agent blueprints or
   dynamic host resolution, fresh instances per delegation, bounded task retention,
   cancellation/cleanup and observed result relay to the principal. Include a
-  scripted/live interactive example. Available in the `0.1.0a13.dev1` development
+  scripted/live interactive example. Available in the `0.1.0a13.dev2` development
   build; no new release is published.
 
 - Make background-demo read verification retain earlier valid evidence and
