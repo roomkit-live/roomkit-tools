@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Align the optional RoomKit Rust adapter with the engine revision that exposes
+  last-generation usage independently of cumulative turn consumption.
+
 - Make background-demo read verification retain earlier valid evidence and
   report observed ranges, arguments and revisions. Give the worker immediate
   feedback when its first read omits the required method range or precedes
