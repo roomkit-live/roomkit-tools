@@ -9,6 +9,8 @@
   output. Add shared Rust/Python contracts, real vLLM request encoding checks,
   and a scripted/live vision example. The pinned Rust RoomKit adapter does not
   yet support image tool results. Available in development builds after a13.
+- Expose host-only process observation with trusted owner, command, frozen elapsed
+  time and lifecycle notifications. Output chunks do not wake hidden UI monitors.
 
 ## 0.1.0a13
 

@@ -60,6 +60,9 @@ pub(crate) fn launch(
     status.stderr_archive = stderr_archive.as_ref().map(crate::output::Sink::snapshot);
     let entry = Arc::new(Entry {
         owner: owner.into(),
+        command: command.into(),
+        started: std::time::Instant::now(),
+        finished: std::sync::OnceLock::new(),
         record: Arc::new(Mutex::new(Record {
             status: status.clone(),
             stdout: Journal::new(limits.max_output_bytes),
@@ -205,6 +208,7 @@ async fn run(
         end = ProcessEnd::Failed;
     }
     let mut record = entry.record.lock().await;
+    let _ = entry.finished.set(entry.started.elapsed());
     record.status.state = ProcessState::Finished;
     record.status.end = Some(end);
     record.status.exit_code = reaped
