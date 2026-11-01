@@ -6,14 +6,89 @@ part of an existing published preview.
 
 ## Unreleased
 
-- Align the optional Rust adapter with the consolidated RoomKit engine used by
-  the CLI, retaining individually selected tools and host-owned lifecycles.
+### Breaking changes
+
+- Commands from `shell` and the process tools no longer inherit the host's whole
+  environment. They receive only the variables named in `inherit_env` (by
+  default `DEFAULT_INHERITED_ENV`: `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`,
+  `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `TMPDIR`) plus the explicit values in
+  `env`. Python takes both as keywords on `ShellTool.create`, `Shell` and
+  `ProcessSession`; Rust takes a `CommandEnv` through `with_env`.
+- Each command now runs in its own session, detached from the host's terminal:
+  a command that prompts on `/dev/tty` fails at once instead of printing into
+  the host's terminal and stopping until its timeout.
+- `read`, `list`, `glob`, `grep`, `code_outline`, `view_image` and `ocr` name
+  files relative to the workspace (`.` for the root) instead of returning the
+  host's absolute path.
+- The RoomKit Python process, shell-archive and output tools scope jobs and
+  archives to the calling room and agent, like the Rust adapter, and refuse
+  calls made outside a RoomKit tool call. Standalone Python sessions and stores
+  are unchanged.
+- `code_outline` refuses sources above 512 KiB by default (previously 2 MiB):
+  parsing allocates far more than the source size before limits apply.
+- Jobs, output archives and plans are listed in creation order (`p2` before
+  `p10`).
+
+### Added
 
 - Add independently selectable `docs_list`, `docs_search` and `docs_read` in Rust,
   Python and both RoomKit adapters, over injected documentation backends.
 - Include an optional file backend with bounded immutable Markdown/text snapshots,
   literal ranked search, source lines, provenance, pagination and revision checks.
   Add scripted/live RoomKit examples; HTTPS is not implemented in this version.
+- `grep` takes a host `max_line_bytes` (64 KiB by default). Longer lines are
+  skipped and counted in `skipped_lines`, and a match too large for a page is
+  returned alone with `clipped`. `list`, `glob` and `grep` skip names that are
+  not UTF-8 and count them in `skipped_entries`.
+- `ForkedProcessError` is raised by native calls in a child process forked
+  after the parent used the package.
+- `roomkit_tools_core::WorkspaceRoot` holds the lexical path rules shared by the
+  root-configured tools.
+
+### Fixed
+
+- A deeply nested brace glob no longer panics `glob` and `grep`.
+- `grep` runs on a cancellable worker, so a costly pattern no longer blocks the
+  async runtime and cancellation stops it between lines.
+- Paths outside the workspace are refused before any filesystem call, so the
+  answer no longer reveals whether an outside file exists.
+- `write` and `patch` create new files with the umask-derived mode instead of
+  0600.
+- For files whose lines all end in CRLF, `edit` and `patch` accept the LF text
+  that `read` shows.
+- `web_fetch` bounds node count and depth while parsing HTML and refuses a page
+  whose Markdown would exceed the limit before converting it, instead of
+  allocating gigabytes for small adversarial pages.
+- The Exa backend splits results only at well-formed record headers: a
+  Markdown rule in a page no longer fails the search or starts a new hit.
+- The RustO OCR engine decodes with the dictionary bytes that were size-checked
+  and fingerprinted, instead of reading the file a second time.
+- OCR errors no longer name `view_image`.
+- The output store directory is created with mode 0700.
+- A finished command keeps its result when the final process-group signal is
+  refused.
+- A forked child no longer hangs on native calls or at exit, and a call that
+  completes after its event loop closed no longer prints a traceback. The
+  optional OCR engine package behaves the same way and raises the base
+  package's `ForkedProcessError`; it now requires the matching base version.
+- `ViewImage`, `CodeOutline` and `Ocr` take their limits as explicit keywords,
+  so a misspelled option fails at construction.
+- Documentation tools let I/O errors propagate in RoomKit like the other tools.
+- Tool exceptions report `roomkit_tools` as their module and can be pickled;
+  native contract classes report `roomkit_tools._native`.
+
+### Packaging and documentation
+
+- The wheel ships the license notices of every native dependency
+  (`licenses/native_dependencies.txt`), checked against the lock file.
+- Distribution checks admit only tracked files in source archives and expected
+  paths in wheels.
+- The guides state that stopping a process sends SIGKILL to its group, what
+  replacing a file by rename does not keep, and the measured peak memory of
+  `code_outline` and `view_image`.
+- Align the optional Rust adapter with the current RoomKit engine revision,
+  retaining individually selected tools and host-owned lifecycles.
+
 
 ## 0.1.0a15
 
