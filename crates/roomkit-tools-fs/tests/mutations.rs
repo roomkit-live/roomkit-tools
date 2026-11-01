@@ -2,7 +2,8 @@
 
 use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
-    EditInput, EditLimits, EditTool, MutationWorkspace, WriteInput, WriteLimits, WriteTool,
+    EditInput, EditLimits, EditTool, MutationWorkspace, PatchChange, PatchInput, PatchTool,
+    WriteInput, WriteLimits, WriteTool,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -455,6 +456,56 @@ async fn shared_workspace_serializes_mutations_without_losing_independent_edits(
     );
     assert_ne!(first.is_ok(), second.is_ok());
     assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 2);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn created_files_get_the_mode_of_ordinary_file_creation() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    let mode = |name: &str| {
+        std::fs::metadata(root.path().join(name))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777
+    };
+    // std::fs::write creates with 0o666 minus the process umask.
+    std::fs::write(root.path().join("reference"), "x").unwrap();
+    let expected = mode("reference");
+    let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+    let cancel = CancellationToken::new();
+    WriteTool::from_workspace(workspace.clone())
+        .write(WriteInput::new("written", "x"), &cancel)
+        .await
+        .unwrap();
+    std::fs::write(root.path().join("source"), "moved\n").unwrap();
+    std::fs::set_permissions(
+        root.path().join("source"),
+        std::fs::Permissions::from_mode(0o640),
+    )
+    .unwrap();
+    let mut input = PatchInput::new(vec![
+        PatchChange::Add {
+            path: "added".into(),
+            content: "x".into(),
+        },
+        PatchChange::Move {
+            from: "source".into(),
+            to: "moved".into(),
+            old_content: "moved\n".into(),
+            new_content: None,
+        },
+    ]);
+    input.dry_run = false;
+    let patched = PatchTool::from_workspace(workspace)
+        .patch(input, &cancel)
+        .await
+        .unwrap();
+    assert!(patched.data.completed);
+    assert_eq!(mode("written"), expected);
+    assert_eq!(mode("added"), expected);
+    assert_eq!(mode("moved"), 0o640);
 }
 
 #[test]

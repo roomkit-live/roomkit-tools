@@ -335,23 +335,7 @@ fn commit_with_permissions(
     let parent = path
         .parent()
         .ok_or_else(|| Error::InvalidInput("path must have a parent".into()))?;
-    let mut staged = tempfile::Builder::new()
-        .prefix(".roomkit-write-")
-        .tempfile_in(parent)
-        .map_err(|source| io("stage the file", source))?;
-    staged
-        .write_all(after)
-        .map_err(|source| io("write the staged file", source))?;
-    if let Some(permissions) = permissions {
-        staged
-            .as_file()
-            .set_permissions(permissions)
-            .map_err(|source| io("preserve file permissions", source))?;
-    }
-    staged
-        .as_file()
-        .sync_all()
-        .map_err(|source| io("sync the staged file", source))?;
+    let staged = stage(parent, after, permissions)?;
     // Best-effort detection of external changes. The check and rename are not
     // a filesystem compare-and-swap; the shared workspace lock covers our tools.
     recheck(path, before, maximum)?;
@@ -370,6 +354,43 @@ fn commit_with_permissions(
         })?;
     }
     Ok(())
+}
+
+/// Write and sync `after` to a temporary file beside its destination.
+///
+/// With `permissions`, the staged file gets them (a replacement or a move
+/// keeps its source's mode). Without, it is a new file: on Unix it is created
+/// with mode 0o666 so that the process umask applies, as for `std::fs::write`,
+/// instead of the owner-only mode of temporary files.
+fn stage(
+    parent: &Path,
+    after: &[u8],
+    permissions: Option<Permissions>,
+) -> Result<tempfile::NamedTempFile, Error> {
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(".roomkit-write-");
+    #[cfg(unix)]
+    if permissions.is_none() {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(Permissions::from_mode(0o666));
+    }
+    let mut staged = builder
+        .tempfile_in(parent)
+        .map_err(|source| io("stage the file", source))?;
+    staged
+        .write_all(after)
+        .map_err(|source| io("write the staged file", source))?;
+    if let Some(permissions) = permissions {
+        staged
+            .as_file()
+            .set_permissions(permissions)
+            .map_err(|source| io("preserve file permissions", source))?;
+    }
+    staged
+        .as_file()
+        .sync_all()
+        .map_err(|source| io("sync the staged file", source))?;
+    Ok(staged)
 }
 
 pub(crate) fn recheck(path: &Path, before: Option<&Snapshot>, maximum: usize) -> Result<(), Error> {

@@ -143,6 +143,12 @@ It requires an existing destination, so omit it for creation. This is not an OS
 compare-and-swap against external editors. Read before editing or overwriting,
 then use the revision returned by read/write/edit.
 
+Every mutation stages the complete new content in a temporary file beside the
+destination, then renames it into place. A file created by `write` or a patch
+`add` gets the mode of ordinary file creation (on Unix, 0o666 minus the process
+umask, as with `std::fs::write` or Python's `open`). A replacement keeps the
+destination's permission bits, and a move keeps its source's.
+
 Cancellation requests stopping before commit. A commit that has already started
 may finish even if Python receives `CancelledError` or RoomKit times out; the
 Rust worker keeps the shared lock until completion. Read the file before retrying
