@@ -88,7 +88,7 @@ pub(crate) fn decoder<'a>(
             }
             _ => {
                 return Err(Error::Unsupported(
-                    "view_image supports static PNG, JPEG and WebP only".into(),
+                    "image input must be a static PNG, JPEG or WebP".into(),
                 ));
             }
         };

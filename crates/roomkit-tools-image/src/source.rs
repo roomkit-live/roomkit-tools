@@ -45,7 +45,7 @@ pub(crate) async fn load(
     })?;
     if !metadata.is_file() {
         return Err(Error::Unsupported(
-            "view_image accepts regular files only".into(),
+            "image input must be a regular file".into(),
         ));
     }
     let max = u64::try_from(maximum)
@@ -69,7 +69,7 @@ pub(crate) async fn load(
         .is_file()
     {
         return Err(Error::Unsupported(
-            "view_image accepts regular files only".into(),
+            "image input must be a regular file".into(),
         ));
     }
     let mut bytes = Vec::new();
