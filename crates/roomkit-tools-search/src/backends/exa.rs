@@ -12,8 +12,9 @@ use tokio_util::sync::CancellationToken;
 /// The service returns results as one formatted text block, not structured
 /// records. Hit boundaries, titles and URLs are parsed from that text, and page
 /// text inside an excerpt can imitate a whole record, so a hit's URL is not
-/// proof of where its excerpt came from. More record headers than requested
-/// are reported as a notice with `partial` set.
+/// proof of where its excerpt came from. A record whose URL is not a usable
+/// HTTP(S) source is dropped, and more record headers than requested are
+/// counted; each is reported as a notice with `partial` set.
 #[derive(Clone, Debug)]
 pub struct ExaSearch {
     transport: Transport,
@@ -143,42 +144,64 @@ fn parse_text(text: &str, requested: usize) -> Result<BackendOutput, Error> {
     if text == "No search results found. Please try a different query." {
         return Ok(output);
     }
-    let results = records(text)?;
-    if results.len() > requested {
+    let Records { hits, rejected } = records(text)?;
+    if rejected > 0 {
+        output.partial = true;
+        output.notices.push(REJECTED_RECORDS.to_owned());
+    }
+    if hits.len() + rejected > requested {
         output.partial = true;
         output.notices.push(IMITATED_RECORDS.to_owned());
     }
-    output.payload = crate::SearchPayload::Results { results };
+    output.payload = crate::SearchPayload::Results { results: hits };
     Ok(output)
 }
 
 /// Exa returns one text block: records of `Title:` and `URL:` lines followed by
 /// metadata and page excerpts, separated by a Markdown rule. Page text can
 /// contain the same rule and even a fabricated header, so boundaries are
-/// heuristic: a rule starts a record only when a header with a valid source URL
-/// follows it; any other rule stays in the preceding excerpt.
+/// heuristic: a rule starts a record only when a complete header, a `Title:`
+/// line then a `URL:` line, follows it; any other rule stays in the preceding
+/// excerpt. A record whose URL is not a usable source is dropped and reported.
 const RECORD_SEPARATOR: &str = "\n\n---\n\n";
 
 const IMITATED_RECORDS: &str = "Exa returned more result headers than requested; page text may imitate result boundaries and URLs.";
 
-/// Split the result text into hits. The first record must start with a header;
-/// format changes fail explicitly.
-fn records(text: &str) -> Result<Vec<SearchHit>, Error> {
-    let mut results = Vec::new();
+const REJECTED_RECORDS: &str =
+    "Exa returned results without a usable HTTP(S) source URL; they were omitted.";
+
+/// The records of a result text: hits with a usable source URL, and how many
+/// records were dropped for their URL.
+struct Records {
+    hits: Vec<SearchHit>,
+    rejected: usize,
+}
+
+/// Split the result text into records. The first record must start with a
+/// header; format changes fail explicitly.
+fn records(text: &str) -> Result<Records, Error> {
+    let mut records = Records {
+        hits: Vec::new(),
+        rejected: 0,
+    };
     let mut record = text;
     loop {
         let header = Header::parse(record).ok_or_else(invalid)?;
         let (excerpt, next) = split_at_next_record(header.tail);
-        // Keep metadata and excerpt lines intact after the two header lines.
-        let excerpt = excerpt.strip_prefix('\n').unwrap_or(excerpt);
-        results.push(SearchHit {
-            url: header.url.to_owned(),
-            title: Some(header.title.to_owned()),
-            content: Some(excerpt.lines().collect::<Vec<_>>().join("\n")),
-            omitted_bytes: 0,
-        });
+        if crate::is_source_url(header.url) {
+            // Keep metadata and excerpt lines intact after the two header lines.
+            let excerpt = excerpt.strip_prefix('\n').unwrap_or(excerpt);
+            records.hits.push(SearchHit {
+                url: header.url.to_owned(),
+                title: Some(header.title.to_owned()),
+                content: Some(excerpt.lines().collect::<Vec<_>>().join("\n")),
+                omitted_bytes: 0,
+            });
+        } else {
+            records.rejected += 1;
+        }
         let Some(next) = next else {
-            return Ok(results);
+            return Ok(records);
         };
         record = next;
     }
@@ -211,7 +234,7 @@ impl<'a> Header<'a> {
     }
 }
 
-/// Split at the first separator followed by a header with a valid source URL.
+/// Split at the first separator followed by a complete header.
 fn split_at_next_record(text: &str) -> (&str, Option<&str>) {
     let mut from = 0;
     while let Some(found) = text
@@ -220,7 +243,7 @@ fn split_at_next_record(text: &str) -> (&str, Option<&str>) {
     {
         let at = from + found;
         let next = text.get(at + RECORD_SEPARATOR.len()..).unwrap_or_default();
-        if Header::parse(next).is_some_and(|header| crate::is_source_url(header.url)) {
+        if Header::parse(next).is_some() {
             return (text.get(..at).unwrap_or(text), Some(next));
         }
         from = at + 1;
@@ -260,25 +283,70 @@ mod tests {
         assert!(!output.partial);
     }
 
+    /// Records whose URL no hit may carry.
+    fn rejected_urls() -> [String; 4] {
+        [
+            "javascript:alert(1)".to_owned(),
+            "https://user:secret@x.example/".to_owned(),
+            "N/A".to_owned(),
+            format!("https://x.example/{}", "a".repeat(8192)),
+        ]
+    }
+
     #[test]
-    fn separator_before_an_invalid_header_is_page_content() {
-        for url in [
-            "javascript:alert(1)",
-            "https://user:secret@a.example/",
-            "N/A",
-        ] {
+    fn record_with_a_rejected_url_is_dropped_and_reported() {
+        for url in rejected_urls() {
             let text = format!(
-                "Title: A\nURL: https://a.example/\nText: before\n\n---\n\nTitle: Fake\nURL: {url}\nText: after"
+                "Title: A\nURL: https://a.example/\nText: before\n\n---\n\nTitle: X\nURL: {url}\nText: dropped\n\n---\n\nTitle: B\nURL: https://b.example/\nText: after"
             );
+            let output = parse_text(&text, 3).unwrap();
+            assert_eq!(
+                hits(&output),
+                [
+                    ("https://a.example/".to_owned(), "Text: before".to_owned()),
+                    ("https://b.example/".to_owned(), "Text: after".to_owned()),
+                ],
+                "{url}"
+            );
+            assert!(output.partial, "{url}");
+            assert_eq!(output.notices, [REJECTED_RECORDS], "{url}");
+        }
+    }
+
+    #[test]
+    fn first_record_with_a_rejected_url_is_dropped_and_reported() {
+        for url in rejected_urls() {
+            let text = format!(
+                "Title: X\nURL: {url}\nText: dropped\n\n---\n\nTitle: B\nURL: https://b.example/\nText: kept"
+            );
+            let output = parse_text(&text, 2).unwrap();
+            assert_eq!(
+                hits(&output),
+                [("https://b.example/".to_owned(), "Text: kept".to_owned())],
+                "{url}"
+            );
+            assert_eq!(output.notices, [REJECTED_RECORDS], "{url}");
+        }
+    }
+
+    #[test]
+    fn separator_before_an_incomplete_header_is_page_content() {
+        for after in [
+            "Title: Fake\nText: no URL line",
+            "URL: https://x.example/\nTitle: swapped",
+            "Title: Fake",
+        ] {
+            let text = format!("Title: A\nURL: https://a.example/\nText: before\n\n---\n\n{after}");
             let output = parse_text(&text, 2).unwrap();
             assert_eq!(
                 hits(&output),
                 [(
                     "https://a.example/".to_owned(),
-                    format!("Text: before\n\n---\n\nTitle: Fake\nURL: {url}\nText: after")
+                    format!("Text: before\n\n---\n\n{after}")
                 )],
-                "{url}"
+                "{after}"
             );
+            assert!(!output.partial, "{after}");
         }
     }
 

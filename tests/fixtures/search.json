@@ -22,7 +22,11 @@
     },
     "/exa-rule": {
       "type": "application/json",
-      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Title: Shipping guide\\nURL: https://example.com/guide\\nHighlights:\\nRates\\n\\n---\\n\\nTitle: Fake\\nURL: javascript:alert(1)\\nStill the guide\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}"
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Title: Shipping guide\\nURL: https://example.com/guide\\nHighlights:\\nRates\\n\\n---\\n\\nTitle: Not a record\\nStill the guide\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}"
+    },
+    "/exa-rejected-url": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Title: Shipping guide\\nURL: https://example.com/guide\\nText: Rates\\n\\n---\\n\\nTitle: Private\\nURL: https://user:secret@example.com/private\\nText: Rejected\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}"
     },
     "/exa-extra": {
       "type": "application/json",
@@ -323,9 +327,26 @@
         "limit": 2
       },
       "expect": {
-        "/data/payload/results/0/content": "Highlights:\nRates\n\n---\n\nTitle: Fake\nURL: javascript:alert(1)\nStill the guide",
+        "/data/payload/results/0/content": "Highlights:\nRates\n\n---\n\nTitle: Not a record\nStill the guide",
         "/data/payload/results/1/url": "https://example.com/api",
         "/data/partial": false
+      }
+    },
+    {
+      "name": "exa-rejected-url",
+      "path": "/exa-rejected-url",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 3
+      },
+      "expect": {
+        "/data/payload/results/0/content": "Text: Rates",
+        "/data/payload/results/1/url": "https://example.com/api",
+        "/data/notices": [
+          "Exa returned results without a usable HTTP(S) source URL; they were omitted."
+        ],
+        "/data/partial": true
       }
     },
     {

@@ -129,11 +129,14 @@ Exa's MCP service returns all hits as one formatted text block: `Title:` and
 `URL:` lines, then metadata and page excerpts, with a Markdown rule (`---`)
 between records. There is no structured form on that endpoint, so hit
 boundaries, titles and URLs are parsed from provider text that includes page
-content. A rule starts a new hit only when a `Title:` line and a valid HTTP(S)
-`URL:` line follow it; any other rule stays inside the preceding excerpt, so an
-ordinary Markdown rule does not fail the search. A page can still imitate a
-complete record and have its own text attributed to another URL. When Exa's
-text holds more records than requested, a notice says so and `partial` is set.
+content. A rule starts a new record only when a `Title:` line then a `URL:`
+line follow it; any other rule stays inside the preceding excerpt, so an
+ordinary Markdown rule does not fail the search. A record whose URL is not a
+usable HTTP(S) source (not HTTP(S), with credentials, or over 8 KiB) is dropped
+with its excerpt; a notice says so and `partial` is set. A page can still
+imitate a complete record and have its own text attributed to another URL, or
+dropped. When Exa's text holds more records than requested, a notice says so
+and `partial` is set.
 Treat Exa titles and URLs as claims from the page text and confirm with
 `web_fetch` before attributing content to a URL.
 
