@@ -192,11 +192,12 @@ impl Tree {
         }
     }
 
-    /// The local name of an element outside the HTML namespace.
-    pub(crate) fn foreign_name(&self, id: NodeId) -> Option<&str> {
+    /// The local name and attributes of an element outside the HTML
+    /// namespace.
+    pub(crate) fn foreign(&self, id: NodeId) -> Option<(&str, &[Attribute])> {
         match self.data(id)? {
-            Data::Element { name, .. } if name.ns != html5ever::ns!(html) => {
-                Some(name.local.as_ref())
+            Data::Element { name, attrs, .. } if name.ns != html5ever::ns!(html) => {
+                Some((name.local.as_ref(), attrs))
             }
             Data::Element { .. } | Data::Document | Data::Text(_) | Data::Other => None,
         }

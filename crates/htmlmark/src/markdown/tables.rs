@@ -62,7 +62,11 @@ impl Markdown<'_> {
         };
         table.in_fragment = true;
         self.flat += 1;
-        self.fragments.push(Inline::fragment());
+        // A caption is written on a line of its own, above or below the table.
+        self.fragments.push(match fragment {
+            Fragment::Cell => Inline::fragment(),
+            Fragment::Caption => Inline::paragraph(),
+        });
         Ok(Undo::Fragment(fragment))
     }
 

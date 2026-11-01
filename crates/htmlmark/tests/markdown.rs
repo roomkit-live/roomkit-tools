@@ -91,6 +91,16 @@ fn code_keeps_its_text_inside_long_enough_fences() {
         ),
         "`a`b\\*`c` **x`d`**`e`"
     );
+    // An empty code element between them changes nothing; a space separates
+    // their fences.
+    assert_eq!(
+        markdown("<p><code>a</code><code> </code><code>b</code></p>"),
+        "`a` `b`"
+    );
+    assert_eq!(
+        markdown("<p><code>a</code><code></code><code>b</code></p>"),
+        "`a`b"
+    );
     // Even once the same emphasis continues across the closer between them.
     assert_eq!(
         markdown("<p><b>x<code>a</code></b><b><code>b</code></b></p>"),
@@ -159,5 +169,78 @@ fn hidden_and_non_content_elements_are_left_out() {
             "<head><title>T</title><style>s</style></head><p>shown</p><script>x()</script><div hidden>no</div><p aria-hidden=\"true\">no</p><noscript>no</noscript><template><p>no</p></template><svg><style>s</style><text>chart</text></svg>"
         ),
         "shown\n\nchart"
+    );
+}
+
+#[test]
+fn hidden_svg_and_mathml_are_left_out_too() {
+    let html = "<p>Save<svg aria-hidden=\"true\"><title>floppy icon</title></svg><math hidden><mi>x</mi></math></p>";
+    assert_eq!(markdown(html), "Save");
+    let text = Options::default().with_format(htmlmark::Format::Text);
+    assert_eq!(convert(html, &text).unwrap(), "Save");
+}
+
+#[test]
+fn line_start_syntax_split_across_elements_is_escaped() {
+    // A list number split over text nodes.
+    for html in [
+        "<p><span>1</span>. x</p>",
+        "<p>1<!-- -->. x</p>",
+        "<p>1<b>.</b> x</p>",
+    ] {
+        assert_eq!(markdown(html), "1\\. x", "{html}");
+    }
+    assert_eq!(markdown("<p>1<span>2</span>) x 1.5</p>"), "12\\) x 1.5");
+    // Text inside a list before its first item, then an item not numbered 1.
+    assert_eq!(
+        markdown("<ol start=\"3\">Steps:<li>Open</li></ol>"),
+        "Steps:\n\n3. Open"
+    );
+    // A caption written above a pipe table starts its own line.
+    assert_eq!(
+        markdown("<table><caption># x</caption><tr><th>h</th></tr></table>"),
+        "\\# x\n\n| h |\n| --- |"
+    );
+    // Lines split by `<br>` that would read as a table's delimiter row.
+    assert_eq!(
+        markdown("<p>a | b<br>:-- | :--</p>"),
+        "a | b  \n\\:-- | :--"
+    );
+    assert_eq!(markdown("<p>a|b<br>-:|-:</p>"), "a|b  \n\\-:|-:");
+    // Vertical tabs are spaces to a CommonMark reader.
+    assert_eq!(markdown("<h1>&#xb;#</h1>"), "# \\#");
+}
+
+#[test]
+fn removing_emphasis_never_turns_a_link_into_an_image() {
+    assert_eq!(
+        markdown("<p>!<b><a href=\"https://e.com/u\">y</a></b>z</p>"),
+        "\\![y](https://e.com/u)z"
+    );
+}
+
+#[test]
+fn emphasis_next_to_marks_and_symbols_is_left_out_when_unsure() {
+    // A combining accent and a circled letter are not punctuation, but
+    // CommonMark reads the circled letter as a symbol.
+    assert_eq!(markdown("<p>x&#x301;<b>\"y\"</b></p>"), "x\u{301}\"y\"");
+    assert_eq!(markdown("<p><b>x\u{24b6}</b>y</p>"), "x\u{24b6}y");
+    assert_eq!(
+        markdown("<p>\u{24b6}_\u{24b6}_\u{24b6}</p>"),
+        "\u{24b6}\\_\u{24b6}\\_\u{24b6}"
+    );
+    // A nested emphasis that adds nothing does not keep a visible space
+    // inside the closer when the line ends.
+    assert_eq!(
+        markdown("<p><b><i>x.</i><b>y&nbsp;<div>z</div></b></b></p>"),
+        "**x.y**\u{a0}\n\n**z**"
+    );
+}
+
+#[test]
+fn entities_in_link_destinations_and_titles_stay_literal() {
+    assert_eq!(
+        markdown("<a href=\"https://e.com/a&amp;copy;b\" title=\"x &amp;amp; y\">l</a>"),
+        "[l](https://e.com/a\\&copy;b \"x \\&amp; y\")"
     );
 }

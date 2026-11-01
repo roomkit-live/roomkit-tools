@@ -1,31 +1,55 @@
 //! Markdown spelling: escapes, code spans, link destinations and titles.
 
-/// HTML collapses these into one space.
+/// HTML collapses these into one space; a vertical tab is a space to a
+/// CommonMark reader and shows nothing in a page, so it collapses too.
 pub(crate) fn is_html_space(c: char) -> bool {
-    matches!(c, ' ' | '\t' | '\n' | '\u{c}' | '\r')
+    matches!(c, ' ' | '\t' | '\n' | '\u{b}' | '\u{c}' | '\r')
 }
 
-/// Punctuation as CommonMark's emphasis rules see it: ASCII punctuation and
-/// any other character that is neither a letter, a digit nor a space.
-pub(crate) fn is_punctuation(c: char) -> bool {
-    c.is_ascii_punctuation() || (!c.is_ascii() && !c.is_alphanumeric() && !c.is_whitespace())
+/// How CommonMark's emphasis rules see a character, as far as the standard
+/// library can tell. CommonMark punctuation is Unicode's P and S categories,
+/// which Rust does not expose: outside ASCII, a character that is neither a
+/// letter, a digit nor a space may be punctuation (`«`, `’`) or not (a
+/// combining accent, a joiner), and a few symbols count as letters (`Ⓐ`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Class {
+    Space,
+    Word,
+    Punctuation,
+    Unsure,
 }
 
-/// A letter or digit: next to one, emphasis markers must touch whitespace or
-/// punctuation on their other side.
+fn class(c: char) -> Class {
+    if c.is_whitespace() {
+        Class::Space
+    } else if c.is_ascii_punctuation() {
+        Class::Punctuation
+    } else if c.is_alphanumeric() && !is_letter_symbol(c) {
+        Class::Word
+    } else {
+        Class::Unsure
+    }
+}
+
+/// Symbols (category So) that Unicode also marks alphabetic: circled and
+/// squared Latin letters.
+fn is_letter_symbol(c: char) -> bool {
+    matches!(c, '\u{24b6}'..='\u{24e9}' | '\u{1f130}'..='\u{1f149}' | '\u{1f150}'..='\u{1f169}' | '\u{1f170}'..='\u{1f189}')
+}
+
+/// A letter or digit for certain.
 pub(crate) fn is_word(c: char) -> bool {
-    !c.is_whitespace() && !is_punctuation(c)
+    class(c) == Class::Word
 }
 
-/// The number and delimiter of text starting like an ordered list item:
-/// one to nine digits, then `.` or `)`, then a space or the end.
-pub(crate) fn ordinal(text: &str) -> Option<(&str, char)> {
-    let digits = text.bytes().take_while(u8::is_ascii_digit).count();
-    let (number, rest) = text.split_at_checked(digits)?;
-    let mut rest = rest.chars();
-    let delimiter = rest.next().filter(|c| matches!(c, '.' | ')'))?;
-    let ends = rest.next().is_none_or(is_html_space);
-    ((1..=9).contains(&digits) && ends).then_some((number, delimiter))
+/// Whether CommonMark may count `c` as a letter or digit.
+pub(crate) fn may_be_word(c: char) -> bool {
+    matches!(class(c), Class::Word | Class::Unsure)
+}
+
+/// Whether CommonMark may count `c` as punctuation.
+pub(crate) fn may_be_punctuation(c: char) -> bool {
+    matches!(class(c), Class::Punctuation | Class::Unsure)
 }
 
 /// Whether `c` at the start of a line, before `next`, could begin a heading,
@@ -69,16 +93,34 @@ pub(crate) fn longest_run(text: &str, c: char) -> usize {
     longest
 }
 
+/// Whether `text` starts with what CommonMark reads as an entity or numeric
+/// character reference, such as `&copy;` or `&#169;`.
+pub(crate) fn starts_entity(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix('&') else {
+        return false;
+    };
+    let (body, digits): (&str, fn(&char) -> bool) = match rest.strip_prefix('#') {
+        Some(number) => match number.strip_prefix(['x', 'X']) {
+            Some(hex) => (hex, char::is_ascii_hexdigit),
+            None => (number, char::is_ascii_digit),
+        },
+        None => (rest, char::is_ascii_alphanumeric),
+    };
+    let name = body.chars().take_while(digits).count();
+    (1..=32).contains(&name) && body.get(name..).is_some_and(|after| after.starts_with(';'))
+}
+
 /// A link destination: spaces, controls and angle brackets percent-encoded,
-/// parentheses and backslashes escaped.
+/// parentheses, backslashes and entity-like `&` escaped.
 pub(crate) fn destination(url: &str) -> String {
     let mut out = String::with_capacity(url.len());
-    for c in url.chars() {
+    for (index, c) in url.char_indices() {
         match c {
             '(' | ')' | '\\' => {
                 out.push('\\');
                 out.push(c);
             }
+            '&' if url.get(index..).is_some_and(starts_entity) => out.push_str("\\&"),
             ' ' | '<' | '>' => percent(&mut out, c),
             c if c.is_control() => percent(&mut out, c),
             c => out.push(c),
@@ -109,8 +151,10 @@ pub(crate) fn title(title: Option<&str>) -> String {
         return String::new();
     }
     let mut out = String::from(" \"");
-    for c in words.join(" ").chars() {
-        if matches!(c, '"' | '\\') {
+    let joined = words.join(" ");
+    for (index, c) in joined.char_indices() {
+        let entity = c == '&' && joined.get(index..).is_some_and(starts_entity);
+        if matches!(c, '"' | '\\') || entity {
             out.push('\\');
         }
         out.push(c);

@@ -29,8 +29,9 @@ A page from the web can be built to hurt its reader:
 - rendering walks the tree without recursion;
 - the output is refused as soon as it would exceed `max_output_bytes`: the
   limit is checked on every write, not estimated;
-- an `interrupt` callback is polled between 1 KiB parser chunks and every few
-  hundred rendered nodes, so a caller can enforce a deadline or cancellation;
+- an `interrupt` callback is polled between 1 KiB parser chunks, every few
+  hundred rendered nodes and every few thousand lines of a code block, so a
+  caller can enforce a deadline or cancellation;
 - text is escaped wherever Markdown would read it as syntax.
 
 ## Usage

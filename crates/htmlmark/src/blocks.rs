@@ -48,6 +48,13 @@ pub(crate) struct Blocks {
     /// Container depth at which a blank line was requested.
     blank: Option<usize>,
     written: bool,
+    /// Whether a container may not hold a line yet, so its prefix may still
+    /// show a list marker.
+    fresh: bool,
+    /// The prefix of every container and its length without trailing spaces,
+    /// once they all hold a line: a code block of millions of lines inside
+    /// deep lists writes it for each.
+    cached: Option<(String, usize)>,
 }
 
 impl Blocks {
@@ -57,6 +64,8 @@ impl Blocks {
             containers: Vec::new(),
             blank: None,
             written: false,
+            fresh: false,
+            cached: None,
         }
     }
 
@@ -85,12 +94,15 @@ impl Blocks {
             kind,
             started: false,
         });
+        self.fresh = true;
+        self.cached = None;
     }
 
     /// Close the innermost container; a blank line requested inside it moves
     /// out of it.
     pub(crate) fn pop(&mut self) {
         self.containers.pop();
+        self.cached = None;
         let depth = self.containers.len();
         self.blank = self.blank.map(|blank| blank.min(depth));
     }
@@ -99,6 +111,7 @@ impl Blocks {
     /// inside it is dropped, so items follow each other directly.
     pub(crate) fn pop_item(&mut self) {
         self.containers.pop();
+        self.cached = None;
         let depth = self.containers.len();
         self.blank = self.blank.filter(|&blank| blank <= depth);
     }
@@ -120,24 +133,47 @@ impl Blocks {
             && self.started(depth)
         {
             self.out.push_str("\n")?;
-            let prefix = self.prefix(depth);
-            self.out.push_str(prefix.trim_end())?;
+            self.write_prefix(depth, true)?;
         }
         if self.written {
             self.out.push_str("\n")?;
         }
-        let prefix = self.prefix(self.containers.len());
-        if content.is_empty() {
-            self.out.push_str(prefix.trim_end())?;
-        } else {
-            self.out.push_str(&prefix)?;
-            self.out.push_str(content)?;
-        }
-        for container in &mut self.containers {
-            container.started = true;
+        self.write_prefix(self.containers.len(), content.is_empty())?;
+        self.out.push_str(content)?;
+        if self.fresh {
+            for container in &mut self.containers {
+                container.started = true;
+            }
+            self.fresh = false;
+            self.cached = None;
         }
         self.written = true;
         Ok(())
+    }
+
+    /// Write the prefix of the containers up to `depth`, without trailing
+    /// spaces when `trimmed`.
+    fn write_prefix(&mut self, depth: usize, trimmed: bool) -> Result<(), Error> {
+        if self.fresh || depth != self.containers.len() {
+            let prefix = self.prefix(depth);
+            let prefix = if trimmed { prefix.trim_end() } else { &prefix };
+            return self.out.push_str(prefix);
+        }
+        if self.cached.is_none() {
+            let prefix = self.prefix(depth);
+            let length = prefix.trim_end().len();
+            self.cached = Some((prefix, length));
+        }
+        let (prefix, length) = self
+            .cached
+            .as_ref()
+            .map_or(("", 0), |(prefix, length)| (prefix.as_str(), *length));
+        let prefix = if trimmed {
+            prefix.get(..length).unwrap_or_default()
+        } else {
+            prefix
+        };
+        self.out.push_str(prefix)
     }
 
     /// Whether the container at `depth` (the document at 0) already holds a

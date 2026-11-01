@@ -194,3 +194,20 @@ fn malformed_pages_never_panic_and_stay_within_the_output_limit() {
         }
     }
 }
+
+#[test]
+fn long_code_blocks_poll_the_interrupt_callback_while_written() {
+    // Same length, same nodes: only the number of code lines differs.
+    let lines = format!("<pre>{}x</pre>", "\n".repeat(100_000));
+    let one_line = format!("<pre>{}x</pre>", "y".repeat(100_000));
+    let count = |html: &str| {
+        let calls = Cell::new(0);
+        let interrupt = || {
+            calls.set(calls.get() + 1);
+            false
+        };
+        convert(html, &Options::default().with_interrupt(&interrupt)).unwrap();
+        calls.get()
+    };
+    assert!(count(&lines) > count(&one_line));
+}

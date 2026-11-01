@@ -106,9 +106,9 @@ fn skipped(name: &str, attrs: &[Attribute]) -> bool {
         || attribute(attrs, "aria-hidden") == Some("true")
 }
 
-/// An SVG or MathML element; its `style` and `script` children are skipped
-/// like HTML ones.
+/// An SVG or MathML element to walk into: its `style` and `script` children
+/// and its hidden parts are skipped like HTML ones.
 fn is_foreign_element(tree: &Tree, node: NodeId) -> bool {
-    tree.foreign_name(node)
-        .is_some_and(|name| !SKIPPED.contains(&name))
+    tree.foreign(node)
+        .is_some_and(|(name, attrs)| !skipped(name, attrs))
 }

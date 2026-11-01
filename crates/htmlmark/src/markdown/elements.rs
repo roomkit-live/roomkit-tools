@@ -87,7 +87,12 @@ impl Markdown<'_> {
             self.inline().space();
             return Ok(Undo::Item(false));
         }
-        self.flush()?;
+        // Text before the item, inside the list: an item numbered other than
+        // 1 cannot interrupt it without a blank line.
+        if !self.paragraph.is_empty() {
+            self.flush()?;
+            self.blocks.blank();
+        }
         let marker = match self.lists.last_mut() {
             Some(List {
                 ordered: true,
@@ -127,7 +132,11 @@ impl Markdown<'_> {
             let fence = "`".repeat(longest_run(text, '`').max(2) + 1);
             let language = pre.language.unwrap_or_default();
             self.blocks.line(&format!("{fence}{language}"))?;
-            for line in text.split('\n') {
+            for (index, line) in text.split('\n').enumerate() {
+                // One element can hold millions of lines.
+                if index % 4096 == 4095 {
+                    self.options.check_interrupt()?;
+                }
                 self.blocks.line(line)?;
             }
             self.blocks.line(&fence)?;

@@ -12,7 +12,8 @@
 //!   [`Options::max_output_bytes`], measured while it is written rather than
 //!   estimated;
 //! - [`Options::interrupt`] is polled between parser chunks and during
-//!   rendering, so a caller can enforce a deadline or cancellation;
+//!   rendering, including inside long code blocks, so a caller can enforce a
+//!   deadline or cancellation;
 //! - rendering walks the tree without recursion, so nesting cannot exhaust
 //!   the stack.
 //!
@@ -78,7 +79,8 @@ pub struct Options<'a> {
     /// as written; a `None` result renders a link as its text and drops an
     /// image.
     pub rewrite_url: Option<RewriteUrl<'a>>,
-    /// Polled between parser chunks and every few hundred rendered nodes.
+    /// Polled between parser chunks, every few hundred rendered nodes and
+    /// every few thousand lines of a code block.
     pub interrupt: Option<Interrupt<'a>>,
 }
 

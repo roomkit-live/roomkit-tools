@@ -157,7 +157,10 @@ impl TreeSink for Sink {
 
     fn create_element(&self, name: QualName, attrs: Vec<Attribute>, flags: ElementFlags) -> Handle {
         let attrs = if self.admit(1) { attrs } else { Vec::new() };
-        let template = flags.template.then(|| self.new_node(Data::Document));
+        let template = flags.template.then(|| {
+            self.admit(1);
+            self.new_node(Data::Document)
+        });
         let id = self.new_node(Data::Element {
             name: name.clone(),
             attrs,
@@ -178,14 +181,23 @@ impl TreeSink for Sink {
     }
 
     fn append(&self, parent: &Handle, child: NodeOrText<Handle>) {
-        if self.exceeded.get() || !self.admit_under(parent.id) {
+        if self.exceeded.get() {
             return;
         }
         match child {
-            NodeOrText::AppendNode(node) => self.tree.borrow_mut().append(parent.id, node.id),
+            NodeOrText::AppendNode(node) => {
+                if self.admit_under(parent.id) {
+                    self.tree.borrow_mut().append(parent.id, node.id);
+                }
+            }
             NodeOrText::AppendText(text) => {
+                // Text joining the last text node is already at an admitted
+                // depth; the parser appends a long text in many pieces.
                 let last = self.tree.borrow().last_child(parent.id);
-                if !self.merge_text(last, &text) && self.admit(1) {
+                if self.merge_text(last, &text) {
+                    return;
+                }
+                if self.admit_under(parent.id) && self.admit(1) {
                     let node = self.new_node(Data::Text(text));
                     self.tree.borrow_mut().append(parent.id, node);
                 }

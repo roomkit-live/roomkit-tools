@@ -11,7 +11,7 @@
 //! markers, whose runs would join if either pair were removed.
 
 use super::Inline;
-use crate::syntax::{is_punctuation, is_word};
+use crate::syntax::{may_be_punctuation, may_be_word};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum State {
@@ -63,12 +63,15 @@ impl Context {
     /// Whether CommonMark reads an opener here (`star` for `*` and `**`), and
     /// removing a pair later cannot make two runs join.
     fn allows(&self, star: bool) -> bool {
-        let previous_word = self.previous.is_some_and(is_word);
-        let left_flanking = !(previous_word && is_punctuation(self.after));
+        // Unsure characters count as whatever makes the marker less likely
+        // to be written.
+        let previous_word = self.previous.is_some_and(may_be_word);
+        let after_punctuation = may_be_punctuation(self.after);
+        let left_flanking = !(previous_word && after_punctuation);
         // A `*` run that could also close would close the open emphasis
         // instead of opening its own.
         let could_close = self.previous.is_some_and(|previous| {
-            !previous.is_whitespace() && (previous_word || is_punctuation(self.after))
+            !previous.is_whitespace() && (previous_word || after_punctuation)
         });
         let ambiguous = star && self.star_open && could_close;
         // Between two code spans, removing this marker again would join
@@ -242,7 +245,7 @@ impl Inline {
     /// read them as emphasis, so their pairs are removed.
     fn settle(&mut self, following: char) {
         let unsettled = std::mem::take(&mut self.unsettled);
-        if !is_word(following) || unsettled.is_empty() {
+        if !may_be_word(following) || unsettled.is_empty() {
             return;
         }
         // Positions after the removed markers move.
@@ -259,7 +262,24 @@ impl Inline {
                 && self.line.is_char_boundary(end)
             {
                 self.line.replace_range(start..end, "");
+                self.keep_link(start);
             }
+        }
+    }
+
+    /// After a removal at `at`, escape a `!` that now precedes a link's `[`:
+    /// it would turn the link into an image.
+    fn keep_link(&mut self, at: usize) {
+        let link_follows = self
+            .line
+            .get(at..)
+            .is_some_and(|rest| rest.starts_with('['));
+        let bang_precedes = self
+            .line
+            .get(..at)
+            .is_some_and(|before| ends_with_unescaped(before, '!'));
+        if link_follows && bang_precedes {
+            self.line.insert(at - 1, '\\');
         }
     }
 
@@ -273,7 +293,11 @@ impl Inline {
         };
         // Spaces HTML keeps at the end move after the closer.
         let trailing = self.split_trailing_spaces();
-        let after_punctuation = self.line.chars().next_back().is_some_and(is_punctuation);
+        let after_punctuation = self
+            .line
+            .chars()
+            .next_back()
+            .is_some_and(may_be_punctuation);
         let close = self.line.len();
         self.line.push_str(&marker.close);
         self.line.push_str(&trailing);
@@ -324,6 +348,9 @@ impl Inline {
         let last_opener = self
             .markers
             .iter()
+            // A marker that adds nothing writes nothing; its position may be
+            // stale once earlier pairs are removed.
+            .filter(|marker| !marker.open.is_empty())
             .filter_map(|marker| match marker.state {
                 State::Written(open) => Some(open + marker.open.len()),
                 State::Waiting | State::Dropped => None,

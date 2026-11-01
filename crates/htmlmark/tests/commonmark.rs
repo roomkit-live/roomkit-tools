@@ -83,6 +83,18 @@ const PIECES: &[&str] = &[
     "[a]: /b",
     "<div>",
     "\u{a0}",
+    "1",
+    "2",
+    ".",
+    ")",
+    "\u{301}",
+    "\u{24b6}",
+    "\u{200d}",
+    "\u{b}",
+    "\u{ab}",
+    "\u{2019}",
+    ":--",
+    "-:",
     "\u{2003}x",
 ];
 
@@ -176,7 +188,14 @@ fn table(random: &mut Random, depth: usize) -> String {
     for _ in 0..columns {
         header.push_str(&element("th", &text(random)));
     }
-    let mut rows = element("tr", &header);
+    // A caption first, where HTML puts it: one after a row is written below
+    // the table, out of the page's order.
+    let mut rows = if random.below(4) == 0 {
+        element("caption", &text(random))
+    } else {
+        String::new()
+    };
+    rows.push_str(&element("tr", &header));
     for _ in 0..=random.below(3) {
         let mut cells = String::new();
         for _ in 0..=random.below(columns + 1) {

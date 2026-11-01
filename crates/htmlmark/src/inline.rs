@@ -10,7 +10,7 @@ mod markers;
 
 use markers::{Closed, Marker, Unsettled};
 
-use crate::syntax::{code_span, is_html_space, ordinal, starts_block};
+use crate::syntax::{code_span, is_html_space, is_word, starts_block};
 
 pub(crate) struct Inline {
     line: String,
@@ -26,6 +26,8 @@ pub(crate) struct Inline {
     /// Whether text or an atom was written on this line; markers alone do not
     /// count, since a marker may be removed again.
     content: bool,
+    /// How many digits the line's content is, while it is only digits.
+    digits: Option<usize>,
     /// Whether the line starts a paragraph line, where `# x`, `- x` or `1. x`
     /// would turn into a heading or list; false in headings and table cells.
     paragraph: bool,
@@ -51,6 +53,7 @@ impl Inline {
             closed: Vec::new(),
             code: None,
             content: false,
+            digits: Some(0),
             paragraph: false,
         }
     }
@@ -66,8 +69,8 @@ impl Inline {
     /// Add text, collapsing whitespace and escaping what Markdown would read
     /// as syntax.
     pub(crate) fn text(&mut self, text: &str) {
-        let mut chars = text.char_indices().peekable();
-        while let Some((index, c)) = chars.next() {
+        let mut chars = text.chars().peekable();
+        while let Some(c) = chars.next() {
             if is_html_space(c) {
                 self.space();
                 continue;
@@ -78,35 +81,36 @@ impl Inline {
             }
             let line_start = self.paragraph && !self.content;
             self.before_content(c);
-            let next = chars.peek().map(|&(_, next)| next);
-            if line_start {
-                let rest = text.get(index..).unwrap_or_default();
-                if let Some((number, delimiter)) = ordinal(rest) {
-                    // `1. x` or `1) x` would start a list: escape the
-                    // delimiter, then skip the other digits and it.
-                    self.line.push_str(number);
-                    self.line.push('\\');
-                    self.line.push(delimiter);
-                    for _ in 0..number.len() {
-                        chars.next();
-                    }
-                    continue;
-                }
-                if starts_block(c, next) {
-                    self.line.push('\\');
-                }
+            let next = chars.peek().copied();
+            if (line_start && starts_block(c, next)) || self.ends_list_number(c, next) {
+                self.line.push('\\');
             }
+            self.digits = self
+                .digits
+                .filter(|_| c.is_ascii_digit())
+                .map(|digits| digits + 1);
             self.escape(c, next);
         }
     }
 
+    /// Whether `c` would end a list number: the paragraph line's content so
+    /// far is one to nine digits, possibly from other elements and around
+    /// markers that may be removed again, and `c` is `.` or `)` before a
+    /// space, the end or text still to come.
+    fn ends_list_number(&self, c: char, next: Option<char>) -> bool {
+        self.paragraph
+            && matches!(c, '.' | ')')
+            && next.is_none_or(char::is_whitespace)
+            && self.digits.is_some_and(|digits| (1..=9).contains(&digits))
+    }
+
     fn escape(&mut self, c: char, next: Option<char>) {
         let previous = self.line.chars().next_back();
-        let alphanumeric = |c: Option<char>| c.is_some_and(char::is_alphanumeric);
+        let word = |c: Option<char>| c.is_some_and(is_word);
         let escaped = match c {
             '\\' | '*' | '`' | '[' | ']' | '<' | '~' => true,
-            // Inside a word, `_` cannot start or end emphasis.
-            '_' => !(alphanumeric(previous) && alphanumeric(next)),
+            // Between two letters or digits, `_` cannot start or end emphasis.
+            '_' => !(word(previous) && word(next)),
             // `&amp;` written as text would turn back into `&`.
             '&' => next.is_none_or(|next| next.is_alphanumeric() || next == '#'),
             _ => false,
@@ -135,6 +139,7 @@ impl Inline {
         }
         self.line.push(c);
         self.content = true;
+        self.digits = None;
     }
 
     /// Add Markdown that is already escaped, such as an image or code span.
@@ -144,6 +149,7 @@ impl Inline {
         };
         self.before_content(first);
         self.line.push_str(markdown);
+        self.digits = None;
     }
 
     /// Add a code span. It is written as escaped text instead in two cases:
@@ -152,6 +158,11 @@ impl Inline {
     /// link when it holds `]`, since at the start of a line `[` up to a `]:`
     /// reads as a link definition and a code span cannot escape the bracket.
     pub(crate) fn code(&mut self, code: &str) {
+        // Code with no visible text writes nothing and changes nothing.
+        let span = code_span(code);
+        let Some(first) = span.chars().next() else {
+            return;
+        };
         let after_code = self.code == Some(self.line.len()) && !self.space;
         let in_link = self.markers.iter().any(|marker| marker.open == "[");
         if after_code || (in_link && code.contains(']')) {
@@ -159,10 +170,6 @@ impl Inline {
             self.text(code);
             return;
         }
-        let span = code_span(code);
-        let Some(first) = span.chars().next() else {
-            return;
-        };
         self.before_content(first);
         // A closer continued by the same emphasis is removed again, which can
         // bring the previous code span back to the end of the line.
@@ -173,12 +180,15 @@ impl Inline {
         }
         self.line.push_str(&span);
         self.code = Some(self.line.len());
+        self.digits = None;
     }
 
     /// Escape a closing sequence of `#` that would end a heading line.
     pub(crate) fn escape_closing_hashes(line: &mut String) {
         let content = line.trim_end_matches('#');
-        if content.len() < line.len() && (content.is_empty() || content.ends_with(' ')) {
+        if content.len() < line.len()
+            && (content.is_empty() || content.ends_with(char::is_whitespace))
+        {
             line.insert(content.len(), '\\');
         }
     }
@@ -187,9 +197,27 @@ impl Inline {
     /// and return its content.
     pub(crate) fn take_line(&mut self) -> String {
         self.close_all();
+        if self.paragraph {
+            escape_delimiter_row(&mut self.line);
+        }
         self.code = None;
         self.content = false;
+        self.digits = Some(0);
         self.space = false;
         std::mem::take(&mut self.line)
+    }
+}
+
+/// Escape the first character of a line that reads as a table's delimiter
+/// row, such as `:-- | --:`: under a line with pipes, it would make a table.
+fn escape_delimiter_row(line: &mut String) {
+    let content = line.trim_start();
+    let delimiter_row = content.contains('-')
+        && content
+            .chars()
+            .all(|c| matches!(c, '|' | ':' | '-' | ' ' | '\t'));
+    if delimiter_row {
+        let start = line.len() - content.len();
+        line.insert(start, '\\');
     }
 }
