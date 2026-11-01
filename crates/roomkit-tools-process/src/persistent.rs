@@ -1,97 +1,23 @@
-use std::collections::BTreeMap;
+mod definitions;
+mod registry;
+mod stdin;
+
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::time::Duration;
 
-use roomkit_tools_core::{Definition, Error, Output};
-use tokio::io::AsyncWriteExt;
-use tokio::process::ChildStdin;
+use roomkit_tools_core::{Error, Output};
 use tokio::sync::{Mutex, watch};
 use tokio_util::sync::CancellationToken;
 
-use crate::journal::Journal;
+use registry::Registry;
+pub(crate) use registry::{Entry, Record, initial_status};
+
 use crate::{
     CommandEnv, ProcessLimits, ProcessReadInput, ProcessReadResult, ProcessStartInput,
     ProcessState, ProcessStatus, ProcessStatusInput, ProcessStopInput, ProcessStopResult,
-    ProcessWriteInput, ProcessWriteResult,
 };
-
-#[derive(Debug)]
-pub(crate) struct Record {
-    pub(crate) status: ProcessStatus,
-    pub(crate) stdout: Journal,
-    pub(crate) stderr: Journal,
-    pub(crate) stdout_archive: Option<crate::output::View>,
-    pub(crate) stderr_archive: Option<crate::output::View>,
-}
-
-impl Record {
-    pub(crate) fn status(&self) -> ProcessStatus {
-        let mut status = self.status.clone();
-        status.stdout_bytes = self.stdout.total;
-        status.stderr_bytes = self.stderr.total;
-        status.stdout_retained_from = self.stdout.first();
-        status.stderr_retained_from = self.stderr.first();
-        status.stdout_archive = self
-            .stdout_archive
-            .as_ref()
-            .map(crate::output::View::snapshot);
-        status.stderr_archive = self
-            .stderr_archive
-            .as_ref()
-            .map(crate::output::View::snapshot);
-        status
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct Entry {
-    pub(crate) owner: String,
-    pub(crate) command: String,
-    pub(crate) started: Instant,
-    pub(crate) finished: OnceLock<Duration>,
-    pub(crate) record: Arc<Mutex<Record>>,
-    pub(crate) stdin: Mutex<Option<ChildStdin>>,
-    pub(crate) stop: CancellationToken,
-    pub(crate) done: watch::Receiver<bool>,
-}
-
-#[derive(Debug, Default)]
-struct Registry {
-    next_id: u64,
-    entries: BTreeMap<String, Arc<Entry>>,
-}
-
-impl Registry {
-    /// The next identifier number for `owner`, within the host quotas.
-    fn next_for(&self, owner: &str, limits: ProcessLimits) -> Result<u64, Error> {
-        let retained = self.entries.values().filter(|e| e.owner == owner).count();
-        if self.entries.len() >= limits.max_processes || retained >= limits.max_processes_per_owner
-        {
-            return Err(Error::LimitExceeded(
-                "process quota reached; stop with forget=true to release completed records".into(),
-            ));
-        }
-        self.next_id
-            .checked_add(1)
-            .ok_or_else(|| Error::LimitExceeded("process identifiers exhausted".into()))
-    }
-
-    /// Retained entries that `keep` selects, in creation order.
-    fn ordered(&self, keep: impl Fn(&Entry) -> bool) -> Vec<Arc<Entry>> {
-        let mut entries: Vec<_> = self
-            .entries
-            .iter()
-            .filter(|(_, entry)| keep(entry))
-            .collect();
-        entries.sort_by_key(|&(id, _)| roomkit_tools_core::identifiers::creation_order(id));
-        entries
-            .into_iter()
-            .map(|(_, entry)| Arc::clone(entry))
-            .collect()
-    }
-}
 
 #[derive(Debug)]
 struct Inner {
@@ -272,42 +198,6 @@ impl ProcessManager {
         }
         inner.env = env;
         Ok(self)
-    }
-
-    /// Derived schema for starting a process.
-    pub fn start_definition() -> Definition {
-        Definition::new::<ProcessStartInput, ProcessStatus>(
-            "process_start",
-            "Start /bin/sh -c with open stdin and a bounded lifetime. Returns immediately with process_id. Use process_read for output, process_write for input, process_stop for cleanup. Processes belong to this conversation; host permissions apply, no sandbox or PTY.",
-        )
-    }
-    /// Derived schema for inspecting or listing owned processes.
-    pub fn status_definition() -> Definition {
-        Definition::new::<ProcessStatusInput, Vec<ProcessStatus>>(
-            "process_status",
-            "Inspect process_id or omit it to list this conversation's processes, including retained completed jobs. Read-only: does not write, close stdin or stop jobs. State finished means cleanup and capture ended. Report the actual end, exit_code, signal and error: exit_code 0 with signal null means normal successful exit, not signal termination.",
-        )
-    }
-    /// Derived schema for cursor-based output reading.
-    pub fn read_definition() -> Definition {
-        Definition::new::<ProcessReadInput, ProcessReadResult>(
-            "process_read",
-            "Read available stdout and stderr without writing input, closing stdin or stopping the process. Call this tool directly to read a running job; no preparatory process_write or EOF is needed. Use independent zero-based byte offsets, initially 0, then each next_offset. Reading does not consume output. Empty output means no new bytes yet, not completion. omitted_bytes reports eviction. Each stream's bytes and total_bytes are authoritative; the outer rendered text contains formatting not produced by the process.",
-        )
-    }
-    /// Derived schema for writing or closing stdin.
-    pub fn write_definition() -> Definition {
-        Definition::new::<ProcessWriteInput, ProcessWriteResult>(
-            "process_write",
-            "Send requested text to process stdin, or close stdin when EOF was requested. Encode an actual newline as the JSON escape \\n when requested; no newline is added automatically. Keep close_stdin false unless closing input is intended: EOF may terminate the process. Do not call this tool to read or poll output; use process_read directly. Inspect complete and bytes_written, since input may be partial on timeout/cancellation; never blindly replay it. If stdin_closed is already true, no further close is needed.",
-        )
-    }
-    /// Derived schema for terminating and optionally forgetting a process.
-    pub fn stop_definition() -> Definition {
-        Definition::new::<ProcessStopInput, ProcessStopResult>(
-            "process_stop",
-            "Stop an owned process group immediately with SIGKILL: no graceful shutdown, so the command cannot save state or clean up. Awaits bounded cleanup. Set forget=true to release the completed process record and all retained output. Check status.state and forgotten. Repeated stop of a retained completed job is safe.",
-        )
     }
 
     fn check(&self, owner: &str, cancel: &CancellationToken) -> Result<(), Error> {
@@ -517,51 +407,6 @@ impl ProcessManager {
         Ok(Output::new(data, text))
     }
 
-    /// Write exact stdin bytes, with bounded waiting and explicit partial effects.
-    ///
-    /// # Errors
-    /// Rejects unknown IDs, oversized input and pre-call cancellation. Once a write
-    /// starts, failure is a structured result; dropped futures may lose that result.
-    pub async fn write(
-        &self,
-        owner: &str,
-        input: ProcessWriteInput,
-        cancel: &CancellationToken,
-    ) -> Result<Output<ProcessWriteResult>, Error> {
-        if input.text.len() > self.inner.limits.max_write_bytes {
-            return Err(Error::LimitExceeded(
-                "process stdin exceeds host limit".into(),
-            ));
-        }
-        let entry = self.entry(owner, &input.process_id, cancel).await?;
-        let deadline =
-            tokio::time::Instant::now() + Duration::from_millis(self.inner.limits.write_timeout_ms);
-        let mut data = ProcessWriteResult {
-            process_id: input.process_id,
-            bytes_written: 0,
-            complete: false,
-            stdin_closed: false,
-            error: None,
-        };
-        let outcome = tokio::select! {
-            biased;
-            () = cancel.cancelled() => Err("stdin call cancelled"),
-            () = entry.stop.cancelled() => Err("process stopped or finished"),
-            () = tokio::time::sleep_until(deadline) => Err("stdin write timed out"),
-            result = send_input(&entry, &input.text, input.close_stdin, &mut data) => result,
-        };
-        match outcome {
-            Ok(()) => data.complete = true,
-            Err(message) => data.error = Some(message.into()),
-        }
-        data.stdin_closed = entry.record.lock().await.status.stdin_closed;
-        let text = format!(
-            "{}: bytes_written={}, complete={}, stdin_closed={}, error={:?}\n",
-            data.process_id, data.bytes_written, data.complete, data.stdin_closed, data.error
-        );
-        Ok(Output::new(data, text))
-    }
-
     /// Send SIGKILL to the process group, wait up to two seconds and optionally
     /// forget. There is no graceful phase: the command gets no chance to clean up.
     ///
@@ -653,61 +498,6 @@ impl ProcessManager {
         }
         finished
     }
-}
-
-/// The status of a process that has just started.
-pub(crate) fn initial_status(process_id: String, cwd: &Path, timeout_ms: u64) -> ProcessStatus {
-    ProcessStatus {
-        process_id,
-        cwd: cwd.to_string_lossy().into_owned(),
-        state: ProcessState::Running,
-        end: None,
-        exit_code: None,
-        signal: None,
-        timeout_ms,
-        output_complete: false,
-        stdin_closed: false,
-        stdout_bytes: 0,
-        stderr_bytes: 0,
-        stdout_retained_from: 0,
-        stderr_retained_from: 0,
-        error: None,
-        stdout_archive: None,
-        stderr_archive: None,
-    }
-}
-
-async fn send_input(
-    entry: &Entry,
-    text: &str,
-    close: bool,
-    data: &mut ProcessWriteResult,
-) -> Result<(), &'static str> {
-    let mut guard = entry.stdin.lock().await;
-    let Some(stdin) = guard.as_mut() else {
-        return Err("stdin is closed");
-    };
-    while data.bytes_written < text.len() {
-        let bytes = text
-            .as_bytes()
-            .get(data.bytes_written..)
-            .ok_or("invalid stdin offset")?;
-        match stdin.write(bytes).await {
-            Ok(0) | Err(_) => {
-                let mut record = entry.record.lock().await;
-                guard.take();
-                record.status.stdin_closed = true;
-                return Err("stdin pipe write failed");
-            }
-            Ok(count) => data.bytes_written += count,
-        }
-    }
-    if close {
-        let mut record = entry.record.lock().await;
-        guard.take();
-        record.status.stdin_closed = true;
-    }
-    Ok(())
 }
 
 async fn wait_done(entry: &Entry, deadline: tokio::time::Instant) {
