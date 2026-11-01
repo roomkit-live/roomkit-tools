@@ -42,6 +42,6 @@ particular interest include:
 
 Some capabilities are intentionally broad and are not vulnerabilities by
 themselves: `shell` and the process tools run commands with the host's
-permissions and environment, and the filesystem checks are not an
-operating-system sandbox. Choosing which tools an agent gets, and isolating the
-host itself, is the host application's responsibility.
+permissions and the environment variables it passes, and the filesystem checks
+are not an operating-system sandbox. Choosing which tools an agent gets, and
+isolating the host itself, is the host application's responsibility.

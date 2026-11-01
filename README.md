@@ -1,34 +1,112 @@
-# roomkit-tools
+# RoomKit Tools
 
-Composable tools for coding agents, implemented in Rust and available through
-an asynchronous Python API. Use them directly, or pass individual tools to a
-[RoomKit](https://github.com/roomkit-live/roomkit) agent.
+**Composable tools for AI coding agents, written in Rust, with an asyncio Python API.**
 
-Choose the capabilities your agent needs: files, code outlines, commands,
-persistent processes, web access, images, documentation and delegated work. The host controls
-workspaces, limits, credentials and resource lifetimes.
+[![CI](https://github.com/roomkit-live/roomkit-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/roomkit-live/roomkit-tools/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/roomkit-live/roomkit-tools/blob/main/LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/installation.md)
+[![MSRV: 1.94](https://img.shields.io/badge/MSRV-1.94-orange.svg)](https://github.com/roomkit-live/roomkit-tools/blob/main/Cargo.toml)
 
-See [installation and compatibility](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/installation.md)
-for available artifacts and supported platforms.
+RoomKit Tools gives an agent what it needs to work on code: read, search and
+edit files, run commands and long-lived processes, fetch and search the web,
+look at images, read documentation, keep a plan and delegate work to other
+agents. Each tool is a separate component with a typed contract. You choose
+the tools an agent gets, and your application decides what they can reach.
 
-## Install from a checkout
+Every tool is implemented once, in Rust. Python calls the same implementation
+through a native extension, and each tool can be passed directly to a
+[RoomKit](https://github.com/roomkit-live/roomkit) agent. The tools also work on
+their own, without RoomKit or a model.
 
-Requires CPython 3.12+ and Rust to compile the extension. Run from the repository
-root; prebuilt GitHub wheels are also described in the installation guide.
+> **Early development (alpha).** Preview wheels for Linux x86_64 are attached to
+> [GitHub releases](https://github.com/roomkit-live/roomkit-tools/releases). The
+> packages are not on PyPI or crates.io yet, and the APIs will change before
+> 1.0. Feedback and contributions are welcome.
+
+## Features
+
+- **Select exactly what an agent gets.** Each tool is chosen individually.
+  There is no global registry and no tool server: an agent given `read` and
+  `grep` can do nothing else.
+- **The host sets the limits, the model fills in the arguments.** Workspace
+  roots, byte and line limits, deadlines, allowed origins, credentials and
+  lifetimes are host configuration. The model sees only each tool's input
+  schema.
+- **Bounded results.** Reads, searches, command output and downloads all have
+  explicit limits. Results report truncation and pagination in structured
+  fields, so a partial result is never mistaken for a complete one.
+- **Edits that detect conflicts.** Reads return a content revision. Writes,
+  edits and patches can require it and refuse to overwrite a file that changed
+  in the meantime. A shared `Workspace` serializes mutations from several tools.
+- **One implementation, two languages.** Input and output schemas are derived
+  from the Rust types the tools use. Python returns the same `data` and `text`
+  envelope, checked against Rust with shared fixtures.
+- **Typed failures and cancellation.** Invalid input, refused access, exceeded
+  limits and unsupported content are distinct errors. Cancelling an asyncio
+  task cancels the native call, and stops the processes a command started.
+- **Process control.** Commands run in their own session, detached from the
+  host's terminal, with a deadline, bounded head/tail capture and only the
+  environment variables the host chooses. Persistent processes keep their stdin
+  and stdout across calls, and long output can be archived for later reading.
+- **Guarded web access.** `web_fetch` refuses private and loopback addresses
+  unless the host allows that exact origin, checks every redirect again and
+  connects to the address it validated. `web_search` uses an Exa, Ollama or
+  OpenAI backend chosen by the host.
+
+## Available tools
+
+| Capability | Model-facing tools | Guide |
+| --- | --- | --- |
+| Files | `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch` | [Filesystem](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/filesystem.md) |
+| Code structure | `code_outline` for Rust and Python | [Code](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/code.md) |
+| Commands | `shell` | [Processes](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/processes.md) |
+| Persistent processes | `process_start`, `process_status`, `process_read`, `process_write`, `process_stop` | [Processes](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/processes.md) |
+| Output archives | `output_read`, `output_forget` | [Processes](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/processes.md#optional-command-output-retention) |
+| Web | `web_fetch`, `web_search` | [Web](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/web.md) |
+| Images | `view_image` for PNG, JPEG and WebP | [Images](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/images.md) |
+| Text recognition | `ocr`, with a separately installed local engine | [OCR](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/ocr.md) |
+| Documentation | `docs_list`, `docs_search`, `docs_read` | [Documentation](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/documentation.md) |
+| Planning | `plan_create`, `plan_read`, `plan_list`, `plan_update`, `plan_delete` | [Plans](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/plans.md) |
+| Delegation | `delegate_task`, `task_status`, `cancel_task`, `agent_followup`, `agent_send` | [Agents](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/agents.md) |
+
+Every tool is available in Python and in RoomKit Python. The optional RoomKit
+Rust adapter covers the file, code, command, process, web, OCR, plan and
+documentation tools; image results and agent delegation are not available there
+yet.
+
+## Quick start
+
+You need CPython 3.12 or later on Linux x86_64 (glibc 2.34+) to install a
+preview wheel:
 
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install '.[roomkit]'
+python -m pip install "roomkit-tools[roomkit] @ https://github.com/roomkit-live/roomkit-tools/releases/download/v0.1.0a15/roomkit_tools-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl"
 ```
 
-Omit `[roomkit]` for standalone use. The base Python package has no Python runtime
-dependencies; it includes the native Rust extension. No model server is required
-to use its filesystem, command, code or image preparation APIs.
+Omit `[roomkit]` to use the tools without RoomKit: the base package has no
+Python dependencies. On other platforms, or to work on the project, build from
+a checkout; this needs [Rust](https://rustup.rs) to compile the extension:
 
-## Use with RoomKit
+```sh
+git clone https://github.com/roomkit-live/roomkit-tools
+cd roomkit-tools
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install '.[roomkit]'
+python examples/roomkit_read.py
+```
 
-Add tools to an existing RoomKit AI channel:
+`roomkit_read.py` runs a real RoomKit conversation in which a scripted model
+calls the Rust `read` tool. It needs no API key and no model server. The
+[examples index](https://github.com/roomkit-live/roomkit-tools/blob/main/examples/README.md)
+lists the other scenarios, including a coding task, background processes and
+agent delegation, and how to run them against your own model.
+
+## Use it with RoomKit
+
+Pass the tools you choose to an AI channel:
 
 ```python
 from roomkit import AIChannel
@@ -47,21 +125,15 @@ agent = AIChannel(
 )
 ```
 
-Only those four tools are exposed. Sharing `Workspace` coordinates mutations
-made through its tools. RoomKit manages the conversation and tool execution;
-`roomkit-tools` provides the implementations and Rust-derived schemas.
+The agent gets these four tools and nothing else. Each tool checks its
+arguments against its Rust input type; RoomKit runs the calls inside its turns,
+hooks and policies. Passing the same `Workspace` to `Write` and `Edit` makes
+their changes to the project happen one at a time.
 
-For a complete example with no API key or server:
+## Use it without RoomKit
 
-```sh
-python examples/roomkit_read.py
-```
-
-It uses a scripted model with a real RoomKit conversation and a real Rust file
-read. The [examples index](https://github.com/roomkit-live/roomkit-tools/blob/main/examples/README.md)
-includes live-model configuration, a coding workflow and agent delegation.
-
-## Use without RoomKit
+Each tool has a standalone asynchronous counterpart (`ReadTool`, `GrepTool`,
+`ShellTool`, ...) that returns the result as a dictionary:
 
 ```python
 import asyncio
@@ -70,71 +142,171 @@ from pathlib import Path
 
 from roomkit_tools import ReadTool
 
+
 async def main():
     with tempfile.TemporaryDirectory() as directory:
         Path(directory, "notes.txt").write_text("Status: ready\n", encoding="utf-8")
         read = await ReadTool.create(directory)
         result = await read.read("notes.txt")
         print(result["text"])  # 1: Status: ready
+        print(result["data"]["revision"])  # Pass it to a later write or edit.
+
 
 asyncio.run(main())
 ```
 
-Python calls the same Rust implementation. Results include structured `data`
-and a readable `text` representation. Schemas, typed errors and cancellation
-are documented in the [Python guide](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/python.md).
+`result["data"]` holds the structured result and `result["text"]` the text
+presented to a model. Errors derive from `ToolError` (`InvalidInputError`,
+`AccessRefusedError`, `LimitExceededError`, `UnsupportedResourceError`,
+`ToolIOError`), and cancelling the task raises `asyncio.CancelledError`. The
+[Python guide](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/python.md)
+covers schemas, errors and resource ownership.
 
-Rust applications can depend on individual workspace crates. See the
-[Rust integration guide](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/rust.md)
-and the checked examples in `examples/`. No crates are published to crates.io yet.
+## Use it from Rust
 
-## Available tools
+The crates are not on crates.io yet. Depend on the ones you need through Git,
+pinned to a commit:
 
-| Capability | Model-facing tools | Guide |
-| --- | --- | --- |
-| Files | `read`, `list`, `glob`, `grep`, `write`, `edit`, `diff`, `patch` | [Filesystem](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/filesystem.md) |
-| Code structure | `code_outline` for Rust and Python | [Code](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/code.md) |
-| Commands | `shell` | [Processes](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/processes.md) |
-| Persistent processes | `process_start`, `process_status`, `process_read`, `process_write`, `process_stop` | [Processes](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/processes.md) |
-| Output archives | `output_read`, `output_forget` | [Processes](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/processes.md#optional-command-output-retention) |
-| Web | `web_fetch`, `web_search` with Exa, Ollama or OpenAI backends | [Web](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/web.md) |
-| Images | `view_image` for static PNG, JPEG and WebP | [Images](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/images.md) |
-| Text recognition | `ocr` with an optional, separately installed RustO backend | [OCR](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/ocr.md) |
-| Documentation | `docs_list`, `docs_search`, `docs_read` over a configured file catalogue | [Documentation](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/documentation.md) |
-| Planning | `plan_create`, `plan_read`, `plan_list`, `plan_update`, `plan_delete` | [Plans](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/plans.md) |
-| Delegation | `delegate_task`, `task_status`, `cancel_task`, `agent_followup`, `agent_send` | [Agents](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/agents.md) |
+```toml
+[dependencies]
+roomkit-tools-fs = { git = "https://github.com/roomkit-live/roomkit-tools", rev = "<commit>" }
+tokio = { version = "1", features = ["macros", "rt"] }
+tokio-util = "0.7"
+```
 
-All are independently selectable in RoomKit Python. The agent tools use portable
-Rust contracts and an injected execution backend; a RoomKit Python backend is
-included. The optional RoomKit Rust adapter supports the file, code, command and
-web tools, plus optional `ocr`, `plans` and `docs` features. Native agent orchestration
-and image-result transport are not yet implemented there.
+```rust
+use roomkit_tools_fs::{ReadInput, ReadTool};
+use tokio_util::sync::CancellationToken;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let read = ReadTool::new(".").await?;
+    let result = read
+        .read(ReadInput::new("README.md"), &CancellationToken::new())
+        .await?;
+    print!("{}", result.text);
+    Ok(())
+}
+```
+
+`cargo run --example read_file` runs the self-checking version from a checkout.
+The [Rust guide](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/rust.md)
+describes each crate and the optional RoomKit Rust adapter.
+
+## How it works
+
+```text
+                 tool call (JSON arguments)
+┌────────┐      ┌───────────────────────┐      ┌───────────────────────────┐
+│ Model  │ ───► │ Host                  │ ───► │ roomkit-tools             │
+│        │      │ RoomKit, or your own  │      │ validates the arguments,  │
+│        │ ◄─── │ agent loop            │ ◄─── │ runs within host limits   │
+└────────┘      └───────────────────────┘      └───────────────────────────┘
+          text           │ configures: roots,       data + text │
+                         │ limits, origins,                     ▼
+                         │ credentials, lifetimes     files, processes, network
+```
+
+- **Tools hold no global state.** A tool is created with its host configuration
+  and owns nothing else. Process sessions, output stores and agent backends are
+  explicit objects the host creates, shares between tools and closes.
+- **Results carry both forms.** `data` is for the host; `text` is for the model.
+  Pagination, truncation and omitted bytes appear in `data`, never only in prose.
+- **Errors are values the host can classify.** A refused path, a limit, an
+  unsupported file and an I/O failure are different error types; a command that
+  exits non-zero or times out is a normal result.
+- **Cancellation is explicit.** Each Rust call takes a cancellation token, and
+  Python's task cancellation reaches it. Cancelling stops a command's process
+  group; it does not undo changes already written.
 
 ## Execution boundaries
 
-- Filesystem roots and byte limits are host configuration. Path checks assume a
-  host-controlled workspace; they are not an operating-system sandbox.
-- Commands run with the host's permissions and environment. A working directory
-  does not restrict what a shell command can access.
-- Mutations can carry content revisions to reject stale writes. Cancellation
-  does not undo effects already committed.
-- Process sessions, output stores and agent backends need explicit cleanup.
-  Their retained state is not durable across host restarts.
-- Image interpretation requires a vision-capable model. Web search requires a
-  configured service; its provider can differ from the main agent's provider.
+These tools give an agent real capabilities. Choose them as you would choose
+permissions:
 
-## Documentation and development
+- **Path checks are not a sandbox.** Filesystem tools resolve every path inside
+  the host's workspace root, assuming that nothing else replaces paths in it
+  concurrently. Run untrusted agents in a container or VM.
+- **Commands run with the host's permissions.** `shell` and the process tools
+  run as the host's user. They receive only a minimal set of environment
+  variables (`PATH`, `HOME`, locale and a few others) plus what the host passes
+  explicitly, but a working directory does not limit what a command can access.
+- **Cancellation does not roll back.** A cancelled write or command may already
+  have taken effect.
+- **Retained state is in memory.** Process sessions, output archives, plans and
+  agent tasks do not survive a host restart.
+- **Fetched content is untrusted.** Web pages, search results, files and command
+  output can contain instructions aimed at the model. Treat them as data.
 
-Start with the [documentation index](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/README.md).
-It covers installation, each tool family, integration boundaries and resource
-ownership. The [changelog](https://github.com/roomkit-live/roomkit-tools/blob/main/CHANGELOG.md)
-tracks user-visible changes.
+## Repository layout
 
-For development, see [CONTRIBUTING](https://github.com/roomkit-live/roomkit-tools/blob/main/CONTRIBUTING.md).
-`make all` checks the standalone Rust workspace; `make python-check` validates
-independent wheel and source installations, including the RoomKit adapter.
+| Path | Contents |
+| --- | --- |
+| [`crates/`](https://github.com/roomkit-live/roomkit-tools/tree/main/crates) | One Rust crate per tool family, plus `roomkit-tools-core` for definitions, results and errors (no I/O, no async runtime) |
+| [`python/roomkit_tools`](https://github.com/roomkit-live/roomkit-tools/tree/main/python/roomkit_tools) | The Python package and its RoomKit integration |
+| [`bindings/python`](https://github.com/roomkit-live/roomkit-tools/tree/main/bindings/python) | The PyO3 native extension |
+| [`adapters/roomkit`](https://github.com/roomkit-live/roomkit-tools/tree/main/adapters/roomkit) | Optional adapter for the RoomKit Rust engine |
+| [`backends/rusto/python`](https://github.com/roomkit-live/roomkit-tools/tree/main/backends/rusto/python) | Optional local OCR engine, packaged separately |
+| [`examples/`](https://github.com/roomkit-live/roomkit-tools/tree/main/examples) | Rust and Python examples that check their own results |
+| [`guide/`](https://github.com/roomkit-live/roomkit-tools/tree/main/guide) | User documentation |
+
+## Platform support
+
+| Component | Validated |
+| --- | --- |
+| Python | CPython 3.12 and 3.14; the wheel targets the 3.12+ stable ABI |
+| Preview wheels | Linux x86_64, glibc 2.34+ |
+| Rust | 1.94 or later |
+| RoomKit Python | `roomkit>=0.110,<0.112` |
+| Commands and processes | Linux; Unix process groups. Other platforms return an unsupported error |
+
+macOS, Windows, ARM64, musl, PyPy and free-threaded Python have no validated
+builds yet. Source builds may work there, but are not supported.
+
+## Development
+
+You need the toolchain pinned in `rust-toolchain.toml` (rustup installs it on
+first use), [`cargo-deny`](https://github.com/EmbarkStudios/cargo-deny), and for
+the Python checks CPython 3.12+ with [uv](https://docs.astral.sh/uv/).
+
+```sh
+make all            # formatting, Clippy, tests, docs, dependency policy, examples
+make msrv           # the workspace on the minimum supported Rust version
+make python-check   # wheel and source installs, Python tests, RoomKit adapter
+```
+
+The default checks need no network service and no credentials. Generate the
+API documentation with `cargo doc --workspace --no-deps --open`.
+
+## Stability
+
+The Python package follows an alpha sequence (`0.1.0aN`); the Rust crates are
+versioned separately and not published yet. Until 1.0, any preview may change
+the API, and the
+[changelog](https://github.com/roomkit-live/roomkit-tools/blob/main/CHANGELOG.md)
+says how.
+
+## Roadmap
+
+- Publication on PyPI and crates.io.
+- Wheels for more platforms (macOS, ARM64).
+- Image results and agent delegation in the RoomKit Rust adapter.
+
+## Contributing
+
+Contributions are welcome: bug reports, documentation, fixes and features.
+Read [CONTRIBUTING.md](https://github.com/roomkit-live/roomkit-tools/blob/main/CONTRIBUTING.md)
+for the design rules, the checks to run and the commit conventions. For a large
+change, open an issue first so we can agree on the approach.
+
+## Security
+
+Please do not report security issues in public issues. Use GitHub's
+[private vulnerability reporting](https://github.com/roomkit-live/roomkit-tools/security/advisories/new)
+instead; see [SECURITY.md](https://github.com/roomkit-live/roomkit-tools/blob/main/SECURITY.md).
 
 ## License
 
-MIT. See [LICENSE](https://github.com/roomkit-live/roomkit-tools/blob/main/LICENSE).
-Native dependency notices are bundled with the Python package.
+RoomKit Tools is licensed under the
+[MIT License](https://github.com/roomkit-live/roomkit-tools/blob/main/LICENSE).
+The Python package bundles the license notices of its native dependencies.
