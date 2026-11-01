@@ -42,35 +42,59 @@ part of an existing published preview.
   not UTF-8 and count them in `skipped_entries`.
 - `ForkedProcessError` is raised by native calls in a child process forked
   after the parent used the package.
-- `roomkit_tools_core::WorkspaceRoot` holds the lexical path rules shared by the
-  root-configured tools.
+- Python hosts reach the jobs and archives of any owner, as Rust hosts do:
+  `ProcessSession` and `OutputStore` methods take `owner=` (`None` keeps the
+  standalone owner), `ProcessSession.close_owner(owner)` stops and releases one
+  owner's jobs, and `roomkit_owner(room_id, channel_id)` returns the key the
+  RoomKit tools use, in Python and in the Rust adapter.
+- `roomkit_tools_core::WorkspaceRoot` holds the path rules shared by the
+  root-configured tools; `resolve(path, operation, canonicalize)` applies them
+  with the filesystem access the caller supplies.
+- `roomkit_tools_core::identifiers::creation_order` orders sequential
+  identifiers as they were created.
 
 ### Fixed
 
 - A deeply nested brace glob no longer panics `glob` and `grep`.
-- `grep` runs on a cancellable worker, so a costly pattern no longer blocks the
-  async runtime and cancellation stops it between lines.
-- Paths outside the workspace are refused before any filesystem call, so the
-  answer no longer reveals whether an outside file exists.
+- `grep` and `glob` match on a cancellable worker, so a costly pattern no
+  longer blocks the async runtime and cancellation stops it between entries.
+- Paths outside the workspace are refused before any filesystem call, including
+  paths that leave the root and come back (`../x/../root/a`) and paths beneath
+  a workspace symlink that points outside, so the answer no longer reveals
+  whether an outside file or directory exists. A root given with `..` after a
+  symlink no longer accepts absolute paths in an unrelated directory.
 - `write` and `patch` create new files with the umask-derived mode instead of
   0600.
 - For files whose lines all end in CRLF, `edit` and `patch` accept the LF text
-  that `read` shows.
-- `web_fetch` bounds node count and depth while parsing HTML and refuses a page
-  whose Markdown would exceed the limit before converting it, instead of
-  allocating gigabytes for small adversarial pages.
+  that `read` shows. A line ending in a bare CR before the CRLF still needs its
+  exact ending.
+- `web_fetch` bounds node count, depth and merged attributes while parsing
+  HTML, and refuses a page whose Markdown would exceed the limit before
+  converting it, measuring tables and math spans as the converter writes them.
+  Small adversarial pages no longer allocate gigabytes, and pages of nested
+  layout tables are not refused below the limit.
 - The Exa backend splits results only at well-formed record headers: a
-  Markdown rule in a page no longer fails the search or starts a new hit.
+  Markdown rule in a page no longer fails the search or starts a new hit. A
+  record whose URL is not a usable source is dropped with a notice and
+  `partial`.
 - The RustO OCR engine decodes with the dictionary bytes that were size-checked
   and fingerprinted, instead of reading the file a second time.
 - OCR errors no longer name `view_image`.
 - The output store directory is created with mode 0700.
 - A finished command keeps its result when the final process-group signal is
-  refused.
+  refused. A command whose shell cannot be signalled (for example one running
+  under other credentials) no longer holds a timed-out or cancelled call: the
+  result reports no exit status and incomplete output, and a persistent job
+  ends as failed.
 - A forked child no longer hangs on native calls or at exit, and a call that
-  completes after its event loop closed no longer prints a traceback. The
-  optional OCR engine package behaves the same way and raises the base
-  package's `ForkedProcessError`; it now requires the matching base version.
+  completes after its event loop closed no longer prints a traceback. Forked
+  children are detected without an at-fork hook, so forking while native calls
+  run cannot block inside `os.fork()`, and `close()` in a forked child is
+  refused before it changes any state. The optional OCR engine package behaves
+  the same way and raises the base package's `ForkedProcessError`; it now
+  requires the matching base version.
+- `Shell` keeps its environment options as validated at construction, and the
+  RoomKit tools refuse room or channel ids that are not Unicode text.
 - `ViewImage`, `CodeOutline` and `Ocr` take their limits as explicit keywords,
   so a misspelled option fails at construction.
 - Documentation tools let I/O errors propagate in RoomKit like the other tools.

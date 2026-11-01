@@ -63,6 +63,7 @@ validation and do not replace deterministic tests.
 | `tests/fixtures/documentation.json` | Documentation snapshots, search, provenance, pagination and complete Rust/Python envelopes |
 | `tests/fixtures/plans.json` | Plan CRUD envelopes, stable step IDs, revisions and list/delete state |
 | `tests/fixtures/image.json` | Complete image payloads, metadata and refusals |
+| `tests/fixtures/roomkit_owner.json` | RoomKit owner keys, identical in the Rust adapter and in Python |
 
 `scripts/check-python.py` generates fresh Rust results, then compares installed
 Python packages with complete envelopes and file contents. It normalizes only
