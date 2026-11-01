@@ -3,7 +3,7 @@
 use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     EditInput, EditLimits, EditTool, MutationWorkspace, PatchChange, PatchInput, PatchTool,
-    WriteInput, WriteLimits, WriteTool,
+    ReadInput, ReadTool, WriteInput, WriteLimits, WriteTool,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -72,6 +72,49 @@ async fn edit_preserves_bom_crlf_and_all_unmatched_text() {
     assert_eq!(
         std::fs::read_to_string(root.path().join("orders.txt")).unwrap(),
         "\u{feff}Orders\r\n43 | Taylor | 3 notebooks\r\n"
+    );
+}
+
+#[tokio::test]
+async fn edit_accepts_text_from_read_in_a_file_with_uniform_crlf_endings() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("crlf.txt"), "alpha\r\nbeta\r\n").unwrap();
+    std::fs::write(root.path().join("mixed.txt"), "alpha\r\nbeta\n").unwrap();
+    let read = ReadTool::new(root.path()).await.unwrap();
+    let edit = EditTool::new(root.path()).await.unwrap();
+    let cancel = CancellationToken::new();
+    let page = read
+        .read(ReadInput::new("crlf.txt"), &cancel)
+        .await
+        .unwrap();
+    let shown: Vec<_> = page.data.lines.iter().map(|l| l.text.as_str()).collect();
+    assert_eq!(shown, ["alpha", "beta"]);
+    let mut input = EditInput::new("crlf.txt", shown.join("\n"), "alpha\ngamma\ndelta");
+    input.expected_revision = Some(page.data.revision);
+    let result = edit.edit(input, &cancel).await.unwrap();
+    let expected = "alpha\r\ngamma\r\ndelta\r\n";
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("crlf.txt")).unwrap(),
+        expected
+    );
+    assert_eq!(result.data.bytes_after, expected.len());
+    // Text already in CRLF form still matches; only bare LF is converted.
+    edit.edit(EditInput::new("crlf.txt", "gamma\r\n", "g\n"), &cancel)
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("crlf.txt")).unwrap(),
+        "alpha\r\ng\r\ndelta\r\n"
+    );
+    // Mixed endings stay exact: LF text does not match a CRLF line break.
+    assert!(matches!(
+        edit.edit(EditInput::new("mixed.txt", "alpha\nbeta", "x"), &cancel)
+            .await,
+        Err(Error::InvalidInput(_))
+    ));
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("mixed.txt")).unwrap(),
+        "alpha\r\nbeta\n"
     );
 }
 

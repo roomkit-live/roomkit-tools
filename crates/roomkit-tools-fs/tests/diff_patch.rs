@@ -242,6 +242,50 @@ async fn patch_validates_every_source_before_any_effect_and_rechecks_after_previ
 }
 
 #[tokio::test]
+async fn patch_accepts_lf_content_for_files_with_uniform_crlf_endings() {
+    let root = tempfile::tempdir().unwrap();
+    for name in ["update", "delete", "move", "rewrite"] {
+        std::fs::write(root.path().join(name), "one\r\ntwo\r\n").unwrap();
+    }
+    std::fs::write(root.path().join("mixed"), "one\r\ntwo\n").unwrap();
+    let tool = PatchTool::new(root.path()).await.unwrap();
+    let mut input = PatchInput::new(vec![
+        update("update", "one\ntwo\n", "one\n2\n"),
+        PatchChange::Delete {
+            path: "delete".into(),
+            old_content: "one\ntwo\n".into(),
+        },
+        PatchChange::Move {
+            from: "move".into(),
+            to: "moved".into(),
+            old_content: "one\ntwo\n".into(),
+            new_content: None,
+        },
+        PatchChange::Move {
+            from: "rewrite".into(),
+            to: "rewritten".into(),
+            old_content: "one\ntwo\n".into(),
+            new_content: Some("three\n".into()),
+        },
+    ]);
+    input.dry_run = false;
+    let result = tool.patch(input, &CancellationToken::new()).await.unwrap();
+    assert!(result.data.completed);
+    let read = |name: &str| std::fs::read_to_string(root.path().join(name)).unwrap();
+    assert_eq!(read("update"), "one\r\n2\r\n");
+    assert!(!root.path().join("delete").exists());
+    assert_eq!(read("moved"), "one\r\ntwo\r\n");
+    assert_eq!(read("rewritten"), "three\r\n");
+    let mut input = PatchInput::new(vec![update("mixed", "one\ntwo\n", "x")]);
+    input.dry_run = false;
+    assert!(matches!(
+        tool.patch(input, &CancellationToken::new()).await,
+        Err(Error::Refused(_))
+    ));
+    assert_eq!(read("mixed"), "one\r\ntwo\n");
+}
+
+#[tokio::test]
 async fn patch_preserves_exact_bytes_and_noops_and_move_can_change_text() {
     let root = tempfile::tempdir().unwrap();
     let source = "\u{feff}πxπ\r\nend";

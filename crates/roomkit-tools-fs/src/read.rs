@@ -69,7 +69,8 @@ impl Default for ReadLimits {
 pub struct ReadLine {
     /// One-based line number in the source file.
     pub number: usize,
-    /// The original text on this line.
+    /// The line's text without its line ending (LF or CRLF) and, on line one,
+    /// without a UTF-8 BOM.
     pub text: String,
 }
 

@@ -14,6 +14,8 @@ pub struct EditInput {
     /// Existing regular file beneath the configured root.
     pub path: String,
     /// Exact text to match, including whitespace and line endings. Must not be empty.
+    /// In a file whose line endings are all CRLF, LF endings here and in
+    /// `new_text` stand for CRLF, as `read` shows such lines without `\r`.
     pub old_text: String,
     /// Replacement text; an empty string removes the matched text, not the file.
     pub new_text: String,
@@ -113,7 +115,7 @@ impl EditTool {
     pub fn definition() -> Definition {
         Definition::new::<EditInput, EditResult>(
             "edit",
-            "Replace exact old_text with new_text in an existing UTF-8 file. Read the file first and pass its revision as expected_revision to refuse stale edits. Whitespace and line endings must match exactly. Refuses zero or multiple occurrences unless replace_all: true; old_text must not be empty. Empty new_text removes the matched text, not the file. Preserves unmatched bytes and reports replacements, sizes and the new revision. Leaf symlinks are refused.",
+            "Replace exact old_text with new_text in an existing UTF-8 file. Read the file first and pass its revision as expected_revision to refuse stale edits. Whitespace and line endings must match exactly, except that LF text matches and writes CRLF in a file whose line endings are all CRLF. Refuses zero or multiple occurrences unless replace_all: true; old_text must not be empty. Empty new_text removes the matched text, not the file. Preserves unmatched bytes and reports replacements, sizes and the new revision. Leaf symlinks are refused.",
         )
     }
 
@@ -148,7 +150,10 @@ impl EditTool {
                 })?;
                 revision::check(input.expected_revision.as_deref(), Some(&before.bytes))?;
                 let source = mutation::validate_text(&before.bytes)?;
-                let count = source.matches(&input.old_text).count();
+                let crlf = mutation::uniformly_crlf(source);
+                let old_text = mutation::in_file_endings(crlf, &input.old_text);
+                let new_text = mutation::in_file_endings(crlf, &input.new_text);
+                let count = source.matches(old_text.as_ref()).count();
                 if count == 0 {
                     return Err(Error::InvalidInput(
                         "old_text was not found; read the file again".into(),
@@ -161,10 +166,9 @@ impl EditTool {
                 }
                 let size = source
                     .len()
-                    .checked_sub(input.old_text.len().saturating_mul(count))
+                    .checked_sub(old_text.len().saturating_mul(count))
                     .and_then(|size| {
-                        input
-                            .new_text
+                        new_text
                             .len()
                             .checked_mul(count)
                             .and_then(|added| size.checked_add(added))
@@ -174,9 +178,9 @@ impl EditTool {
                         Error::LimitExceeded("edited file exceeds max_file_bytes".into())
                     })?;
                 mutation::check_cancel(cancel)?;
-                let changed = input.old_text != input.new_text;
+                let changed = old_text != new_text;
                 let revision = if changed {
-                    let after = source.replace(&input.old_text, &input.new_text);
+                    let after = source.replace(old_text.as_ref(), &new_text);
                     let revision = revision::of(after.as_bytes());
                     mutation::commit(&path, Some(&before), after.as_bytes(), maximum, cancel)?;
                     revision

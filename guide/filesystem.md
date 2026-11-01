@@ -134,6 +134,13 @@ them in `created_directories`. Input/revision checks run before directory creati
 parents can remain if subsequent I/O or cancellation prevents the file commit.
 `edit` requires an existing file; patch operations still require existing parents.
 
+`read` shows each line without its line ending, so a CRLF file reads like an LF
+one. When every line ending of the file being edited is CRLF, `edit` takes LF
+endings in `old_text` and `new_text` as CRLF, and patch does the same for
+`old_content` and `new_content`; text already written with CRLF is unchanged,
+and the file stays CRLF throughout. A file with mixed or LF endings is matched
+exactly.
+
 Both constructors accept `max_file_bytes` (8 MiB by default), bounding source,
 arguments and result as applicable. Results contain changed/created flags or
 replacement counts, byte counts and the resulting content revision. The optional
@@ -193,7 +200,8 @@ text returned by `diff`. Operations are `add` (`path`, `content`), `update`
 (`path`, `old_content`, `new_content`), `delete` (`path`, `old_content`) and
 `move` (`from`, `to`, `old_content`, optional `new_content`). Omitted/null move
 content preserves the source bytes. Existing sources must match the complete
-`old_content` exactly; this is patch's stale-content check, rather than an
+`old_content` exactly, apart from the CRLF rule above; this is patch's
+stale-content check, rather than an
 `expected_revision` argument. A numbered or truncated `read` display cannot be
 used verbatim as that content. Paths must be distinct, parents must exist and
 add/move destinations must be absent.

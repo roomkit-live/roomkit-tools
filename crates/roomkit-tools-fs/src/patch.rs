@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -23,7 +24,8 @@ pub enum PatchChange {
     Update {
         /// Existing workspace file.
         path: String,
-        /// Exact expected contents, including line endings and BOM.
+        /// Exact expected contents, including line endings and BOM (LF stands
+        /// for CRLF when the file uses CRLF throughout).
         old_content: String,
         /// Complete replacement contents.
         new_content: String,
@@ -32,7 +34,8 @@ pub enum PatchChange {
     Delete {
         /// Existing workspace file.
         path: String,
-        /// Exact expected contents, including line endings and BOM.
+        /// Exact expected contents, including line endings and BOM (LF stands
+        /// for CRLF when the file uses CRLF throughout).
         old_content: String,
     },
     /// Create an absent destination, then remove the matching source.
@@ -41,7 +44,8 @@ pub enum PatchChange {
         from: String,
         /// Absent workspace destination. Its parent must exist.
         to: String,
-        /// Exact expected source contents.
+        /// Exact expected source contents (LF stands for CRLF when the source
+        /// uses CRLF throughout, as for `new_content`).
         old_content: String,
         /// Optional replacement contents; omitted or null keeps the source bytes.
         #[serde(default)]
@@ -207,7 +211,7 @@ impl PatchTool {
     pub fn definition() -> Definition {
         Definition::new::<PatchInput, PatchResult>(
             "patch",
-            "Preview or apply a JSON batch of add/update/delete/move changes. dry_run defaults to true; use false to apply. Update/delete/move require exact complete old_content. Paths must be distinct, parents must exist, and add/move destinations must be absent. All changes are prepared before writing. No multi-file rollback: inspect completed, applied and failure before reporting success. This tool takes structured changes, not Git or Codex patch text.",
+            "Preview or apply a JSON batch of add/update/delete/move changes. dry_run defaults to true; use false to apply. Update/delete/move require exact complete old_content; in a file whose line endings are all CRLF, LF text stands for CRLF in old_content and new_content. Paths must be distinct, parents must exist, and add/move destinations must be absent. All changes are prepared before writing. No multi-file rollback: inspect completed, applied and failure before reporting success. This tool takes structured changes, not Git or Codex patch text.",
         )
     }
 
@@ -332,6 +336,9 @@ fn prepare(
             }
         }
         let before = mutation::snapshot(&source, limits.diff.max_file_bytes)?;
+        let (expected, after) =
+            in_source_endings(before.as_ref(), expected, after, limits.diff.max_file_bytes)?;
+        let (expected, after) = (expected.as_deref(), after.as_deref());
         if before.as_ref().map(|s| s.bytes.as_slice()) != expected.map(str::as_bytes) {
             return Err(Error::Refused(
                 "patch source differs from old_content or required existence; read it again".into(),
@@ -392,6 +399,28 @@ fn prepare(
         });
     }
     Ok(jobs)
+}
+
+type Contents<'a> = (Option<Cow<'a, str>>, Option<Cow<'a, str>>);
+
+/// Expected and new contents in the source's line endings. `read` shows CRLF
+/// lines without `\r`; when the existing source uses CRLF throughout, LF
+/// endings in both texts stand for CRLF. Other sources compare exactly.
+fn in_source_endings<'a>(
+    before: Option<&mutation::Snapshot>,
+    expected: Option<&'a str>,
+    after: Option<&'a str>,
+    maximum: usize,
+) -> Result<Contents<'a>, Error> {
+    let crlf = before
+        .and_then(|snapshot| std::str::from_utf8(&snapshot.bytes).ok())
+        .is_some_and(mutation::uniformly_crlf);
+    let expected = expected.map(|text| mutation::in_file_endings(crlf, text));
+    let after = after.map(|text| mutation::in_file_endings(crlf, text));
+    if let Some(text) = &after {
+        mutation::bounded_text(text, maximum)?;
+    }
+    Ok((expected, after))
 }
 
 fn apply(
