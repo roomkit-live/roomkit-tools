@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from process_helpers import COMMAND_WITH_CHILD, assert_stopped, read_pids
 from roomkit import AIChannel
@@ -54,6 +56,22 @@ class RoomKitShellTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result["data"]["timeout_ms"], 100)
         self.assertEqual(result["data"]["stdout"]["omitted_bytes"], 2)
+
+    async def test_environment_is_kept_as_validated_at_construction(self) -> None:
+        command = 'printf "%s|%s" "${HOST_TEST_NAME-unset}" "${GREETING-unset}"'
+        names, values = ["HOST_TEST_NAME"], {"GREETING": "hello"}
+        listed = Shell(self.root, inherit_env=names, env=values)
+        generated = Shell(self.root, inherit_env=(name for name in ["HOST_TEST_NAME"]))
+        # Later changes to the caller's objects do not reach the configured tool.
+        names.append("BAD=NAME")
+        values["BAD=NAME"] = "value"
+        with patch.dict(os.environ, {"HOST_TEST_NAME": "host"}):
+            results = [
+                json.loads(await shell.handler("shell", {"command": command}))
+                for shell in (listed, generated)
+            ]
+        texts = [result["data"]["stdout"]["text"] for result in results]
+        self.assertEqual(texts, ["host|hello", "host|unset"])
 
     async def test_agent_observes_output_nonzero_exit_and_timeout_as_results(self) -> None:
         (self.root / "notes").write_text("first\nsecond\n")

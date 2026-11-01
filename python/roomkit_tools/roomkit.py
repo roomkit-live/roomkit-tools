@@ -484,13 +484,14 @@ class Shell(_ConfiguredTool):
         default_timeout_ms: int | None = None,
         max_timeout_ms: int | None = None,
     ) -> None:
-        _env_options(inherit_env, env)
+        # Keep the validated copies: later changes to the caller's objects, or
+        # an iterator consumed here, cannot change the configured environment.
+        environment = _env_options(inherit_env, env)
         self._outputs = outputs
         self._configure(
             root,
             outputs=outputs,
-            inherit_env=inherit_env,
-            env=env,
+            **environment,
             max_command_bytes=max_command_bytes,
             max_output_bytes=max_output_bytes,
             default_timeout_ms=default_timeout_ms,
