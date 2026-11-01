@@ -154,9 +154,7 @@ async def verify(root, events):
     require(len(edits) == 1, "expected one source edit")
     position, edit = edits[0]
     before, after = successful[:position], successful[position + 1 :]
-    outlines = [
-        d for e, d in before if e.name == "code_outline" and d["path"] == str(root / "shipping.py")
-    ]
+    outlines = [d for e, d in before if e.name == "code_outline" and d["path"] == "shipping.py"]
     require(bool(outlines) and not outlines[-1]["syntax_errors"], "missing valid outline")
     method = next((s for s in outlines[-1]["symbols"] if s["name"] == "calculate_fee"), None)
     require(method is not None and method["kind"] == "method", "method was not found")
@@ -164,7 +162,7 @@ async def verify(root, events):
 
     def selected_read(rows, source):
         for event, data in rows:
-            if event.name != "read" or data["path"] != str(root / "shipping.py"):
+            if event.name != "read" or data["path"] != "shipping.py":
                 continue
             expected = [
                 {"number": i, "text": text}

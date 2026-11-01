@@ -448,11 +448,7 @@ class BackgroundDemo:
         ]
 
     def outlined_method(self, data):
-        if (
-            data["path"] != str(self.root / "shipping.py")
-            or data["language"] != "python"
-            or data["syntax_errors"]
-        ):
+        if data["path"] != "shipping.py" or data["language"] != "python" or data["syntax_errors"]:
             return None
         return next(
             (s for s in data["symbols"] if s["name"] == "calculate_fee" and s["kind"] == "method"),

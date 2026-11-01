@@ -144,7 +144,7 @@ pub struct CodeSymbol {
 /// A page of structural source information, not a compiler diagnostic report.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct CodeOutlinePage {
-    /// Canonical path, formatted for display.
+    /// Workspace-relative path of the outlined file, usable by `read`.
     pub path: String,
     /// Selected or inferred parser language.
     pub language: CodeLanguage,

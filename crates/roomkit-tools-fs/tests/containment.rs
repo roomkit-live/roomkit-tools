@@ -100,6 +100,37 @@ async fn mutation_tools_refuse_outside_paths_whether_or_not_they_exist() {
     );
 }
 
+#[tokio::test]
+async fn results_name_paths_relative_to_the_workspace_never_the_host_path() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("menus")).unwrap();
+    std::fs::write(root.path().join("menus/bread.txt"), "rye\n").unwrap();
+    let cancel = CancellationToken::new();
+    let absolute = root.path().join("menus/bread.txt").display().to_string();
+    let read = ReadTool::new(root.path()).await.unwrap();
+    for input in ["menus/bread.txt", "./menus/../menus/bread.txt", &absolute] {
+        let page = read.read(ReadInput::new(input), &cancel).await.unwrap();
+        assert_eq!(page.data.path, "menus/bread.txt", "{input}");
+    }
+    let list = ListTool::new(root.path()).await.unwrap();
+    for (input, expected) in [(".", "."), ("menus", "menus")] {
+        let page = list.list(ListInput::new(input), &cancel).await.unwrap();
+        assert_eq!(page.data.path, expected);
+    }
+    let glob = GlobTool::new(root.path()).await.unwrap();
+    let mut input = GlobInput::new("*.txt");
+    input.path = "menus".into();
+    assert_eq!(glob.glob(input, &cancel).await.unwrap().data.path, "menus");
+    let grep = GrepTool::new(root.path()).await.unwrap();
+    let page = grep.grep(GrepInput::new("rye"), &cancel).await.unwrap();
+    assert_eq!(page.data.path, ".");
+    let mut input = GrepInput::new("rye");
+    input.path = absolute;
+    let page = grep.grep(input, &cancel).await.unwrap();
+    assert_eq!(page.data.path, "menus/bread.txt");
+    assert_eq!(page.data.matches[0].path, "menus/bread.txt");
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn absolute_paths_through_the_hosts_root_spelling_stay_accepted() {

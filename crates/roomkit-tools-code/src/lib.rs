@@ -135,12 +135,13 @@ impl CodeOutlineTool {
             self.limits.max_file_bytes,
         )
         .await?;
+        let path = self.root.relative(&path)?;
         let limits = self.limits;
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
             let control = extract::Control { token, deadline };
             let data = extract::outline(&text, language, &input, limits, &control)?;
-            page::render(&path, language, data, &input, limits, &control)
+            page::render(path, language, data, &input, limits, &control)
         })
         .await
         .map_err(|_| Error::Unsupported("outline worker failed".into()))?

@@ -76,7 +76,7 @@ pub struct ReadLine {
 /// A page of source text and the information needed to continue reading it.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct ReadPage {
-    /// The resolved file path, formatted for display.
+    /// Workspace-relative path of the file read, usable by the other tools.
     pub path: String,
     /// Complete source lines, without generated prefixes.
     pub lines: Vec<ReadLine>,
@@ -181,13 +181,14 @@ impl ReadTool {
             operation: "open the file",
             source,
         })?;
-        scan(file.take(maximum + 1), &path, &input, self.limits).await
+        let path = self.root.relative(&path)?;
+        scan(file.take(maximum + 1), path, &input, self.limits).await
     }
 }
 
 async fn scan(
     mut reader: impl AsyncRead + Unpin,
-    path: &Path,
+    path: String,
     input: &ReadInput,
     limits: ReadLimits,
 ) -> Result<Output<ReadPage>, Error> {
@@ -343,7 +344,7 @@ impl Page {
         Ok(())
     }
 
-    fn finish(mut self, path: &Path, revision: String) -> Result<Output<ReadPage>, Error> {
+    fn finish(mut self, path: String, revision: String) -> Result<Output<ReadPage>, Error> {
         if self.line_open {
             self.end_line()?;
         }
@@ -354,7 +355,7 @@ impl Page {
         }
         Ok(Output::new(
             ReadPage {
-                path: path.display().to_string(),
+                path,
                 lines: self.lines,
                 truncated: self.next_offset.is_some(),
                 next_offset: self.next_offset,
@@ -419,7 +420,7 @@ mod tests {
                             bytes: text.as_bytes(),
                             chunk,
                         },
-                        Path::new("fragmented"),
+                        "fragmented".into(),
                         &input,
                         ReadLimits::default(),
                     )
@@ -458,7 +459,7 @@ mod tests {
                 assert!(matches!(
                     scan(
                         Fragmented { bytes, chunk },
-                        Path::new("fragmented"),
+                        "fragmented".into(),
                         &input,
                         ReadLimits::default(),
                     )
@@ -481,7 +482,7 @@ mod tests {
                     bytes: b"a\nb\nc\n",
                     chunk: 2
                 },
-                Path::new("growing"),
+                "growing".into(),
                 &ReadInput::new("growing"),
                 limits,
             )
@@ -501,7 +502,7 @@ mod tests {
         {
             let scan = scan(
                 &mut reader,
-                Path::new("fragmented"),
+                "fragmented".into(),
                 &input,
                 ReadLimits::default(),
             );

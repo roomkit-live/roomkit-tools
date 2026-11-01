@@ -1,5 +1,4 @@
 use std::io::{self, Cursor, Write};
-use std::path::Path;
 use std::time::Instant;
 
 use base64::Engine;
@@ -135,7 +134,7 @@ impl Write for BoundedWriter<'_> {
 }
 
 pub(crate) fn prepare(
-    path: &Path,
+    path: String,
     bytes: &[u8],
     limits: ViewImageLimits,
     control: &Control,
@@ -176,7 +175,7 @@ pub(crate) fn prepare(
     }
     encoded.map_err(image_error)?;
     let result = ViewImageResult {
-        path: path.to_string_lossy().into_owned(),
+        path,
         revision: format!("sha256:{:x}", Sha256::digest(bytes)),
         source_mime_type: mime,
         input_bytes: bytes.len(),

@@ -4,8 +4,10 @@ All paths are resolved beneath a host-selected workspace. A path that lexically
 leaves it (an absolute path elsewhere, or `..` past the root) is refused before
 the filesystem is consulted, so the error is the same whether or not the target
 exists. Accepted paths are then canonicalized, and a symlink resolving outside
-the root is refused. These checks assume a host-controlled filesystem; they do
-not provide an OS sandbox against concurrent path replacement. Select RoomKit classes such as `Read` and `Edit`, or use their
+the root is refused. Every path in a result is workspace-relative, with `/`
+separators and `.` for the root; the host's absolute paths are not returned.
+These checks assume a host-controlled filesystem; they do not provide an OS
+sandbox against concurrent path replacement. Select RoomKit classes such as `Read` and `Edit`, or use their
 standalone `ReadTool` and `EditTool` counterparts. Examples below assume an async
 function and an existing `./workspace` directory.
 
@@ -63,8 +65,8 @@ matches = await grep.grep("blue", include="**/*.txt", context_before=2)
 
 `list`, `glob` and `grep` accept a one-based `offset` and optional `limit`;
 resume with `data.next_offset`. Grep offsets count matching lines, not context.
-Paths in discovered entries and matches are workspace-relative and usable by
-`read`. Every page rescans; results are not snapshots across external edits.
+The searched `path`, discovered entries and matches are workspace-relative and
+usable by `read`. Every page rescans; results are not snapshots across external edits.
 Hidden entries are included, ignore files are not applied, and child symlinks
 are not traversed. Grep supports Rust regex syntax, `literal=True`,
 `ignore_case=True`, `include`, `context_before` and `context_after`.

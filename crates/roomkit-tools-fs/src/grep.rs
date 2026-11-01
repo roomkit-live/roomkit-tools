@@ -82,7 +82,7 @@ pub struct GrepMatch {
 /// Matching lines and continuation information.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct GrepPage {
-    /// Resolved file or directory searched.
+    /// Workspace-relative file or directory searched; `.` is the root.
     pub path: String,
     /// Matching lines, ordered by path then line number.
     pub matches: Vec<GrepMatch>,
@@ -222,12 +222,7 @@ impl GrepTool {
                 prefix,
             ));
         }
-        let prefix = self.root.relative(path)?;
-        let prefix = if prefix.is_empty() {
-            prefix
-        } else {
-            format!("{prefix}/")
-        };
+        let prefix = self.root.prefix(path)?;
         Ok((
             paths::walk(
                 &self.root,
@@ -266,7 +261,7 @@ impl GrepTool {
         let include = input.include.as_deref().map(paths::pattern).transpose()?;
         let path = self.root.resolve(&input.path).await?;
         let (files, prefix) = self.files(&path).await?;
-        let mut page = Matches::new(&path, input, self.limits);
+        let mut page = Matches::new(self.root.relative(&path)?, input, self.limits);
         let mut ingested = 0;
         'files: for file in files.into_iter().filter(|file| file.kind == PathKind::File) {
             let relative = file.path.strip_prefix(&prefix).unwrap_or(&file.path);
@@ -366,10 +361,10 @@ struct Matches {
 }
 
 impl Matches {
-    fn new(path: &Path, input: &GrepInput, limits: GrepLimits) -> Self {
+    fn new(path: String, input: &GrepInput, limits: GrepLimits) -> Self {
         Self {
             data: GrepPage {
-                path: path.display().to_string(),
+                path,
                 matches: Vec::new(),
                 truncated: false,
                 next_offset: None,

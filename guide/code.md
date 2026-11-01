@@ -35,7 +35,9 @@ fields, enum variants, imports, assignments and macro expansions are not an
 inventory of symbols. No type resolution, compiler checking, import following,
 project index or LSP service is implied.
 
-`data.symbols` is flat and ordered by source position. Each symbol has a one-based
+`data.path` names the file relative to the workspace root, whether the request
+used a relative or an absolute path. `data.symbols` is flat and ordered by
+source position. Each symbol has a one-based
 `index`, optional enclosing `parent`, `kind`, `name`, `signature`, and inclusive
 `start_line` / `end_line`. Use those lines with `read`; `offset` / `next_offset`
 on **outline** count symbols instead. Parent indexes may refer to earlier pages.

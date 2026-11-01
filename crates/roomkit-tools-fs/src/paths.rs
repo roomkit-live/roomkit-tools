@@ -46,7 +46,7 @@ pub struct PathEntry {
 /// A bounded page of directory entries or matching paths.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct PathPage {
-    /// Resolved directory that was listed or searched.
+    /// Workspace-relative directory that was listed or searched; `.` is the root.
     pub path: String,
     /// Entries ordered lexicographically by their workspace-relative paths.
     pub entries: Vec<PathEntry>,
@@ -104,14 +104,19 @@ impl Root {
         Ok(path)
     }
 
+    /// Workspace-relative form of a resolved path; `.` names the root.
     pub(crate) fn relative(&self, path: &Path) -> Result<String, Error> {
-        let relative = path
-            .strip_prefix(self.path())
-            .map_err(|_| Error::Refused("path is outside the workspace root".into()))?;
-        relative
-            .to_str()
-            .map(|path| path.replace(std::path::MAIN_SEPARATOR, "/"))
-            .ok_or_else(|| Error::Unsupported("path is not UTF-8".into()))
+        self.0.relative(path)
+    }
+
+    /// Prefix that a workspace-relative path below `path` starts with.
+    pub(crate) fn prefix(&self, path: &Path) -> Result<String, Error> {
+        let relative = self.relative(path)?;
+        Ok(if relative == "." {
+            String::new()
+        } else {
+            format!("{relative}/")
+        })
     }
 }
 
@@ -225,7 +230,7 @@ pub(crate) fn pattern(pattern: &str) -> Result<globset::GlobSet, Error> {
 }
 
 pub(crate) fn page(
-    path: &Path,
+    path: String,
     entries: Vec<PathEntry>,
     offset: NonZeroUsize,
     limit: usize,
@@ -257,7 +262,7 @@ pub(crate) fn page(
     }
     Ok(Output::new(
         PathPage {
-            path: path.display().to_string(),
+            path,
             entries: selected,
             truncated: next_offset.is_some(),
             next_offset,

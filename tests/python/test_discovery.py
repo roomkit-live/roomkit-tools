@@ -70,7 +70,7 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
         offset = 1
         while offset is not None:
             page = (await tool.list(limit=100, offset=offset))["data"]
-            self.assertEqual(page["path"], str(self.root))
+            self.assertEqual(page["path"], ".")
             self.assertLessEqual(len(page["entries"]), 2)
             self.assertEqual(page["truncated"], page["next_offset"] is not None)
             entries.extend(page["entries"])

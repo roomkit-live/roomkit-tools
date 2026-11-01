@@ -66,7 +66,7 @@ impl fmt::Debug for ImagePayload {
 /// Metadata and complete pixels. The source file is never modified.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 pub struct ViewImageResult {
-    /// Canonical source path.
+    /// Workspace-relative source path, usable by the other tools.
     pub path: String,
     /// SHA-256 revision of original file bytes, before any transformation.
     pub revision: String,

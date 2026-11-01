@@ -70,7 +70,7 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
             result,
             {
                 "data": {
-                    "path": str(self.source.resolve()),
+                    "path": "source.txt",
                     "lines": [{"number": 1, "text": "first π"}],
                     "truncated": True,
                     "next_offset": 2,

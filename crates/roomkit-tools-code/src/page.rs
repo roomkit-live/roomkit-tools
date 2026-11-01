@@ -1,5 +1,4 @@
 use std::fmt::Write as _;
-use std::path::Path;
 
 use roomkit_tools_core::{Error, Output};
 
@@ -7,7 +6,7 @@ use crate::extract::{Control, SourceOutline};
 use crate::{CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage};
 
 pub(crate) fn render(
-    path: &Path,
+    path: String,
     language: CodeLanguage,
     source: SourceOutline,
     input: &CodeOutlineInput,
@@ -26,7 +25,7 @@ pub(crate) fn render(
         .map_or(limits.max_symbols, |n| n.get().min(limits.max_symbols));
     let mut output = Output::new(
         CodeOutlinePage {
-            path: path.display().to_string(),
+            path,
             language,
             revision: source.revision,
             symbols: Vec::new(),

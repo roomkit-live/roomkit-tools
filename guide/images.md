@@ -45,7 +45,8 @@ The tool applies EXIF orientation, reduces oversized images while preserving
 aspect ratio, and re-encodes to 8-bit PNG, preserving alpha and stripping source
 metadata. It does not upscale or perform color-profile conversion. Animated
 PNG/WebP, GIF, SVG, PDF and remote URLs are unsupported. The source is unchanged.
-Results include its SHA-256 `revision`, original and preview dimensions,
+Results include its workspace-relative `path` (the host's absolute path is not
+returned), its SHA-256 `revision`, original and preview dimensions,
 `orientation_applied`, `resized`, and byte counts. A preview that cannot fit the
 output budget fails explicitly; it is never returned as a partial image.
 

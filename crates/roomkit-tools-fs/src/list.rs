@@ -121,7 +121,7 @@ impl ListTool {
             paths::directory_entries(&self.root, &path, self.limits.max_scan_entries).await?;
         entries.sort_unstable_by(|a, b| a.path.cmp(&b.path));
         paths::page(
-            &path,
+            self.root.relative(&path)?,
             entries,
             input.offset,
             input

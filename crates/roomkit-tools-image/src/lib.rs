@@ -135,10 +135,11 @@ impl ViewImageTool {
             .map_err(|_| Error::Cancelled)?;
         let (path, bytes) =
             source::load(&self.root, &input.path, self.limits.max_file_bytes).await?;
+        let path = self.root.relative(&path)?;
         let limits = self.limits;
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            prepare::prepare(&path, &bytes, limits, &prepare::Control { token, deadline })
+            prepare::prepare(path, &bytes, limits, &prepare::Control { token, deadline })
         })
         .await
         .map_err(|_| Error::Unsupported("image worker failed".into()))?

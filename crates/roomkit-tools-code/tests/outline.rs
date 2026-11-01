@@ -69,6 +69,22 @@ async fn explicit_override_does_not_bypass_path_or_regular_text_checks() {
 }
 
 #[tokio::test]
+async fn the_outline_names_its_file_relative_to_the_workspace() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("src")).unwrap();
+    std::fs::write(root.path().join("src/lib.rs"), "fn example() {}\n").unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let absolute = root.path().join("src/lib.rs").display().to_string();
+    for input in ["src/lib.rs", absolute.as_str()] {
+        let page = tool
+            .outline(CodeOutlineInput::new(input), &CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(page.data.path, "src/lib.rs");
+    }
+}
+
+#[tokio::test]
 async fn outside_paths_are_refused_whether_or_not_they_exist() {
     let root = tempfile::tempdir().unwrap();
     let outside = tempfile::tempdir().unwrap();

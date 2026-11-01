@@ -35,10 +35,21 @@ async fn transparent_pixels_revision_and_source_are_preserved() {
         .unwrap();
     std::fs::write(root.path().join("pixels.bin"), bytes.get_ref()).unwrap();
     let tool = ViewImageTool::new(root.path()).await.unwrap();
+    let absolute = tool
+        .view(
+            input(root.path().join("pixels.bin").to_str().unwrap()),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
     let result = tool
         .view(input("pixels.bin"), &CancellationToken::new())
         .await
         .unwrap();
+    assert_eq!(absolute, result);
+    assert_eq!(result.data.path, "pixels.bin");
+    assert!(result.text.starts_with("Image \"pixels.bin\": 3x2"));
+    assert!(!result.text.contains(root.path().to_str().unwrap()));
     let png = STANDARD.decode(&result.data.image.base64).unwrap();
     assert_eq!(image::load_from_memory(&png).unwrap().to_rgba8(), pixels);
     assert_eq!(result.data.output_bytes, png.len());

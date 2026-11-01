@@ -516,7 +516,7 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False, parall
                         )
                     pages = [json.loads(event.result)["data"] for event in observed]
                     if not any(
-                        Path(page["path"]) == root / "shipping.py"
+                        page["path"] == "shipping.py"
                         and {"number": 3, "text": "    if subtotal > 50:"} in page["lines"]
                         for page in pages
                     ):

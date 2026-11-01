@@ -130,12 +130,7 @@ impl GlobTool {
     async fn search(&self, input: GlobInput) -> Result<Output<PathPage>, Error> {
         let matcher = paths::pattern(&input.pattern)?;
         let path = self.root.resolve(&input.path).await?;
-        let prefix = self.root.relative(&path)?;
-        let prefix = if prefix.is_empty() {
-            prefix
-        } else {
-            format!("{prefix}/")
-        };
+        let prefix = self.root.prefix(&path)?;
         let entries = paths::walk(
             &self.root,
             &path,
@@ -153,7 +148,7 @@ impl GlobTool {
             })
             .collect();
         paths::page(
-            &path,
+            self.root.relative(&path)?,
             entries,
             input.offset,
             input

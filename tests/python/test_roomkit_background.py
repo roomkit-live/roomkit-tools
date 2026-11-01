@@ -96,7 +96,7 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
                     elif case == "revision":
                         result["data"]["revision"] = "sha256:stale"
                     elif case == "path":
-                        result["data"]["path"] = str(Path(root) / "other.py")
+                        result["data"]["path"] = "other.py"
                     demo.tools[read_index] = replace(read, result=json.dumps(result))
                     if case == "order":
                         demo.tools.insert(0, demo.tools.pop(read_index))
