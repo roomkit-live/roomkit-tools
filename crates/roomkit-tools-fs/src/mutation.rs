@@ -10,6 +10,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::paths::Root;
 
+const RESOLVE_PARENT: &str = "resolve the destination parent";
+
 /// Host-owned root and serialization shared by selected mutation tools.
 ///
 /// Pass clones to `WriteTool::from_workspace` and `EditTool::from_workspace`
@@ -154,11 +156,7 @@ pub(crate) fn destination(root: &Root, input: &str) -> Result<PathBuf, Error> {
     let parent = joined
         .parent()
         .ok_or_else(|| Error::InvalidInput("path must have a parent".into()))?;
-    let parent =
-        fs::canonicalize(parent).map_err(|source| io("resolve the destination parent", source))?;
-    if !parent.starts_with(root.path()) {
-        return Err(Error::Refused("path is outside the workspace root".into()));
-    }
+    let parent = root.canonical(parent, RESOLVE_PARENT)?;
     if !parent.is_dir() {
         return Err(Error::Unsupported(
             "destination parent must be a directory".into(),
@@ -216,11 +214,7 @@ pub(crate) fn write_destination(
             Err(error) => return Err(io("inspect the destination parent", error)),
         }
     }
-    let mut parent =
-        fs::canonicalize(ancestor).map_err(|e| io("resolve the destination parent", e))?;
-    if !parent.starts_with(root.path()) {
-        return Err(Error::Refused("path is outside the workspace root".into()));
-    }
+    let mut parent = root.canonical(ancestor, RESOLVE_PARENT)?;
     if !parent.is_dir() {
         return Err(Error::Unsupported(
             "destination parent must be a directory".into(),
@@ -247,16 +241,11 @@ pub(crate) fn create_parents(
         let parent = path
             .parent()
             .ok_or_else(|| Error::InvalidInput("invalid parent path".into()))?;
-        let resolved =
-            fs::canonicalize(parent).map_err(|e| io("resolve the destination parent", e))?;
-        if !resolved.starts_with(root.path()) {
-            return Err(Error::Refused("path is outside the workspace root".into()));
-        }
+        root.canonical(parent, RESOLVE_PARENT)?;
         match fs::create_dir(path) {
             Ok(()) => created.push(root.relative(path)?),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                let resolved =
-                    fs::canonicalize(path).map_err(|e| io("resolve the destination parent", e))?;
+                let resolved = fs::canonicalize(path).map_err(|e| io(RESOLVE_PARENT, e))?;
                 if !resolved.starts_with(root.path()) || !resolved.is_dir() {
                     return Err(Error::Refused(
                         "destination parent changed during creation".into(),

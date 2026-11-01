@@ -160,6 +160,35 @@ async fn outside_paths_are_refused_whether_or_not_they_exist() {
     }
 }
 
+/// Beneath a workspace symlink to an outside directory, a missing image is
+/// refused like a present one, so the error does not reveal what exists.
+#[cfg(unix)]
+#[tokio::test]
+async fn paths_beneath_a_symlink_to_outside_are_refused_whether_or_not_they_exist() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("present.png"), b"irrelevant").unwrap();
+    std::os::unix::fs::symlink(outside.path(), root.path().join("link")).unwrap();
+    let tool = ViewImageTool::new(root.path()).await.unwrap();
+    let workspace = ImageWorkspace::new(root.path()).await.unwrap();
+    for path in [
+        "link/present.png",
+        "link/missing.png",
+        "link/missing/child.png",
+    ] {
+        let result = tool.view(input(path), &CancellationToken::new()).await;
+        assert!(
+            matches!(result, Err(Error::Refused(_))),
+            "{path}: {result:?}"
+        );
+        let result = workspace.load(path, 1024).await;
+        assert!(
+            matches!(result, Err(Error::Refused(_))),
+            "{path}: {result:?}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn root_escape_invalid_limits_and_precancel_are_refused() {
     let root = tempfile::tempdir().unwrap();

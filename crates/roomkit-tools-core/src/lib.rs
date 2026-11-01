@@ -2,8 +2,9 @@
 //!
 //! Tool implementations own their I/O. Hosts own their registry, permissions
 //! and conversations. Input and output schemas are derived from the same
-//! Rust types an implementation uses. [`WorkspaceRoot`] holds the lexical
-//! path rules that root-configured tools share; it performs no I/O.
+//! Rust types an implementation uses. [`WorkspaceRoot`] holds the path rules
+//! that root-configured tools share: a lexical check without I/O, then
+//! canonical containment.
 
 mod workspace;
 

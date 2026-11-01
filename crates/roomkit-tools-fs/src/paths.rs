@@ -1,11 +1,16 @@
 use std::fmt;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use roomkit_tools_core::{Error, Output, WorkspaceRoot};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
+
+use crate::worker;
+
+const RESOLVE: &str = "resolve the path";
 
 /// An entry's type, without following its symbolic link.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -60,7 +65,7 @@ pub struct PathPage {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Root(WorkspaceRoot);
+pub(crate) struct Root(Arc<WorkspaceRoot>);
 
 impl Root {
     pub(crate) fn path(&self) -> &Path {
@@ -86,7 +91,7 @@ impl Root {
             ));
         }
         let given = std::path::absolute(given).unwrap_or_else(|_| path.clone());
-        Ok(Self(WorkspaceRoot::new(path, &given)))
+        Ok(Self(Arc::new(WorkspaceRoot::new(path, &given))))
     }
 
     /// Join a model-supplied path lexically; refuses escapes without I/O.
@@ -94,25 +99,23 @@ impl Root {
         self.0.join(input)
     }
 
+    /// Join and canonicalize a model-supplied path, refusing it outside the
+    /// root whether or not it exists; see [`WorkspaceRoot::resolve`].
     pub(crate) async fn resolve(&self, input: &str) -> Result<PathBuf, Error> {
-        let path = fs::canonicalize(self.join(input)?).await;
-        self.contained(path)
+        let path = self.join(input)?;
+        let root = Arc::clone(&self.0);
+        worker::blocking(RESOLVE, move || root.resolve(&path, RESOLVE)).await
     }
 
     /// [`Root::resolve`] for blocking workers.
     pub(crate) fn resolve_blocking(&self, input: &str) -> Result<PathBuf, Error> {
-        self.contained(std::fs::canonicalize(self.join(input)?))
+        self.0.resolve(&self.join(input)?, RESOLVE)
     }
 
-    fn contained(&self, canonical: std::io::Result<PathBuf>) -> Result<PathBuf, Error> {
-        let path = canonical.map_err(|source| Error::Io {
-            operation: "resolve the path",
-            source,
-        })?;
-        if !path.starts_with(self.path()) {
-            return Err(Error::Refused("path is outside the workspace root".into()));
-        }
-        Ok(path)
+    /// Canonicalize a joined path or one of its parents; blocking. See
+    /// [`WorkspaceRoot::resolve`].
+    pub(crate) fn canonical(&self, path: &Path, operation: &'static str) -> Result<PathBuf, Error> {
+        self.0.resolve(path, operation)
     }
 
     /// Workspace-relative form of a resolved path; `.` names the root.

@@ -164,6 +164,30 @@ async fn symlinks_must_resolve_to_regular_files_inside_the_root() {
     ));
 }
 
+/// Beneath a workspace symlink to an outside directory, a missing file is
+/// refused like a present one, so the error does not reveal what exists.
+#[cfg(unix)]
+#[tokio::test]
+async fn paths_beneath_a_symlink_to_outside_are_refused_whether_or_not_they_exist() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("present.py"), "def hidden(): pass\n").unwrap();
+    std::os::unix::fs::symlink(outside.path(), root.path().join("link")).unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    for path in [
+        "link/present.py",
+        "link/missing.py",
+        "link/missing/child.py",
+    ] {
+        let result = tool.outline(CodeOutlineInput::new(path), &token).await;
+        assert!(
+            matches!(result, Err(Error::Refused(_))),
+            "{path}: {result:?}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn invalid_limits_and_cancellation_are_explicit_and_reusable() {
     let root = tempfile::tempdir().unwrap();

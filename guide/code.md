@@ -72,7 +72,8 @@ With both slots busy, budget about 290 MiB for the default bounds; raising
 `max_file_bytes` raises this roughly in proportion. Paths must resolve to regular
 files under the configured root, assuming a host-controlled workspace as for
 `read`: a path that lexically leaves the root is refused before any filesystem
-lookup, and symlinks are checked after canonicalization. No filesystem writes
-are performed.
+lookup, and symlinks are checked after canonicalization; a path that a symlink
+takes outside the root is refused whether or not it exists there. No
+filesystem writes are performed.
 
 [Documentation index](README.md) · [Project overview](../README.md)

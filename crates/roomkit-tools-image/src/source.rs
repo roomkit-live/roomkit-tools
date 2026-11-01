@@ -30,15 +30,7 @@ pub(crate) async fn load(
     input: &str,
     maximum: usize,
 ) -> Result<(PathBuf, Vec<u8>), Error> {
-    let path = fs::canonicalize(root.join(input)?)
-        .await
-        .map_err(|source| Error::Io {
-            operation: "resolve the image path",
-            source,
-        })?;
-    if !path.starts_with(root.path()) {
-        return Err(Error::Refused("path is outside the workspace root".into()));
-    }
+    let path = resolve(root, input).await?;
     let metadata = fs::metadata(&path).await.map_err(|source| Error::Io {
         operation: "inspect the image file",
         source,
@@ -84,4 +76,18 @@ pub(crate) async fn load(
         return Err(Error::LimitExceeded("image exceeds max_file_bytes".into()));
     }
     Ok((path, bytes))
+}
+
+/// Join and canonicalize `input` on a blocking worker, refusing it outside
+/// the root whether or not it exists; see [`WorkspaceRoot::resolve`].
+async fn resolve(root: &WorkspaceRoot, input: &str) -> Result<PathBuf, Error> {
+    const OPERATION: &str = "resolve the image path";
+    let path = root.join(input)?;
+    let root = root.clone();
+    tokio::task::spawn_blocking(move || root.resolve(&path, OPERATION))
+        .await
+        .map_err(|source| Error::Io {
+            operation: OPERATION,
+            source: std::io::Error::other(source),
+        })?
 }

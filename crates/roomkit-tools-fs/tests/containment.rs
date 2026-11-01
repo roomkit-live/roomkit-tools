@@ -244,3 +244,69 @@ async fn paths_that_leave_the_root_and_come_back_are_refused() {
     );
     assert!(!root.join("new.txt").exists());
 }
+
+/// Beneath a workspace symlink to an outside directory, every path is
+/// refused, so the error does not reveal what exists out there.
+#[cfg(unix)]
+#[tokio::test]
+async fn paths_beneath_a_symlink_to_outside_are_refused_whether_or_not_they_exist() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("inside.txt"), "inside\n").unwrap();
+    std::fs::create_dir(outside.path().join("dir")).unwrap();
+    std::fs::write(outside.path().join("present.txt"), "outside\n").unwrap();
+    std::os::unix::fs::symlink(outside.path(), root.path().join("link")).unwrap();
+    let cancel = CancellationToken::new();
+    let read = ReadTool::new(root.path()).await.unwrap();
+    let list = ListTool::new(root.path()).await.unwrap();
+    let grep = GrepTool::new(root.path()).await.unwrap();
+    let diff = DiffTool::new(root.path()).await.unwrap();
+    let edit = EditTool::new(root.path()).await.unwrap();
+    let patch = PatchTool::new(root.path()).await.unwrap();
+    for path in [
+        "link/present.txt",
+        "link/missing.txt",
+        "link/dir/child.txt",
+        "link/missing/child.txt",
+        "link/../missing.txt",
+    ] {
+        refused(&read.read(ReadInput::new(path), &cancel).await, path);
+        refused(&list.list(ListInput::new(path), &cancel).await, path);
+        let mut input = GrepInput::new("outside");
+        input.path = path.into();
+        refused(&grep.grep(input, &cancel).await, path);
+        refused(
+            &diff.diff(DiffInput::new("inside.txt", path), &cancel).await,
+            path,
+        );
+        refused(
+            &edit
+                .edit(EditInput::new(path, "outside", "x"), &cancel)
+                .await,
+            path,
+        );
+        let change = PatchChange::Update {
+            path: path.into(),
+            old_content: "outside\n".into(),
+            new_content: "x".into(),
+        };
+        refused(
+            &patch.patch(PatchInput::new(vec![change]), &cancel).await,
+            path,
+        );
+    }
+    assert_eq!(
+        std::fs::read_to_string(outside.path().join("present.txt")).unwrap(),
+        "outside\n"
+    );
+    // Beneath a symlink that stays inside, a missing path is not refused.
+    std::fs::create_dir(root.path().join("sub")).unwrap();
+    std::os::unix::fs::symlink(root.path().join("sub"), root.path().join("inner")).unwrap();
+    for path in ["inner/missing.txt", "inner/missing/child.txt"] {
+        let result = read.read(ReadInput::new(path), &cancel).await;
+        assert!(
+            matches!(result, Err(Error::Io { .. })),
+            "{path}: {result:?}"
+        );
+    }
+}

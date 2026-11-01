@@ -1,4 +1,5 @@
-//! Lexical workspace paths shared by root-configured tools; no I/O happens here.
+//! Workspace paths shared by root-configured tools: the lexical check made
+//! before any filesystem call, then canonical containment.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -8,10 +9,11 @@ use crate::Error;
 ///
 /// Tools canonicalize the root themselves, then use this value to refuse
 /// model-supplied paths that lexically leave the workspace, at any point,
-/// before any filesystem call can reveal whether they exist, and to present
-/// resolved paths relative to the root. It performs no I/O and resolves no
-/// symbolic links: callers still canonicalize an accepted path and check the
-/// result with [`WorkspaceRoot::relative`].
+/// before any filesystem call can reveal whether they exist
+/// ([`WorkspaceRoot::join`], which performs no I/O); to canonicalize an
+/// accepted path and refuse it outside the root ([`WorkspaceRoot::resolve`],
+/// which follows symbolic links); and to present resolved paths relative to
+/// the root ([`WorkspaceRoot::relative`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkspaceRoot {
     canonical: PathBuf,
@@ -75,6 +77,51 @@ impl WorkspaceRoot {
             .chain(&self.alias)
             .find_map(|root| input.strip_prefix(root).ok())
             .ok_or_else(outside)
+    }
+
+    /// Canonicalize a path that [`WorkspaceRoot::join`] returned, or one of
+    /// its parents, and refuse a result outside the root.
+    ///
+    /// When the path cannot be canonicalized, for example because it does
+    /// not exist, its deepest ancestor that can be decides: outside the root,
+    /// the path is refused, so the error does not reveal whether something
+    /// exists beyond a symbolic link that leaves the workspace; inside, the
+    /// failure is returned as I/O with `operation`. This makes blocking
+    /// filesystem calls: async callers run it on a blocking worker.
+    ///
+    /// # Errors
+    /// Returns an access refusal outside the root, or I/O when the path
+    /// cannot be canonicalized.
+    pub fn resolve(&self, path: &Path, operation: &'static str) -> Result<PathBuf, Error> {
+        match std::fs::canonicalize(path) {
+            Ok(resolved) => self.contain(resolved),
+            Err(source) => {
+                self.refuse_outside_ancestor(path)?;
+                Err(Error::Io { operation, source })
+            }
+        }
+    }
+
+    fn contain(&self, resolved: PathBuf) -> Result<PathBuf, Error> {
+        if resolved.starts_with(&self.canonical) {
+            Ok(resolved)
+        } else {
+            Err(outside())
+        }
+    }
+
+    /// Refuse `path` when its deepest ancestor that canonicalizes, at or
+    /// below the root, resolves outside the root.
+    fn refuse_outside_ancestor(&self, path: &Path) -> Result<(), Error> {
+        let resolved = path
+            .ancestors()
+            .skip(1)
+            .take_while(|ancestor| ancestor.starts_with(&self.canonical))
+            .find_map(|ancestor| std::fs::canonicalize(ancestor).ok());
+        match resolved {
+            Some(resolved) => self.contain(resolved).map(drop),
+            None => Ok(()),
+        }
     }
 
     /// Present a resolved path relative to the canonical root, with `/`

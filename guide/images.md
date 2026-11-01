@@ -73,8 +73,9 @@ Linux x86-64 release build):
 Budget about 2.25 × `max_decode_bytes` per slot, so roughly 580 MiB with both
 slots busy at the defaults. A path that lexically leaves
 the root is refused before any filesystem lookup; symlinks are checked after
-canonicalization. Root containment assumes a host-controlled workspace, not
-hostile concurrent path replacement or an OS sandbox.
+canonicalization, and a path that a symlink takes outside the root is refused
+whether or not it exists there. Root containment assumes a host-controlled
+workspace, not hostile concurrent path replacement or an OS sandbox.
 
 `cargo run --example view_image` checks native image preparation.
 `python examples/roomkit_image.py` checks actual multimodal delivery with a
