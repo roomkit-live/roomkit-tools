@@ -1,16 +1,15 @@
-use std::collections::VecDeque;
 use std::num::NonZeroUsize;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use regex::RegexBuilder;
+use regex::{Regex, RegexBuilder};
 use roomkit_tools_core::{Definition, Error, Output};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tokio::fs::{self, File};
-use tokio::io::AsyncReadExt;
+use tokio::fs;
 use tokio_util::sync::CancellationToken;
 
 use crate::ReadLine;
+use crate::grep_scan::{self, Matches, Search};
 use crate::paths::{self, PathEntry, PathKind, Root, Scan, first_entry, workspace_path};
 
 /// Search UTF-8 file contents, one match per matching line.
@@ -69,7 +68,7 @@ pub struct GrepMatch {
     pub path: String,
     /// One-based source line number.
     pub line: usize,
-    /// Complete source line without its line ending.
+    /// Source line without its line ending; complete unless `clipped`.
     pub text: String,
     /// Complete preceding source lines. Nearby matches may share context.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -77,6 +76,10 @@ pub struct GrepMatch {
     /// Complete following source lines. Context does not advance the match offset.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_after: Vec<ReadLine>,
+    /// True when this match alone exceeded `max_output_bytes`: its context is
+    /// omitted and `text` is cut at a UTF-8 boundary to fit. Omitted when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub clipped: bool,
 }
 
 /// Matching lines and continuation information.
@@ -95,6 +98,8 @@ pub struct GrepPage {
     /// Entries left out of the whole scan because their names are not UTF-8;
     /// a skipped directory is not searched.
     pub skipped_entries: usize,
+    /// Lines longer than `max_line_bytes`, not searched, before this page ended.
+    pub skipped_lines: usize,
 }
 
 /// Host-owned traversal, ingestion and output bounds.
@@ -116,6 +121,10 @@ pub struct GrepLimits {
     /// Maximum requested context lines on either side of a match. Default: 20.
     /// Zero disables context without disabling ordinary matching.
     pub max_context_lines: usize,
+    /// Longest line handed to the regex, in bytes. Longer lines are not
+    /// searched and are counted in `skipped_lines`; this bounds the work done
+    /// between cancellation checks. Default: 64 KiB.
+    pub max_line_bytes: usize,
 }
 
 impl Default for GrepLimits {
@@ -128,6 +137,7 @@ impl Default for GrepLimits {
             max_file_bytes: 8 * 1024 * 1024,
             max_total_bytes: 32 * 1024 * 1024,
             max_context_lines: 20,
+            max_line_bytes: 64 * 1024,
         }
     }
 }
@@ -136,7 +146,8 @@ impl Default for GrepLimits {
 ///
 /// Hidden files are included and ignore files are not consulted. Binary and
 /// non-UTF-8 files are skipped and counted. Other read failures and ingestion
-/// limits fail the call. A fresh scan is made for every page.
+/// limits fail the call. A fresh scan is made for every page. Reading and
+/// matching run on a blocking worker, never on the async executor.
 #[derive(Clone, Debug)]
 pub struct GrepTool {
     root: Root,
@@ -167,6 +178,7 @@ impl GrepTool {
             limits.max_depth,
             limits.max_file_bytes,
             limits.max_total_bytes,
+            limits.max_line_bytes,
         ]
         .contains(&0)
             || u64::try_from(limits.max_file_bytes).map_or(true, |n| n == u64::MAX)
@@ -183,23 +195,30 @@ impl GrepTool {
     pub fn definition() -> Definition {
         Definition::new::<GrepInput, GrepPage>(
             "grep",
-            "Search UTF-8 file contents by regex or literal text, with an optional file glob. Returns complete matching lines, paths and line numbers. Optional context_before/context_after add surrounding source lines to each match (host-bounded, default 0). Hidden files are included, child symlinks are not followed, and binary files are skipped and counted. Match offsets count matches only, starting at 1; continue with next_offset.",
+            "Search UTF-8 file contents by regex or literal text, with an optional file glob. Returns matching lines, paths and line numbers. Optional context_before/context_after add surrounding source lines to each match (host-bounded, default 0). A match too large for the output is returned alone, without context and with its text cut, as clipped: true. Lines longer than the host's line bound are not searched and are counted in skipped_lines. Hidden files are included, child symlinks are not followed, and binary files are skipped and counted. Match offsets count matches only, starting at 1; continue with next_offset.",
         )
     }
 
-    /// Search one page of matching lines; cancellation stops waiting for work.
+    /// Search one page of matching lines.
+    ///
+    /// Cancellation, or dropping the returned future, returns promptly; the
+    /// blocking search worker stops at its next check, before the next file
+    /// or line, so its remaining work is at most one `max_line_bytes` line.
     ///
     /// # Errors
     /// Returns invalid patterns/offsets, refusal outside the root, I/O errors,
-    /// unsupported entries or names, or traversal/ingestion/output limit failures.
+    /// unsupported entries, a budget too small for one match reference, or
+    /// traversal/ingestion limit failures.
     pub async fn grep(
         &self,
         input: GrepInput,
         cancel: &CancellationToken,
     ) -> Result<Output<GrepPage>, Error> {
+        let cancel = cancel.child_token();
+        let _stop_worker = cancel.clone().drop_guard();
         tokio::select! { biased;
             () = cancel.cancelled() => Err(Error::Cancelled),
-            result = self.search(&input) => result,
+            result = self.search(input, &cancel) => result,
         }
     }
 
@@ -247,7 +266,41 @@ impl GrepTool {
         Ok((scan, prefix))
     }
 
-    async fn search(&self, input: &GrepInput) -> Result<Output<GrepPage>, Error> {
+    /// Validate and walk on the async side, then read and match on a
+    /// blocking worker that observes `cancel`.
+    async fn search(
+        &self,
+        input: GrepInput,
+        cancel: &CancellationToken,
+    ) -> Result<Output<GrepPage>, Error> {
+        let regex = self.regex(&input)?;
+        let include = input.include.as_deref().map(paths::pattern).transpose()?;
+        let path = self.root.resolve(&input.path).await?;
+        let include_depth = input.include.as_deref().and_then(paths::match_depth);
+        let (files, prefix) = self.files(&path, include_depth).await?;
+        let mut page = Matches::new(self.root.relative(&path)?, &input, self.limits);
+        page.data.skipped_entries = files.skipped;
+        let search = Search {
+            root: self.root.clone(),
+            files: files.entries,
+            prefix,
+            include,
+            regex,
+            input,
+            limits: self.limits,
+            page,
+        };
+        let cancel = cancel.clone();
+        tokio::task::spawn_blocking(move || grep_scan::run(search, &cancel))
+            .await
+            .map_err(|source| Error::Io {
+                operation: "finish the search task",
+                source: std::io::Error::other(source),
+            })?
+    }
+
+    /// Check model arguments against host bounds and compile the pattern.
+    fn regex(&self, input: &GrepInput) -> Result<Regex, Error> {
         if input.context_before > self.limits.max_context_lines
             || input.context_after > self.limits.max_context_lines
         {
@@ -265,228 +318,10 @@ impl GrepTool {
         } else {
             input.pattern.clone()
         };
-        let regex = RegexBuilder::new(&expression)
+        RegexBuilder::new(&expression)
             .case_insensitive(input.ignore_case)
             .size_limit(1024 * 1024)
             .build()
-            .map_err(|error| Error::InvalidInput(format!("invalid regex: {error}")))?;
-        let include = input.include.as_deref().map(paths::pattern).transpose()?;
-        let path = self.root.resolve(&input.path).await?;
-        let include_depth = input.include.as_deref().and_then(paths::match_depth);
-        let (files, prefix) = self.files(&path, include_depth).await?;
-        let mut page = Matches::new(self.root.relative(&path)?, input, self.limits);
-        page.data.skipped_entries = files.skipped;
-        let mut ingested = 0;
-        'files: for file in files
-            .entries
-            .into_iter()
-            .filter(|file| file.kind == PathKind::File)
-        {
-            let relative = file.path.strip_prefix(&prefix).unwrap_or(&file.path);
-            if include
-                .as_ref()
-                .is_some_and(|pattern| !pattern.is_match(relative))
-            {
-                continue;
-            }
-            let resolved = self.root.resolve(&file.path).await?;
-            let remaining = self.limits.max_total_bytes - ingested;
-            let bytes = read_bounded(resolved, self.limits.max_file_bytes.min(remaining)).await?;
-            ingested += bytes.len();
-            let source = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(&bytes);
-            let Ok(source) = std::str::from_utf8(source) else {
-                page.data.skipped_files += 1;
-                continue;
-            };
-            if source.contains('\0') {
-                page.data.skipped_files += 1;
-                continue;
-            }
-            let mut preceding = VecDeque::new();
-            let mut lines = source.lines().enumerate();
-            while let Some((index, line)) = lines.next() {
-                if index % 256 == 0 {
-                    tokio::task::yield_now().await;
-                }
-                if regex.is_match(line)
-                    && !page.push(
-                        &file.path,
-                        index + 1,
-                        line,
-                        &preceding,
-                        lines
-                            .clone()
-                            .take(input.context_after)
-                            .map(|(i, text)| (i + 1, text)),
-                    )?
-                {
-                    break 'files;
-                }
-                if input.context_before > 0 {
-                    if preceding.len() == input.context_before {
-                        preceding.pop_front();
-                    }
-                    preceding.push_back((index + 1, line));
-                }
-            }
-        }
-        page.finish()
+            .map_err(|error| Error::InvalidInput(format!("invalid regex: {error}")))
     }
-}
-
-async fn read_bounded(path: PathBuf, maximum: usize) -> Result<Vec<u8>, Error> {
-    let info = fs::metadata(&path).await.map_err(|source| Error::Io {
-        operation: "inspect the search file",
-        source,
-    })?;
-    if !info.is_file() {
-        return Err(Error::Unsupported("grep accepts regular files only".into()));
-    }
-    let maximum = u64::try_from(maximum)
-        .map_err(|_| Error::InvalidInput("ingestion limit is too large".into()))?;
-    if info.len() > maximum {
-        return Err(Error::LimitExceeded(
-            "grep exceeds max_file_bytes or max_total_bytes".into(),
-        ));
-    }
-    let file = File::open(path).await.map_err(|source| Error::Io {
-        operation: "open the search file",
-        source,
-    })?;
-    let mut bytes = Vec::new();
-    file.take(maximum + 1)
-        .read_to_end(&mut bytes)
-        .await
-        .map_err(|source| Error::Io {
-            operation: "read the search file",
-            source,
-        })?;
-    if u64::try_from(bytes.len()).map_or(true, |len| len > maximum) {
-        return Err(Error::LimitExceeded(
-            "grep exceeds max_file_bytes or max_total_bytes".into(),
-        ));
-    }
-    Ok(bytes)
-}
-
-struct Matches {
-    data: GrepPage,
-    text: String,
-    seen: usize,
-    offset: usize,
-    limit: usize,
-    bytes: usize,
-}
-
-impl Matches {
-    fn new(path: String, input: &GrepInput, limits: GrepLimits) -> Self {
-        Self {
-            data: GrepPage {
-                path,
-                matches: Vec::new(),
-                truncated: false,
-                next_offset: None,
-                skipped_files: 0,
-                skipped_entries: 0,
-            },
-            text: String::new(),
-            seen: 0,
-            offset: input.offset.get(),
-            limit: input
-                .limit
-                .map_or(limits.max_matches, NonZeroUsize::get)
-                .min(limits.max_matches),
-            bytes: limits.max_output_bytes,
-        }
-    }
-    fn push<'a>(
-        &mut self,
-        path: &str,
-        line: usize,
-        text: &str,
-        before: &VecDeque<(usize, &str)>,
-        after: impl Iterator<Item = (usize, &'a str)>,
-    ) -> Result<bool, Error> {
-        self.seen += 1;
-        if self.seen < self.offset {
-            return Ok(true);
-        }
-        if self.data.matches.len() >= self.limit {
-            return self.end_page();
-        }
-        let mut rendered = String::new();
-        let mut context_before = Vec::new();
-        let mut context_after = Vec::new();
-        let budget = self.bytes - self.text.len();
-        for &(number, source) in before {
-            if !render_line(&mut rendered, path, number, source, false, budget) {
-                return self.end_page();
-            }
-            context_before.push(ReadLine {
-                number,
-                text: source.to_owned(),
-            });
-        }
-        if !render_line(&mut rendered, path, line, text, true, budget) {
-            return self.end_page();
-        }
-        for (number, source) in after {
-            if !render_line(&mut rendered, path, number, source, false, budget) {
-                return self.end_page();
-            }
-            context_after.push(ReadLine {
-                number,
-                text: source.to_owned(),
-            });
-        }
-        self.text.push_str(&rendered);
-        self.data.matches.push(GrepMatch {
-            path: path.to_owned(),
-            line,
-            text: text.to_owned(),
-            context_before,
-            context_after,
-        });
-        Ok(true)
-    }
-    fn end_page(&mut self) -> Result<bool, Error> {
-        if self.data.matches.is_empty() {
-            return Err(Error::LimitExceeded(
-                "one matching line and its context exceed max_output_bytes".into(),
-            ));
-        }
-        self.data.truncated = true;
-        self.data.next_offset = Some(self.seen);
-        Ok(false)
-    }
-    fn finish(self) -> Result<Output<GrepPage>, Error> {
-        if self.offset > self.seen && !(self.offset == 1 && self.seen == 0) {
-            return Err(Error::InvalidInput(
-                "offset is beyond the last match".into(),
-            ));
-        }
-        Ok(Output::new(self.data, self.text))
-    }
-}
-
-fn render_line(
-    output: &mut String,
-    path: &str,
-    number: usize,
-    text: &str,
-    matched: bool,
-    budget: usize,
-) -> bool {
-    let prefix = if matched {
-        format!("{path:?}:{number}: ")
-    } else {
-        format!("{path:?}-{number}- ")
-    };
-    if prefix.len().saturating_add(text.len()).saturating_add(1) > budget - output.len() {
-        return false;
-    }
-    output.push_str(&prefix);
-    output.push_str(text);
-    output.push('\n');
-    true
 }

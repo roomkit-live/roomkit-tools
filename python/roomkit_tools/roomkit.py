@@ -337,6 +337,7 @@ class Grep(_ConfiguredTool):
         max_file_bytes: int | None = None,
         max_total_bytes: int | None = None,
         max_context_lines: int | None = None,
+        max_line_bytes: int | None = None,
     ) -> None:
         self._configure(
             root,
@@ -347,6 +348,7 @@ class Grep(_ConfiguredTool):
             max_file_bytes=max_file_bytes,
             max_total_bytes=max_total_bytes,
             max_context_lines=max_context_lines,
+            max_line_bytes=max_line_bytes,
         )
 
 

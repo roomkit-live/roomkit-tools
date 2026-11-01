@@ -225,11 +225,13 @@ class GrepTool(_DiscoveryTool):
         max_file_bytes: int | None = None,
         max_total_bytes: int | None = None,
         max_context_lines: int | None = None,
+        max_line_bytes: int | None = None,
     ) -> Self:
         """Resolve the root; omitted bounds use Rust defaults.
 
         Defaults: 200 matches, 50 KiB output, 10,000 entries, depth 32,
-        8 MiB/file, 32 MiB total input and 20 context lines per side.
+        8 MiB/file, 32 MiB total input, 20 context lines per side and
+        64 KiB lines (longer lines are not searched; see skipped_lines).
         max_context_lines=0 disables context; other bounds must be positive."""
         return await cls._create(
             root,
@@ -241,6 +243,7 @@ class GrepTool(_DiscoveryTool):
                 "max_file_bytes": max_file_bytes,
                 "max_total_bytes": max_total_bytes,
                 "max_context_lines": max_context_lines,
+                "max_line_bytes": max_line_bytes,
             },
         )
 

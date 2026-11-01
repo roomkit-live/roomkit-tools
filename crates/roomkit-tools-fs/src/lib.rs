@@ -9,6 +9,7 @@ mod diff;
 mod edit;
 mod glob;
 mod grep;
+mod grep_scan;
 mod list;
 mod mutation;
 mod patch;

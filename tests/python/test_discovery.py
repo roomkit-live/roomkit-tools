@@ -233,6 +233,13 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
         for value in [-1, True]:
             with self.assertRaises(InvalidInputError):
                 await GrepTool.create(self.root, max_context_lines=value)
+        for value in [0, -1, True]:
+            with self.assertRaises(InvalidInputError):
+                await GrepTool.create(self.root, max_line_bytes=value)
+        short = await GrepTool.create(self.root, max_line_bytes=4)
+        page = (await short.grep("Tags:"))["data"]
+        self.assertEqual(page["matches"], [])
+        self.assertGreater(page["skipped_lines"], 0)
 
     async def test_roots_errors_and_child_symlinks(self) -> None:
         cwd = Path.cwd()

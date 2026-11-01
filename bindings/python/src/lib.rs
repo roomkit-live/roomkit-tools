@@ -152,7 +152,8 @@ host_options!(
     max_depth,
     max_file_bytes,
     max_total_bytes,
-    max_context_lines
+    max_context_lines,
+    max_line_bytes
 );
 
 host_options!(

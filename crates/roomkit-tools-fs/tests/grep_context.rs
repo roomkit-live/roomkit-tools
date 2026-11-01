@@ -102,7 +102,7 @@ async fn byte_budget_pages_whole_matches_with_all_requested_context() {
 }
 
 #[tokio::test]
-async fn oversized_context_is_an_error_rather_than_an_incomplete_match() {
+async fn oversized_context_is_omitted_with_an_explicit_clipped_flag() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("a"), "very long context\nhit\n").unwrap();
     let cancel = CancellationToken::new();
@@ -124,10 +124,12 @@ async fn oversized_context_is_an_error_rather_than_an_incomplete_match() {
         1
     );
     input.context_before = 1;
-    assert!(matches!(
-        tool.grep(input, &cancel).await,
-        Err(Error::LimitExceeded(_))
-    ));
+    let clipped = tool.grep(input, &cancel).await.unwrap();
+    assert_eq!(clipped.text, "\"a\":2: hit\n");
+    let found = &clipped.data.matches[0];
+    assert!(found.clipped);
+    assert_eq!(found.text, "hit");
+    assert_eq!(found.context_before, []);
 }
 
 #[tokio::test]

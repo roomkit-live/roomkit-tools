@@ -95,12 +95,20 @@ impl Root {
     }
 
     pub(crate) async fn resolve(&self, input: &str) -> Result<PathBuf, Error> {
-        let path = fs::canonicalize(self.join(input)?)
-            .await
-            .map_err(|source| Error::Io {
-                operation: "resolve the path",
-                source,
-            })?;
+        let path = fs::canonicalize(self.join(input)?).await;
+        self.contained(path)
+    }
+
+    /// [`Root::resolve`] for blocking workers.
+    pub(crate) fn resolve_blocking(&self, input: &str) -> Result<PathBuf, Error> {
+        self.contained(std::fs::canonicalize(self.join(input)?))
+    }
+
+    fn contained(&self, canonical: std::io::Result<PathBuf>) -> Result<PathBuf, Error> {
+        let path = canonical.map_err(|source| Error::Io {
+            operation: "resolve the path",
+            source,
+        })?;
         if !path.starts_with(self.path()) {
             return Err(Error::Refused("path is outside the workspace root".into()));
         }

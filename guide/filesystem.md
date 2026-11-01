@@ -77,13 +77,24 @@ directory, and report them in `data.skipped_entries`. A glob pattern or grep
 it has components: `*.rs` reads only the search directory, so unrelated large or
 deep subtrees do not exhaust the scan bounds.
 
+Grep reads and matches files on a blocking worker, never on the async
+executor. Lines longer than `max_line_bytes` are not handed to the regex: they
+are not searched, can still appear as context, and are counted in
+`data.skipped_lines`. Cancellation, or dropping the call, returns at once; the
+worker checks cancellation before each file and each line, so it stops after
+at most one line of up to `max_line_bytes`. A match that does not fit
+`max_output_bytes` together with its context ends the page before it; when it
+is the first match of a page it is returned alone with `clipped: true`, its
+context omitted and its `text` cut at a UTF-8 boundary to fit, so the next
+offset always moves past it.
+
 Host bounds are explicit constructor keywords for both APIs:
 
 | Tool | Host bounds and defaults |
 | --- | --- |
 | `List` / `ListTool` | `max_entries=200`, `max_output_bytes=51200`, `max_scan_entries=10000` |
 | `Glob` / `GlobTool` | `max_matches=200`, `max_output_bytes=51200`, `max_scan_entries=10000`, `max_depth=32` |
-| `Grep` / `GrepTool` | Same glob bounds, plus `max_file_bytes=8388608`, `max_total_bytes=33554432`, `max_context_lines=20` per side |
+| `Grep` / `GrepTool` | Same glob bounds, plus `max_file_bytes=8388608`, `max_total_bytes=33554432`, `max_context_lines=20` per side, `max_line_bytes=65536` |
 
 Omitted bounds retain Rust defaults. Bounds must be positive, except
 `max_context_lines=0` disables context. Traversal or ingestion limits fail the
