@@ -132,6 +132,126 @@ class InterpreterShutdownTests(unittest.TestCase):
         self.assertIn("completed after the loop closed", result.stdout)
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_child_forked_after_a_native_call_refuses_calls_at_once(self) -> None:
+        if not hasattr(os, "fork"):
+            self.skipTest("fork start method")
+        result = self.run_child("""
+            import asyncio
+            import multiprocessing
+            import sys
+            import time
+            from roomkit_tools import ReadTool, ToolError
+
+            async def read_once():
+                tool = await ReadTool.create(sys.argv[1])
+                return (await tool.read('input.txt', limit=1))['text']
+
+            def child(queue):
+                started = time.monotonic()
+                try:
+                    asyncio.run(asyncio.wait_for(read_once(), 5))
+                except BaseException as error:
+                    elapsed = time.monotonic() - started
+                    kind = type(error).__name__
+                    queue.put((kind, isinstance(error, ToolError), str(error), elapsed))
+                else:
+                    queue.put(('read', False, '', 0.0))
+
+            assert asyncio.run(read_once()) == '1: line\\n'
+            context = multiprocessing.get_context('fork')
+            queue = context.Queue()
+            process = context.Process(target=child, args=(queue,))
+            process.start()
+            name, is_tool_error, message, elapsed = queue.get(timeout=20)
+            process.join(20)
+            print(f'{name}: {message}')
+            assert is_tool_error, name
+            assert elapsed < 1, elapsed
+            assert process.exitcode == 0, process.exitcode
+            # The parent keeps its runtime.
+            assert asyncio.run(read_once()) == '1: line\\n'
+        """)
+        self.assertIn("ForkedProcessError: ", result.stdout)
+        self.assertIn("spawn", result.stdout)
+
+    def test_child_forked_during_a_call_exits_without_waiting_for_it(self) -> None:
+        if not hasattr(os, "fork"):
+            self.skipTest("os.fork")
+        result = self.run_child("""
+            import asyncio
+            import json
+            import os
+            import signal
+            import sys
+            import time
+            import warnings
+            from roomkit_tools import ShellTool, ToolError, _native
+
+            # Forking a process with native threads is the scenario under test.
+            warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+            async def start():
+                tool = await ShellTool.create(sys.argv[1])
+                arguments = json.dumps({'command': 'sleep 5'})
+                return tool._native.call(arguments, _native._Cancellation())
+
+            loop = asyncio.new_event_loop()
+            pending = loop.run_until_complete(start())
+            assert _native._activity() > 0
+            pid = os.fork()
+            if pid == 0:
+                try:
+                    asyncio.run(asyncio.wait_for(ShellTool.create(sys.argv[1]), 5))
+                except ToolError as error:
+                    print('child refused:', type(error).__name__, flush=True)
+                # A normal exit runs the inherited native exit hook.
+                sys.exit(0)
+            deadline = time.monotonic() + 15
+            while (status := os.waitpid(pid, os.WNOHANG))[0] == 0:
+                if time.monotonic() > deadline:
+                    os.kill(pid, signal.SIGKILL)
+                    os.waitpid(pid, 0)
+                    raise SystemExit('the forked child hung at exit')
+                time.sleep(0.01)
+            assert os.waitstatus_to_exitcode(status[1]) == 0, status
+            pending.cancel()
+            loop.run_until_complete(asyncio.sleep(0))
+            loop.close()
+            print('forked child exited')
+        """)
+        self.assertIn("child refused: ForkedProcessError", result.stdout)
+        self.assertIn("forked child exited", result.stdout)
+
+    def test_child_forked_before_any_native_call_can_use_tools(self) -> None:
+        if not hasattr(os, "fork"):
+            self.skipTest("fork start method")
+        result = self.run_child("""
+            import asyncio
+            import multiprocessing
+            import sys
+            from roomkit_tools import Read, ReadTool
+
+            async def read_once():
+                tool = await ReadTool.create(sys.argv[1])
+                return (await tool.read('input.txt', limit=1))['text']
+
+            def child(queue):
+                queue.put(asyncio.run(asyncio.wait_for(read_once(), 5)))
+
+            # Importing and configuring tools makes no native call.
+            Read(sys.argv[1])
+            context = multiprocessing.get_context('fork')
+            queue = context.Queue()
+            process = context.Process(target=child, args=(queue,))
+            process.start()
+            print('child read:', queue.get(timeout=20).strip())
+            process.join(20)
+            assert process.exitcode == 0, process.exitcode
+            print('parent read:', asyncio.run(read_once()).strip())
+        """)
+        self.assertIn("child read: 1: line", result.stdout)
+        self.assertIn("parent read: 1: line", result.stdout)
+
     def test_shutdown_waits_for_activity_and_refuses_reopening(self) -> None:
         result = self.run_child("""
             import asyncio

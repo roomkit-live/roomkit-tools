@@ -20,7 +20,7 @@ use pyo3_async_runtimes::generic::{self, ContextExt, Runtime};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use super::ToolError;
+use super::{ToolError, fork};
 
 #[derive(Debug, Default)]
 struct Activity {
@@ -54,10 +54,14 @@ impl Ticket {
     }
 
     fn enter() -> PyResult<Self> {
+        fork::ensure_unforked()?;
         let mut state = activity();
         if state.closing {
             return Err(ToolError::new_err("Python tool bridge is shutting down"));
         }
+        // Before the count or the runtime changes: a child forked after
+        // either one copies this mark and refuses native work.
+        fork::mark_started();
         state.count += 1;
         Ok(Self)
     }
@@ -221,14 +225,25 @@ where
 }
 
 /// Private diagnostic: bridge tasks and completion callbacks still running.
+///
+/// A forked child runs none: the count it copied belongs to its parent.
 #[pyfunction]
 fn _activity() -> usize {
+    if fork::is_forked() {
+        return 0;
+    }
     activity().count
 }
 
 /// Private atexit hook. Returns the initial activity count for diagnostics.
+///
+/// A forked child returns at once: no thread there would ever finish the
+/// parent's calls, and its copied locks may be held by threads it lacks.
 #[pyfunction]
 fn _shutdown(py: Python<'_>) -> usize {
+    if fork::is_forked() {
+        return 0;
+    }
     let count = {
         let mut state = activity();
         state.closing = true;

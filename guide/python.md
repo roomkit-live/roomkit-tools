@@ -72,7 +72,8 @@ editors and shell commands are not coordinated by the workspace.
 ## Results and errors
 
 Errors inherit from `ToolError`: `InvalidInputError`, `AccessRefusedError`,
-`LimitExceededError`, `UnsupportedResourceError` and `ToolIOError`. I/O messages
+`LimitExceededError`, `UnsupportedResourceError`, `ToolIOError` and
+`ForkedProcessError` (see [processes that fork](#processes-that-fork)). I/O messages
 omit OS diagnostics and host paths. Cancellation remains `asyncio.CancelledError`.
 Async construction keeps root resolution off the Python event loop. Each native
 tool call has its own cancellation scope; native wrappers can be reused across
@@ -87,6 +88,23 @@ Python finalizes. The hook releases the GIL while waiting; abandoned or cancelle
 awaiters cannot leave callbacks attaching to a finalized interpreter. This does
 not replace explicit `ProcessSession` and `OutputStore` cleanup or handle abrupt termination.
 Already-issued blocking I/O can delay exit until it returns.
+
+### Processes that fork
+
+The first awaited native call, such as a tool's `create` or a RoomKit handler,
+starts the threads that run every tool, and `fork()` does not copy threads. In a
+child forked after that call, every native tool call, including tool creation,
+raises `ForkedProcessError` at once, and the exit hook returns without waiting
+for the parent's calls. Importing `roomkit_tools` and constructing tool classes
+start no thread. Create and call tools only in processes forked before the
+first awaited call, or start workers with the `spawn` or `forkserver` method of
+`multiprocessing`:
+
+```python
+import multiprocessing
+
+context = multiprocessing.get_context("spawn")
+```
 
 The RoomKit classes expose the Rust-derived input schema through its `Tool` protocol.
 Text tools return both result representations; `ViewImage` returns typed text and

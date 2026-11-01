@@ -2,6 +2,7 @@
 
 from ._native import (
     AccessRefusedError,
+    ForkedProcessError,
     InvalidInputError,
     LimitExceededError,
     ToolError,
@@ -94,6 +95,7 @@ __all__ = [
     "DiffTool",
     "Edit",
     "EditTool",
+    "ForkedProcessError",
     "Glob",
     "GlobTool",
     "Grep",

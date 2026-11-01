@@ -17,6 +17,7 @@ use tokio_util::sync::CancellationToken;
 
 mod agents;
 mod docs;
+mod fork;
 mod ocr;
 mod plans;
 
@@ -55,6 +56,12 @@ pyo3::create_exception!(
     ToolIOError,
     ToolError,
     "An I/O operation failed."
+);
+pyo3::create_exception!(
+    "roomkit_tools",
+    ForkedProcessError,
+    ToolError,
+    "Native tools are unusable in a process forked after its parent's first native call."
 );
 pyo3::import_exception!(asyncio, CancelledError);
 
@@ -215,8 +222,10 @@ impl Default for Cancellation {
 #[pymethods]
 impl Cancellation {
     #[new]
-    fn new() -> Self {
-        Self::default()
+    fn new() -> PyResult<Self> {
+        // Every wrapper creates a token first: a forked child fails here.
+        fork::ensure_unforked()?;
+        Ok(Self::default())
     }
 
     fn cancel(&self) {
@@ -373,6 +382,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<plans::PythonPlanContract>()?;
     module.add_class::<plans::PythonMemoryPlanBackend>()?;
     runtime::install(module)?;
+    fork::install(module)?;
     module.add_function(wrap_pyfunction!(ocr::ocr_definition_json, module)?)?;
     module.add_class::<Cancellation>()?;
     module.add_class::<PythonCodeOutlineTool>()?;
@@ -402,5 +412,6 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
         py.get_type::<UnsupportedResourceError>(),
     )?;
     module.add("ToolIOError", py.get_type::<ToolIOError>())?;
+    module.add("ForkedProcessError", py.get_type::<ForkedProcessError>())?;
     Ok(())
 }
