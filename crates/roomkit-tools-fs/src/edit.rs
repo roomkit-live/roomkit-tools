@@ -122,6 +122,11 @@ impl EditTool {
 
     /// Prepare and commit an exact edit, checking cancellation before commit.
     ///
+    /// In a file whose line endings are all CRLF, LF endings in the texts
+    /// stand for CRLF, except after a line whose own text ends in `\r`
+    /// (`read` shows it as `a\r`): `a\r` followed by LF reads as CRLF already
+    /// written, so that line needs its exact ending, `a\r\r\n`.
+    ///
     /// Dropping the future requests cancellation; a commit already started
     /// may still finish. Calls sharing a workspace serialize their mutations.
     ///

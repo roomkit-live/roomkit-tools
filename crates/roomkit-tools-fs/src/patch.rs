@@ -216,6 +216,11 @@ impl PatchTool {
 
     /// Prepare all changes under the shared lock, then optionally apply in order.
     ///
+    /// Texts follow edit's line-ending rule (see [`crate::EditTool::edit`]):
+    /// in a source whose line endings are all CRLF, LF stands for CRLF,
+    /// except after a line whose own text ends in `\r`, which needs its exact
+    /// ending.
+    ///
     /// # Errors
     /// Preparation and failures before any effect return typed errors. A failure
     /// after committed effects returns a partial result. Dropped calls request

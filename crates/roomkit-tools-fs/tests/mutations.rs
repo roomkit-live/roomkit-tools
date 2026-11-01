@@ -118,6 +118,42 @@ async fn edit_accepts_text_from_read_in_a_file_with_uniform_crlf_endings() {
     );
 }
 
+/// A line whose own text ends in CR needs its exact ending: an LF written
+/// after that CR reads as a CRLF already present, so the text does not
+/// match and nothing is written.
+#[tokio::test]
+async fn a_line_ending_in_a_bare_cr_needs_its_exact_ending() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("crlf.txt"), "a\r\r\nb\r\n").unwrap();
+    let read = ReadTool::new(root.path()).await.unwrap();
+    let edit = EditTool::new(root.path()).await.unwrap();
+    let cancel = CancellationToken::new();
+    let page = read
+        .read(ReadInput::new("crlf.txt"), &cancel)
+        .await
+        .unwrap();
+    let shown: Vec<_> = page.data.lines.iter().map(|l| l.text.as_str()).collect();
+    assert_eq!(shown, ["a\r", "b"]);
+    let result = edit
+        .edit(EditInput::new("crlf.txt", shown.join("\n"), "x"), &cancel)
+        .await;
+    assert!(
+        matches!(&result, Err(Error::InvalidInput(message)) if message.contains("not found")),
+        "{result:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("crlf.txt")).unwrap(),
+        "a\r\r\nb\r\n"
+    );
+    edit.edit(EditInput::new("crlf.txt", "a\r\r\nb", "a\nc"), &cancel)
+        .await
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("crlf.txt")).unwrap(),
+        "a\r\nc\r\n"
+    );
+}
+
 #[tokio::test]
 async fn edit_refuses_empty_missing_and_ambiguous_matches_without_writing() {
     let root = tempfile::tempdir().unwrap();

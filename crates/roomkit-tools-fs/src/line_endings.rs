@@ -15,6 +15,11 @@ pub(crate) fn uniformly_crlf(text: &str) -> bool {
 /// without their `\r`, so for a file that uses CRLF throughout (`crlf`), bare
 /// LF endings in `text` become CRLF; existing CRLF is kept. Any other file
 /// keeps exact matching.
+///
+/// A line whose own text ends in a bare `\r` (`a\r\r\n` in the file, shown
+/// by `read` as `a\r`) needs its exact ending: `a\r` followed by LF reads as
+/// an existing CRLF and is kept as `a\r\n`, which does not match. Taking it as
+/// `a\r\r\n` instead would misread text that already uses CRLF.
 pub(crate) fn in_file_endings(crlf: bool, text: &str) -> Cow<'_, str> {
     if !crlf || !text.contains('\n') {
         return Cow::Borrowed(text);

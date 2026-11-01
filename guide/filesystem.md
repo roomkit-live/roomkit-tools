@@ -142,7 +142,11 @@ one. When every line ending of the file being edited is CRLF, `edit` takes LF
 endings in `old_text` and `new_text` as CRLF, and patch does the same for
 `old_content` and `new_content`; text already written with CRLF is unchanged,
 and the file stays CRLF throughout. A file with mixed or LF endings is matched
-exactly.
+exactly. One case needs exact text: a line whose own text ends in a carriage
+return (`a\r\r\n` in the file, which `read` shows as `a\r`). An LF after that
+`\r` reads as a CRLF already written and is kept, so `a\r` followed by LF does
+not match: the call fails and nothing is written. Write that line's ending as
+`\r\r\n`.
 
 Both constructors accept `max_file_bytes` (8 MiB by default), bounding source,
 arguments and result as applicable. Results contain changed/created flags or
