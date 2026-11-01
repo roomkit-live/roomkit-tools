@@ -103,19 +103,20 @@ impl Root {
     /// root whether or not it exists; see [`WorkspaceRoot::resolve`].
     pub(crate) async fn resolve(&self, input: &str) -> Result<PathBuf, Error> {
         let path = self.join(input)?;
-        let root = Arc::clone(&self.0);
-        worker::blocking(RESOLVE, move || root.resolve(&path, RESOLVE)).await
+        let root = self.clone();
+        worker::blocking(RESOLVE, move || root.canonical(&path, RESOLVE)).await
     }
 
     /// [`Root::resolve`] for blocking workers.
     pub(crate) fn resolve_blocking(&self, input: &str) -> Result<PathBuf, Error> {
-        self.0.resolve(&self.join(input)?, RESOLVE)
+        self.canonical(&self.join(input)?, RESOLVE)
     }
 
     /// Canonicalize a joined path or one of its parents; blocking. See
     /// [`WorkspaceRoot::resolve`].
     pub(crate) fn canonical(&self, path: &Path, operation: &'static str) -> Result<PathBuf, Error> {
-        self.0.resolve(path, operation)
+        self.0
+            .resolve(path, operation, |path| std::fs::canonicalize(path))
     }
 
     /// Workspace-relative form of a resolved path; `.` names the root.

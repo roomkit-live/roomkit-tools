@@ -78,12 +78,14 @@ async fn resolve(root: &WorkspaceRoot, input: &str) -> Result<PathBuf, Error> {
     const OPERATION: &str = "resolve the source path";
     let path = root.join(input)?;
     let root = root.clone();
-    tokio::task::spawn_blocking(move || root.resolve(&path, OPERATION))
-        .await
-        .map_err(|source| Error::Io {
-            operation: OPERATION,
-            source: std::io::Error::other(source),
-        })?
+    tokio::task::spawn_blocking(move || {
+        root.resolve(&path, OPERATION, |path| std::fs::canonicalize(path))
+    })
+    .await
+    .map_err(|source| Error::Io {
+        operation: OPERATION,
+        source: std::io::Error::other(source),
+    })?
 }
 
 fn infer_language(path: &Path) -> Result<CodeLanguage, Error> {
