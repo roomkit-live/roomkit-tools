@@ -18,11 +18,9 @@ __pycache__/
 *.db-shm
 *.db-wal
 
-# Local planning and internal end-to-end integration assets.
+# Local planning notes.
 /AGENTS.md
 /docs/
-/integrations/roomkit-rs/bakery-read.patch
-/scripts/roomkit-bakery.py
 
 /backends/rusto/python/target/
 /backends/rusto/python/dist/
