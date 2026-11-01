@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -79,6 +80,198 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         _, handler = extract_tools([Ocr(FIXTURES, backend=backend)])
         self.assertEqual(json.loads(await handler("ocr", {"path": "page.png"})), result)
         self.assertEqual(await asyncio.to_thread((FIXTURES / "page.png").read_bytes), original)
+
+
+# Child prelude: with an empty models directory, these calls fail before any
+# model loads, after crossing the engine's own native bridge.
+BRIDGE_PRELUDE = """
+import asyncio
+import sys
+from roomkit_tools import InvalidInputError, OcrTool
+from roomkit_tools_ocr_rusto import RustoOcr
+
+backend = RustoOcr(sys.argv[1])
+
+async def rejected_rotation():
+    tool = await OcrTool.create(sys.argv[2], backend=backend)
+    try:
+        await tool.ocr('page.png', rotation_degrees=45)
+    except InvalidInputError as error:
+        return str(error)
+    raise AssertionError('the rotation was accepted')
+"""
+
+
+class BridgeLifetimeTests(unittest.TestCase):
+    """The engine's native bridge across fork() and closed event loops, without models."""
+
+    def run_child(self, body: str) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory(prefix="roomkit ocr-") as models:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "faulthandler",
+                    "-I",
+                    "-c",
+                    BRIDGE_PRELUDE + textwrap.dedent(body),
+                    models,
+                    str(FIXTURES),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("Fatal Python error", result.stderr)
+        self.assertNotIn("Exception ignored", result.stderr)
+        self.assertNotIn("Event loop is closed", result.stderr)
+        return result
+
+    def test_completion_after_its_loop_closed_is_silent(self):
+        # A host abandons calls, closes their loop and keeps running. These calls
+        # fail too fast to close the loop under them, so each one starts with an
+        # already closed loop as its running loop: it always completes after.
+        result = self.run_child("""
+            import json
+            import time
+            from roomkit_tools_ocr_rusto import _native
+
+            bound = asyncio.run(backend.bind(sys.argv[2], {}))
+            arguments = json.dumps({'path': 'page.png', 'rotation_degrees': 45})
+            loop = asyncio.new_event_loop()
+            loop.close()
+            asyncio.events._set_running_loop(loop)
+            try:
+                pending = [
+                    bound._native.call(arguments, _native.Cancellation()) for _ in range(4)
+                ]
+            finally:
+                asyncio.events._set_running_loop(None)
+            deadline = time.monotonic() + 20
+            while _native._activity() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert _native._activity() == 0, _native._activity()
+            assert not any(future.done() for future in pending)
+            print('completed after the loop closed')
+        """)
+        self.assertIn("completed after the loop closed", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_child_forked_after_a_native_call_refuses_calls_at_once(self):
+        if not hasattr(os, "fork"):
+            self.skipTest("fork start method")
+        result = self.run_child("""
+            import multiprocessing
+            import time
+            from roomkit_tools import ToolError
+
+            def child(queue):
+                started = time.monotonic()
+                try:
+                    asyncio.run(asyncio.wait_for(rejected_rotation(), 5))
+                except BaseException as error:
+                    elapsed = time.monotonic() - started
+                    kind = type(error).__name__
+                    queue.put((kind, isinstance(error, ToolError), str(error), elapsed))
+                else:
+                    queue.put(('ocr', False, '', 0.0))
+
+            expected = asyncio.run(rejected_rotation())
+            context = multiprocessing.get_context('fork')
+            queue = context.Queue()
+            process = context.Process(target=child, args=(queue,))
+            process.start()
+            name, is_tool_error, message, elapsed = queue.get(timeout=20)
+            process.join(20)
+            print(f'{name}: {message}')
+            assert is_tool_error, name
+            assert elapsed < 1, elapsed
+            assert process.exitcode == 0, process.exitcode
+            # The parent keeps its runtime.
+            assert asyncio.run(rejected_rotation()) == expected
+        """)
+        self.assertIn("ForkedProcessError: ", result.stdout)
+        self.assertIn("spawn", result.stdout)
+
+    def test_child_forked_during_a_call_exits_without_waiting_for_it(self):
+        if not hasattr(os, "fork"):
+            self.skipTest("os.fork")
+        result = self.run_child("""
+            import json
+            import os
+            import signal
+            import time
+            import warnings
+            from roomkit_tools import ToolError
+            from roomkit_tools_ocr_rusto import _native
+
+            # Forking a process with native threads is the scenario under test.
+            warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+            async def fork_during_call():
+                bound = await backend.bind(sys.argv[2], {})
+                arguments = json.dumps({'path': 'page.png', 'rotation_degrees': 45})
+                # The call fails fast, but its completion needs the GIL: holding
+                # the GIL until the fork keeps the call in flight at fork time.
+                sys.setswitchinterval(60)
+                pending = bound._native.call(arguments, _native.Cancellation())
+                assert _native._activity() > 0
+                pid = os.fork()
+                if pid == 0:
+                    try:
+                        _native.Cancellation()
+                    except ToolError as error:
+                        print('child refused:', type(error).__name__, flush=True)
+                    # A normal exit runs the inherited native exit hook.
+                    sys.exit(0)
+                sys.setswitchinterval(0.005)
+                return pid, pending
+
+            loop = asyncio.new_event_loop()
+            pid, pending = loop.run_until_complete(fork_during_call())
+            deadline = time.monotonic() + 15
+            while (status := os.waitpid(pid, os.WNOHANG))[0] == 0:
+                if time.monotonic() > deadline:
+                    os.kill(pid, signal.SIGKILL)
+                    os.waitpid(pid, 0)
+                    raise SystemExit('the forked child hung at exit')
+                time.sleep(0.01)
+            assert os.waitstatus_to_exitcode(status[1]) == 0, status
+            # The child shared this loop's selector: never block on it again.
+            pending.cancel()
+            loop.run_until_complete(asyncio.sleep(0))
+            loop.close()
+            print('forked child exited')
+        """)
+        self.assertIn("child refused: ForkedProcessError", result.stdout)
+        self.assertIn("forked child exited", result.stdout)
+
+    def test_child_forked_before_any_native_call_can_use_the_engine(self):
+        if not hasattr(os, "fork"):
+            self.skipTest("fork start method")
+        result = self.run_child("""
+            import multiprocessing
+
+            def child(queue):
+                try:
+                    queue.put(asyncio.run(asyncio.wait_for(rejected_rotation(), 5)))
+                except BaseException as error:
+                    queue.put(f'{type(error).__name__}: {error}')
+
+            # The prelude only constructed the engine, which starts no thread.
+            context = multiprocessing.get_context('fork')
+            queue = context.Queue()
+            process = context.Process(target=child, args=(queue,))
+            process.start()
+            print('child:', queue.get(timeout=20))
+            process.join(20)
+            assert process.exitcode == 0, process.exitcode
+            print('parent:', asyncio.run(rejected_rotation()))
+        """)
+        self.assertIn("child: Invalid input: rotation_degrees", result.stdout)
+        self.assertIn("parent: Invalid input: rotation_degrees", result.stdout)
 
 
 @unittest.skipUnless(MODELS, "set ROOMKIT_OCR_MODELS for native shutdown checks")

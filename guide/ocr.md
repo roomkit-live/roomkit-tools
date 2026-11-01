@@ -49,10 +49,15 @@ print(result["data"]["text"])
 
 Share `backend` across tools to reuse loaded models and a single execution slot.
 Constructing `RustoOcr` validates configuration; the first OCR call loads models
-on its native worker. A failed load may be retried. Importing or installing the
-base `roomkit-tools` package does not install RustO/RTen. Other trusted backends
-can implement `OcrBackend.bind(root, limits)` and the bound `call(arguments)`
-protocol, preserving the documented schema, errors, limits and cancellation.
+on its native worker. A failed load may be retried. The engine runs on its own
+native threads, started by its first awaited call, such as `OcrTool.create`. In
+a child forked after that call, engine calls raise `ForkedProcessError` at once
+(see [processes that fork](python.md#processes-that-fork)). A result that
+arrives after its event loop was closed is discarded without an error report.
+Importing or installing the base `roomkit-tools` package does not install
+RustO/RTen. Other trusted backends can implement `OcrBackend.bind(root, limits)`
+and the bound `call(arguments)` protocol, preserving the documented schema,
+errors, limits and cancellation.
 
 For an executable RoomKit conversation with real OCR and a scripted provider:
 

@@ -12,10 +12,13 @@ pyo3::import_exception!(roomkit_tools, AccessRefusedError);
 pyo3::import_exception!(roomkit_tools, LimitExceededError);
 pyo3::import_exception!(roomkit_tools, UnsupportedResourceError);
 pyo3::import_exception!(roomkit_tools, ToolIOError);
+pyo3::import_exception!(roomkit_tools, ForkedProcessError);
 pyo3::import_exception!(asyncio, CancelledError);
 
 // Each extension owns its bridge shutdown boundary; no Python callbacks outlive it.
 mod runtime;
+// Each extension owns its runtime threads, so it also refuses work after fork().
+mod fork;
 
 fn error(error: &Error) -> PyErr {
     let message = error.to_string();
@@ -39,10 +42,12 @@ struct Cancellation {
 #[pymethods]
 impl Cancellation {
     #[new]
-    fn new() -> Self {
-        Self {
+    fn new() -> PyResult<Self> {
+        // Every wrapper creates a token first: a forked child fails here.
+        fork::ensure_unforked()?;
+        Ok(Self {
             token: runtime::cancellation_token(),
-        }
+        })
     }
     fn cancel(&self) {
         self.token.cancel();
@@ -118,6 +123,7 @@ impl Tool {
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     runtime::install(module)?;
+    fork::install(module)?;
     module.add_class::<Cancellation>()?;
     module.add_class::<Engine>()?;
     module.add_class::<Tool>()?;
