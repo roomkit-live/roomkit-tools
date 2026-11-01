@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 class InterpreterShutdownTests(unittest.TestCase):
-    def run_child(self, body: str) -> subprocess.CompletedProcess[str]:
+    def run_child(self, body: str, *, timeout: float = 30) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory(prefix="roomkit shutdown-") as directory:
             root = Path(directory)
             (root / "input.txt").write_bytes(b"line\n" * (1024 * 1024))
@@ -29,7 +29,7 @@ class InterpreterShutdownTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=timeout,
                 check=False,
             )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -221,6 +221,96 @@ class InterpreterShutdownTests(unittest.TestCase):
         """)
         self.assertIn("child refused: ForkedProcessError", result.stdout)
         self.assertIn("forked child exited", result.stdout)
+
+    def test_importing_registers_no_fork_hook(self) -> None:
+        if not hasattr(os, "register_at_fork"):
+            self.skipTest("os.register_at_fork")
+        # A native hook would run PyO3 code inside every child's fork().
+        result = self.run_child("""
+            import os
+
+            hooks = []
+            register = os.register_at_fork
+
+            def recording(**callbacks):
+                hooks.append(callbacks)
+                register(**callbacks)
+
+            os.register_at_fork = recording
+            import roomkit_tools
+            native = [
+                callback
+                for callbacks in hooks
+                for callback in callbacks.values()
+                if getattr(callback, '__module__', '').startswith('roomkit_tools')
+            ]
+            assert native == [], native
+            print('no fork hook')
+        """)
+        self.assertIn("no fork hook", result.stdout)
+
+    def test_children_forked_during_native_calls_never_hang(self) -> None:
+        if not hasattr(os, "fork"):
+            self.skipTest("os.fork")
+        # Tokio workers briefly hold PyO3's lock of deferred releases while they
+        # drop Python references. A child forked at that moment that runs PyO3
+        # code waits for that lock forever. When fork() ran a native hook in the
+        # child, about 1 fork in 1,200 hung under this load.
+        result = self.run_child(
+            """
+            import asyncio
+            import os
+            import signal
+            import sys
+            import threading
+            import time
+            import warnings
+            from pathlib import Path
+            from roomkit_tools import ReadTool
+
+            # Forking a process with native threads is the scenario under test.
+            warnings.filterwarnings('ignore', category=DeprecationWarning)
+            Path(sys.argv[1], 'small.txt').write_text('line\\n')
+            stop = threading.Event()
+
+            async def drive(ready):
+                tool = await ReadTool.create(sys.argv[1])
+                ready.set()
+                while not stop.is_set():
+                    await asyncio.gather(*(tool.read('small.txt') for _ in range(8)))
+
+            def exited(pid):
+                deadline = time.monotonic() + 2
+                while os.waitpid(pid, os.WNOHANG)[0] == 0:
+                    if time.monotonic() > deadline:
+                        os.kill(pid, signal.SIGKILL)
+                        os.waitpid(pid, 0)
+                        return False
+                    time.sleep(0.0002)
+                return True
+
+            drivers = []
+            for _ in range(2):
+                ready = threading.Event()
+                driver = threading.Thread(target=asyncio.run, args=(drive(ready),))
+                driver.start()
+                drivers.append(driver)
+                assert ready.wait(10)
+            try:
+                for attempt in range(5000):
+                    pid = os.fork()
+                    if pid == 0:
+                        os._exit(0)
+                    assert exited(pid), f'forked child {attempt} hung'
+            finally:
+                stop.set()
+                for driver in drivers:
+                    driver.join(10)
+            print('every forked child exited')
+            """,
+            timeout=120,
+        )
+        self.assertIn("every forked child exited", result.stdout)
 
     def test_child_forked_before_any_native_call_can_use_tools(self) -> None:
         if not hasattr(os, "fork"):

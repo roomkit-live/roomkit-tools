@@ -380,7 +380,6 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<plans::PythonPlanContract>()?;
     module.add_class::<plans::PythonMemoryPlanBackend>()?;
     runtime::install(module)?;
-    fork::install(module)?;
     module.add_function(wrap_pyfunction!(ocr::ocr_definition_json, module)?)?;
     module.add_class::<Cancellation>()?;
     module.add_class::<PythonCodeOutlineTool>()?;
