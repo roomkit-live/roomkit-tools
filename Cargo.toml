@@ -36,7 +36,7 @@ schemars = "1.2"
 globset = "0.4"
 regex = "1"
 # Content revisions for optimistic filesystem mutations; never in core.
-sha2 = "0.10"
+sha2 = "0.11"
 # Local image preparation only; no codecs or image I/O in core or fs.
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 base64 = "0.22"
