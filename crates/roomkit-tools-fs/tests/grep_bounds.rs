@@ -16,19 +16,41 @@ fn costly_line(bytes: usize) -> String {
     format!("{run}!").repeat(bytes / 4000)
 }
 
+#[expect(clippy::unwrap_used, reason = "a test runtime must start")]
+fn runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .unwrap()
+}
+
+/// How long this machine takes to search one costly line, so the worker's
+/// bound scales with the machine instead of assuming its speed.
+#[expect(clippy::unwrap_used, reason = "the calibration search must succeed")]
+fn one_line_search(line: &str) -> Duration {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("one.txt"), format!("{line}\n")).unwrap();
+    runtime().block_on(async {
+        let tool = GrepTool::new(root.path()).await.unwrap();
+        let start = Instant::now();
+        tool.grep(GrepInput::new(COSTLY), &CancellationToken::new())
+            .await
+            .unwrap();
+        start.elapsed()
+    })
+}
+
 #[test]
 fn cancellation_returns_promptly_and_stops_the_search_worker() {
     let root = tempfile::tempdir().unwrap();
     let line = costly_line(16_000);
+    let one_line = one_line_search(&line);
     std::fs::write(
         root.path().join("costly.txt"),
-        format!("{line}\n").repeat(16),
+        format!("{line}\n").repeat(32),
     )
     .unwrap();
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_time()
-        .build()
-        .unwrap();
+    let runtime = runtime();
     let returned = runtime.block_on(async {
         let tool = GrepTool::new(root.path()).await.unwrap();
         let cancel = CancellationToken::new();
@@ -46,14 +68,14 @@ fn cancellation_returns_promptly_and_stops_the_search_worker() {
         returned < Duration::from_millis(500),
         "returned after {returned:?}"
     );
-    // Dropping the runtime waits for blocking work: the worker must stop at
-    // its next line instead of scanning the remaining lines.
+    // Dropping the runtime waits for blocking work: the worker must finish
+    // the line it is on and stop, instead of scanning the 31 others.
     let start = Instant::now();
     drop(runtime);
     let stopped = start.elapsed();
     assert!(
-        stopped < Duration::from_secs(2),
-        "worker ran for {stopped:?}"
+        stopped < one_line * 4,
+        "worker ran for {stopped:?}, one line takes {one_line:?}"
     );
 }
 
