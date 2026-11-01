@@ -69,6 +69,24 @@ async fn recover_full_binary_output_without_rerunning_a_command() {
 }
 
 #[tokio::test]
+async fn store_directory_is_private_to_the_host_user() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let storage = tempfile::tempdir().unwrap();
+    let store = OutputStore::new(storage.path(), OutputLimits::default())
+        .await
+        .unwrap();
+    let directories: Vec<_> = std::fs::read_dir(storage.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().metadata().unwrap())
+        .collect();
+    assert_eq!(directories.len(), 1);
+    assert!(directories[0].is_dir());
+    assert_eq!(directories[0].permissions().mode() & 0o777, 0o700);
+    assert!(store.close().await);
+}
+
+#[tokio::test]
 async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
     let root = tempfile::tempdir().unwrap();
     let mut limits = OutputLimits::default();

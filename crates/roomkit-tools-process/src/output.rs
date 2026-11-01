@@ -200,6 +200,19 @@ pub struct OutputStore {
     inner: Arc<Inner>,
 }
 
+/// A new directory that only the host user can list, enter or write (0700),
+/// set when it is created rather than changed afterwards.
+fn private_directory(parent: &Path) -> std::io::Result<TempDir> {
+    let mut builder = tempfile::Builder::new();
+    builder.prefix("roomkit-output-");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(std::fs::Permissions::from_mode(0o700));
+    }
+    builder.tempdir_in(parent)
+}
+
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -227,7 +240,7 @@ pub(crate) fn append_metadata(
 }
 
 impl OutputStore {
-    /// Create a private temporary subdirectory beneath a host-selected parent.
+    /// Create a private temporary subdirectory (mode 0700) beneath a host-selected parent.
     ///
     /// # Errors
     /// Rejects invalid bounds, inaccessible parents and unsupported platforms.
@@ -249,20 +262,16 @@ impl OutputStore {
             return Err(Error::InvalidInput("invalid output store limits".into()));
         }
         let parent = parent.as_ref().to_owned();
-        let directory = tokio::task::spawn_blocking(move || {
-            tempfile::Builder::new()
-                .prefix("roomkit-output-")
-                .tempdir_in(parent)
-        })
-        .await
-        .map_err(|error| Error::Io {
-            operation: "join output store creation",
-            source: std::io::Error::other(error),
-        })?
-        .map_err(|source| Error::Io {
-            operation: "create output store",
-            source,
-        })?;
+        let directory = tokio::task::spawn_blocking(move || private_directory(&parent))
+            .await
+            .map_err(|error| Error::Io {
+                operation: "join output store creation",
+                source: std::io::Error::other(error),
+            })?
+            .map_err(|source| Error::Io {
+                operation: "create output store",
+                source,
+            })?;
         Ok(Self {
             inner: Arc::new(Inner {
                 directory: Arc::new(directory),

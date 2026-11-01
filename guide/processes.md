@@ -236,8 +236,9 @@ close attempt. An issued close continues if its Python awaiter is cancelled.
 Already-issued filesystem work can outlive cancellation; last-reference cleanup
 only requests shutdown. Keep the host runtime alive for explicit cleanup.
 
-The store creates a private temporary directory beneath an optional host `parent`
-(default: system temporary directory in Python), using anonymous files on Unix.
+The store creates a private temporary directory (mode 0700) beneath an optional
+host `parent` (default: system temporary directory in Python), using anonymous
+files on Unix.
 It is ephemeral: no fsync durability, restart recovery or export API is promised.
 Linux is validated; this does not add a sandbox or PTY.
 
