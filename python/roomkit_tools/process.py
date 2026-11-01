@@ -153,11 +153,13 @@ class ProcessSession:
 
     Use ``async with ProcessSession(root) as session`` for bounded cleanup on
     exit. Construction captures an absolute root; first use resolves it in Rust.
-    Each session owns a separate manager. Its standalone methods share one
-    owner; the RoomKit process tools give each room and acting agent its own
-    owner, so one session can serve several conversations without them seeing
-    each other's jobs. IDs are local to this session and sequential, not OS
-    PIDs, credentials or portable identifiers.
+    Each session owns a separate manager. Every job belongs to one owner, a
+    trusted host string: the RoomKit process tools give each room and acting
+    agent its own owner, roomkit_owner(room_id, channel_id), so one session can
+    serve several conversations without them seeing each other's jobs. The
+    host methods take owner=; None, the default, is one standalone owner.
+    IDs are local to this session and sequential, not OS PIDs, credentials or
+    portable identifiers.
 
     Commands use /bin/sh -c with piped stdin, the host's permissions, the
     environment selected by inherit_env and env (as for ShellTool), a new
@@ -256,26 +258,34 @@ class ProcessSession:
         """
         return await self._native.close()
 
+    async def close_owner(self, owner: str) -> bool:
+        """Stop one owner's jobs and release their records; the session stays open.
+
+        Waits up to two seconds, as close does: False means cleanup continues;
+        call close_owner again to await it. The owner can start jobs again
+        afterwards, and other owners' jobs are untouched. Once this coroutine
+        starts, cleanup continues even if its awaiter is cancelled.
+        """
+        return await self._native.close_owner(owner)
+
     @staticmethod
     def definition(name: str) -> dict[str, Any]:
         """Return one of the five process_* definitions and its Rust-derived schemas."""
         return json.loads(_native._ProcessSession.definition_json(name))
 
-    async def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    async def call(
+        self, name: str, arguments: dict[str, Any], *, owner: str | None = None
+    ) -> dict[str, Any]:
         """Execute one process_* operation with Rust validation and data/text output.
 
+        owner names whose jobs the operation reaches: a host string of 1 to
+        1024 UTF-8 bytes, never a model argument; None is the standalone owner.
         Cancelling an observation or write does not stop the process. Once
         start has spawned, a cancelled Python caller may lose the returned ID:
         recover it with status(), rather than blindly starting again. A cancelled
         write may have delivered bytes; do not blindly replay. Once requested,
         stop continues even if its waiter is cancelled. Shutdown is explicit.
         """
-        return await self._call(name, arguments, None)
-
-    async def _call(
-        self, name: str, arguments: dict[str, Any], owner: str | None
-    ) -> dict[str, Any]:
-        """Run for a trusted owner key; None is the standalone owner."""
         cancel = _native._Cancellation()
         try:
             arguments_json = json.dumps(arguments, allow_nan=False)
@@ -290,6 +300,7 @@ class ProcessSession:
         *,
         cwd: str | os.PathLike[str] | None = None,
         timeout_ms: int | None = None,
+        owner: str | None = None,
     ) -> dict[str, Any]:
         """Start with open stdin and return an ID, not proof of command completion."""
         return await self.call(
@@ -299,15 +310,18 @@ class ProcessSession:
                 "cwd": None if cwd is None else os.fspath(cwd),
                 "timeout_ms": timeout_ms,
             },
+            owner=owner,
         )
 
-    async def status(self, process_id: str | None = None) -> dict[str, Any]:
-        """Inspect one ID or list retained jobs, including completed ones.
+    async def status(
+        self, process_id: str | None = None, *, owner: str | None = None
+    ) -> dict[str, Any]:
+        """Inspect one ID or list the owner's retained jobs, including completed ones.
 
-        Lists the standalone owner's jobs in creation order; jobs started
-        through the RoomKit tools belong to their room and agent.
+        Lists in creation order. Jobs started through the RoomKit tools belong
+        to their room and agent: pass owner=roomkit_owner(room_id, channel_id).
         """
-        return await self.call("process_status", {"process_id": process_id})
+        return await self.call("process_status", {"process_id": process_id}, owner=owner)
 
     async def read(
         self,
@@ -316,6 +330,7 @@ class ProcessSession:
         stdout_offset: int = 0,
         stderr_offset: int = 0,
         max_bytes: int | None = None,
+        owner: str | None = None,
     ) -> dict[str, Any]:
         """Read currently available bytes without writing, consuming output or EOF.
 
@@ -331,6 +346,7 @@ class ProcessSession:
                 "stderr_offset": stderr_offset,
                 "max_bytes": max_bytes,
             },
+            owner=owner,
         )
 
     async def write(
@@ -339,6 +355,7 @@ class ProcessSession:
         text: str = "",
         *,
         close_stdin: bool = False,
+        owner: str | None = None,
     ) -> dict[str, Any]:
         """Send exact UTF-8 text; no newline is added. EOF is explicit.
 
@@ -353,13 +370,18 @@ class ProcessSession:
                 "text": text,
                 "close_stdin": close_stdin,
             },
+            owner=owner,
         )
 
-    async def stop(self, process_id: str, *, forget: bool = False) -> dict[str, Any]:
+    async def stop(
+        self, process_id: str, *, forget: bool = False, owner: str | None = None
+    ) -> dict[str, Any]:
         """Send SIGKILL to the process group and wait at most two seconds for cleanup.
 
         There is no graceful phase: the command cannot save state or clean up.
         forget=True releases completed records/output and invalidates the ID.
         If cleanup is still running, forgotten remains false; inspect status.
         """
-        return await self.call("process_stop", {"process_id": process_id, "forget": forget})
+        return await self.call(
+            "process_stop", {"process_id": process_id, "forget": forget}, owner=owner
+        )

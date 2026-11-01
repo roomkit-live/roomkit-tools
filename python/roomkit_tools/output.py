@@ -15,11 +15,12 @@ class OutputStore:
     """Ephemeral disk copies shared by selected shell and process tools.
 
     Pass it as ``outputs=store`` to Shell/ShellTool or ProcessSession; select
-    OutputRead and optionally OutputForget for the agent. The RoomKit tools
-    give each room and acting agent its own archives, so one store can serve
-    several conversations; standalone calls share one owner. No arbitrary
-    paths are accepted by those tools. The host controls the parent directory
-    and quotas.
+    OutputRead and optionally OutputForget for the agent. Every archive belongs
+    to the owner of the command that produced it: the RoomKit tools give each
+    room and acting agent its own owner, roomkit_owner(room_id, channel_id), so
+    one store can serve several conversations. The host methods take owner=;
+    None, the default, is one standalone owner. No arbitrary paths are
+    accepted by those tools. The host controls the parent directory and quotas.
 
     Archives survive process-record deletion and manager close. Explicit forget
     or store close releases them; nothing is promised across host restarts.
@@ -88,12 +89,12 @@ class OutputStore:
         """Return the Rust-derived output_read or output_forget definition."""
         return json.loads(_native._OutputStore.definition_json(name))
 
-    async def call(self, name: str, arguments: dict[str, Any]) -> Any:
-        """Execute Rust-validated input; preserve structured metadata and text."""
-        return await self._call(name, arguments, None)
+    async def call(self, name: str, arguments: dict[str, Any], *, owner: str | None = None) -> Any:
+        """Execute Rust-validated input; preserve structured metadata and text.
 
-    async def _call(self, name: str, arguments: dict[str, Any], owner: str | None) -> Any:
-        """Run for a trusted owner key; None is the standalone owner."""
+        owner names whose archives the operation reaches, a trusted host
+        string, never a model argument; None is the standalone owner.
+        """
         token = _native._Cancellation()
         try:
             arguments_json = json.dumps(arguments, allow_nan=False)
@@ -102,7 +103,12 @@ class OutputStore:
             token.cancel()
 
     async def read(
-        self, archive_id: str, *, offset: int = 0, max_bytes: int | None = None
+        self,
+        archive_id: str,
+        *,
+        offset: int = 0,
+        max_bytes: int | None = None,
+        owner: str | None = None,
     ) -> dict[str, Any]:
         """Read confirmed bytes without consuming them. Check archive.complete/error.
 
@@ -111,20 +117,23 @@ class OutputStore:
         output; text is lossy when a page splits UTF-8. No command is rerun.
         """
         return await self.call(
-            "output_read", {"archive_id": archive_id, "offset": offset, "max_bytes": max_bytes}
+            "output_read",
+            {"archive_id": archive_id, "offset": offset, "max_bytes": max_bytes},
+            owner=owner,
         )
 
-    async def forget(self, archive_id: str) -> dict[str, Any]:
+    async def forget(self, archive_id: str, *, owner: str | None = None) -> dict[str, Any]:
         """Release a finished archive and its quota. Active capture is refused."""
-        return await self.call("output_forget", {"archive_id": archive_id})
+        return await self.call("output_forget", {"archive_id": archive_id}, owner=owner)
 
-    async def list(self) -> list[dict[str, Any]]:
-        """Host API to recover the standalone owner's retained IDs, in creation order.
+    async def list(self, *, owner: str | None = None) -> list[dict[str, Any]]:
+        """Host API to recover the owner's retained IDs, in creation order.
 
         Includes calls whose response was cancelled. Archives of commands run
-        through the RoomKit tools belong to their room and agent.
+        through the RoomKit tools belong to their room and agent: pass
+        owner=roomkit_owner(room_id, channel_id).
         """
-        return await self.call("list", {})
+        return await self.call("list", {}, owner=owner)
 
     async def close(self) -> bool:
         """Permanently close and wait up to two seconds for writer cleanup.

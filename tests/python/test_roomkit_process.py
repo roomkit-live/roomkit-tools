@@ -39,10 +39,12 @@ from roomkit_tools import (
     ProcessWrite,
     Shell,
     ToolIOError,
+    roomkit_owner,
 )
 from roomkit_tools.roomkit.commands import _roomkit_owner
 
 ADAPTERS = (ProcessStart, ProcessStatus, ProcessRead, ProcessWrite, ProcessStop)
+OWNER_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures/roomkit_owner.json"
 
 
 async def wait_job(session: ProcessSession, room: str, agent: str, pid: str, **expected):
@@ -262,14 +264,56 @@ class RoomKitProcessTests(unittest.IsolatedAsyncioTestCase):
                     await handler(name, {"command": "true"} if name == "process_start" else {})
             self.assertEqual((await session.status())["data"], [])
 
-    def test_owner_key_is_composed_as_in_the_rust_adapter(self) -> None:
-        # The Rust adapter's key is serde_json::to_string(&(room_id, channel_id)).
-        for room, agent, key in [
-            ("room-a", "agent", '["room-a","agent"]'),
-            ('salle "é"', "agent:1", '["salle \\"é\\"","agent:1"]'),
-        ]:
-            with self.subTest(room=room), in_call(room, agent):
-                self.assertEqual(_roomkit_owner("process"), key)
+    def test_owner_key_is_the_one_the_rust_adapter_returns(self) -> None:
+        # The Rust adapter's tests check the same cases against its roomkit_owner.
+        cases = json.loads(OWNER_FIXTURE.read_text(encoding="utf-8"))["cases"]
+        for case in cases:
+            with self.subTest(case=case):
+                self.assertEqual(roomkit_owner(case["room_id"], case["channel_id"]), case["owner"])
+        for case in cases[:2]:
+            with self.subTest(case=case), in_call(case["room_id"], case["channel_id"]):
+                self.assertEqual(_roomkit_owner("process"), case["owner"])
+        with self.assertRaises(TypeError):
+            roomkit_owner("room", 1)
+
+    async def test_host_reaches_a_room_s_jobs_and_archives_through_its_owner(self) -> None:
+        async with (
+            OutputStore(self.root, max_archives_per_owner=4) as outputs,
+            ProcessSession(self.root, outputs=outputs, max_processes_per_owner=2) as session,
+        ):
+            _, handler = extract_tools([adapter(session) for adapter in ADAPTERS])
+            with in_call("room-a", "agent"):
+                jobs = [
+                    json.loads(await handler("process_start", {"command": command}))["data"]
+                    for command in ("cat", "sleep 60")
+                ]
+                with self.assertRaises(ToolFailedError):
+                    await handler("process_start", {"command": "true"})
+            owner = roomkit_owner("room-a", "agent")
+            cat, sleeper = (job["process_id"] for job in jobs)
+            self.assertEqual((await session.status())["data"], [])
+            self.assertEqual(await outputs.list(), [])
+            listed = (await session.status(owner=owner))["data"]
+            self.assertEqual([status["process_id"] for status in listed], [cat, sleeper])
+            await session.write(cat, "hello\n", close_stdin=True, owner=owner)
+            await wait_job(session, "room-a", "agent", cat, state="finished", output_complete=True)
+            page = (await session.read(cat, owner=owner))["data"]
+            self.assertEqual(page["stdout"]["text"], "hello\n")
+            stopped = (await session.stop(sleeper, forget=True, owner=owner))["data"]
+            self.assertTrue(stopped["forgotten"])
+            self.assertTrue(await session.close_owner(owner))
+            self.assertEqual((await session.status(owner=owner))["data"], [])
+            archive = jobs[0]["stdout_archive"]["archive_id"]
+            copy = (await outputs.read(archive, owner=owner))["data"]
+            self.assertEqual(copy["text"], "hello\n")
+            archives = await outputs.list(owner=owner)
+            self.assertEqual(len(archives), 4)
+            for entry in archives:
+                await outputs.forget(entry["archive_id"], owner=owner)
+            # Both quotas are free again for that room and agent.
+            with in_call("room-a", "agent"):
+                again = json.loads(await handler("process_start", {"command": "true"}))["data"]
+            self.assertIsNone(again["stdout_archive"]["error"])
 
     async def test_cancelled_handler_write_preserves_job_and_partial_stdin(self) -> None:
         async with ProcessSession(

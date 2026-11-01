@@ -32,10 +32,10 @@ from roomkit_tools import (
 )
 
 
-async def wait_status(session: ProcessSession, pid: str, **expected):
+async def wait_status(session: ProcessSession, pid: str, *, owner: str | None = None, **expected):
     async with asyncio.timeout(5):
         while True:
-            status = (await session.status(pid))["data"][0]
+            status = (await session.status(pid, owner=owner))["data"][0]
             if all(status[key] == value for key, value in expected.items()):
                 return status
             await asyncio.sleep(0.005)
@@ -145,6 +145,60 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(AccessRefusedError):
                     await other.call(name, args)
         self.assertEqual(len((await self.session.status())["data"]), 2)
+
+    async def test_host_methods_reach_only_the_owner_they_name(self) -> None:
+        own = (await self.session.start("cat", owner="host-a"))["data"]["process_id"]
+        standalone = (await self.session.start("cat"))["data"]["process_id"]
+        listed = (await self.session.status(owner="host-a"))["data"]
+        self.assertEqual([status["process_id"] for status in listed], [own])
+        listed = (await self.session.status())["data"]
+        self.assertEqual([status["process_id"] for status in listed], [standalone])
+        for method, arguments in [
+            ("status", (own,)),
+            ("read", (own,)),
+            ("write", (own, "x")),
+            ("stop", (own,)),
+        ]:
+            with self.subTest(method=method), self.assertRaises(AccessRefusedError):
+                await getattr(self.session, method)(*arguments)
+            with self.subTest(method=method), self.assertRaises(AccessRefusedError):
+                await getattr(self.session, method)(standalone, *arguments[1:], owner="host-a")
+        written = (await self.session.write(own, "hi\n", close_stdin=True, owner="host-a"))["data"]
+        self.assertTrue(written["complete"])
+        await wait_status(self.session, own, owner="host-a", state="finished")
+        page = (await self.session.read(own, max_bytes=2, owner="host-a"))["data"]
+        self.assertEqual(page["stdout"]["text"], "hi")
+        call = await self.session.call("process_status", {"process_id": own}, owner="host-a")
+        self.assertEqual(call["data"][0]["exit_code"], 0)
+        stopped = (await self.session.stop(own, forget=True, owner="host-a"))["data"]
+        self.assertTrue(stopped["forgotten"])
+        self.assertEqual((await self.session.status(owner="host-a"))["data"], [])
+        # Owner keys are host input, checked in Rust as for RoomKit owners.
+        for owner in ["", "x" * 1025]:
+            with self.subTest(owner=len(owner)), self.assertRaises(InvalidInputError):
+                await self.session.status(owner=owner)
+
+    @unittest.skipUnless(sys.platform == "linux", "observe Linux process cleanup")
+    async def test_close_owner_stops_and_releases_only_that_owner(self) -> None:
+        async with ProcessSession(self.root, max_processes=2, max_processes_per_owner=1) as session:
+            await session.start(COMMAND_WITH_CHILD, owner="host-a")
+            ids = await read_pids(self.root / "pids")
+            standalone = (await session.start("cat"))["data"]["process_id"]
+            with self.assertRaises(LimitExceededError):
+                await session.start("true", owner="host-a")
+            self.assertTrue(await session.close_owner("host-a"))
+            await assert_stopped(ids)
+            self.assertEqual((await session.status(owner="host-a"))["data"], [])
+            # The owner's quota is free again; other owners and the session stay open.
+            await session.start("true", owner="host-a")
+            self.assertEqual((await session.status(standalone))["data"][0]["state"], "running")
+            self.assertFalse(session.closed)
+            self.assertTrue(await session.close_owner("unknown"))
+        # An unused session has nothing to close; a closed one stays closed.
+        self.assertTrue(await ProcessSession(self.root).close_owner("host-a"))
+        self.assertTrue(await session.close_owner("host-a"))
+        with self.assertRaises(AccessRefusedError):
+            await session.start("true", owner="host-a")
 
     async def test_host_secrets_stay_out_unless_listed_or_set_explicitly(self) -> None:
         command = 'printf "%s|%s" "${HOST_TEST_SECRET-unset}" "${GREETING-unset}"'

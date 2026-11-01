@@ -16,8 +16,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::{Cancellation, InvalidInputError, ToolError, fork, tool_error};
 
-// Standalone calls use this owner; RoomKit handlers pass the trusted owner of
-// each call. Neither the manager nor an owner is selected by model arguments.
+// Calls that name no owner use this one; hosts and RoomKit handlers pass a
+// trusted owner. Neither the manager nor an owner is selected by model arguments.
 const OWNER: &str = super::output::OWNER;
 
 /// Add the default inherited variable names and the environment check.
@@ -260,6 +260,24 @@ impl PythonProcessSession {
                 "process_write" => invoke!(write, ProcessWriteInput),
                 "process_stop" => invoke!(stop, ProcessStopInput),
                 _ => Err(InvalidInputError::new_err("unknown process tool")),
+            }
+        })
+    }
+
+    fn close_owner<'py>(&self, py: Python<'py>, owner: String) -> PyResult<Bound<'py, PyAny>> {
+        fork::ensure_unforked()?;
+        // Start the worker synchronously, as close does. A manager not yet
+        // created holds no process for any owner.
+        let worker = self.state.manager.get().cloned().map(|manager| {
+            pyo3_async_runtimes::tokio::get_runtime()
+                .spawn(async move { manager.close_owner(&owner).await })
+        });
+        crate::runtime::future_into_py(py, async move {
+            match worker {
+                Some(worker) => worker
+                    .await
+                    .map_err(|_| ToolError::new_err("Unable to join process owner cleanup")),
+                None => Ok(true),
             }
         })
     }

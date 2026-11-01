@@ -14,8 +14,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::{Cancellation, InvalidInputError, ShellOptions, ToolError, fork, tool_error};
 
-// The owner of standalone Python calls. RoomKit handlers pass the trusted
-// owner of each call, derived from its room and acting agent.
+// The owner of Python calls that name none. Hosts pass a trusted owner, and
+// RoomKit handlers the owner of each call, derived from its room and acting agent.
 pub(super) const OWNER: &str = "default";
 
 #[derive(Default, Deserialize)]

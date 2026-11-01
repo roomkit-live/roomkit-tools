@@ -109,23 +109,30 @@ async with ProcessSession(root="./workspace") as processes:
     # leaving this scope. Only the selected tools are exposed.
 ```
 
-`ProcessSession` owns a distinct Rust manager. Each RoomKit process tool call
-belongs to an owner derived from RoomKit's trusted context, the current room and
-the acting AI channel, composed as the RoomKit Rust adapter does; model arguments
-never select it. One session can serve several rooms and agents: none can list,
-read, write or stop another's jobs. A handler called outside a RoomKit tool call
-is refused. The standalone methods below use one separate host owner, so they do
-not see jobs started through the RoomKit tools. IDs such as `p1` are sequential
-record identifiers, not OS PIDs or secrets, and can coincide across sessions.
-There is no global registry or cross-session quota. Passing a `Workspace`
-supplies only its path; processes do not acquire the filesystem mutation lock or
-run in a sandbox.
+`ProcessSession` owns a distinct Rust manager. Every job belongs to one owner, a
+trusted string the host supplies and model arguments never select. Each RoomKit
+process tool call belongs to the owner of the current room and acting AI
+channel, `roomkit_owner(room_id, channel_id)`: compact JSON of the two IDs, the
+key the RoomKit Rust adapter's `roomkit_owner` also returns. One session can
+serve several rooms and agents: none can list, read, write or stop another's
+jobs. A handler called outside a RoomKit tool call is refused. IDs such as `p1`
+are sequential record identifiers, not OS PIDs or secrets, and can coincide
+across sessions. There is no global registry or cross-session quota. Passing a
+`Workspace` supplies only its path; processes do not acquire the filesystem
+mutation lock or run in a sandbox.
 
 Standalone callers use `await processes.start("cat")`, `.status(process_id)`,
 `.read(process_id, stdout_offset=0, stderr_offset=0, max_bytes=None)`,
 `.write(process_id, "Hello\n", close_stdin=False)` and `.stop(process_id, forget=True)`.
 All return the existing Rust `data`/`text` dictionaries. `.call(name, arguments)`
 and `.definition(name)` expose each `process_*` contract and its derived schemas.
+Each of these methods takes `owner=`. Without it, the methods share one
+standalone owner and do not see the jobs of RoomKit tool calls; the host reaches
+an agent's jobs in a room with `owner=roomkit_owner(room_id, channel_id)`. An
+owner is 1 to 1,024 UTF-8 bytes (`InvalidInputError` otherwise). As in Rust,
+`await processes.close_owner(owner)` stops that owner's jobs and releases their
+records and quota, with the same two-second wait and `True`/`False` result as
+`close()`, while the session stays open for every owner, that one included.
 `status()` lists retained jobs, including completed ones. `start` returns an ID
 with open stdin, not proof of command completion. Commands use `/bin/sh -c`
 with the same host permissions, environment options, initial-cwd boundary and
@@ -208,10 +215,12 @@ For persistent jobs, use `async with ProcessSession(root, outputs=outputs)` insi
 that store's context, then select the desired `Process*` tools. Close RoomKit and
 the process session before the output store. Archives belong to the owner of
 the command that produced them: in RoomKit, Python and Rust alike, the current
-room and acting agent, so one store can serve several conversations without
-them reading or forgetting each other's logs. `Shell` with an output store, and
-`OutputRead`/`OutputForget`, refuse calls outside a RoomKit tool call. Rust hosts
-supply trusted owner keys directly. Owners and storage paths are not model
+room and acting agent, `roomkit_owner(room_id, channel_id)`, so one store can
+serve several conversations without them reading or forgetting each other's
+logs. `Shell` with an output store, and `OutputRead`/`OutputForget`, refuse
+calls outside a RoomKit tool call. Hosts supply trusted owner keys directly: the
+store's `read`, `forget`, `list` and `call` methods take `owner=`, as in Rust,
+and use one standalone owner without it. Owners and storage paths are not model
 arguments.
 
 Standalone Python uses the same Rust implementation:
@@ -271,7 +280,7 @@ forget/close. There is no silent eviction or unlimited queue.
 
 Completed logs survive process `forget` and `ProcessSession.close()`.
 `output_forget` refuses active capture/writers, then invalidates the ID and frees
-its reservation. The host's `await outputs.list()` recovers the standalone
+its reservation. The host's `await outputs.list(owner=None)` recovers an
 owner's IDs, in creation order, after a cancelled command response.
 `await outputs.close()` permanently refuses reads and new records, stops
 writers and releases retained files; it does not stop commands.

@@ -57,6 +57,7 @@ from .roomkit import (
     WebFetch,
     WebSearch,
     Write,
+    roomkit_owner,
 )
 from .search import WebSearchTool
 from .web import WebFetchTool
@@ -130,4 +131,5 @@ __all__ = [
     "WebSearch",
     "WebSearchTool",
     "WebFetchTool",
+    "roomkit_owner",
 ]

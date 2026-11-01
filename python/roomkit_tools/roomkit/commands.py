@@ -12,11 +12,23 @@ from ..process import DEFAULT_INHERITED_ENV, ProcessSession, ShellTool, _env_opt
 from ._adapter import _ConfiguredTool, _ToolAdapter
 
 
+def roomkit_owner(room_id: str, channel_id: str) -> str:
+    """The owner key of the RoomKit shell, process and output tools in a room.
+
+    Those tools file the jobs and archives of an agent's calls under this key:
+    compact JSON of ``[room_id, channel_id]``, the key the RoomKit Rust
+    adapter's roomkit_owner returns, so neither part can be mistaken for the
+    other. Pass it as owner= to ProcessSession and OutputStore methods to list,
+    read, stop or release them.
+    """
+    if not isinstance(room_id, str) or not isinstance(channel_id, str):
+        raise TypeError("roomkit_owner requires str room and channel ids")
+    return json.dumps([room_id, channel_id], ensure_ascii=False, separators=(",", ":"))
+
+
 def _roomkit_owner(tools: str) -> str:
     """The trusted owner of the current RoomKit call: its room and acting agent.
 
-    Composed as the RoomKit Rust adapter composes it, compact JSON of
-    ``[room_id, channel_id]``, so neither part can be mistaken for the other.
     Model arguments never select it. Outside a RoomKit tool call, refuse.
     """
     from roomkit.core.exceptions import ToolRefusedError
@@ -26,7 +38,7 @@ def _roomkit_owner(tools: str) -> str:
     actor = call.channel_id if call is not None else None
     if not room or not actor:
         raise ToolRefusedError(f"{tools} tools require a conversation and an acting agent")
-    return json.dumps([room, actor], ensure_ascii=False, separators=(",", ":"))
+    return roomkit_owner(room, actor)
 
 
 class Shell(_ConfiguredTool):
@@ -94,7 +106,8 @@ class _ProcessAdapter(_ToolAdapter):
         }
 
     async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        return await self._session._call(self._name, arguments, _roomkit_owner("process"))
+        owner = _roomkit_owner("process")
+        return await self._session.call(self._name, arguments, owner=owner)
 
 
 class ProcessStart(_ProcessAdapter):
@@ -151,7 +164,8 @@ class _OutputAdapter(_ToolAdapter):
         }
 
     async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        return await self._store._call(self._name, arguments, _roomkit_owner("output"))
+        owner = _roomkit_owner("output")
+        return await self._store.call(self._name, arguments, owner=owner)
 
 
 class OutputRead(_OutputAdapter):

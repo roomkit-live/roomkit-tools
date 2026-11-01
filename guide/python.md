@@ -122,8 +122,13 @@ RoomKit handlers does.
 | Resource | Host responsibility |
 | --- | --- |
 | Rooted file/code/image tool | Choose a workspace and limits; no explicit close is required |
-| `ProcessSession` | Keep alive for the conversation; close to stop jobs and release records |
+| `ProcessSession` | Keep alive for the conversation; close to stop jobs and release records, or `close_owner(owner)` for one owner's jobs |
 | `OutputStore` | Close after command/session shutdown; logs are temporary |
+
+The RoomKit shell, process and output tools keep each room and agent's jobs and
+archives under `roomkit_owner(room_id, channel_id)`. The host passes that key as
+`owner=` to `ProcessSession` and `OutputStore` methods to list, read, stop or
+release them; see [process ownership](processes.md#persistent-processes).
 | `RoomKitAgentBackend` | Close before `RoomKit`; it owns child instances/providers and task cleanup |
 
 Prefer `async with` for resources that support it. A process or output-store

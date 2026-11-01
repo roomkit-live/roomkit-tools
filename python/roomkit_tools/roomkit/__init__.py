@@ -9,6 +9,7 @@ from .commands import (
     ProcessStop,
     ProcessWrite,
     Shell,
+    roomkit_owner,
 )
 from .files import CodeOutline, Diff, Glob, Grep, List, Read, ReadToolAdapter
 from .images import Ocr, ViewImage
@@ -38,4 +39,5 @@ __all__ = [
     "WebFetch",
     "WebSearch",
     "Write",
+    "roomkit_owner",
 ]

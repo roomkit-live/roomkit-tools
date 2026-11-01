@@ -22,10 +22,10 @@ from roomkit_tools import (
 )
 
 
-async def wait_for(store, predicate):
+async def wait_for(store, predicate, *, owner=None):
     async with asyncio.timeout(5):
         while True:
-            entries = await store.list()
+            entries = await store.list(owner=owner)
             if predicate(entries):
                 return entries
             await asyncio.sleep(0.005)
@@ -136,6 +136,37 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
         page = (await self.store.read(aid))["data"]
         self.assertTrue(page["archive"]["complete"])
         self.assertEqual(bytes(page["bytes"]), "πabc\n".encode())
+
+    async def test_host_methods_reach_only_the_owner_they_name(self) -> None:
+        async with (
+            OutputStore(self.parent, max_archives_per_owner=2) as store,
+            ProcessSession(self.root, outputs=store) as session,
+        ):
+            first = (await session.start("printf saved", owner="host-a"))["data"]
+            aid = first["stdout_archive"]["archive_id"]
+            await wait_for(
+                store, lambda entries: all(e["finished"] for e in entries), owner="host-a"
+            )
+            self.assertEqual(await store.list(), [])
+            listed = await store.list(owner="host-a")
+            self.assertEqual([e["archive_id"] for e in listed], ["o1", "o2"])
+            with self.assertRaises(AccessRefusedError):
+                await store.read(aid)
+            with self.assertRaises(AccessRefusedError):
+                await store.forget(aid)
+            page = (await store.read(aid, max_bytes=3, owner="host-a"))["data"]
+            self.assertEqual(page["text"], "sav")
+            call = await store.call("output_read", {"archive_id": aid}, owner="host-a")
+            self.assertEqual(call["data"]["text"], "saved")
+            # Both streams fill the owner's quota until the host forgets them.
+            full = (await session.start("true", owner="host-a"))["data"]
+            self.assertEqual(full["stdout_archive"]["error"], "archive_limit")
+            for entry in listed:
+                forgotten = await store.forget(entry["archive_id"], owner="host-a")
+                self.assertTrue(forgotten["data"]["forgotten"])
+            self.assertEqual(await store.list(owner="host-a"), [])
+            again = (await session.start("true", owner="host-a"))["data"]
+            self.assertIsNone(again["stdout_archive"]["error"])
 
     async def test_separate_stores_isolate_ids_and_validate_inputs(self) -> None:
         shell = await ShellTool.create(self.root, outputs=self.store)
