@@ -17,7 +17,13 @@ tokio-util = { version = "0.7", features = ["rt"] }
 ```
 
 A Git dependency can select a crate by package name; pin the exact revision you
-intend to consume. Git access is required while the repository is private.
+intend to consume:
+
+```toml
+[dependencies]
+roomkit-tools-fs = { git = "https://github.com/roomkit-live/roomkit-tools", rev = "<commit>" }
+```
+
 The minimum supported Rust version is 1.94.
 
 For a file beneath the current directory:
@@ -65,8 +71,9 @@ execution, state and resource lifetimes. There is no global tool registry.
 
 `adapters/roomkit` is a separate workspace. It pins `roomkit` and `roomkit-ai`
 from the `roomkit-rs` repository at an immutable revision; the source is not
-required by standalone tools or the Python package. Fetching that engine may
-require Git access. Consume the same source and revision to share RoomKit types.
+required by standalone tools or the Python package. The `roomkit-rs` repository
+is not public yet, so building the adapter requires access to it. Consume the
+same source and revision to share RoomKit types.
 
 The adapter implements RoomKit's `Toolset` interface for filesystem, outline,
 command, process, output, web-fetch and search tools. Register them individually

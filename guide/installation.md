@@ -12,8 +12,9 @@ managed separately; APIs may change between previews.
 | PyPI | First publication is being prepared; no install-from-PyPI command is available yet |
 | crates.io | No published crates; use a checkout or Git dependency |
 
-GitHub artifacts require repository access. This guide does not assume that a
-future PyPI release has already happened.
+Preview wheels and source distributions are attached to
+[GitHub releases](https://github.com/roomkit-live/roomkit-tools/releases). This
+guide does not assume that a future PyPI release has already happened.
 
 ## From source
 
@@ -48,17 +49,25 @@ Provider-specific extras, such as `roomkit[vllm]`, are installed separately.
 
 ## From an existing GitHub wheel
 
-A prebuilt wheel does not require Rust:
+A prebuilt wheel does not require Rust. Pip can install it from its release URL:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install \
+  "roomkit-tools[roomkit] @ https://github.com/roomkit-live/roomkit-tools/releases/download/v0.1.0a15/roomkit_tools-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl"
+```
+
+To check its checksum first, download the wheel with the release's `SHA256SUMS`
+and install the local file:
 
 ```sh
 gh release download v0.1.0a15 --repo roomkit-live/roomkit-tools \
   --pattern 'roomkit_tools-*.whl' --pattern 'SHA256SUMS' --dir dist
-python3 -m venv .venv
+(cd dist && sha256sum --check --ignore-missing SHA256SUMS)
 .venv/bin/python -m pip install \
   './dist/roomkit_tools-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
-Compare the downloaded wheel's SHA-256 with its entry in `dist/SHA256SUMS`.
 A source distribution is also attached to the release; installing it compiles
 Rust and needs the build environment described above. Runnable examples live in
 the repository, not the installed import package.
