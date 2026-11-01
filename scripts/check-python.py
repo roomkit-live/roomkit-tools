@@ -16,6 +16,96 @@ from pathlib import Path
 import artifact_files
 
 NOTICES = "roomkit_tools/licenses/native_dependencies.txt"
+MATURIN = ("uv", "tool", "run", "--from", "maturin>=1.15,<2", "maturin")
+
+# Rust tests that write the reference results the Python tests compare with:
+# the environment variable naming the result file, its name, the cargo test.
+REFERENCES = [
+    (
+        "ROOMKIT_DOCS_RESULTS",
+        "rust-docs.json",
+        ("-p", "roomkit-tools-docs", "--features", "files", "--test", "contracts"),
+    ),
+    (
+        "ROOMKIT_PLAN_RESULTS",
+        "rust-plans.json",
+        ("-p", "roomkit-tools-plans", "--test", "contracts"),
+    ),
+    (
+        "ROOMKIT_CONTRACT_RESULTS",
+        "rust-contracts.json",
+        ("-p", "roomkit-tools-examples", "--test", "contracts"),
+    ),
+    (
+        "ROOMKIT_WEB_RESULTS",
+        "rust-web.json",
+        ("-p", "roomkit-tools-examples", "--test", "web_contracts"),
+    ),
+    (
+        "ROOMKIT_SEARCH_RESULTS",
+        "rust-search.json",
+        ("-p", "roomkit-tools-examples", "--test", "search_contracts"),
+    ),
+    (
+        "ROOMKIT_OUTLINE_RESULTS",
+        "rust-outline.json",
+        ("-p", "roomkit-tools-examples", "--test", "outline_contracts"),
+    ),
+    (
+        "ROOMKIT_IMAGE_RESULTS",
+        "rust-image.json",
+        ("-p", "roomkit-tools-examples", "--test", "image_contracts"),
+    ),
+]
+
+# Test files of the installation without RoomKit, in order, with the reference
+# each one compares with.
+CORE_TESTS = [
+    ("test_docs.py", "ROOMKIT_DOCS_RESULTS"),
+    ("test_read.py", None),
+    ("test_ocr.py", None),
+    ("test_agents.py", None),
+    ("test_plans.py", "ROOMKIT_PLAN_RESULTS"),
+    ("test_shutdown.py", None),
+    ("test_discovery.py", None),
+    ("test_mutations.py", None),
+    ("test_diff_patch.py", None),
+    ("test_shell.py", None),
+    ("test_process.py", None),
+    ("test_output.py", None),
+    ("test_web.py", "ROOMKIT_WEB_RESULTS"),
+    ("test_search.py", "ROOMKIT_SEARCH_RESULTS"),
+    ("test_outline.py", "ROOMKIT_OUTLINE_RESULTS"),
+    ("test_image.py", "ROOMKIT_IMAGE_RESULTS"),
+    ("test_contracts.py", "ROOMKIT_CONTRACT_RESULTS"),
+]
+CORE_EXAMPLES = [
+    ("discover_files.py",),
+    ("edit_file.py",),
+    ("patch_files.py",),
+    ("run_shell.py",),
+    ("run_process.py",),
+]
+ROOMKIT_EXAMPLES = [
+    ("roomkit_docs.py",),
+    ("roomkit_plans.py",),
+    ("roomkit_read.py",),
+    ("roomkit_code.py",),
+    ("roomkit_outline.py",),
+    ("roomkit_image.py",),
+    ("roomkit_background.py",),
+    ("roomkit_delegate.py",),
+    ("roomkit_agents.py",),
+    ("roomkit_agents.py", "--dynamic"),
+    ("roomkit_agents.py", "--dynamic", "--parallel"),
+    ("roomkit_output.py",),
+    ("roomkit_web.py",),
+    ("roomkit_search.py",),
+    ("roomkit_search.py", "--service", "fixture-openai"),
+]
+# The minimum supported RoomKit release; vLLM's SDK is used only with a mock
+# HTTP transport in tests.
+ROOMKIT_REQUIREMENT = "roomkit[vllm]==0.110.0"
 
 
 def run(*arguments: str, cwd: Path) -> None:
@@ -37,6 +127,143 @@ def check_notices(wheel: zipfile.ZipFile, root: Path, work: Path) -> None:
     )
 
 
+def generate_references(root: Path, work: Path) -> dict[str, Path]:
+    """Write each Rust reference result; return its path by environment variable."""
+    references = {}
+    for variable, name, test in REFERENCES:
+        path = work / name
+        subprocess.run(
+            ["cargo", "test", "--locked", *test],
+            cwd=root,
+            env={**os.environ, variable: str(path)},
+            check=True,
+        )
+        references[variable] = path
+    return references
+
+
+def build_wheel(root: Path, work: Path) -> Path:
+    wheels = work / "wheels"
+    run(
+        *MATURIN,
+        "build",
+        "--locked",
+        "--interpreter",
+        sys.executable,
+        "--out",
+        str(wheels),
+        cwd=root,
+    )
+    (wheel,) = wheels.glob("*.whl")
+    return wheel
+
+
+def build_sdist(root: Path, work: Path) -> Path:
+    # An sdist must independently rebuild the mixed package, including path
+    # dependencies, from tracked files only.
+    sources = work / "sources"
+    run(*MATURIN, "sdist", "--out", str(sources), cwd=root)
+    (source,) = sources.glob("*.tar.gz")
+    return source
+
+
+def check_metadata(metadata: bytes, names: list[str], root: Path, version: str) -> None:
+    """The wheel declares the version, description, licenses and links of the project."""
+    message = BytesParser().parsebytes(metadata)
+    assert message["Version"] == version, message["Version"]
+    assert message["Description-Content-Type"].split(";", 1)[0] == "text/markdown"
+    assert (
+        message.get_payload(decode=True).decode("utf-8").strip()
+        == (root / "README.md").read_text(encoding="utf-8").strip()
+    )
+    assert message["License-Expression"] == "MIT"
+    license_files = message.get_all("License-File", [])
+    assert "LICENSE" in license_files
+    assert f"python/{NOTICES}" in license_files, license_files
+    assert all(
+        any(name.endswith(f".dist-info/licenses/{license_file}") for name in names)
+        for license_file in license_files
+    ), "Declared licenses must be included in the wheel"
+    project_urls = tomllib.loads((root / "pyproject.toml").read_text())["project"]["urls"]
+    assert set(message.get_all("Project-URL", [])) == {
+        f"{label}, {url}" for label, url in project_urls.items()
+    }
+    dependencies = message.get_all("Requires-Dist", [])
+    assert all(
+        dependency.partition(";")[2].strip().replace("'", '"') == 'extra == "roomkit"'
+        for dependency in dependencies
+    ), "Core installation must have no Python dependencies"
+
+
+def check_wheel(wheel: Path, root: Path, work: Path, version: str) -> None:
+    """The wheel holds the extension, typing marker, notices and metadata, nothing else."""
+    with zipfile.ZipFile(wheel) as archive:
+        names = archive.namelist()
+        assert any(name.endswith((".so", ".pyd")) for name in names), names
+        assert "roomkit_tools/py.typed" in names, names
+        check_notices(archive, root, work)
+        metadata = archive.read(next(n for n in names if n.endswith("/METADATA")))
+        check_metadata(metadata, names, root, version)
+    # Untracked or ignored local files must not reach the wheel.
+    artifact_files.check_wheel(wheel, root, "roomkit_tools")
+
+
+def run_tests(
+    python: Path, root: Path, work: Path, pattern: str, reference: dict[str, str]
+) -> None:
+    subprocess.run(
+        [
+            str(python),
+            "-X",
+            "faulthandler",
+            "-I",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            str(root / "tests/python"),
+            "-p",
+            pattern,
+            "-v",
+        ],
+        cwd=work,
+        env={**os.environ, **reference},
+        check=True,
+    )
+
+
+def run_examples(python: Path, root: Path, work: Path, examples: list[tuple[str, ...]]) -> None:
+    for script, *arguments in examples:
+        run(str(python), "-I", str(root / "examples" / script), *arguments, cwd=work)
+
+
+def install_and_test(
+    label: str, package: Path, root: Path, work: Path, references: dict[str, Path]
+) -> None:
+    """Install one artifact alone, test it, then add RoomKit and test the adapters."""
+    environment = work / label
+    run("uv", "venv", "--python", sys.executable, str(environment), cwd=work)
+    python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    run("uv", "pip", "install", "--python", str(python), "--no-deps", str(package), cwd=work)
+    for pattern, variable in CORE_TESTS:
+        reference = {variable: str(references[variable])} if variable else {}
+        run_tests(python, root, work, pattern, reference)
+    run_examples(python, root, work, CORE_EXAMPLES)
+    # Exercise the declared integration against its minimum release.
+    run(
+        "uv",
+        "pip",
+        "install",
+        "--python",
+        str(python),
+        f"{package}[roomkit]",
+        ROOMKIT_REQUIREMENT,
+        cwd=work,
+    )
+    run_tests(python, root, work, "test_roomkit*.py", {})
+    run_examples(python, root, work, ROOMKIT_EXAMPLES)
+
+
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
     # Extracted sdists live outside the checkout's rustup override.
@@ -55,285 +282,14 @@ def main() -> None:
         work = Path(temporary)
         # Build reference results from the Rust API before comparing installed
         # Python packages. This is a maintainer check, not an installation step.
-        docs_reference = work / "rust-docs.json"
-        subprocess.run(
-            [
-                "cargo",
-                "test",
-                "--locked",
-                "-p",
-                "roomkit-tools-docs",
-                "--features",
-                "files",
-                "--test",
-                "contracts",
-            ],
-            cwd=root,
-            env={**os.environ, "ROOMKIT_DOCS_RESULTS": str(docs_reference)},
-            check=True,
-        )
-        plan_reference = work / "rust-plans.json"
-        subprocess.run(
-            ["cargo", "test", "--locked", "-p", "roomkit-tools-plans", "--test", "contracts"],
-            cwd=root,
-            env={**os.environ, "ROOMKIT_PLAN_RESULTS": str(plan_reference)},
-            check=True,
-        )
-        reference = work / "rust-contracts.json"
-        subprocess.run(
-            ["cargo", "test", "--locked", "-p", "roomkit-tools-examples", "--test", "contracts"],
-            cwd=root,
-            env={**os.environ, "ROOMKIT_CONTRACT_RESULTS": str(reference)},
-            check=True,
-        )
-        web_reference = work / "rust-web.json"
-        subprocess.run(
-            [
-                "cargo",
-                "test",
-                "--locked",
-                "-p",
-                "roomkit-tools-examples",
-                "--test",
-                "web_contracts",
-            ],
-            cwd=root,
-            env={**os.environ, "ROOMKIT_WEB_RESULTS": str(web_reference)},
-            check=True,
-        )
-        search_reference = work / "rust-search.json"
-        subprocess.run(
-            [
-                "cargo",
-                "test",
-                "--locked",
-                "-p",
-                "roomkit-tools-examples",
-                "--test",
-                "search_contracts",
-            ],
-            cwd=root,
-            env={**os.environ, "ROOMKIT_SEARCH_RESULTS": str(search_reference)},
-            check=True,
-        )
-        outline_reference = work / "rust-outline.json"
-        subprocess.run(
-            [
-                "cargo",
-                "test",
-                "--locked",
-                "-p",
-                "roomkit-tools-examples",
-                "--test",
-                "outline_contracts",
-            ],
-            cwd=root,
-            env={**os.environ, "ROOMKIT_OUTLINE_RESULTS": str(outline_reference)},
-            check=True,
-        )
-        image_reference = work / "rust-image.json"
-        subprocess.run(
-            [
-                "cargo",
-                "test",
-                "--locked",
-                "-p",
-                "roomkit-tools-examples",
-                "--test",
-                "image_contracts",
-            ],
-            cwd=root,
-            env={**os.environ, "ROOMKIT_IMAGE_RESULTS": str(image_reference)},
-            check=True,
-        )
-        wheels = work / "wheels"
-        if options.wheel:
-            wheel = options.wheel.resolve()
-        else:
-            run(
-                "uv",
-                "tool",
-                "run",
-                "--from",
-                "maturin>=1.15,<2",
-                "maturin",
-                "build",
-                "--locked",
-                "--interpreter",
-                sys.executable,
-                "--out",
-                str(wheels),
-                cwd=root,
-            )
-            (wheel,) = wheels.glob("*.whl")
-        with zipfile.ZipFile(wheel) as archive:
-            names = archive.namelist()
-            assert any(name.endswith((".so", ".pyd")) for name in names), names
-            assert "roomkit_tools/py.typed" in names, names
-            check_notices(archive, root, work)
-            metadata = archive.read(next(n for n in names if n.endswith("/METADATA")))
-            metadata = BytesParser().parsebytes(metadata)
-            assert metadata["Version"] == version, metadata["Version"]
-            assert metadata["Description-Content-Type"].split(";", 1)[0] == "text/markdown"
-            assert (
-                metadata.get_payload(decode=True).decode("utf-8").strip()
-                == (root / "README.md").read_text(encoding="utf-8").strip()
-            )
-            assert metadata["License-Expression"] == "MIT"
-            license_files = metadata.get_all("License-File", [])
-            assert "LICENSE" in license_files
-            assert f"python/{NOTICES}" in license_files, license_files
-            assert all(
-                any(name.endswith(f".dist-info/licenses/{license_file}") for name in names)
-                for license_file in license_files
-            ), "Declared licenses must be included in the wheel"
-            project_urls = tomllib.loads((root / "pyproject.toml").read_text())["project"]["urls"]
-            assert set(metadata.get_all("Project-URL", [])) == {
-                f"{label}, {url}" for label, url in project_urls.items()
-            }
-            dependencies = metadata.get_all("Requires-Dist", [])
-            assert all(
-                dependency.partition(";")[2].strip().replace("'", '"') == 'extra == "roomkit"'
-                for dependency in dependencies
-            ), "Core installation must have no Python dependencies"
-        # Untracked or ignored local files must not reach the wheel.
-        artifact_files.check_wheel(wheel, root, "roomkit_tools")
-        # An sdist must independently rebuild the mixed package, including path
-        # dependencies, from tracked files only.
-        sources = work / "sources"
-        if options.sdist:
-            source = options.sdist.resolve()
-        else:
-            run(
-                "uv",
-                "tool",
-                "run",
-                "--from",
-                "maturin>=1.15,<2",
-                "maturin",
-                "sdist",
-                "--out",
-                str(sources),
-                cwd=root,
-            )
-            (source,) = sources.glob("*.tar.gz")
+        references = generate_references(root, work)
+        wheel = options.wheel.resolve() if options.wheel else build_wheel(root, work)
+        check_wheel(wheel, root, work, version)
+        source = options.sdist.resolve() if options.sdist else build_sdist(root, work)
         artifact_files.check_sdist(source, root)
         # Validate both artifacts independently, including their RoomKit extra.
         for label, package in [("wheel", wheel), ("sdist", source)]:
-            environment = work / label
-            run("uv", "venv", "--python", sys.executable, str(environment), cwd=work)
-            python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-            run(
-                "uv", "pip", "install", "--python", str(python), "--no-deps", str(package), cwd=work
-            )
-            run_tests(python, root, work, "test_docs.py", docs_reference=docs_reference)
-            run_tests(python, root, work, "test_read.py")
-            run_tests(python, root, work, "test_ocr.py")
-            run_tests(python, root, work, "test_agents.py")
-            run_tests(python, root, work, "test_plans.py", plan_reference=plan_reference)
-            run_tests(python, root, work, "test_shutdown.py")
-            run_tests(python, root, work, "test_discovery.py")
-            run_tests(python, root, work, "test_mutations.py")
-            run_tests(python, root, work, "test_diff_patch.py")
-            run_tests(python, root, work, "test_shell.py")
-            run_tests(python, root, work, "test_process.py")
-            run_tests(python, root, work, "test_output.py")
-            run_tests(python, root, work, "test_web.py", web_reference=web_reference)
-            run_tests(python, root, work, "test_search.py", search_reference=search_reference)
-            run_tests(python, root, work, "test_outline.py", outline_reference=outline_reference)
-            run_tests(python, root, work, "test_image.py", image_reference=image_reference)
-            run_tests(python, root, work, "test_contracts.py", reference=reference)
-            run(str(python), "-I", str(root / "examples/discover_files.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/edit_file.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/patch_files.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/run_shell.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/run_process.py"), cwd=work)
-            # Exercise the declared integration against its minimum release.
-            run(
-                "uv",
-                "pip",
-                "install",
-                "--python",
-                str(python),
-                f"{package}[roomkit]",
-                # vLLM's SDK is used only with a mock HTTP transport in tests.
-                "roomkit[vllm]==0.110.0",
-                cwd=work,
-            )
-            run_tests(python, root, work, "test_roomkit*.py")
-            run(str(python), "-I", str(root / "examples/roomkit_docs.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_plans.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_read.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_code.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_outline.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_image.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_background.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_delegate.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_agents.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_agents.py"), "--dynamic", cwd=work)
-            run(
-                str(python),
-                "-I",
-                str(root / "examples/roomkit_agents.py"),
-                "--dynamic",
-                "--parallel",
-                cwd=work,
-            )
-            run(str(python), "-I", str(root / "examples/roomkit_output.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_web.py"), cwd=work)
-            run(str(python), "-I", str(root / "examples/roomkit_search.py"), cwd=work)
-            run(
-                str(python),
-                "-I",
-                str(root / "examples/roomkit_search.py"),
-                "--service",
-                "fixture-openai",
-                cwd=work,
-            )
-
-
-def run_tests(
-    python: Path,
-    root: Path,
-    work: Path,
-    pattern: str,
-    *,
-    docs_reference: Path | None = None,
-    plan_reference: Path | None = None,
-    reference: Path | None = None,
-    web_reference: Path | None = None,
-    search_reference: Path | None = None,
-    outline_reference: Path | None = None,
-    image_reference: Path | None = None,
-) -> None:
-    subprocess.run(
-        [
-            str(python),
-            "-X",
-            "faulthandler",
-            "-I",
-            "-m",
-            "unittest",
-            "discover",
-            "-s",
-            str(root / "tests/python"),
-            "-p",
-            pattern,
-            "-v",
-        ],
-        cwd=work,
-        env={
-            **os.environ,
-            **({"ROOMKIT_DOCS_RESULTS": str(docs_reference)} if docs_reference else {}),
-            **({"ROOMKIT_PLAN_RESULTS": str(plan_reference)} if plan_reference else {}),
-            **({"ROOMKIT_CONTRACT_RESULTS": str(reference)} if reference else {}),
-            **({"ROOMKIT_WEB_RESULTS": str(web_reference)} if web_reference else {}),
-            **({"ROOMKIT_SEARCH_RESULTS": str(search_reference)} if search_reference else {}),
-            **({"ROOMKIT_OUTLINE_RESULTS": str(outline_reference)} if outline_reference else {}),
-            **({"ROOMKIT_IMAGE_RESULTS": str(image_reference)} if image_reference else {}),
-        },
-        check=True,
-    )
+            install_and_test(label, package, root, work, references)
 
 
 if __name__ == "__main__":
