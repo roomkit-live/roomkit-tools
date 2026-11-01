@@ -60,12 +60,6 @@ impl MemoryPlanBackend {
             .map_err(|_| Error::Unsupported("plan store unavailable after a worker failure".into()))
     }
 }
-/// Sort key giving the creation order of sequential identifiers such as `plan-2`
-/// and `plan-10`: they share a prefix and have no leading zeros, so a shorter
-/// identifier was created earlier.
-fn creation_order(id: &str) -> (usize, &str) {
-    (id.len(), id)
-}
 fn owned<'a>(state: &'a State, scope: &PlanScope, id: &str) -> Result<&'a Plan, Error> {
     state
         .plans
@@ -159,7 +153,7 @@ impl PlanBackend for MemoryPlanBackend {
                 .iter()
                 .filter(|(_, (owner, _))| owner == scope)
                 .collect();
-            scoped.sort_by_key(|&(id, _)| creation_order(id));
+            scoped.sort_by_key(|&(id, _)| roomkit_tools_core::identifiers::creation_order(id));
             let plans = scoped
                 .into_iter()
                 .map(|(_, (_, p))| PlanSummary {

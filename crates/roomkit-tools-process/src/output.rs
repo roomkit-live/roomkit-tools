@@ -213,13 +213,6 @@ fn private_directory(parent: &Path) -> std::io::Result<TempDir> {
     builder.tempdir_in(parent)
 }
 
-/// Sort key giving the creation order of sequential identifiers such as `o2`
-/// and `o10`: they share a prefix and have no leading zeros, so a shorter
-/// identifier was created earlier.
-pub(crate) fn creation_order(id: &str) -> (usize, &str) {
-    (id.len(), id)
-}
-
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -357,7 +350,7 @@ impl OutputStore {
             .iter()
             .filter(|(_, record)| record.owner == owner)
             .collect();
-        records.sort_by_key(|&(id, _)| creation_order(id));
+        records.sort_by_key(|&(id, _)| roomkit_tools_core::identifiers::creation_order(id));
         Ok(records
             .into_iter()
             .map(|(_, record)| record.snapshot())

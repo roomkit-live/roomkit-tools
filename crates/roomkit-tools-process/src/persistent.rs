@@ -85,7 +85,7 @@ impl Registry {
             .iter()
             .filter(|(_, entry)| keep(entry))
             .collect();
-        entries.sort_by_key(|&(id, _)| crate::output::creation_order(id));
+        entries.sort_by_key(|&(id, _)| roomkit_tools_core::identifiers::creation_order(id));
         entries
             .into_iter()
             .map(|(_, entry)| Arc::clone(entry))
