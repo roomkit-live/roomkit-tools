@@ -5,6 +5,8 @@
 //! Rust types an implementation uses. [`WorkspaceRoot`] holds the lexical
 //! path rules that root-configured tools share; it performs no I/O.
 
+#![forbid(unsafe_code)]
+
 mod workspace;
 
 pub use workspace::WorkspaceRoot;

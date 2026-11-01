@@ -1,5 +1,6 @@
 //! Create, add, update and remove customer orders with independent Rust tools.
 
+#![forbid(unsafe_code)]
 #![expect(
     clippy::print_stdout,
     reason = "the example displays completed mutations"

@@ -1,4 +1,5 @@
 //! Explicit backend selection: deterministic local HTTP by default, Exa with --live.
+#![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "standalone demonstration output")]
 use roomkit_tools_search::{
     ExaSearch, OllamaSearch, SearchBackend, SearchHttpConfig, SearchInput, SearchPayload,

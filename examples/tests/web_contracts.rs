@@ -1,4 +1,6 @@
 //! Compare complete Rust/Python fetch results against the same HTTP responses.
+#![forbid(unsafe_code)]
+
 #[path = "../../tests/support/web.rs"]
 mod web;
 use roomkit_tools_core::Error;

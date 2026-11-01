@@ -1,4 +1,5 @@
 //! Select documentation tools independently over one immutable host-owned snapshot.
+#![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "standalone demonstration output")]
 use roomkit_tools_docs::{
     DocsBackend, DocsListInput, DocsListTool, DocsReadInput, DocsReadTool, DocsSearchInput,

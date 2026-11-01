@@ -5,6 +5,8 @@
 //! Each tool's limits type documents its bounds. Root checks assume a
 //! host-controlled workspace; they do not provide OS sandboxing.
 
+#![forbid(unsafe_code)]
+
 mod diff;
 mod edit;
 mod glob;

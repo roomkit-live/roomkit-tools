@@ -2,6 +2,7 @@
 //! Run with `cargo run --example read_file` for the checked fixture, or
 //! `cargo run --example read_file -- README.md` for a file under the current directory.
 
+#![forbid(unsafe_code)]
 #![expect(
     clippy::print_stdout,
     reason = "the example shows the model-facing output"

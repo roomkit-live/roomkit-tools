@@ -3,6 +3,8 @@
 //! Tree-sitter parses bounded UTF-8 input without executing code. This is not
 //! type resolution, macro expansion, an LSP server or a persistent index.
 
+#![forbid(unsafe_code)]
+
 mod extract;
 mod page;
 mod source;

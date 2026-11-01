@@ -4,6 +4,8 @@
 //! normalized PNG preview plus metadata. Hosts must deliver the image payload as
 //! multimodal content; serializing it into ordinary text does not enable vision.
 
+#![forbid(unsafe_code)]
+
 mod decoded;
 mod prepare;
 mod source;

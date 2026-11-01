@@ -1,4 +1,5 @@
 //! Common fixtures check the native API and supply installed-Python comparisons.
+#![forbid(unsafe_code)]
 #![cfg(unix)]
 #![expect(clippy::unwrap_used, reason = "invalid fixtures must fail the test")]
 

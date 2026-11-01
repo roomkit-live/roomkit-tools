@@ -4,6 +4,8 @@
 //! Cancellation releases the caller promptly; the worker and its permit remain
 //! owned until decoding/inference finishes. Inputs assume a host-controlled tree.
 
+#![forbid(unsafe_code)]
+
 mod types;
 pub use types::{OcrBlock, OcrIdentity, OcrInput, OcrLimits, OcrPoint, OcrResult};
 

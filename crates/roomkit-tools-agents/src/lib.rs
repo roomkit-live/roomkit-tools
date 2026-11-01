@@ -3,6 +3,8 @@
 //! This crate neither runs models nor schedules tasks. Backends own profiles,
 //! execution, scope checks, cancellation and cleanup. No runtime is required.
 
+#![forbid(unsafe_code)]
+
 use std::{fmt::Debug, future::Future, pin::Pin, sync::Arc};
 
 use roomkit_tools_core::{Definition, Error, Output};

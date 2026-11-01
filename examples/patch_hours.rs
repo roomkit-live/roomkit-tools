@@ -1,4 +1,5 @@
 //! Compare, preview and apply opening hours without RoomKit or an external model.
+#![forbid(unsafe_code)]
 #![expect(
     clippy::print_stdout,
     reason = "the executable example shows its checked results"

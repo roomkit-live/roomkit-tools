@@ -1,4 +1,6 @@
 //! Shared syntax cases compare complete Rust/Python envelopes and source ranges.
+#![forbid(unsafe_code)]
+
 use std::path::Path;
 
 use roomkit_tools_code::{CodeOutlineInput, CodeOutlineTool};

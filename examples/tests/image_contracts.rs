@@ -1,4 +1,6 @@
 //! Complete Rust/Python parity for image pixels, metadata and refusals.
+#![forbid(unsafe_code)]
+
 use std::path::Path;
 
 use base64::Engine;

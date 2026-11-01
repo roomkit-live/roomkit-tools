@@ -1,5 +1,6 @@
 //! Discover and search text files using independent tools, without a model.
 
+#![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "the example displays the tool results")]
 
 use std::error::Error;

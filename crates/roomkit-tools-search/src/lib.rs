@@ -2,6 +2,8 @@
 //! A backend may return direct documents, a cited answer, or explicit non-execution.
 //! No model or search service is selected implicitly.
 
+#![forbid(unsafe_code)]
+
 mod answer;
 #[cfg(any(feature = "exa", feature = "ollama", feature = "openai"))]
 mod backends;

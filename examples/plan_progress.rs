@@ -1,4 +1,5 @@
 //! Independently selected plan tools share an explicit host-owned memory store.
+#![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "standalone demonstration output")]
 use roomkit_tools_plans::{
     MemoryPlanBackend, PlanBackend, PlanCreateInput, PlanCreateTool, PlanDeleteInput,

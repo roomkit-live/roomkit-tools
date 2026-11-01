@@ -1,4 +1,5 @@
 //! Locate a method using its source outline, then read only that method.
+#![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "executable example output")]
 
 use roomkit_tools_code::{CodeOutlineInput, CodeOutlineTool};

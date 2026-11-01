@@ -7,14 +7,26 @@
 //! process group is stopped on cleanup; other platforms return an explicit
 //! refusal until equivalent cleanup is implemented. No RoomKit or Python is required.
 
+// The workspace's only unsafe code is the `setsid` call between fork and exec
+// in `unix`, allowed on that one function. Every other module forbids it.
+#![deny(unsafe_code)]
+
+#[forbid(unsafe_code)]
 mod capture;
+#[forbid(unsafe_code)]
 mod env;
+#[forbid(unsafe_code)]
 mod journal;
+#[forbid(unsafe_code)]
 mod output;
+#[forbid(unsafe_code)]
 mod persistent;
 #[cfg(unix)]
+#[forbid(unsafe_code)]
 mod persistent_unix;
+#[forbid(unsafe_code)]
 mod process_types;
+#[forbid(unsafe_code)]
 mod shell;
 #[cfg(unix)]
 mod unix;

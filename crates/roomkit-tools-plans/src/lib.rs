@@ -2,6 +2,8 @@
 //!
 //! Plans record declared progress; they neither schedule work nor prove completion.
 //! The bundled memory backend is bounded and shared by explicit clones only.
+#![forbid(unsafe_code)]
+
 mod memory;
 mod types;
 mod validation;

@@ -2,6 +2,8 @@
 //! Model files are trusted host configuration and must remain unchanged during load.
 //! Load on a blocking worker, then share the resulting engine across OCR tools.
 
+#![forbid(unsafe_code)]
+
 mod session;
 
 use std::{

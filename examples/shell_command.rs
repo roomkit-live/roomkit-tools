@@ -1,4 +1,5 @@
 //! Run a real foreground shell without an agent or model.
+#![forbid(unsafe_code)]
 #![expect(
     clippy::print_stdout,
     reason = "an executable example displays its result"

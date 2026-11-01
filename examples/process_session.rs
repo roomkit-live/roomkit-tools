@@ -1,4 +1,5 @@
 //! Send an order to a persistent shell and read its response without a model.
+#![forbid(unsafe_code)]
 #![expect(
     clippy::print_stdout,
     reason = "the example prints its verified result"

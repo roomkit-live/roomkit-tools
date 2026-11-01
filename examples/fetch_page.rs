@@ -1,4 +1,5 @@
 //! Fetch a local page through a redirect and verify the actual Rust result.
+#![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "example prints verified fetch result")]
 use roomkit_tools_web::{WebFetchInput, WebFetchPolicy, WebFetchTool};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

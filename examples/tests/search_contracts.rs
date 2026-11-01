@@ -1,4 +1,6 @@
 //! Compare complete Rust/Python search results against the same HTTP responses.
+#![forbid(unsafe_code)]
+
 #[path = "../../tests/support/search.rs"]
 mod search;
 use roomkit_tools_core::Error;

@@ -1,5 +1,7 @@
 //! Documentation tools over an injected backend. Documents are reference data;
 //! the host remains the authority for enabled tools and execution permissions.
+#![forbid(unsafe_code)]
+
 #[cfg(feature = "files")]
 mod files;
 mod types;

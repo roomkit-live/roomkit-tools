@@ -1,4 +1,5 @@
 //! Recover a truncated command's middle bytes without executing it again.
+#![forbid(unsafe_code)]
 #![expect(
     clippy::print_stdout,
     reason = "the example prints verified archive results"

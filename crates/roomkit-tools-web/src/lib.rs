@@ -3,6 +3,8 @@
 //! Hosts choose origins and limits; the core stays free of I/O. No browser,
 //! JavaScript execution, model/provider dependency, shell or global registry.
 
+#![forbid(unsafe_code)]
+
 mod convert;
 mod markdown_bound;
 mod network;

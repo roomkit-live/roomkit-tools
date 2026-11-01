@@ -62,6 +62,10 @@ html5ever = "0.38"
 markup5ever_rcdom = "0.38"
 
 [workspace.lints.rust]
+# The single exception is `new_session` in crates/roomkit-tools-process/src/unix.rs
+# (`setsid` between fork and exec), allowed on that function only: every other
+# crate root and example target forbids unsafe code, and so does every other
+# module of the process crate.
 unsafe_code = "deny"
 missing_docs = "warn"
 missing_debug_implementations = "warn"

@@ -2,6 +2,8 @@
 //! Clients disable automatic redirects and proxies. Callers must validate every
 //! redirect separately, bound response bodies and supply cancellation/deadlines.
 
+#![forbid(unsafe_code)]
+
 use serde::Deserialize;
 
 /// Exact HTTP(S) origins configured by the host, never by a model.

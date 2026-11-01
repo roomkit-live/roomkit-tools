@@ -1,4 +1,5 @@
 //! Prepare a local image; the payload must be delivered through a vision channel.
+#![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "an executable example prints metadata")]
 
 use base64::Engine;
