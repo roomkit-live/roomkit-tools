@@ -156,6 +156,18 @@ destination, then renames it into place. A file created by `write` or a patch
 umask, as with `std::fs::write` or Python's `open`). A replacement keeps the
 destination's permission bits, and a move keeps its source's.
 
+Replacing by rename gives the path a new file, so only those permission bits
+carry over:
+
+- owner and group become those of the process, and extended attributes and
+  ACLs are not copied;
+- a hard link to the old file is broken: other links keep the old content;
+- the staged file is synced before the rename, but the parent directory is not,
+  so a crash shortly after a commit can lose the rename itself.
+
+Hosts that rely on ownership, extended attributes, ACLs or hard links should
+not expose these tools on such files.
+
 Cancellation requests stopping before commit. A commit that has already started
 may finish even if Python receives `CancelledError` or RoomKit times out; the
 Rust worker keeps the shared lock until completion. Read the file before retrying

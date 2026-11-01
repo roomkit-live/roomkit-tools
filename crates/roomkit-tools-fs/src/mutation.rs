@@ -17,6 +17,11 @@ use crate::paths::Root;
 /// constructed workspaces and external editors do not share this lock.
 /// Write can create missing parents; other mutations require existing parents.
 /// Leaf symlinks are refused.
+///
+/// Commits stage a synced temporary file and rename it over the destination.
+/// A replaced file keeps its permission bits only: owner, group, extended
+/// attributes and ACLs are not carried over, hard links to the old file keep
+/// the old content, and the parent directory is not synced after the rename.
 #[derive(Clone, Debug)]
 pub struct MutationWorkspace {
     root: Root,
