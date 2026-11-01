@@ -198,18 +198,26 @@ pub(crate) async fn walk(
     Ok(entries)
 }
 
-pub(crate) fn pattern(pattern: &str) -> Result<globset::GlobMatcher, Error> {
+/// Compile a model-supplied glob. A one-pattern set is built instead of a
+/// single matcher because only the set reports regex compilation failures
+/// (for example deeply nested alternations) as errors rather than panicking.
+pub(crate) fn pattern(pattern: &str) -> Result<globset::GlobSet, Error> {
     if pattern.is_empty() || pattern.len() > 4096 {
         return Err(Error::InvalidInput(
             "glob pattern must contain 1 to 4096 bytes".into(),
         ));
     }
-    globset::GlobBuilder::new(pattern)
+    let invalid =
+        |error: globset::Error| Error::InvalidInput(format!("invalid glob pattern: {error}"));
+    let glob = globset::GlobBuilder::new(pattern)
         .literal_separator(true)
         .backslash_escape(true)
         .build()
-        .map(|glob| glob.compile_matcher())
-        .map_err(|error| Error::InvalidInput(format!("invalid glob pattern: {error}")))
+        .map_err(invalid)?;
+    globset::GlobSetBuilder::new()
+        .add(glob)
+        .build()
+        .map_err(invalid)
 }
 
 pub(crate) fn page(

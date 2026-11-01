@@ -264,6 +264,26 @@ async fn invalid_patterns_and_no_matches_are_distinct() {
 }
 
 #[tokio::test]
+async fn deeply_nested_brace_globs_are_invalid_input_instead_of_a_panic() {
+    let root = fixture();
+    let pattern = format!("{}a{}", "{".repeat(300), "}".repeat(300));
+    assert!(pattern.len() <= 4096);
+    let glob = GlobTool::new(root.path()).await.unwrap();
+    assert!(matches!(
+        glob.glob(GlobInput::new(pattern.clone()), &CancellationToken::new())
+            .await,
+        Err(Error::InvalidInput(_))
+    ));
+    let grep = GrepTool::new(root.path()).await.unwrap();
+    let mut input = GrepInput::new("Sourdough");
+    input.include = Some(pattern);
+    assert!(matches!(
+        grep.grep(input, &CancellationToken::new()).await,
+        Err(Error::InvalidInput(_))
+    ));
+}
+
+#[tokio::test]
 async fn grep_filters_files_and_returns_paths_and_source_line_numbers() {
     let root = fixture();
     let tool = GrepTool::new(root.path()).await.unwrap();
