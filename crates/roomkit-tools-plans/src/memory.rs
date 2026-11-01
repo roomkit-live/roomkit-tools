@@ -20,6 +20,7 @@ struct State {
 
 /// In-memory storage. Clones share state; separate instances do not. No disk I/O,
 /// scheduler, background worker or automatic eviction. Drop all clones to release.
+/// Listings return plans in creation order.
 /// Operations take a short mutex and check cancellation before committing.
 #[derive(Clone, Debug)]
 pub struct MemoryPlanBackend {
@@ -58,6 +59,12 @@ impl MemoryPlanBackend {
             .lock()
             .map_err(|_| Error::Unsupported("plan store unavailable after a worker failure".into()))
     }
+}
+/// Sort key giving the creation order of sequential identifiers such as `plan-2`
+/// and `plan-10`: they share a prefix and have no leading zeros, so a shorter
+/// identifier was created earlier.
+fn creation_order(id: &str) -> (usize, &str) {
+    (id.len(), id)
 }
 fn owned<'a>(state: &'a State, scope: &PlanScope, id: &str) -> Result<&'a Plan, Error> {
     state
@@ -147,11 +154,15 @@ impl PlanBackend for MemoryPlanBackend {
             cancelled(cancel)?;
             let state = self.lock()?;
             cancelled(cancel)?;
-            let plans = state
+            let mut scoped: Vec<_> = state
                 .plans
-                .values()
-                .filter(|(owner, _)| owner == scope)
-                .map(|(_, p)| PlanSummary {
+                .iter()
+                .filter(|(_, (owner, _))| owner == scope)
+                .collect();
+            scoped.sort_by_key(|&(id, _)| creation_order(id));
+            let plans = scoped
+                .into_iter()
+                .map(|(_, (_, p))| PlanSummary {
                     plan_id: p.plan_id.clone(),
                     revision: p.revision,
                     title: p.title.clone(),

@@ -213,6 +213,13 @@ fn private_directory(parent: &Path) -> std::io::Result<TempDir> {
     builder.tempdir_in(parent)
 }
 
+/// Sort key giving the creation order of sequential identifiers such as `o2`
+/// and `o10`: they share a prefix and have no leading zeros, so a shorter
+/// identifier was created earlier.
+pub(crate) fn creation_order(id: &str) -> (usize, &str) {
+    (id.len(), id)
+}
+
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -328,7 +335,8 @@ impl OutputStore {
             .ok_or_else(|| Error::Refused("unknown output archive".into()))
     }
 
-    /// List only the trusted owner's retained copies, including failed/active ones.
+    /// List only the trusted owner's retained copies, including failed/active
+    /// ones, in creation order.
     ///
     /// # Errors
     /// Returns cancellation or refusal after close.
@@ -343,11 +351,16 @@ impl OutputStore {
         if self.is_closed() {
             return Err(Error::Refused("output store is closed".into()));
         }
-        Ok(lock(&self.inner.registry)
+        let registry = lock(&self.inner.registry);
+        let mut records: Vec<_> = registry
             .entries
-            .values()
-            .filter(|r| r.owner == owner)
-            .map(|r| r.snapshot())
+            .iter()
+            .filter(|(_, record)| record.owner == owner)
+            .collect();
+        records.sort_by_key(|&(id, _)| creation_order(id));
+        Ok(records
+            .into_iter()
+            .map(|(_, record)| record.snapshot())
             .collect())
     }
 

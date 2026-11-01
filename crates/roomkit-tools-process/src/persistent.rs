@@ -63,6 +63,22 @@ struct Registry {
     entries: BTreeMap<String, Arc<Entry>>,
 }
 
+impl Registry {
+    /// Retained entries that `keep` selects, in creation order.
+    fn ordered(&self, keep: impl Fn(&Entry) -> bool) -> Vec<Arc<Entry>> {
+        let mut entries: Vec<_> = self
+            .entries
+            .iter()
+            .filter(|(_, entry)| keep(entry))
+            .collect();
+        entries.sort_by_key(|&(id, _)| crate::output::creation_order(id));
+        entries
+            .into_iter()
+            .map(|(_, entry)| Arc::clone(entry))
+            .collect()
+    }
+}
+
 #[derive(Debug)]
 struct Inner {
     root: PathBuf,
@@ -149,19 +165,12 @@ impl ProcessManager {
         self.inner.changes.subscribe()
     }
 
-    /// Inspect all retained jobs for the owning host, including completed jobs.
-    /// This privileged API is deliberately separate from owner-scoped model tools.
-    /// The caller must filter results before presenting them to another principal.
+    /// Inspect all retained jobs for the owning host, including completed jobs,
+    /// in creation order. This privileged API is deliberately separate from
+    /// owner-scoped model tools. The caller must filter results before
+    /// presenting them to another principal.
     pub async fn observe(&self) -> Vec<ObservedProcess> {
-        let entries: Vec<_> = self
-            .inner
-            .registry
-            .lock()
-            .await
-            .entries
-            .values()
-            .cloned()
-            .collect();
+        let entries = self.inner.registry.lock().await.ordered(|_| true);
         let mut processes = Vec::with_capacity(entries.len());
         for entry in entries {
             let record = entry.record.lock().await;
@@ -404,7 +413,7 @@ impl ProcessManager {
         }
     }
 
-    /// Inspect or list this owner's records without consuming output.
+    /// Inspect or list this owner's records, in creation order, without consuming output.
     ///
     /// # Errors
     /// Rejects unknown/foreign identifiers, closed managers and cancellation.
@@ -422,11 +431,7 @@ impl ProcessManager {
                 .registry
                 .lock()
                 .await
-                .entries
-                .values()
-                .filter(|e| e.owner == owner)
-                .map(Arc::clone)
-                .collect()
+                .ordered(|entry| entry.owner == owner)
         };
         let mut states = Vec::with_capacity(entries.len());
         for entry in entries {

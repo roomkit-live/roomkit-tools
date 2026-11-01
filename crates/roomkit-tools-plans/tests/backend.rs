@@ -330,3 +330,22 @@ async fn bounded_listing_can_recover_all_escaped_titles() {
     decode::<roomkit_tools_plans::PlanListResult>(&serde_json::to_string(&output.data).unwrap())
         .unwrap();
 }
+
+#[tokio::test]
+async fn listing_follows_creation_order_past_nine_plans() {
+    let backend = MemoryPlanBackend::default();
+    let token = CancellationToken::new();
+    for _ in 0..11 {
+        backend.create(&scope(), &create(), &token).await.unwrap();
+    }
+    let ids: Vec<String> = backend
+        .list(&scope(), &PlanListInput {}, &token)
+        .await
+        .unwrap()
+        .plans
+        .into_iter()
+        .map(|plan| plan.plan_id)
+        .collect();
+    let expected: Vec<String> = (1..=11).map(|n| format!("plan-{n}")).collect();
+    assert_eq!(ids, expected);
+}

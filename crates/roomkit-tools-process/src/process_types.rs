@@ -32,7 +32,8 @@ impl ProcessStartInput {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessStatusInput {
-    /// Omit to list the owner's running and retained completed processes.
+    /// Omit to list the owner's running and retained completed processes,
+    /// in creation order.
     #[serde(default)]
     pub process_id: Option<String>,
 }

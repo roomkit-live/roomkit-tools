@@ -135,7 +135,7 @@ calls; it does not erase the host-owned backend.
 | Revision | Positive JSON-safe integer, at most 2^53−1 |
 
 Capacity exhaustion is explicit; there is no silent eviction. `plan_list` returns
-all summaries within the bounded scope, ordered by ID in the memory backend.
+all summaries within the bounded scope, in creation order in the memory backend.
 List results are bounded below 256 KiB including JSON escaping. Unknown input
 fields and invalid step IDs/statuses are rejected before storage is called.
 

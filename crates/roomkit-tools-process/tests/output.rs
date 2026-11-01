@@ -69,6 +69,32 @@ async fn recover_full_binary_output_without_rerunning_a_command() {
 }
 
 #[tokio::test]
+async fn listing_follows_creation_order_past_nine_archives() {
+    let root = tempfile::tempdir().unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let store = OutputStore::new(storage.path(), OutputLimits::default())
+        .await
+        .unwrap();
+    let shell = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_output_store(store.clone());
+    let cancel = CancellationToken::new();
+    for _ in 0..6 {
+        shell.shell(ShellInput::new("true"), &cancel).await.unwrap();
+    }
+    let listed: Vec<String> = store
+        .list("default", &cancel)
+        .unwrap()
+        .into_iter()
+        .map(|archive| archive.archive_id.unwrap())
+        .collect();
+    let expected: Vec<String> = (1..=12).map(|n| format!("o{n}")).collect();
+    assert_eq!(listed, expected);
+    assert!(store.close().await);
+}
+
+#[tokio::test]
 async fn store_directory_is_private_to_the_host_user() {
     use std::os::unix::fs::PermissionsExt;
 

@@ -217,6 +217,43 @@ async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
 }
 
 #[tokio::test]
+async fn status_and_observation_follow_creation_order_past_nine_jobs() {
+    let root = tempfile::tempdir().unwrap();
+    let mut limits = ProcessLimits::default();
+    limits.max_processes_per_owner = 11;
+    let manager = ProcessManager::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(limits)
+        .unwrap();
+    let token = CancellationToken::new();
+    for _ in 0..11 {
+        manager
+            .start("a", ProcessStartInput::new("true"), &token)
+            .await
+            .unwrap();
+    }
+    let expected: Vec<String> = (1..=11).map(|n| format!("p{n}")).collect();
+    let listed: Vec<String> = manager
+        .status("a", ProcessStatusInput::default(), &token)
+        .await
+        .unwrap()
+        .data
+        .into_iter()
+        .map(|status| status.process_id)
+        .collect();
+    assert_eq!(listed, expected);
+    let observed: Vec<String> = manager
+        .observe()
+        .await
+        .into_iter()
+        .map(|process| process.status.process_id)
+        .collect();
+    assert_eq!(observed, expected);
+    assert!(manager.close().await);
+}
+
+#[tokio::test]
 #[expect(
     clippy::too_many_lines,
     reason = "one lifecycle exercises quota ownership, retention and release"
