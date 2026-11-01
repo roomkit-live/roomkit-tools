@@ -120,8 +120,30 @@ class ViewImage(_ConfiguredTool):
 
     _tool_type = ViewImageTool
 
-    def __init__(self, root: str | os.PathLike[str], **limits: int | None) -> None:
-        self._configure(root, **limits)
+    def __init__(
+        self,
+        root: str | os.PathLike[str],
+        *,
+        max_file_bytes: int | None = None,
+        max_dimension: int | None = None,
+        max_pixels: int | None = None,
+        max_decode_bytes: int | None = None,
+        max_edge: int | None = None,
+        max_image_bytes: int | None = None,
+        default_timeout_ms: int | None = None,
+        max_timeout_ms: int | None = None,
+    ) -> None:
+        self._configure(
+            root,
+            max_file_bytes=max_file_bytes,
+            max_dimension=max_dimension,
+            max_pixels=max_pixels,
+            max_decode_bytes=max_decode_bytes,
+            max_edge=max_edge,
+            max_image_bytes=max_image_bytes,
+            default_timeout_ms=default_timeout_ms,
+            max_timeout_ms=max_timeout_ms,
+        )
 
     async def _get_tool(self) -> ViewImageTool:
         if self._resolved is None:
@@ -167,8 +189,32 @@ class CodeOutline(_ConfiguredTool):
 
     _tool_type = CodeOutlineTool
 
-    def __init__(self, root: str | os.PathLike[str], **limits: int | None) -> None:
-        self._configure(root, **limits)
+    def __init__(
+        self,
+        root: str | os.PathLike[str],
+        *,
+        max_file_bytes: int | None = None,
+        max_output_bytes: int | None = None,
+        max_symbols: int | None = None,
+        max_scan_symbols: int | None = None,
+        max_scan_nodes: int | None = None,
+        max_depth: int | None = None,
+        max_signature_bytes: int | None = None,
+        default_timeout_ms: int | None = None,
+        max_timeout_ms: int | None = None,
+    ) -> None:
+        self._configure(
+            root,
+            max_file_bytes=max_file_bytes,
+            max_output_bytes=max_output_bytes,
+            max_symbols=max_symbols,
+            max_scan_symbols=max_scan_symbols,
+            max_scan_nodes=max_scan_nodes,
+            max_depth=max_depth,
+            max_signature_bytes=max_signature_bytes,
+            default_timeout_ms=default_timeout_ms,
+            max_timeout_ms=max_timeout_ms,
+        )
 
 
 class Read(_ConfiguredTool):
@@ -541,19 +587,43 @@ class WebSearch(_ToolAdapter):
 
 
 class Ocr(_ToolAdapter):
-    """Select local OCR with an explicit, independently installed backend."""
+    """Select local OCR with an explicit, independently installed backend.
+
+    Limits are the engine-independent host bounds; omitted ones use Rust
+    defaults. The backend binds the root and validates them on first use.
+    """
 
     _tool_type = OcrTool
 
     def __init__(
-        self, root: str | os.PathLike[str], *, backend: OcrBackend, **limits: int | None
+        self,
+        root: str | os.PathLike[str],
+        *,
+        backend: OcrBackend,
+        max_file_bytes: int | None = None,
+        max_dimension: int | None = None,
+        max_pixels: int | None = None,
+        max_decode_bytes: int | None = None,
+        max_output_bytes: int | None = None,
+        max_blocks: int | None = None,
+        default_timeout_ms: int | None = None,
+        max_timeout_ms: int | None = None,
     ) -> None:
         path = os.fspath(root)
         if not path:
             raise InvalidInputError("root must not be empty")
         self._root = os.path.abspath(path)
         self._backend = backend
-        self._limits = limits
+        self._limits = {
+            "max_file_bytes": max_file_bytes,
+            "max_dimension": max_dimension,
+            "max_pixels": max_pixels,
+            "max_decode_bytes": max_decode_bytes,
+            "max_output_bytes": max_output_bytes,
+            "max_blocks": max_blocks,
+            "default_timeout_ms": default_timeout_ms,
+            "max_timeout_ms": max_timeout_ms,
+        }
         self._resolved: OcrTool | None = None
 
     async def _get_tool(self) -> OcrTool:

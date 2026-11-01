@@ -22,3 +22,23 @@ class RoomKitOcrTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(backend.calls, [{"path": "page.png"}])
             with self.assertRaises(UnservedToolCallError):
                 await handler("read", {"path": "page.png"})
+
+    async def test_limits_are_explicit_keywords_forwarded_when_set(self):
+        backend = Backend()
+        with tempfile.TemporaryDirectory() as root:
+            # A misspelled limit fails at construction, not on every model call.
+            with self.assertRaises(TypeError):
+                Ocr(root, backend=backend, max_block=4)
+            limits = {
+                "max_file_bytes": 1,
+                "max_dimension": 2,
+                "max_pixels": 3,
+                "max_decode_bytes": 4,
+                "max_output_bytes": 5,
+                "max_blocks": 6,
+                "default_timeout_ms": 7,
+                "max_timeout_ms": 8,
+            }
+            await Ocr(root, backend=backend, **limits).handler("ocr", {"path": "page.png"})
+            await Ocr(root, backend=backend, max_blocks=4).handler("ocr", {"path": "page.png"})
+            self.assertEqual([bound for _, bound in backend.bindings], [limits, {"max_blocks": 4}])

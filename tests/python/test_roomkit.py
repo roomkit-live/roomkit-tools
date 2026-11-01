@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import os
 import tempfile
@@ -22,17 +23,38 @@ from roomkit.providers.ai.mock import MockAIProvider
 from roomkit.tools.base import Tool
 from roomkit.tools.compose import extract_tools
 from roomkit_tools import (
+    CodeOutline,
+    CodeOutlineTool,
+    Diff,
+    DiffTool,
+    Edit,
+    EditTool,
     Glob,
     GlobTool,
     Grep,
     GrepTool,
     List,
     ListTool,
+    Patch,
+    PatchTool,
     Read,
     ReadTool,
     ToolIOError,
+    ViewImage,
+    ViewImageTool,
+    Write,
+    WriteTool,
 )
 from roomkit_tools.roomkit import ReadToolAdapter
+
+
+def keyword_options(function) -> list[str]:
+    """Keyword-only parameter names; a catch-all appears as **name."""
+    return [
+        f"**{p.name}" if p.kind is inspect.Parameter.VAR_KEYWORD else p.name
+        for p in inspect.signature(function).parameters.values()
+        if p.kind in (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD)
+    ]
 
 
 class RoomKitTests(unittest.IsolatedAsyncioTestCase):
@@ -69,6 +91,25 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
             await self.adapter.handler("read", {"path": "binary"})
         with self.assertRaises(ToolIOError):
             await self.adapter.handler("read", {"path": "missing"})
+
+    def test_adapters_take_the_standalone_limits_by_keyword(self) -> None:
+        for adapter, standalone in [
+            (ViewImage, ViewImageTool),
+            (CodeOutline, CodeOutlineTool),
+            (Read, ReadTool),
+            (List, ListTool),
+            (Glob, GlobTool),
+            (Grep, GrepTool),
+            (Diff, DiffTool),
+            (Write, WriteTool),
+            (Edit, EditTool),
+            (Patch, PatchTool),
+        ]:
+            with self.subTest(adapter=adapter.__name__):
+                self.assertEqual(keyword_options(adapter), keyword_options(standalone.create))
+                # A misspelled limit fails at construction, not on every model call.
+                with self.assertRaises(TypeError):
+                    adapter(self.root, max_pixel=1)
 
     async def test_direct_tool_protocol_schema_and_limits(self) -> None:
         tool = Read(self.root, max_lines=1)
