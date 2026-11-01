@@ -83,7 +83,8 @@ pub struct ProcessWriteInput {
     pub close_stdin: bool,
 }
 
-/// Stop a process group, optionally releasing its retained state and output.
+/// Stop a process group with SIGKILL, optionally releasing its retained state
+/// and output. There is no graceful phase before the kill.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessStopInput {

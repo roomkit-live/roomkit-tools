@@ -259,7 +259,7 @@ impl ProcessManager {
     pub fn stop_definition() -> Definition {
         Definition::new::<ProcessStopInput, ProcessStopResult>(
             "process_stop",
-            "Stop an owned process group and await bounded cleanup. Set forget=true to release the completed process record and all retained output. Check status.state and forgotten. Repeated stop of a retained completed job is safe.",
+            "Stop an owned process group immediately with SIGKILL: no graceful shutdown, so the command cannot save state or clean up. Awaits bounded cleanup. Set forget=true to release the completed process record and all retained output. Check status.state and forgotten. Repeated stop of a retained completed job is safe.",
         )
     }
 
@@ -536,7 +536,8 @@ impl ProcessManager {
         Ok(Output::new(data, text))
     }
 
-    /// Request group termination, wait up to two seconds and optionally forget.
+    /// Send SIGKILL to the process group, wait up to two seconds and optionally
+    /// forget. There is no graceful phase: the command gets no chance to clean up.
     ///
     /// # Errors
     /// Rejects unknown/foreign identifiers and pre-call cancellation. Once stop is

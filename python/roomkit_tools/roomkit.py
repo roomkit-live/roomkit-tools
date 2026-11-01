@@ -521,7 +521,7 @@ class ProcessWrite(_ProcessAdapter):
 
 
 class ProcessStop(_ProcessAdapter):
-    """Stop and optionally forget a retained job in the supplied ProcessSession."""
+    """Stop (SIGKILL, no graceful phase) and optionally forget a job in a ProcessSession."""
 
     _name = "process_stop"
 

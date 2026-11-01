@@ -47,7 +47,9 @@ Timeout, cancellation and normal shell exit stop the Unix process group and
 reap the direct child. Processes that deliberately leave that group are outside
 this cleanup mechanism, as are members the host cannot signal, such as ones left
 running under other credentials (`sudo -b`); the command's exit status and
-output are still returned. Cancelling a Python task raises `CancelledError` and
+output are still returned. Stopping a group sends SIGKILL to every member at
+once: there is no SIGTERM grace period, so a command cannot save state or
+remove its own temporary files when stopped. Cancelling a Python task raises `CancelledError` and
 requests cleanup in the owned Rust worker; cleanup can finish after that
 exception is delivered. Keep the host process/native runtime alive for cleanup;
 already-performed effects are not rolled back. Linux is validated. The existing
@@ -121,8 +123,9 @@ All bounds must be positive. Per-owner quota cannot exceed total quota, the
 write deadline cannot exceed 60 seconds, and default lifetime cannot exceed
 the maximum (at most 24 hours). A requested lifetime is capped by the host.
 Completed jobs retain output and consume quota until `stop(..., forget=True)`
-or session shutdown. `stop` targets the Unix process group, waits up to two
-seconds and reports `forgotten=False` if cleanup is still pending.
+or session shutdown. `stop` sends SIGKILL to the Unix process group at once,
+without a graceful phase, waits up to two seconds and reports `forgotten=False`
+if cleanup is still pending. Lifetime expiry and `close()` stop jobs the same way.
 
 `await processes.close()` permanently closes the session, stops owned jobs and
 waits up to two seconds: `True` means cleanup finished and records were released;

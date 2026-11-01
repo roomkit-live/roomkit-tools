@@ -302,8 +302,9 @@ class ProcessSession:
         )
 
     async def stop(self, process_id: str, *, forget: bool = False) -> dict[str, Any]:
-        """Stop the process group, waiting at most two seconds for cleanup.
+        """Send SIGKILL to the process group and wait at most two seconds for cleanup.
 
+        There is no graceful phase: the command cannot save state or clean up.
         forget=True releases completed records/output and invalidates the ID.
         If cleanup is still running, forgotten remains false; inspect status.
         """
