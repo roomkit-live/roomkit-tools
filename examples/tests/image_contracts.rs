@@ -1,4 +1,6 @@
 //! Complete Rust/Python parity for image pixels, metadata and refusals.
+use std::path::Path;
+
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use roomkit_tools_core::Error;
@@ -35,7 +37,7 @@ async fn shared_image_contracts() {
             Ok(input) => tool.view(input, &cancel).await,
             Err(error) => Err(Error::InvalidInput(error.to_string())),
         };
-        let mut result = match result {
+        let result = match result {
             Ok(output) => serde_json::to_value(output).unwrap(),
             Err(error) => json!({"error": match error {
                 Error::InvalidInput(_) => "invalid_input", Error::Refused(_) => "refused",
@@ -43,16 +45,15 @@ async fn shared_image_contracts() {
                 Error::Cancelled => "cancelled", Error::Io { .. } => "io", _ => "unknown",
             }}),
         };
-        // Normalize both the structured path and the metadata-only rendering.
-        for pointer in ["/data/path", "/text"] {
-            if let Some(value) = result.pointer_mut(pointer) {
-                *value = json!(
-                    value
-                        .as_str()
-                        .unwrap()
-                        .replace(root.path().to_str().unwrap(), "$ROOT")
-                );
-            }
+        // The structured path and the metadata-only rendering name the image
+        // relative to the workspace, never by host path.
+        assert!(
+            !result.to_string().contains(root.path().to_str().unwrap()),
+            "{}: {result}",
+            case["name"]
+        );
+        if let Some(path) = result.pointer("/data/path") {
+            assert!(!Path::new(path.as_str().unwrap()).is_absolute(), "{path}");
         }
         for (pointer, expected) in case["expect"].as_object().unwrap() {
             assert_eq!(

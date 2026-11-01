@@ -1,4 +1,6 @@
 //! Shared syntax cases compare complete Rust/Python envelopes and source ranges.
+use std::path::Path;
+
 use roomkit_tools_code::{CodeOutlineInput, CodeOutlineTool};
 use roomkit_tools_core::Error;
 use serde_json::{Value, json};
@@ -29,7 +31,7 @@ async fn shared_outline_contracts() {
             Ok(input) => tool.outline(input, &token).await,
             Err(error) => Err(Error::InvalidInput(error.to_string())),
         };
-        let mut result = match result {
+        let result = match result {
             Ok(output) => serde_json::to_value(output).unwrap(),
             Err(error) => json!({"error": match error {
                 Error::InvalidInput(_) => "invalid_input", Error::Refused(_) => "refused",
@@ -37,12 +39,14 @@ async fn shared_outline_contracts() {
                 Error::Cancelled => "cancelled", Error::Io {..} => "io", _ => "unknown",
             }}),
         };
-        if let Some(path) = result.pointer_mut("/data/path") {
-            *path = json!(
-                path.as_str()
-                    .unwrap()
-                    .replace(root.path().to_str().unwrap(), "$ROOT")
-            );
+        // Results name the file relative to the workspace, never by host path.
+        assert!(
+            !result.to_string().contains(root.path().to_str().unwrap()),
+            "{}: {result}",
+            case["name"]
+        );
+        if let Some(path) = result.pointer("/data/path") {
+            assert!(!Path::new(path.as_str().unwrap()).is_absolute(), "{path}");
         }
         for (pointer, expected) in case["expect"].as_object().unwrap() {
             assert_eq!(

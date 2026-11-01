@@ -105,11 +105,24 @@ fn error_name(error: &Error) -> &str {
     }
 }
 
-fn normalize(value: &mut Value, root: &str) {
+/// Replace the host root in `cwd`, a command's working directory and the
+/// only result that names a host path. Anywhere else the root fails the
+/// test, and `path` and `to` must be relative: results name files relative
+/// to the workspace.
+fn normalize(value: &mut Value, root: &str, key: Option<&str>) {
     match value {
-        Value::String(text) => *text = text.replace(root, "$ROOT"),
-        Value::Array(values) => values.iter_mut().for_each(|v| normalize(v, root)),
-        Value::Object(values) => values.values_mut().for_each(|v| normalize(v, root)),
+        Value::String(text) if key == Some("cwd") => *text = text.replace(root, "$ROOT"),
+        Value::String(text) => {
+            let absolute = matches!(key, Some("path" | "to")) && Path::new(text).is_absolute();
+            assert!(
+                !absolute && !text.contains(root),
+                "host path in a result at {key:?}: {text}"
+            );
+        }
+        Value::Array(values) => values.iter_mut().for_each(|v| normalize(v, root, key)),
+        Value::Object(values) => values
+            .iter_mut()
+            .for_each(|(k, v)| normalize(v, root, Some(k))),
         Value::Null | Value::Bool(_) | Value::Number(_) => {}
     }
 }
@@ -231,7 +244,7 @@ async fn run_case(root: &Path, case: &Value, reports: &mut BTreeMap<String, Valu
                 Ok(output) => output,
                 Err(error) => json!({"error": error_name(&error)}),
             };
-        normalize(&mut result, root.to_str().unwrap());
+        normalize(&mut result, root.to_str().unwrap(), None);
         for (pointer, expected) in step["expect"].as_object().unwrap() {
             assert_eq!(result.pointer(pointer), Some(expected), "{name}: {step}");
         }
