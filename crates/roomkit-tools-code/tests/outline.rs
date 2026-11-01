@@ -69,6 +69,31 @@ async fn explicit_override_does_not_bypass_path_or_regular_text_checks() {
 }
 
 #[tokio::test]
+async fn sources_above_512_kib_are_refused_by_default_before_parsing() {
+    let root = tempfile::tempdir().unwrap();
+    let limit = CodeOutlineLimits::default().max_file_bytes;
+    assert_eq!(limit, 512 * 1024);
+    // One comment node: cheap to parse, so only the input bound can refuse it.
+    let comment = |length: usize| format!("# {}\n", "a".repeat(length - 3));
+    std::fs::write(root.path().join("large.py"), comment(limit + 1)).unwrap();
+    std::fs::write(root.path().join("small.py"), comment(limit)).unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let refused = tool
+        .outline(CodeOutlineInput::new("large.py"), &token)
+        .await;
+    assert!(
+        matches!(&refused, Err(Error::LimitExceeded(message)) if message.contains("max_file_bytes")),
+        "{refused:?}"
+    );
+    let accepted = tool
+        .outline(CodeOutlineInput::new("small.py"), &token)
+        .await
+        .unwrap();
+    assert_eq!(accepted.data.total_symbols, 0);
+}
+
+#[tokio::test]
 async fn the_outline_names_its_file_relative_to_the_workspace() {
     let root = tempfile::tempdir().unwrap();
     std::fs::create_dir(root.path().join("src")).unwrap();

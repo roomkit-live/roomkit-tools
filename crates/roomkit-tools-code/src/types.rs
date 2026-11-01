@@ -59,7 +59,9 @@ impl CodeOutlineInput {
 #[serde(default, deny_unknown_fields)]
 #[non_exhaustive]
 pub struct CodeOutlineLimits {
-    /// Maximum UTF-8 source bytes retained for parsing. Default: 2 MiB.
+    /// Maximum UTF-8 source bytes retained for parsing. Default: 512 KiB.
+    /// Parser memory grows with the input: deeply nested invalid source can
+    /// need about 290 bytes per input byte before traversal bounds apply.
     pub max_file_bytes: usize,
     /// Maximum complete serialized data-plus-text output. Default: 64 KiB.
     pub max_output_bytes: usize,
@@ -83,7 +85,7 @@ pub struct CodeOutlineLimits {
 impl Default for CodeOutlineLimits {
     fn default() -> Self {
         Self {
-            max_file_bytes: 2 * 1024 * 1024,
+            max_file_bytes: 512 * 1024,
             max_output_bytes: 64 * 1024,
             max_symbols: 200,
             max_scan_symbols: 5_000,

@@ -48,7 +48,7 @@ and is compatible with the filesystem tools' revisions.
 Inspect `syntax_errors` for parser recovery, `signature_truncated` for shortened
 headers, and `truncated` / `next_offset` for further symbols. Invalid source can
 still yield useful definitions; it is never reported as syntax-error-free.
-Limits default to 2 MiB input, 64 KiB of complete JSON data-plus-text output,
+Limits default to 512 KiB input, 64 KiB of complete JSON data-plus-text output,
 200 symbols per page, 5,000 scanned definitions, 200,000 traversed syntax nodes,
 depth 256 and 1,024 bytes per signature. Oversized names or scan budgets fail;
 signatures clip at UTF-8 boundaries. All bounds are host-configurable.
@@ -57,7 +57,19 @@ The default deadline is 10 seconds, capped at 120 seconds by default. Queuing,
 I/O, parsing and rendering share that deadline. Two worker slots are shared by
 native tool clones; blocking workers retain their slot until cooperative
 cancellation finishes. Whole-file parsing retains source bytes and a syntax
-tree; these limits are not a hard memory sandbox. Paths must resolve to regular
+tree; these limits are not a hard memory sandbox. Tree-sitter builds the whole
+tree before the node and depth bounds can apply, so parser memory follows the
+input size and shape. Measured peak growth per worker slot (VmHWM, Linux x86-64
+release build):
+
+| Input | Peak |
+| --- | --- |
+| Real 229 KB Python file / 184 KB Rust file | about 5 MiB |
+| 512 KiB of nested `(` in Python / `{` in Rust (refused by the depth bound) | 126 MiB / 143 MiB |
+| The same nesting at 2 MiB, above the default | 476 MiB / 561 MiB |
+
+With both slots busy, budget about 290 MiB for the default bounds; raising
+`max_file_bytes` raises this roughly in proportion. Paths must resolve to regular
 files under the configured root, assuming a host-controlled workspace as for
 `read`: a path that lexically leaves the root is refused before any filesystem
 lookup, and symlinks are checked after canonicalization. No filesystem writes
