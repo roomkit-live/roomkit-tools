@@ -222,6 +222,45 @@ class InterpreterShutdownTests(unittest.TestCase):
         self.assertIn("child refused: ForkedProcessError", result.stdout)
         self.assertIn("forked child exited", result.stdout)
 
+    def test_close_in_a_forked_child_is_refused_before_any_effect(self) -> None:
+        if not hasattr(os, "fork"):
+            self.skipTest("os.fork")
+        result = self.run_child("""
+            import asyncio
+            import os
+            import sys
+            import warnings
+            from roomkit_tools import ForkedProcessError, OutputStore, ProcessSession
+
+            # Forking a process with native threads is the scenario under test.
+            warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+            async def open_resources():
+                outputs = await OutputStore(sys.argv[1]).__aenter__()
+                session = await ProcessSession(sys.argv[1], outputs=outputs).__aenter__()
+                return session, outputs
+
+            session, outputs = asyncio.run(open_resources())
+            pid = os.fork()
+            if pid == 0:
+                for resource in (session, outputs):
+                    name = type(resource).__name__
+                    try:
+                        asyncio.run(resource.close())
+                    except ForkedProcessError:
+                        print(f'{name} refused; closed={resource.closed}', flush=True)
+                os._exit(0)
+            assert os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]) == 0
+
+            async def close():
+                assert await session.close()
+                assert await outputs.close()
+
+            asyncio.run(close())
+        """)
+        self.assertIn("ProcessSession refused; closed=False", result.stdout)
+        self.assertIn("OutputStore refused; closed=False", result.stdout)
+
     def test_importing_registers_no_fork_hook(self) -> None:
         if not hasattr(os, "register_at_fork"):
             self.skipTest("os.register_at_fork")

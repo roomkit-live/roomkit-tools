@@ -12,7 +12,7 @@ use serde::Deserialize;
 use tokio::sync::OnceCell;
 use tokio_util::sync::CancellationToken;
 
-use super::{Cancellation, InvalidInputError, ShellOptions, ToolError, tool_error};
+use super::{Cancellation, InvalidInputError, ShellOptions, ToolError, fork, tool_error};
 
 // The owner of standalone Python calls. RoomKit handlers pass the trusted
 // owner of each call, derived from its room and acting agent.
@@ -78,6 +78,11 @@ pub(super) struct PythonOutputStore {
 
 impl Drop for PythonOutputStore {
     fn drop(&mut self) {
+        // A forked child's copied runtime has no thread to run cleanup, and
+        // its locks may be held by threads the child lacks.
+        if fork::is_forked() {
+            return;
+        }
         self.state.closed.cancel();
         if let Some(store) = self.state.store.get().cloned() {
             pyo3_async_runtimes::tokio::get_runtime().spawn(async move {
@@ -164,6 +169,8 @@ impl PythonOutputStore {
     }
 
     fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // A forked child refuses before it changes any state.
+        fork::ensure_unforked()?;
         self.state.closed.cancel();
         let worker = self.state.store.get().cloned().map(|store| {
             pyo3_async_runtimes::tokio::get_runtime().spawn(async move { store.close().await })

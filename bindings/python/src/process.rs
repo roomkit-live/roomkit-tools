@@ -14,7 +14,7 @@ use serde::Deserialize;
 use tokio::sync::OnceCell;
 use tokio_util::sync::CancellationToken;
 
-use super::{Cancellation, InvalidInputError, ToolError, tool_error};
+use super::{Cancellation, InvalidInputError, ToolError, fork, tool_error};
 
 // Standalone calls use this owner; RoomKit handlers pass the trusted owner of
 // each call. Neither the manager nor an owner is selected by model arguments.
@@ -143,6 +143,11 @@ pub(super) struct PythonProcessSession {
 
 impl Drop for PythonProcessSession {
     fn drop(&mut self) {
+        // A forked child's copied runtime has no thread to run cleanup, and
+        // its locks may be held by threads the child lacks.
+        if fork::is_forked() {
+            return;
+        }
         self.state.closed.cancel();
         if let Some(manager) = self.state.manager.get().cloned() {
             // No Python calls in this worker. Prefer explicit close: interpreter
@@ -260,6 +265,8 @@ impl PythonProcessSession {
     }
 
     fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // A forked child refuses before it changes any state.
+        fork::ensure_unforked()?;
         // Mark closed and start the worker synchronously: cancellation or never
         // awaiting the returned Python future cannot abandon shutdown.
         self.state.closed.cancel();
