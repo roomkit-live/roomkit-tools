@@ -57,7 +57,21 @@ is 10 seconds, including queueing and I/O, with a 120-second per-call maximum.
 These are configurable host limits. The decoder allocation setting is not a
 total process memory quota. Two worker slots are shared by clones of each tool;
 cancellation/deadlines return promptly, but decode/resize cannot be interrupted
-mid-stage and retain their slot until they stop. A path that lexically leaves
+mid-stage and retain their slot until they stop.
+
+Peak memory per slot exceeds `max_decode_bytes`: the decoded image, an
+orientation copy and the resize filter's 32-bit float intermediate can be alive
+together. Measured peak growth for 4096×4096 sources at the defaults (VmHWM,
+Linux x86-64 release build):
+
+| Source | Decoded | Peak |
+| --- | --- | --- |
+| 8-bit RGB PNG, or JPEG with EXIF rotation | 48 MiB | 189 MiB |
+| 8-bit RGBA PNG | 64 MiB | 208 MiB |
+| 16-bit RGBA PNG (the `max_decode_bytes` limit) | 128 MiB | 289 MiB |
+
+Budget about 2.25 × `max_decode_bytes` per slot, so roughly 580 MiB with both
+slots busy at the defaults. A path that lexically leaves
 the root is refused before any filesystem lookup; symlinks are checked after
 canonicalization. Root containment assumes a host-controlled workspace, not
 hostile concurrent path replacement or an OS sandbox.

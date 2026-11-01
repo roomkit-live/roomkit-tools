@@ -103,7 +103,8 @@ pub struct ViewImageLimits {
     pub max_dimension: usize,
     /// Maximum source pixel count (default 16,777,216).
     pub max_pixels: usize,
-    /// Best-effort decoder allocation bound (default 128 MiB).
+    /// Best-effort decoder allocation bound (default 128 MiB). Orientation and
+    /// resizing allocate beyond it: a call can peak near 2.25 times this value.
     pub max_decode_bytes: usize,
     /// Maximum preview width or height (default 2,048); no upscaling.
     pub max_edge: usize,
