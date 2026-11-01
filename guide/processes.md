@@ -272,8 +272,9 @@ forget/close. There is no silent eviction or unlimited queue.
 Completed logs survive process `forget` and `ProcessSession.close()`.
 `output_forget` refuses active capture/writers, then invalidates the ID and frees
 its reservation. The host's `await outputs.list()` recovers the standalone
-owner's IDs, in creation order, after a cancelled command response. `await outputs.close()` permanently refuses reads and new
-records, stops writers and releases retained files; it does not stop commands.
+owner's IDs, in creation order, after a cancelled command response.
+`await outputs.close()` permanently refuses reads and new records, stops
+writers and releases retained files; it does not stop commands.
 It waits up to two seconds for writers; `False` means cleanup needs another
 close attempt. An issued close continues if its Python awaiter is cancelled.
 Already-issued filesystem work can outlive cancellation; last-reference cleanup
