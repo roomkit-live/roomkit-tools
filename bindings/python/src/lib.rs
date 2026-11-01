@@ -21,44 +21,39 @@ mod fork;
 mod ocr;
 mod plans;
 
+pyo3::create_exception!(roomkit_tools, ToolError, PyException, "Base tool failure.");
 pyo3::create_exception!(
-    "roomkit_tools",
-    ToolError,
-    PyException,
-    "Base tool failure."
-);
-pyo3::create_exception!(
-    "roomkit_tools",
+    roomkit_tools,
     InvalidInputError,
     ToolError,
     "Invalid tool input."
 );
 pyo3::create_exception!(
-    "roomkit_tools",
+    roomkit_tools,
     AccessRefusedError,
     ToolError,
     "Access was refused."
 );
 pyo3::create_exception!(
-    "roomkit_tools",
+    roomkit_tools,
     LimitExceededError,
     ToolError,
     "A host limit was exceeded."
 );
 pyo3::create_exception!(
-    "roomkit_tools",
+    roomkit_tools,
     UnsupportedResourceError,
     ToolError,
     "Unsupported resource."
 );
 pyo3::create_exception!(
-    "roomkit_tools",
+    roomkit_tools,
     ToolIOError,
     ToolError,
     "An I/O operation failed."
 );
 pyo3::create_exception!(
-    "roomkit_tools",
+    roomkit_tools,
     ForkedProcessError,
     ToolError,
     "Native tools are unusable in a process forked after its parent's first native call."

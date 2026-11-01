@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import pickle
 import tempfile
 import unittest
 from contextlib import nullcontext
@@ -15,6 +16,7 @@ from roomkit_tools import (
     AccessRefusedError,
     DiffTool,
     EditTool,
+    ForkedProcessError,
     GlobTool,
     GrepTool,
     InvalidInputError,
@@ -25,6 +27,7 @@ from roomkit_tools import (
     ProcessSession,
     ReadTool,
     ShellTool,
+    ToolError,
     ToolIOError,
     UnsupportedResourceError,
     Workspace,
@@ -196,3 +199,18 @@ class NativeModuleTests(unittest.TestCase):
             if cls.__module__ != "roomkit_tools._native"
         }
         self.assertEqual(misplaced, {})
+
+    def test_errors_report_the_package_and_survive_pickling(self) -> None:
+        errors = [
+            value
+            for value in vars(_native).values()
+            if isinstance(value, type) and issubclass(value, ToolError)
+        ]
+        self.assertIn(ForkedProcessError, errors)
+        for error in errors:
+            with self.subTest(error=error.__name__):
+                self.assertEqual(error.__module__, "roomkit_tools")
+                # Process pools send exceptions between interpreters by pickling.
+                restored = pickle.loads(pickle.dumps(error("message")))
+                self.assertIs(type(restored), error)
+                self.assertEqual(str(restored), "message")
