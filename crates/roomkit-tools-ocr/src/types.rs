@@ -87,7 +87,7 @@ pub struct OcrBlock {
 /// Bounded transcription with source identity and explicit image transforms.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct OcrResult {
-    /// Canonical source path.
+    /// Workspace-relative source path, usable by the other tools.
     pub path: String,
     /// SHA-256 of the original encoded bytes, before transforms.
     pub revision: String,

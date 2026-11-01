@@ -233,3 +233,28 @@ async fn cancelling_a_caller_keeps_the_shared_slot_until_native_work_ends() {
         .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 2);
 }
+
+#[tokio::test]
+async fn results_name_the_image_relative_to_the_workspace() {
+    let root = fixture_root();
+    std::fs::create_dir(root.path().join("scans")).unwrap();
+    std::fs::copy(
+        root.path().join("image.png"),
+        root.path().join("scans/page.png"),
+    )
+    .unwrap();
+    let tool = OcrTool::new(root.path(), OcrEngine::new(fixture()).unwrap())
+        .await
+        .unwrap();
+    let cancel = CancellationToken::new();
+    let absolute = root.path().join("image.png");
+    for (request, expected) in [
+        ("image.png", "image.png"),
+        ("scans/page.png", "scans/page.png"),
+        (absolute.to_str().unwrap(), "image.png"),
+    ] {
+        let result = tool.ocr(input(request), &cancel).await.unwrap();
+        assert_eq!(result.data.path, expected);
+        assert!(result.text.starts_with(&format!("OCR {expected:?}")));
+    }
+}

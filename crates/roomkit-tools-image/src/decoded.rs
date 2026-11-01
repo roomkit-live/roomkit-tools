@@ -40,6 +40,15 @@ impl ImageWorkspace {
         }
         source::load(&self.root, path, maximum).await
     }
+
+    /// Name a path returned by [`ImageWorkspace::load`] relative to the root,
+    /// with `.` for the root itself, so results never expose host paths.
+    ///
+    /// # Errors
+    /// Refuses a path outside the root and rejects a non-UTF-8 name.
+    pub fn relative(&self, path: &Path) -> Result<String, Error> {
+        self.root.relative(path)
+    }
 }
 
 /// Full-resolution, oriented RGB pixels. Alpha is composited on white.

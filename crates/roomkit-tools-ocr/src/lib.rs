@@ -188,6 +188,7 @@ impl OcrTool {
             .workspace
             .load(&input.path, self.limits.max_file_bytes)
             .await?;
+        let path = self.workspace.relative(&path)?;
         let engine = self.engine.clone();
         let limits = self.limits;
         tokio::task::spawn_blocking(move || {
@@ -229,7 +230,7 @@ impl OcrTool {
             };
             check()?;
             let result = OcrResult {
-                path: path.to_string_lossy().into_owned(),
+                path,
                 revision,
                 backend: identity,
                 original_width: image.original_width,
