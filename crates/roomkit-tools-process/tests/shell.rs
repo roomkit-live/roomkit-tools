@@ -259,6 +259,20 @@ async fn stopped(ids: &[u32]) {
     .unwrap();
 }
 
+/// Whether `id` is reaped within five seconds: its `/proc` entry is gone,
+/// not only a zombie.
+#[cfg(target_os = "linux")]
+async fn reaped(id: u32) -> bool {
+    let entry = format!("/proc/{id}");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while tokio::fs::try_exists(&entry).await.unwrap_or(true) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .is_ok()
+}
+
 #[cfg(target_os = "linux")]
 #[tokio::test]
 async fn cancellation_and_dropped_call_stop_the_shell_and_its_background_child() {
@@ -283,10 +297,9 @@ async fn cancellation_and_dropped_call_stop_the_shell_and_its_background_child()
             assert!(matches!(task.await.unwrap(), Err(Error::Cancelled)));
         }
         stopped(&ids).await;
-        assert!(
-            !Path::new(&format!("/proc/{}", ids[0])).exists(),
-            "direct shell was not reaped"
-        );
+        // A dropped call leaves the reaping to its detached worker, so the
+        // shell can still be a zombie when `stopped` returns.
+        assert!(reaped(ids[0]).await, "direct shell was not reaped");
     }
 }
 
