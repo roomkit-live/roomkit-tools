@@ -95,6 +95,17 @@ links. `HTMLMARK_DOCUMENTS` and `HTMLMARK_SEED` run it further:
 HTMLMARK_DOCUMENTS=50000 HTMLMARK_SEED=7 cargo test --release -p htmlmark --test commonmark
 ```
 
+Two [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz) targets in `fuzz/`
+need a nightly toolchain. `convert` feeds arbitrary input with random limits
+and checks that nothing panics and the output stays within its limit;
+`read_back` checks the same read-back property as the test above, guided by
+coverage instead of a generator:
+
+```sh
+cd crates/htmlmark
+cargo +nightly fuzz run read_back -- -dict=fuzz/html.dict -max_len=4096
+```
+
 ## Status
 
 `htmlmark` is developed inside
