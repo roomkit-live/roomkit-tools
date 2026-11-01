@@ -8,8 +8,9 @@ from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
 from .._native import InvalidInputError
+from .._shell import DEFAULT_INHERITED_ENV, ShellTool, _env_options
 from ..output import OutputStore
-from ..process import DEFAULT_INHERITED_ENV, ProcessSession, ShellTool, _env_options
+from ..process import ProcessSession
 from ._adapter import _ConfiguredTool, _ToolAdapter
 
 
