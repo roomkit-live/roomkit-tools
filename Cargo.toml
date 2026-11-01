@@ -22,7 +22,7 @@ roomkit-tools-ocr-rusto = { path = "crates/roomkit-tools-ocr-rusto" }
 rusto-rs = { version = "=0.3.2", default-features = false }
 rten = { version = "0.27", default-features = false, features = ["onnx_format", "rten_format"] }
 rten-tensor = "0.27"
-ndarray = "0.16"
+ndarray = "0.17"
 rayon = "1"
 roomkit-tools-fs = { path = "crates/roomkit-tools-fs" }
 roomkit-tools-process = { path = "crates/roomkit-tools-process" }
