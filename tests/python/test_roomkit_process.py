@@ -40,7 +40,7 @@ from roomkit_tools import (
     Shell,
     ToolIOError,
 )
-from roomkit_tools.roomkit import _roomkit_owner
+from roomkit_tools.roomkit.commands import _roomkit_owner
 
 ADAPTERS = (ProcessStart, ProcessStatus, ProcessRead, ProcessWrite, ProcessStop)
 
