@@ -36,6 +36,7 @@ class Distribution:
     upstream_files: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
+BASE_UPSTREAM = "bindings/python/licenses/upstream"
 OCR_UPSTREAM = "backends/rusto/python/licenses/upstream"
 DISTRIBUTIONS = {
     "roomkit-tools": Distribution(
@@ -47,6 +48,27 @@ DISTRIBUTIONS = {
         ),
         # The license and copyright notices are kept in this file.
         crate_files={"r-efi-6.0.0": ("AUTHORS",)},
+        # Published without their license files; copied from the upstream
+        # repository at the release tag each crate is built from (jni-rs
+        # v0.22.4, jni-sys v0.4.1-macros, rustls-platform-verifier v/0.7.1).
+        upstream_files={
+            "jni-0.22.4": (
+                f"{BASE_UPSTREAM}/jni-0.22.4-APACHE.txt",
+                f"{BASE_UPSTREAM}/jni-0.22.4-MIT.txt",
+            ),
+            "jni-macros-0.22.4": (
+                f"{BASE_UPSTREAM}/jni-0.22.4-APACHE.txt",
+                f"{BASE_UPSTREAM}/jni-0.22.4-MIT.txt",
+            ),
+            "jni-sys-macros-0.4.1": (
+                f"{BASE_UPSTREAM}/jni-sys-macros-0.4.1-APACHE.txt",
+                f"{BASE_UPSTREAM}/jni-sys-macros-0.4.1-MIT.txt",
+            ),
+            "rustls-platform-verifier-android-0.2.0": (
+                f"{BASE_UPSTREAM}/rustls-platform-verifier-android-0.2.0-APACHE.txt",
+                f"{BASE_UPSTREAM}/rustls-platform-verifier-android-0.2.0-MIT.txt",
+            ),
+        },
     ),
     "roomkit-tools-ocr-rusto": Distribution(
         manifest="backends/rusto/python/Cargo.toml",
