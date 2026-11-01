@@ -13,6 +13,8 @@ import zipfile
 from email.parser import BytesParser
 from pathlib import Path
 
+import artifact_files
+
 
 def run(*args, cwd, env=None):
     subprocess.run(args, cwd=cwd, env=env, check=True)
@@ -78,10 +80,6 @@ def main():
             run(sys.executable, script, "check", project["name"], str(notices), cwd=root)
             assert any(n.endswith((".so", ".pyd")) for n in names)
             assert not any(n.endswith((".onnx", ".rten")) for n in names)
-            assert not any(
-                n.startswith(("docs/", "integrations/")) or "bakery" in n or n.endswith("AGENTS.md")
-                for n in names
-            )
             metadata = BytesParser().parsebytes(
                 archive.read(next(n for n in names if n.endswith("/METADATA")))
             )
@@ -94,15 +92,18 @@ def main():
                 any(n.endswith(f".dist-info/licenses/{notice}") for n in names)
                 for notice in metadata.get_all("License-File", [])
             )
+        # Untracked or ignored local files must reach neither artifact.
+        project_path = str(plugin.relative_to(root))
+        artifact_files.check_wheel(
+            wheel,
+            root,
+            "roomkit_tools_ocr_rusto",
+            project=project_path,
+            extra=("licenses/native_dependencies.txt",),
+        )
+        artifact_files.check_sdist(source, root, project=project_path)
         with tarfile.open(source) as archive:
-            names = archive.getnames()
-            assert not any(
-                "/docs/" in n
-                or "/integrations/" in n
-                or "bakery" in n
-                or n.endswith(("/AGENTS.md", ".onnx", ".rten"))
-                for n in names
-            )
+            assert not any(n.endswith((".onnx", ".rten")) for n in archive.getnames())
         reference = work / "rust.json"
         env = {**os.environ, "ROOMKIT_OCR_SOURCE": str(root)}
         models = os.getenv("ROOMKIT_OCR_MODELS")

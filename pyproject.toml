@@ -36,12 +36,12 @@ manifest-path = "bindings/python/Cargo.toml"
 python-source = "python"
 module-name = "roomkit_tools._native"
 features = ["pyo3/extension-module"]
-exclude = ["docs/**", "AGENTS.md", "integrations/**", "scripts/roomkit-bakery.py"]
+exclude = ["docs/**", "AGENTS.md"]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-include = ["python/**/*.py", "tests/python/**/*.py", "examples/*.py", "scripts/check-python.py", "scripts/check-ocr-python.py", "scripts/native-notices.py"]
+include = ["python/**/*.py", "tests/python/**/*.py", "examples/*.py", "scripts/check-python.py", "scripts/check-ocr-python.py", "scripts/native-notices.py", "scripts/artifact_files.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]

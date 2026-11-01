@@ -7,12 +7,13 @@ import argparse
 import os
 import subprocess
 import sys
-import tarfile
 import tempfile
 import tomllib
 import zipfile
 from email.parser import BytesParser
 from pathlib import Path
+
+import artifact_files
 
 NOTICES = "roomkit_tools/licenses/native_dependencies.txt"
 
@@ -170,12 +171,6 @@ def main() -> None:
             assert any(name.endswith((".so", ".pyd")) for name in names), names
             assert "roomkit_tools/py.typed" in names, names
             check_notices(archive, root, work)
-            assert not any(
-                name.startswith(("docs/", "integrations/"))
-                or "bakery" in name
-                or name.endswith("AGENTS.md")
-                for name in names
-            ), names
             metadata = archive.read(next(n for n in names if n.endswith("/METADATA")))
             metadata = BytesParser().parsebytes(metadata)
             assert metadata["Version"] == version, metadata["Version"]
@@ -198,8 +193,10 @@ def main() -> None:
                 dependency.partition(";")[2].strip().replace("'", '"') == 'extra == "roomkit"'
                 for dependency in dependencies
             ), "Core installation must have no Python dependencies"
+        # Untracked or ignored local files must not reach the wheel.
+        artifact_files.check_wheel(wheel, root, "roomkit_tools")
         # An sdist must independently rebuild the mixed package, including path
-        # dependencies, without bringing local planning or integration assets.
+        # dependencies, from tracked files only.
         sources = work / "sources"
         if options.sdist:
             source = options.sdist.resolve()
@@ -217,15 +214,7 @@ def main() -> None:
                 cwd=root,
             )
             (source,) = sources.glob("*.tar.gz")
-        with tarfile.open(source) as archive:
-            names = archive.getnames()
-            assert not any(
-                "/docs/" in name
-                or "/integrations/" in name
-                or "bakery" in name
-                or name.endswith("/AGENTS.md")
-                for name in names
-            ), names
+        artifact_files.check_sdist(source, root)
         # Validate both artifacts independently, including their RoomKit extra.
         for label, package in [("wheel", wheel), ("sdist", source)]:
             environment = work / label

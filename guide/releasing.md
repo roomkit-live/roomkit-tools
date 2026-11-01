@@ -80,7 +80,9 @@ python scripts/check-ocr-python.py \
 ```
 
 The validation scripts install the artifacts independently and compare their
-behavior with fresh Rust reference results. They need Rust and do not upload.
+behavior with fresh Rust reference results. They refuse a wheel or source
+archive holding any file that git does not track, other than build metadata
+and the native module, so run them from the candidate's checkout. They need Rust and do not upload.
 Set `ROOMKIT_OCR_MODELS` to a pre-provisioned model directory to additionally
 check real native recognition and RoomKit delivery; no models are downloaded.
 `twine check` validates metadata and description rendering, not application behavior.
