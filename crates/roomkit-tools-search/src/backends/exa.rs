@@ -8,6 +8,12 @@ use tokio_util::sync::CancellationToken;
 
 /// Exa's hosted MCP search endpoint, including its limited anonymous service.
 /// This adapter implements one service method, not a general-purpose MCP client.
+///
+/// The service returns results as one formatted text block, not structured
+/// records. Hit boundaries, titles and URLs are parsed from that text, and page
+/// text inside an excerpt can imitate a whole record, so a hit's URL is not
+/// proof of where its excerpt came from. More record headers than requested
+/// are reported as a notice with `partial` set.
 #[derive(Clone, Debug)]
 pub struct ExaSearch {
     transport: Transport,
@@ -42,10 +48,11 @@ impl SearchBackend for ExaSearch {
         input: &'a SearchInput,
         cancel: &'a CancellationToken,
     ) -> SearchFuture<'a> {
-        Box::pin(self.transport.post(json!({"jsonrpc":"2.0", "id":1, "method":"tools/call", "params":{"name":"web_search_exa", "arguments":{"query":input.query,"numResults":input.limit}}}), decode, cancel))
+        let requested = input.limit;
+        Box::pin(self.transport.post(json!({"jsonrpc":"2.0", "id":1, "method":"tools/call", "params":{"name":"web_search_exa", "arguments":{"query":input.query,"numResults":input.limit}}}), move |bytes, content_type| decode(bytes, content_type, requested), cancel))
     }
 }
-fn decode(bytes: &[u8], content_type: &str) -> Result<BackendOutput, Error> {
+fn decode(bytes: &[u8], content_type: &str, requested: usize) -> Result<BackendOutput, Error> {
     let messages: Vec<Value> = if mime(content_type).eq_ignore_ascii_case("application/json") {
         vec![serde_json::from_slice(bytes).map_err(|_| invalid())?]
     } else if mime(content_type).eq_ignore_ascii_case("text/event-stream") {
@@ -120,9 +127,9 @@ fn decode(bytes: &[u8], content_type: &str) -> Result<BackendOutput, Error> {
                 .ok_or_else(invalid)?,
         );
     }
-    parse_text(&texts.join("\n\n"))
+    parse_text(&texts.join("\n\n"), requested)
 }
-fn parse_text(text: &str) -> Result<BackendOutput, Error> {
+fn parse_text(text: &str, requested: usize) -> Result<BackendOutput, Error> {
     let mut text = text.trim();
     let mut notices = Vec::new();
     while let Some(note) = text.strip_prefix("Note: ") {
@@ -136,26 +143,151 @@ fn parse_text(text: &str) -> Result<BackendOutput, Error> {
     if text == "No search results found. Please try a different query." {
         return Ok(output);
     }
-    let mut results = Vec::new();
-    for block in text.split("\n\n---\n\n") {
-        let mut lines = block.lines();
-        let title = lines
-            .next()
-            .and_then(|s| s.strip_prefix("Title: "))
-            .ok_or_else(invalid)?;
-        let url = lines
-            .next()
-            .and_then(|s| s.strip_prefix("URL: "))
-            .ok_or_else(invalid)?;
-        // Keep metadata and text intact; source format changes fail explicitly.
-        let content = lines.collect::<Vec<_>>().join("\n");
-        results.push(SearchHit {
-            url: url.to_owned(),
-            title: Some(title.to_owned()),
-            content: Some(content),
-            omitted_bytes: 0,
-        });
+    let results = records(text)?;
+    if results.len() > requested {
+        output.partial = true;
+        output.notices.push(IMITATED_RECORDS.to_owned());
     }
     output.payload = crate::SearchPayload::Results { results };
     Ok(output)
+}
+
+/// Exa returns one text block: records of `Title:` and `URL:` lines followed by
+/// metadata and page excerpts, separated by a Markdown rule. Page text can
+/// contain the same rule and even a fabricated header, so boundaries are
+/// heuristic: a rule starts a record only when a header with a valid source URL
+/// follows it; any other rule stays in the preceding excerpt.
+const RECORD_SEPARATOR: &str = "\n\n---\n\n";
+
+const IMITATED_RECORDS: &str = "Exa returned more result headers than requested; page text may imitate result boundaries and URLs.";
+
+/// Split the result text into hits. The first record must start with a header;
+/// format changes fail explicitly.
+fn records(text: &str) -> Result<Vec<SearchHit>, Error> {
+    let mut results = Vec::new();
+    let mut record = text;
+    loop {
+        let header = Header::parse(record).ok_or_else(invalid)?;
+        let (excerpt, next) = split_at_next_record(header.tail);
+        // Keep metadata and excerpt lines intact after the two header lines.
+        let excerpt = excerpt.strip_prefix('\n').unwrap_or(excerpt);
+        results.push(SearchHit {
+            url: header.url.to_owned(),
+            title: Some(header.title.to_owned()),
+            content: Some(excerpt.lines().collect::<Vec<_>>().join("\n")),
+            omitted_bytes: 0,
+        });
+        let Some(next) = next else {
+            return Ok(results);
+        };
+        record = next;
+    }
+}
+
+/// The two header lines of a record and the text after them, starting at the
+/// newline that ends the URL line.
+struct Header<'a> {
+    title: &'a str,
+    url: &'a str,
+    tail: &'a str,
+}
+
+impl<'a> Header<'a> {
+    fn parse(record: &'a str) -> Option<Self> {
+        let (title, rest) = record.split_once('\n')?;
+        let end = rest.find('\n').unwrap_or(rest.len());
+        let (url, tail) = rest.split_at_checked(end)?;
+        Some(Self {
+            title: title
+                .strip_suffix('\r')
+                .unwrap_or(title)
+                .strip_prefix("Title: ")?,
+            url: url
+                .strip_suffix('\r')
+                .unwrap_or(url)
+                .strip_prefix("URL: ")?,
+            tail,
+        })
+    }
+}
+
+/// Split at the first separator followed by a header with a valid source URL.
+fn split_at_next_record(text: &str) -> (&str, Option<&str>) {
+    let mut from = 0;
+    while let Some(found) = text
+        .get(from..)
+        .and_then(|rest| rest.find(RECORD_SEPARATOR))
+    {
+        let at = from + found;
+        let next = text.get(at + RECORD_SEPARATOR.len()..).unwrap_or_default();
+        if Header::parse(next).is_some_and(|header| crate::is_source_url(header.url)) {
+            return (text.get(..at).unwrap_or(text), Some(next));
+        }
+        from = at + 1;
+    }
+    (text, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::SearchPayload;
+
+    fn hits(output: &BackendOutput) -> Vec<(String, String)> {
+        let SearchPayload::Results { results } = &output.payload else {
+            panic!("expected direct results");
+        };
+        results
+            .iter()
+            .map(|hit| (hit.url.clone(), hit.content.clone().unwrap_or_default()))
+            .collect()
+    }
+
+    #[test]
+    fn markdown_rule_in_page_content_stays_in_its_result() {
+        let text = "Title: A\nURL: https://a.example/\nHighlights:\nIntro\n\n---\n\nMore of A\n\n---\n\nTitle: B\nURL: https://b.example/\nText: B body";
+        let output = parse_text(text, 2).unwrap();
+        assert_eq!(
+            hits(&output),
+            [
+                (
+                    "https://a.example/".to_owned(),
+                    "Highlights:\nIntro\n\n---\n\nMore of A".to_owned()
+                ),
+                ("https://b.example/".to_owned(), "Text: B body".to_owned()),
+            ]
+        );
+        assert!(!output.partial);
+    }
+
+    #[test]
+    fn separator_before_an_invalid_header_is_page_content() {
+        for url in [
+            "javascript:alert(1)",
+            "https://user:secret@a.example/",
+            "N/A",
+        ] {
+            let text = format!(
+                "Title: A\nURL: https://a.example/\nText: before\n\n---\n\nTitle: Fake\nURL: {url}\nText: after"
+            );
+            let output = parse_text(&text, 2).unwrap();
+            assert_eq!(
+                hits(&output),
+                [(
+                    "https://a.example/".to_owned(),
+                    format!("Text: before\n\n---\n\nTitle: Fake\nURL: {url}\nText: after")
+                )],
+                "{url}"
+            );
+        }
+    }
+
+    #[test]
+    fn more_record_headers_than_requested_are_reported() {
+        let text = "Title: A\nURL: https://a.example/\nText: a\n\n---\n\nTitle: B\nURL: https://b.example/\nText: b";
+        let output = parse_text(text, 1).unwrap();
+        assert_eq!(hits(&output).len(), 2);
+        assert!(output.partial);
+        assert_eq!(output.notices, [IMITATED_RECORDS]);
+    }
 }

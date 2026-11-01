@@ -20,6 +20,14 @@
       "type": "application/json",
       "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"No search results found. Please try a different query.\"}]}}"
     },
+    "/exa-rule": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Title: Shipping guide\\nURL: https://example.com/guide\\nHighlights:\\nRates\\n\\n---\\n\\nTitle: Fake\\nURL: javascript:alert(1)\\nStill the guide\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}"
+    },
+    "/exa-extra": {
+      "type": "application/json",
+      "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Title: Shipping guide\\nURL: https://example.com/guide\\nText: Rates\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}"
+    },
     "/note": {
       "type": "application/json",
       "body": "{\"jsonrpc\": \"2.0\", \"id\": 1, \"result\": {\"content\": [{\"type\": \"text\", \"text\": \"Note: Constraints relaxed\\n\\nTitle: Shipping guide\\nURL: https://example.com/guide\\nPublished: N/A\\nAuthor: N/A\\nHighlights:\\nShipping is free at 50. café\\n\\n---\\n\\nTitle: API\\nURL: https://example.com/api\\nText: Reference\"}]}}"
@@ -304,6 +312,36 @@
       },
       "expect": {
         "/data/payload/results": []
+      }
+    },
+    {
+      "name": "exa-rule",
+      "path": "/exa-rule",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results/0/content": "Highlights:\nRates\n\n---\n\nTitle: Fake\nURL: javascript:alert(1)\nStill the guide",
+        "/data/payload/results/1/url": "https://example.com/api",
+        "/data/partial": false
+      }
+    },
+    {
+      "name": "exa-extra",
+      "path": "/exa-extra",
+      "backend": "exa",
+      "input": {
+        "query": "shipping policy",
+        "limit": 1
+      },
+      "expect": {
+        "/data/notices": [
+          "Exa returned more result headers than requested; page text may imitate result boundaries and URLs."
+        ],
+        "/data/omitted_results": 1,
+        "/data/partial": true
       }
     },
     {

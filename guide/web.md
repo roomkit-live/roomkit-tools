@@ -104,6 +104,18 @@ MCP errors and unsupported formats. Exa uses a bounded parser for its current
 text blocks over JSON or SSE; an upstream format change can require an adapter
 update. This is not a general MCP client.
 
+Exa's MCP service returns all hits as one formatted text block: `Title:` and
+`URL:` lines, then metadata and page excerpts, with a Markdown rule (`---`)
+between records. There is no structured form on that endpoint, so hit
+boundaries, titles and URLs are parsed from provider text that includes page
+content. A rule starts a new hit only when a `Title:` line and a valid HTTP(S)
+`URL:` line follow it; any other rule stays inside the preceding excerpt, so an
+ordinary Markdown rule does not fail the search. A page can still imitate a
+complete record and have its own text attributed to another URL. When Exa's
+text holds more records than requested, a notice says so and `partial` is set.
+Treat Exa titles and URLs as claims from the page text and confirm with
+`web_fetch` before attributing content to a URL.
+
 The contract also supports `answer` with sources and UTF-8 citation offsets,
 and `not_performed` when a model did not search. Common validation checks
 source indexes and character boundaries; oversized answers fail without
