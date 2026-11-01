@@ -5,7 +5,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use roomkit_tools_core::Error;
-use roomkit_tools_process::{ShellInput, ShellLimits, ShellTool};
+use roomkit_tools_process::{CommandEnv, ShellInput, ShellLimits, ShellTool};
 use tokio_util::sync::CancellationToken;
 
 #[expect(clippy::unwrap_used, reason = "fixture failures must fail the test")]
@@ -337,6 +337,90 @@ async fn successful_shell_exit_also_terminates_its_background_jobs() {
     assert_eq!(result.exit_code, Some(0));
     assert!(result.output_complete);
     stopped(&pids(&root.path().join("pids")).await).await;
+}
+
+#[tokio::test]
+async fn host_variables_outside_the_default_list_are_not_passed() {
+    // Cargo sets this in the test process; it stands for any host secret.
+    assert!(std::env::var_os("CARGO_PKG_NAME").is_some());
+    let root = tempfile::tempdir().unwrap();
+    let result = execute(
+        root.path(),
+        r#"printf '%s|%s' "${CARGO_PKG_NAME-unset}" "${PATH:+path}""#,
+    )
+    .await;
+    assert_eq!(result.stdout.text, "unset|path");
+}
+
+#[tokio::test]
+async fn host_lists_inherited_variables_and_sets_explicit_values() {
+    let root = tempfile::tempdir().unwrap();
+    let mut env = CommandEnv::default();
+    env.inherit_env = vec!["CARGO_PKG_NAME".into(), "PATH".into()];
+    env.env.insert("GREETING".into(), "hello world".into());
+    env.env
+        .insert("CARGO_PKG_NAME".into(), "explicit wins".into());
+    let tool = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_env(env)
+        .unwrap();
+    let result = tool
+        .shell(
+            ShellInput::new(
+                r#"printf '%s|%s|%s|%s' "$GREETING" "$CARGO_PKG_NAME" "${PATH:+path}" "${HOME-unset}""#,
+            ),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(result.stdout.text, "hello world|explicit wins|path|unset");
+    let mut listed = CommandEnv::default();
+    listed.inherit_env.push("CARGO_PKG_NAME".into());
+    let result = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_env(listed)
+        .unwrap()
+        .shell(
+            ShellInput::new(r#"printf %s "$CARGO_PKG_NAME""#),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(result.stdout.text, "roomkit-tools-process");
+}
+
+#[tokio::test]
+async fn invalid_environment_names_and_values_are_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let tool = ShellTool::new(root.path()).await.unwrap();
+    for name in ["", "A=B", "A\0B"] {
+        let mut inherited = CommandEnv::default();
+        inherited.inherit_env.push(name.into());
+        assert!(matches!(
+            tool.clone().with_env(inherited),
+            Err(Error::InvalidInput(_))
+        ));
+        let mut explicit = CommandEnv::default();
+        explicit.env.insert(name.into(), "value".into());
+        assert!(matches!(
+            tool.clone().with_env(explicit),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+    let mut value = CommandEnv::default();
+    value.env.insert("NAME".into(), "a\0b".into());
+    assert!(matches!(tool.with_env(value), Err(Error::InvalidInput(_))));
+    assert_eq!(
+        CommandEnv::default().inherit_env,
+        [
+            "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TZ",
+            "TMPDIR"
+        ]
+    );
 }
 
 #[tokio::test]

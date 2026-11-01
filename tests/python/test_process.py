@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 from process_helpers import COMMAND_WITH_CHILD, assert_stopped, read_pids
 from roomkit_tools import (
+    DEFAULT_INHERITED_ENV,
     AccessRefusedError,
     InvalidInputError,
     LimitExceededError,
@@ -144,6 +145,34 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(AccessRefusedError):
                     await other.call(name, args)
         self.assertEqual(len((await self.session.status())["data"]), 2)
+
+    async def test_host_secrets_stay_out_unless_listed_or_set_explicitly(self) -> None:
+        command = 'printf "%s|%s" "${HOST_TEST_SECRET-unset}" "${GREETING-unset}"'
+        with patch.dict(os.environ, {"HOST_TEST_SECRET": "s3cret"}):
+            async with ProcessSession(
+                self.root,
+                inherit_env=(*DEFAULT_INHERITED_ENV, "HOST_TEST_SECRET"),
+                env={"GREETING": "hello"},
+            ) as configured:
+                hidden = (await self.session.start(command))["data"]["process_id"]
+                shown = (await configured.start(command))["data"]["process_id"]
+                await wait_status(self.session, hidden, state="finished")
+                await wait_status(configured, shown, state="finished")
+                outputs = [
+                    (await session.read(pid))["data"]["stdout"]["text"]
+                    for session, pid in [(self.session, hidden), (configured, shown)]
+                ]
+        self.assertEqual(outputs, ["unset|unset", "s3cret|hello"])
+        for options in [
+            {"inherit_env": ["A=B"]},
+            {"env": {"": "value"}},
+            {"env": {"NAME": "a\0b"}},
+        ]:
+            with self.subTest(options=options):
+                with self.assertRaises(InvalidInputError):
+                    ProcessSession(self.root, **options)
+        with self.assertRaises(TypeError):
+            ProcessSession(self.root, inherit_env="PATH")
 
     async def test_finished_jobs_count_until_forget_and_ids_are_not_reused(self) -> None:
         async with ProcessSession(self.root, max_processes=2, max_processes_per_owner=1) as session:

@@ -179,6 +179,8 @@ struct ShellOptions {
     max_output_bytes: Option<usize>,
     default_timeout_ms: Option<u64>,
     max_timeout_ms: Option<u64>,
+    inherit_env: Option<Vec<String>>,
+    env: Option<std::collections::BTreeMap<String, String>>,
 }
 
 impl ShellOptions {
@@ -393,6 +395,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<output::PythonShellTool>()?;
     module.add_class::<output::PythonOutputStore>()?;
     module.add_class::<process::PythonProcessSession>()?;
+    process::install(module)?;
     module.add_class::<mutation::PythonWorkspace>()?;
     module.add_class::<mutation::PythonWriteTool>()?;
     module.add_class::<mutation::PythonEditTool>()?;

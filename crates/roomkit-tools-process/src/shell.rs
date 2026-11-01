@@ -1,12 +1,13 @@
 use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use roomkit_tools_core::{Definition, Error, Output};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-use crate::CapturedOutput;
+use crate::{CapturedOutput, CommandEnv};
 
 /// A foreground command; shell syntax is interpreted by `/bin/sh`.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -83,8 +84,10 @@ pub struct ShellResult {
 
 /// A shell with a host-selected root and limits, independent of any agent runtime.
 ///
-/// Executes `/bin/sh -c` without a login shell; stdin is closed. Commands inherit
-/// the host environment and permissions and can access paths outside the root.
+/// Executes `/bin/sh -c` without a login shell; stdin is closed. Commands run
+/// with the host's permissions and can access paths outside the root. They
+/// receive only the environment selected by [`Self::with_env`], by default the
+/// host variables in [`crate::DEFAULT_INHERITED_ENV`].
 /// Each command leads a new Unix session without a controlling terminal, so
 /// opening `/dev/tty` fails. Process-group cleanup covers children that remain
 /// in the group, including background jobs after a normal shell exit. Members
@@ -94,6 +97,7 @@ pub struct ShellResult {
 pub struct ShellTool {
     root: PathBuf,
     limits: ShellLimits,
+    env: Arc<CommandEnv>,
     outputs: Option<crate::OutputStore>,
 }
 
@@ -122,6 +126,7 @@ impl ShellTool {
         Ok(Self {
             root,
             limits: ShellLimits::default(),
+            env: Arc::default(),
             outputs: None,
         })
     }
@@ -148,6 +153,16 @@ impl ShellTool {
             return Err(Error::InvalidInput("invalid shell limits".into()));
         }
         self.limits = limits;
+        Ok(self)
+    }
+
+    /// Select the environment commands receive; see [`CommandEnv`].
+    ///
+    /// # Errors
+    /// Rejects invalid variable names or values, as [`CommandEnv::validate`].
+    pub fn with_env(mut self, env: CommandEnv) -> Result<Self, Error> {
+        env.validate()?;
+        self.env = Arc::new(env);
         Ok(self)
     }
 
@@ -222,6 +237,7 @@ impl ShellTool {
             let foreground = crate::unix::Foreground {
                 command: input.command,
                 cwd,
+                env: Arc::clone(&self.env),
                 limits: self.limits,
                 timeout_ms,
                 outputs: self

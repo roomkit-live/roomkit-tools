@@ -200,11 +200,13 @@ impl PythonShellTool {
             if token.is_cancelled() {
                 return Err(tool_error(&Error::Cancelled));
             }
-            let options: ShellOptions = serde_json::from_str(&options_json)
+            let mut options: ShellOptions = serde_json::from_str(&options_json)
                 .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
+            let env = super::process::command_env(options.inherit_env.take(), options.env.take())?;
             let mut tool = ShellTool::new(root)
                 .await
                 .and_then(|tool| tool.with_limits(options.limits()))
+                .and_then(|tool| tool.with_env(env))
                 .map_err(|e| tool_error(&e))?;
             if let Some(state) = state {
                 tool = tool.with_output_store(state.resolve().await.map_err(|e| tool_error(&e))?);

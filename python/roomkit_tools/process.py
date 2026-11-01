@@ -4,19 +4,42 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping, Sequence
 from types import TracebackType
 from typing import Any, Self
 
 from . import _native
 from .output import OutputStore
 
+DEFAULT_INHERITED_ENV: tuple[str, ...] = tuple(_native.DEFAULT_INHERITED_ENV)
+"""Host variables commands receive by default, when the host has them set."""
+
+
+def _env_options(inherit_env: Sequence[str], env: Mapping[str, str] | None) -> dict[str, Any]:
+    """Check the environment options' types here and their content in Rust."""
+    if isinstance(inherit_env, str | bytes):
+        raise TypeError("inherit_env requires a sequence of variable names, not one string")
+    names = list(inherit_env)
+    if not all(isinstance(name, str) for name in names):
+        raise TypeError("inherit_env requires str variable names")
+    if env is not None and not isinstance(env, Mapping):
+        raise TypeError("env requires a mapping of variable names to values")
+    values = dict(env or {})
+    if not all(isinstance(name, str) and isinstance(value, str) for name, value in values.items()):
+        raise TypeError("env requires str variable names and values")
+    options = {"inherit_env": names, "env": values}
+    _native._check_command_env(json.dumps(options))
+    return options
+
 
 class ShellTool:
     """Run foreground commands using /bin/sh -c, with separate bounded streams.
 
-    Commands inherit the host environment and permissions. The root bounds only
-    the initial cwd, not filesystem/network access. No sandbox, mutation lock,
-    login shell, PTY, interactive stdin or persistent session is provided.
+    Commands run with the host's permissions. They receive only the host
+    variables named in inherit_env (default DEFAULT_INHERITED_ENV) that are set,
+    plus explicit env values. The root bounds only the initial cwd, not
+    filesystem/network access. No sandbox, mutation lock, login shell, PTY,
+    interactive stdin or persistent session is provided.
     Stdin is closed. Each command leads a new Unix session without a controlling
     terminal, so opening /dev/tty fails. Unix is implemented; Linux is validated.
     """
@@ -31,6 +54,8 @@ class ShellTool:
         root: str | os.PathLike[str],
         *,
         outputs: OutputStore | None = None,
+        inherit_env: Sequence[str] = DEFAULT_INHERITED_ENV,
+        env: Mapping[str, str] | None = None,
         max_command_bytes: int | None = None,
         max_output_bytes: int | None = None,
         default_timeout_ms: int | None = None,
@@ -38,12 +63,17 @@ class ShellTool:
     ) -> ShellTool:
         """Resolve an existing root; omitted limits use Rust defaults.
 
-        Defaults: 16 KiB command, 32 KiB retained raw bytes per stream, 10 s
-        default runtime and 120 s maximum. Bounds must be positive; the default
-        timeout must not exceed the maximum, which cannot exceed 24 hours.
+        Commands receive the host variables named in inherit_env that are set
+        when they start, then the env values, which replace inherited ones.
+        Names must be nonempty without '=' or NUL; values must not contain NUL
+        (InvalidInputError). Defaults: 16 KiB command, 32 KiB retained raw
+        bytes per stream, 10 s default runtime and 120 s maximum. Bounds must be
+        positive; the default timeout must not exceed the maximum, which cannot
+        exceed 24 hours.
         """
         if outputs is not None and not isinstance(outputs, OutputStore):
             raise TypeError("outputs requires an OutputStore")
+        environment = _env_options(inherit_env, env)
         options = {
             name: value
             for name, value in {
@@ -53,7 +83,7 @@ class ShellTool:
                 "max_timeout_ms": max_timeout_ms,
             }.items()
             if value is not None
-        }
+        } | environment
         cancel = _native._Cancellation()
         try:
             native = await _native._ShellTool.create(
@@ -122,8 +152,9 @@ class ProcessSession:
     across conversations that must be isolated. IDs are local to this session,
     not OS PIDs, credentials or portable identifiers.
 
-    Commands use /bin/sh -c with piped stdin, inherited environment/permissions,
-    a new session without a controlling terminal, and no PTY or sandbox.
+    Commands use /bin/sh -c with piped stdin, the host's permissions, the
+    environment selected by inherit_env and env (as for ShellTool), a new
+    session without a controlling terminal, and no PTY or sandbox.
     Workspace is accepted as a path only. Closing stops process groups; escaped
     groups and already-performed effects are not undone.
     """
@@ -133,6 +164,8 @@ class ProcessSession:
         root: str | os.PathLike[str],
         *,
         outputs: OutputStore | None = None,
+        inherit_env: Sequence[str] = DEFAULT_INHERITED_ENV,
+        env: Mapping[str, str] | None = None,
         max_processes: int | None = None,
         max_processes_per_owner: int | None = None,
         max_command_bytes: int | None = None,
@@ -143,12 +176,14 @@ class ProcessSession:
         default_timeout_ms: int | None = None,
         max_timeout_ms: int | None = None,
     ) -> None:
-        """Configure Rust bounds, including retained completed processes.
+        """Configure the command environment and Rust bounds.
 
-        Defaults: 32 total/8 per owner, 16 KiB command, 1 MiB retained bytes per
-        stream, 16 KiB/read/stream, 64 KiB/write, 1 s stdin deadline, 5 min default
-        and 1 h maximum lifetime. This session has one owner, so both quotas
-        apply to its records; neither quota is global across Python sessions.
+        inherit_env and env select the environment as for ShellTool.create and
+        are validated here. Defaults: 32 total/8 per owner, 16 KiB command,
+        1 MiB retained bytes per stream, 16 KiB/read/stream, 64 KiB/write, 1 s
+        stdin deadline, 5 min default and 1 h maximum lifetime. This session has
+        one owner, so both quotas apply to its records; neither quota is global
+        across Python sessions.
         All bounds must be positive, per-owner quota <= total quota, stdin
         deadline <= 60 s, and default lifetime <= maximum lifetime <= 24 h.
         """
@@ -158,6 +193,7 @@ class ProcessSession:
         self._outputs = outputs
         if not path:
             raise _native.InvalidInputError("root must not be empty")
+        environment = _env_options(inherit_env, env)
         options = {
             name: value
             for name, value in {
@@ -172,7 +208,7 @@ class ProcessSession:
                 "max_timeout_ms": max_timeout_ms,
             }.items()
             if value is not None
-        }
+        } | environment
         self._native = _native._ProcessSession(
             os.path.abspath(path),
             json.dumps(options, allow_nan=False),

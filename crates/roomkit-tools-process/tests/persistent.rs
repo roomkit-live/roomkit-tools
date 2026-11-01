@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use roomkit_tools_core::Error;
 use roomkit_tools_process::{
-    ProcessEnd, ProcessLimits, ProcessManager, ProcessReadInput, ProcessStartInput, ProcessState,
-    ProcessStatus, ProcessStatusInput, ProcessStopInput, ProcessWriteInput,
+    CommandEnv, ProcessEnd, ProcessLimits, ProcessManager, ProcessReadInput, ProcessStartInput,
+    ProcessState, ProcessStatus, ProcessStatusInput, ProcessStopInput, ProcessWriteInput,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -822,6 +822,72 @@ async fn each_process_leads_a_new_session_without_the_host_terminal() {
     assert_eq!(child[0], pid, "group signals still target the shell's pid");
     assert_eq!(child[2], "0", "no controlling terminal");
     manager.close().await;
+}
+
+#[tokio::test]
+async fn persistent_processes_do_not_receive_unlisted_host_variables() {
+    // Cargo sets this in the test process; it stands for any host secret.
+    assert!(std::env::var_os("CARGO_PKG_NAME").is_some());
+    let root = tempfile::tempdir().unwrap();
+    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let command = r#"printf '%s|%s' "${CARGO_PKG_NAME-unset}" "${PATH:+path}""#;
+    let id = manager
+        .start("a", ProcessStartInput::new(command), &token)
+        .await
+        .unwrap()
+        .data
+        .process_id;
+    finished(&manager, "a", &id).await;
+    let read = manager
+        .read("a", ProcessReadInput::new(&id), &token)
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(read.stdout.text, "unset|path");
+    manager.close().await;
+}
+
+#[tokio::test]
+async fn persistent_environment_is_host_configured_before_start() {
+    let root = tempfile::tempdir().unwrap();
+    let mut env = CommandEnv::default();
+    env.inherit_env.push("CARGO_PKG_NAME".into());
+    env.env.insert("GREETING".into(), "hello".into());
+    let manager = ProcessManager::new(root.path())
+        .await
+        .unwrap()
+        .with_env(env.clone())
+        .unwrap();
+    let token = CancellationToken::new();
+    let command = r#"printf '%s|%s' "$CARGO_PKG_NAME" "$GREETING""#;
+    let id = manager
+        .start("a", ProcessStartInput::new(command), &token)
+        .await
+        .unwrap()
+        .data
+        .process_id;
+    finished(&manager, "a", &id).await;
+    let read = manager
+        .read("a", ProcessReadInput::new(&id), &token)
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(read.stdout.text, "roomkit-tools-process|hello");
+    assert!(matches!(
+        manager.clone().with_env(env.clone()),
+        Err(Error::Refused(_))
+    ));
+    manager.close().await;
+    let mut invalid = env;
+    invalid.inherit_env.push("A=B".into());
+    assert!(matches!(
+        ProcessManager::new(root.path())
+            .await
+            .unwrap()
+            .with_env(invalid),
+        Err(Error::InvalidInput(_))
+    ));
 }
 
 #[tokio::test]

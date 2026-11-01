@@ -34,7 +34,7 @@ from .plans import (
     PlanScope,
     PlanUpdate,
 )
-from .process import ProcessSession, ShellTool
+from .process import DEFAULT_INHERITED_ENV, ProcessSession, ShellTool
 from .roomkit import (
     CodeOutline,
     Diff,
@@ -63,6 +63,7 @@ from .web import WebFetchTool
 from .workspace import Workspace
 
 __all__ = [
+    "DEFAULT_INHERITED_ENV",
     "DocsBackend",
     "DocsList",
     "DocsRead",

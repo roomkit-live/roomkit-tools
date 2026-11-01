@@ -1,6 +1,7 @@
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Stdio};
+use std::sync::Arc;
 use std::time::Duration;
 
 use roomkit_tools_core::{Error, Output};
@@ -9,11 +10,13 @@ use tokio::process::{Child, ChildStderr, ChildStdout, Command};
 use tokio_util::sync::CancellationToken;
 
 use crate::capture::Capture;
-use crate::{ShellLimits, ShellResult};
+use crate::{CommandEnv, ShellLimits, ShellResult};
 
-/// `/bin/sh -c command` started in `cwd`, with piped stdout and stderr.
-pub(crate) fn shell_command(command: &str, cwd: &Path, stdin: Stdio) -> Command {
+/// `/bin/sh -c command` started in `cwd` with the host-selected environment,
+/// and with piped stdout and stderr.
+pub(crate) fn shell_command(command: &str, cwd: &Path, env: &CommandEnv, stdin: Stdio) -> Command {
     let mut shell = Command::new("/bin/sh");
+    env.apply(&mut shell);
     shell
         .arg("-c")
         .arg(command)
@@ -110,6 +113,7 @@ fn missing_pipe(operation: &'static str) -> Error {
 pub(crate) struct Foreground {
     pub(crate) command: String,
     pub(crate) cwd: PathBuf,
+    pub(crate) env: Arc<CommandEnv>,
     pub(crate) limits: ShellLimits,
     pub(crate) timeout_ms: u64,
     pub(crate) outputs: Option<(crate::OutputStore, String)>,
@@ -122,7 +126,12 @@ pub(crate) async fn run(
     if cancel.is_cancelled() {
         return Err(Error::Cancelled);
     }
-    let command = shell_command(&foreground.command, &foreground.cwd, Stdio::null());
+    let command = shell_command(
+        &foreground.command,
+        &foreground.cwd,
+        &foreground.env,
+        Stdio::null(),
+    );
     let (child, group) = spawn(command, "spawn shell")?;
     supervise(child, group, foreground, &cancel).await
 }
@@ -251,11 +260,17 @@ mod tests {
         let foreground = Foreground {
             command: "printf done; printf warning >&2; exit 3".into(),
             cwd: root.path().to_owned(),
+            env: Arc::default(),
             limits: ShellLimits::default(),
             timeout_ms: 10_000,
             outputs: None,
         };
-        let command = shell_command(&foreground.command, &foreground.cwd, Stdio::null());
+        let command = shell_command(
+            &foreground.command,
+            &foreground.cwd,
+            &foreground.env,
+            Stdio::null(),
+        );
         let (child, mut group) = spawn(command, "spawn shell").unwrap();
         // A member running under other credentials refuses the group signal.
         group.kill = refuse;

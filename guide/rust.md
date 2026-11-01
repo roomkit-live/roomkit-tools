@@ -101,7 +101,8 @@ Tokio runtime alive while cleanup completes. Use explicit process/store/backend
 shutdown; state is not durable across a host restart.
 
 Filesystem roots are access checks for a host-controlled workspace. Shell
-commands execute with host permissions; the initial directory is not a sandbox.
+commands execute with host permissions and only the environment the host selects
+with `CommandEnv`; the initial directory is not a sandbox.
 See the tool-family guides for exact resource and cancellation boundaries.
 
 [Documentation index](README.md) · [Project overview](../README.md)

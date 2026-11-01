@@ -20,13 +20,35 @@ print(result["data"]["exit_code"])       # 7: a command result, not a tool error
 `Shell(root=...)` is the direct RoomKit form. The standalone method is
 `ShellTool.shell(command, cwd=None, timeout_ms=None)`; `.call(arguments)` accepts
 the Rust schema. The root and per-call cwd select the initial working directory.
-Commands run with `/bin/sh -c`, inherit the Python host's environment and
-permissions, and can access paths outside the root. This is not a sandbox.
-Passing a `Workspace` supplies its path only; shell writes do not share the
-filesystem mutation lock. There is no login shell, PTY, interactive stdin or
-persistent session; stdin receives EOF. Each command leads a new Unix session
-with no controlling terminal: a program that opens `/dev/tty` gets an error
-instead of writing into the host's terminal or waiting on it.
+Commands run with `/bin/sh -c` and the host's permissions, and can access paths
+outside the root. This is not a sandbox. Passing a `Workspace` supplies its path
+only; shell writes do not share the filesystem mutation lock. There is no login
+shell, PTY, interactive stdin or persistent session; stdin receives EOF. Each
+command leads a new Unix session with no controlling terminal: a program that
+opens `/dev/tty` gets an error instead of writing into the host's terminal or
+waiting on it.
+
+Commands do not inherit the host's whole environment. They receive the host
+variables named in `inherit_env` that are set when the command starts, then the
+explicit `env` values, which replace inherited ones of the same name:
+
+```python
+from roomkit_tools import DEFAULT_INHERITED_ENV, ShellTool
+
+shell = await ShellTool.create(
+    "./workspace",
+    inherit_env=(*DEFAULT_INHERITED_ENV, "CARGO_HOME"),  # Pass one more host variable.
+    env={"CI": "true"},                                  # Set a value for every command.
+)
+```
+
+`DEFAULT_INHERITED_ENV` is `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`,
+`LC_ALL`, `LC_CTYPE`, `TZ` and `TMPDIR`; credentials such as API keys in the
+host's environment do not reach commands unless listed. `Shell`, `ShellTool.create`
+and `ProcessSession` take the same two options and check them when constructed:
+a name must be nonempty without `=` or NUL and a value must not contain NUL,
+otherwise `InvalidInputError`. Rust hosts pass a `CommandEnv` with the same
+`inherit_env` and `env` fields to `ShellTool::with_env` or `ProcessManager::with_env`.
 
 Host constructor bounds are `max_command_bytes` (16 KiB), `max_output_bytes`
 (32 KiB raw bytes per stream), `default_timeout_ms` (10,000) and `max_timeout_ms`
@@ -96,8 +118,8 @@ All return the existing Rust `data`/`text` dictionaries. `.call(name, arguments)
 and `.definition(name)` expose each `process_*` contract and its derived schemas.
 `status()` lists retained jobs, including completed ones. `start` returns an ID
 with open stdin, not proof of command completion. Commands use `/bin/sh -c`
-with the same host permissions, environment, initial-cwd boundary and new
-session without a terminal as shell.
+with the same host permissions, environment options, initial-cwd boundary and
+new session without a terminal as shell.
 
 `read` immediately observes available output without consuming it or sending
 EOF. Use each stream's `next_offset` separately. Empty output while running
@@ -111,6 +133,7 @@ child consumed them. Send EOF explicitly with `close_stdin=True` when requested.
 
 | Session constructor option | Default |
 | --- | --- |
+| `inherit_env` / `env` | `DEFAULT_INHERITED_ENV` / no explicit values |
 | `max_processes` / `max_processes_per_owner` | 32 / 8 retained jobs; both apply to the session's single owner |
 | `max_command_bytes` | 16 KiB UTF-8 |
 | `max_output_bytes` | 1 MiB recent raw bytes per stream per job |

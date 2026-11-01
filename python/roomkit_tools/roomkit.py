@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
 from ._native import (
@@ -17,7 +18,7 @@ from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, Rea
 from .image import ViewImageTool
 from .ocr import OcrBackend, OcrTool
 from .output import OutputStore
-from .process import ProcessSession, ShellTool
+from .process import DEFAULT_INHERITED_ENV, ProcessSession, ShellTool, _env_options
 from .search import SearchBackend, WebSearchTool
 from .web import WebFetchTool
 from .workspace import Workspace
@@ -441,10 +442,11 @@ class Patch(_ConfiguredMutation):
 class Shell(_ConfiguredTool):
     """The Rust foreground shell, selectable directly in RoomKit's tools list.
 
-    Captures an absolute root without spawning. First use resolves the root and
-    validates limits asynchronously. A Workspace is accepted as a path only;
-    shell commands do not share its mutation lock or filesystem restrictions.
-    See ShellTool for host permissions, bounds and cancellation semantics.
+    Captures an absolute root without spawning and validates inherit_env/env
+    at once. First use resolves the root and validates limits asynchronously.
+    A Workspace is accepted as a path only; shell commands do not share its
+    mutation lock or filesystem restrictions. See ShellTool for the command
+    environment, host permissions, bounds and cancellation semantics.
     """
 
     _tool_type = ShellTool
@@ -454,14 +456,19 @@ class Shell(_ConfiguredTool):
         root: str | os.PathLike[str],
         *,
         outputs: OutputStore | None = None,
+        inherit_env: Sequence[str] = DEFAULT_INHERITED_ENV,
+        env: Mapping[str, str] | None = None,
         max_command_bytes: int | None = None,
         max_output_bytes: int | None = None,
         default_timeout_ms: int | None = None,
         max_timeout_ms: int | None = None,
     ) -> None:
+        _env_options(inherit_env, env)
         self._configure(
             root,
             outputs=outputs,
+            inherit_env=inherit_env,
+            env=env,
             max_command_bytes=max_command_bytes,
             max_output_bytes=max_output_bytes,
             default_timeout_ms=default_timeout_ms,

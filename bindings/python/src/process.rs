@@ -1,13 +1,14 @@
 //! A Python-owned process session; process behavior remains in the Rust manager.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
 use roomkit_tools_core::Error;
 use roomkit_tools_process::{
-    ProcessLimits, ProcessManager, ProcessReadInput, ProcessStartInput, ProcessStatusInput,
-    ProcessStopInput, ProcessWriteInput,
+    CommandEnv, DEFAULT_INHERITED_ENV, ProcessLimits, ProcessManager, ProcessReadInput,
+    ProcessStartInput, ProcessStatusInput, ProcessStopInput, ProcessWriteInput,
 };
 use serde::Deserialize;
 use tokio::sync::OnceCell;
@@ -18,6 +19,44 @@ use super::{Cancellation, InvalidInputError, ToolError, tool_error};
 // Each Python session owns a separate manager with a single trusted owner.
 // Neither the manager nor this key is selected by model arguments.
 const OWNER: &str = super::output::OWNER;
+
+/// Add the default inherited variable names and the environment check.
+pub(super) fn install(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add("DEFAULT_INHERITED_ENV", DEFAULT_INHERITED_ENV.to_vec())?;
+    module.add_function(wrap_pyfunction!(check_command_env, module)?)
+}
+
+/// The host-selected command environment; omitted parts keep Rust defaults.
+pub(super) fn command_env(
+    inherit_env: Option<Vec<String>>,
+    env: Option<BTreeMap<String, String>>,
+) -> PyResult<CommandEnv> {
+    let mut command_env = CommandEnv::default();
+    if let Some(names) = inherit_env {
+        command_env.inherit_env = names;
+    }
+    if let Some(values) = env {
+        command_env.env = values;
+    }
+    command_env.validate().map_err(|error| tool_error(&error))?;
+    Ok(command_env)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EnvOptions {
+    inherit_env: Option<Vec<String>>,
+    env: Option<BTreeMap<String, String>>,
+}
+
+/// Validate environment options when a host tool is configured, before first use.
+#[pyfunction]
+#[pyo3(name = "_check_command_env")]
+fn check_command_env(options_json: &str) -> PyResult<()> {
+    let options: EnvOptions = serde_json::from_str(options_json)
+        .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
+    command_env(options.inherit_env, options.env).map(drop)
+}
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -31,6 +70,8 @@ struct ProcessOptions {
     write_timeout_ms: Option<u64>,
     default_timeout_ms: Option<u64>,
     max_timeout_ms: Option<u64>,
+    inherit_env: Option<Vec<String>>,
+    env: Option<BTreeMap<String, String>>,
 }
 
 impl ProcessOptions {
@@ -60,6 +101,7 @@ impl ProcessOptions {
 struct SessionState {
     root: PathBuf,
     limits: ProcessLimits,
+    env: CommandEnv,
     manager: OnceCell<ProcessManager>,
     closed: CancellationToken,
     outputs: Option<Arc<super::output::State>>,
@@ -75,7 +117,8 @@ impl SessionState {
             .get_or_try_init(|| async {
                 let mut manager = ProcessManager::new(&self.root)
                     .await?
-                    .with_limits(self.limits)?;
+                    .with_limits(self.limits)?
+                    .with_env(self.env.clone())?;
                 if let Some(outputs) = &self.outputs {
                     manager = manager.with_output_store(outputs.resolve().await?)?;
                 }
@@ -120,12 +163,14 @@ impl PythonProcessSession {
         options_json: &str,
         outputs: Option<&super::output::PythonOutputStore>,
     ) -> PyResult<Self> {
-        let options: ProcessOptions = serde_json::from_str(options_json)
+        let mut options: ProcessOptions = serde_json::from_str(options_json)
             .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
+        let env = command_env(options.inherit_env.take(), options.env.take())?;
         Ok(Self {
             state: Arc::new(SessionState {
                 root,
                 limits: options.limits(),
+                env,
                 manager: OnceCell::new(),
                 closed: CancellationToken::new(),
                 outputs: outputs.map(|outputs| Arc::clone(&outputs.state)),

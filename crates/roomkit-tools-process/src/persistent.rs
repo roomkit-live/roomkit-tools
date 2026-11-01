@@ -12,9 +12,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::journal::Journal;
 use crate::{
-    ProcessLimits, ProcessReadInput, ProcessReadResult, ProcessStartInput, ProcessState,
-    ProcessStatus, ProcessStatusInput, ProcessStopInput, ProcessStopResult, ProcessWriteInput,
-    ProcessWriteResult,
+    CommandEnv, ProcessLimits, ProcessReadInput, ProcessReadResult, ProcessStartInput,
+    ProcessState, ProcessStatus, ProcessStatusInput, ProcessStopInput, ProcessStopResult,
+    ProcessWriteInput, ProcessWriteResult,
 };
 
 #[derive(Debug)]
@@ -64,6 +64,20 @@ struct Registry {
 }
 
 impl Registry {
+    /// The next identifier number for `owner`, within the host quotas.
+    fn next_for(&self, owner: &str, limits: ProcessLimits) -> Result<u64, Error> {
+        let retained = self.entries.values().filter(|e| e.owner == owner).count();
+        if self.entries.len() >= limits.max_processes || retained >= limits.max_processes_per_owner
+        {
+            return Err(Error::LimitExceeded(
+                "process quota reached; stop with forget=true to release completed records".into(),
+            ));
+        }
+        self.next_id
+            .checked_add(1)
+            .ok_or_else(|| Error::LimitExceeded("process identifiers exhausted".into()))
+    }
+
     /// Retained entries that `keep` selects, in creation order.
     fn ordered(&self, keep: impl Fn(&Entry) -> bool) -> Vec<Arc<Entry>> {
         let mut entries: Vec<_> = self
@@ -83,6 +97,7 @@ impl Registry {
 struct Inner {
     root: PathBuf,
     limits: ProcessLimits,
+    env: CommandEnv,
     registry: Mutex<Registry>,
     closed: CancellationToken,
     outputs: Option<crate::OutputStore>,
@@ -115,8 +130,10 @@ pub struct ObservedProcess {
 /// Hosts supply a trusted owner key on every operation, never from model arguments.
 /// Clones share ownership; dropping the last clone requests all process cleanup.
 /// Keep the Tokio runtime alive and prefer awaiting [`Self::close`]. This is not
-/// a sandbox: commands inherit host permissions and environment. Each command
-/// leads a new Unix session without a controlling terminal.
+/// a sandbox: commands run with host permissions. They receive only the
+/// environment selected by [`Self::with_env`], by default the host variables in
+/// [`crate::DEFAULT_INHERITED_ENV`]. Each command leads a new Unix session
+/// without a controlling terminal.
 #[derive(Clone, Debug)]
 pub struct ProcessManager {
     inner: Arc<Inner>,
@@ -150,6 +167,7 @@ impl ProcessManager {
             inner: Arc::new(Inner {
                 root,
                 limits: ProcessLimits::default(),
+                env: CommandEnv::default(),
                 registry: Mutex::new(Registry::default()),
                 closed: CancellationToken::new(),
                 outputs: None,
@@ -236,6 +254,26 @@ impl ProcessManager {
         Ok(self)
     }
 
+    /// Select the environment commands receive, before cloning or starting
+    /// processes; see [`CommandEnv`].
+    ///
+    /// # Errors
+    /// Rejects invalid variable names or values, as [`CommandEnv::validate`],
+    /// and shared or previously used managers.
+    pub fn with_env(mut self, env: CommandEnv) -> Result<Self, Error> {
+        env.validate()?;
+        let inner = Arc::get_mut(&mut self.inner).ok_or_else(|| {
+            Error::Refused("configure the process environment before cloning".into())
+        })?;
+        if inner.registry.get_mut().next_id != 0 {
+            return Err(Error::Refused(
+                "configure the process environment before starting".into(),
+            ));
+        }
+        inner.env = env;
+        Ok(self)
+    }
+
     /// Derived schema for starting a process.
     pub fn start_definition() -> Definition {
         Definition::new::<ProcessStartInput, ProcessStatus>(
@@ -303,19 +341,12 @@ impl ProcessManager {
             .ok_or_else(|| Error::Refused("unknown process in this owner scope".into()))
     }
 
-    /// Spawn and transfer ownership to the manager before returning its identifier.
-    ///
-    /// # Errors
-    /// Rejects invalid commands, escaping initial paths, quotas and cancellation
-    /// before spawn. Once spawned, success wins cancellation; use status to recover
-    /// a lost response. Non-Unix platforms are unsupported.
-    pub async fn start(
+    /// Check a start request and resolve its initial directory inside the root.
+    async fn start_directory(
         &self,
-        owner: &str,
-        input: ProcessStartInput,
+        input: &ProcessStartInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<ProcessStatus>, Error> {
-        self.check(owner, cancel)?;
+    ) -> Result<PathBuf, Error> {
         if input.command.trim().is_empty() || input.command.contains('\0') {
             return Err(Error::InvalidInput(
                 "command must be nonempty without NUL".into(),
@@ -336,52 +367,42 @@ impl ProcessManager {
                 "process working directory is outside root".into(),
             ));
         }
+        Ok(cwd)
+    }
+
+    /// Spawn and transfer ownership to the manager before returning its identifier.
+    ///
+    /// # Errors
+    /// Rejects invalid commands, escaping initial paths, quotas and cancellation
+    /// before spawn. Once spawned, success wins cancellation; use status to recover
+    /// a lost response. Non-Unix platforms are unsupported.
+    pub async fn start(
+        &self,
+        owner: &str,
+        input: ProcessStartInput,
+        cancel: &CancellationToken,
+    ) -> Result<Output<ProcessStatus>, Error> {
+        self.check(owner, cancel)?;
+        let cwd = self.start_directory(&input, cancel).await?;
         let mut registry = self.inner.registry.lock().await;
         self.check(owner, cancel)?;
         let limits = self.inner.limits;
-        if registry.entries.len() >= limits.max_processes
-            || registry
-                .entries
-                .values()
-                .filter(|e| e.owner == owner)
-                .count()
-                >= limits.max_processes_per_owner
-        {
-            return Err(Error::LimitExceeded(
-                "process quota reached; stop with forget=true to release completed records".into(),
-            ));
-        }
-        let next = registry
-            .next_id
-            .checked_add(1)
-            .ok_or_else(|| Error::LimitExceeded("process identifiers exhausted".into()))?;
-        let status = ProcessStatus {
-            process_id: format!("p{next}"),
-            cwd: cwd.to_string_lossy().into_owned(),
-            state: ProcessState::Running,
-            end: None,
-            exit_code: None,
-            signal: None,
-            timeout_ms: input
-                .timeout_ms
-                .map_or(limits.default_timeout_ms, std::num::NonZeroU64::get)
-                .min(limits.max_timeout_ms),
-            output_complete: false,
-            stdin_closed: false,
-            stdout_bytes: 0,
-            stderr_bytes: 0,
-            stdout_retained_from: 0,
-            stderr_retained_from: 0,
-            error: None,
-            stdout_archive: None,
-            stderr_archive: None,
-        };
+        let next = registry.next_for(owner, limits)?;
+        let timeout_ms = input
+            .timeout_ms
+            .map_or(limits.default_timeout_ms, std::num::NonZeroU64::get)
+            .min(limits.max_timeout_ms);
+        let status = initial_status(format!("p{next}"), &cwd, timeout_ms);
         #[cfg(unix)]
         {
-            let (entry, status) = crate::persistent_unix::launch(
+            let request = crate::persistent_unix::Launch {
                 owner,
-                &input.command,
-                &cwd,
+                command: &input.command,
+                cwd: &cwd,
+                env: &self.inner.env,
+            };
+            let (entry, status) = crate::persistent_unix::launch(
+                &request,
                 status.clone(),
                 limits,
                 self.inner.closed.child_token(),
@@ -631,6 +652,28 @@ impl ProcessManager {
             }
         }
         finished
+    }
+}
+
+/// The status of a process that has just started.
+fn initial_status(process_id: String, cwd: &Path, timeout_ms: u64) -> ProcessStatus {
+    ProcessStatus {
+        process_id,
+        cwd: cwd.to_string_lossy().into_owned(),
+        state: ProcessState::Running,
+        end: None,
+        exit_code: None,
+        signal: None,
+        timeout_ms,
+        output_complete: false,
+        stdin_closed: false,
+        stdout_bytes: 0,
+        stderr_bytes: 0,
+        stdout_retained_from: 0,
+        stderr_retained_from: 0,
+        error: None,
+        stdout_archive: None,
+        stderr_archive: None,
     }
 }
 

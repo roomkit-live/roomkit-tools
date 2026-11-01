@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from process_helpers import COMMAND_WITH_CHILD, assert_stopped, read_pids
 from roomkit_tools import (
+    DEFAULT_INHERITED_ENV,
     AccessRefusedError,
     InvalidInputError,
     LimitExceededError,
@@ -233,11 +234,54 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
         (self.root / "inner").mkdir()
         (self.root / "outside").write_text("host access")
         tool = await ShellTool.create(Workspace(self.root / "inner"))
-        with patch.dict(os.environ, {"ROOMKIT_SHELL_TEST_VALUE": "inherited"}):
-            data = (await tool.shell('cat ../outside; printf " %s" "$ROOMKIT_SHELL_TEST_VALUE"'))[
-                "data"
+        data = (await tool.shell("cat ../outside"))["data"]
+        self.assertEqual(data["stdout"]["text"], "host access")
+
+    async def test_host_secrets_stay_out_unless_listed_or_set_explicitly(self) -> None:
+        command = (
+            'printf "%s|%s|%s" "${HOST_TEST_SECRET-unset}" "${GREETING-unset}" "${HOME:+home}"'
+        )
+        with patch.dict(os.environ, {"HOST_TEST_SECRET": "s3cret"}):
+            default = (await self.tool.shell(command))["data"]["stdout"]["text"]
+            listed = await ShellTool.create(
+                self.root, inherit_env=(*DEFAULT_INHERITED_ENV, "HOST_TEST_SECRET")
+            )
+            explicit = await ShellTool.create(
+                self.root, inherit_env=["HOST_TEST_SECRET"], env={"GREETING": "hello"}
+            )
+            overridden = await ShellTool.create(
+                self.root, inherit_env=["HOST_TEST_SECRET"], env={"HOST_TEST_SECRET": "set"}
+            )
+            results = [
+                (await tool.shell(command))["data"]["stdout"]["text"]
+                for tool in (listed, explicit, overridden)
             ]
-        self.assertEqual(data["stdout"]["text"], "host access inherited")
+        self.assertEqual(default, "unset|unset|home")
+        self.assertEqual(results, ["s3cret|unset|home", "s3cret|hello|", "set|unset|"])
+        self.assertEqual(
+            DEFAULT_INHERITED_ENV,
+            ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TZ")
+            + ("TMPDIR",),
+        )
+
+    async def test_invalid_environment_is_refused_at_construction(self) -> None:
+        for options in [
+            {"inherit_env": [""]},
+            {"inherit_env": ["A=B"]},
+            {"inherit_env": ["A\0B"]},
+            {"env": {"": "value"}},
+            {"env": {"A=B": "value"}},
+            {"env": {"NAME": "a\0b"}},
+        ]:
+            with self.subTest(options=options):
+                with self.assertRaises(InvalidInputError):
+                    await ShellTool.create(self.root, **options)
+                with self.assertRaises(InvalidInputError):
+                    Shell(self.root, **options)
+        for options in [{"inherit_env": "PATH"}, {"env": {"NAME": 1}}, {"env": [("A", "B")]}]:
+            with self.subTest(options=options):
+                with self.assertRaises(TypeError):
+                    await ShellTool.create(self.root, **options)
 
 
 class ShellLifecycleTests(unittest.TestCase):

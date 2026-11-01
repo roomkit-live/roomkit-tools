@@ -13,19 +13,31 @@ use tokio_util::sync::CancellationToken;
 use crate::journal::Journal;
 use crate::persistent::{Entry, Record};
 use crate::unix::Group;
-use crate::{ProcessEnd, ProcessLimits, ProcessState, ProcessStatus};
+use crate::{CommandEnv, ProcessEnd, ProcessLimits, ProcessState, ProcessStatus};
+
+/// A command to start for an owner, in its initial directory and environment.
+pub(crate) struct Launch<'a> {
+    pub(crate) owner: &'a str,
+    pub(crate) command: &'a str,
+    pub(crate) cwd: &'a Path,
+    pub(crate) env: &'a CommandEnv,
+}
 
 pub(crate) fn launch(
-    owner: &str,
-    command: &str,
-    cwd: &Path,
+    request: &Launch<'_>,
     mut status: ProcessStatus,
     limits: ProcessLimits,
     stop: CancellationToken,
     outputs: Option<&crate::OutputStore>,
 ) -> Result<(Arc<Entry>, ProcessStatus), Error> {
+    let Launch {
+        owner,
+        command,
+        cwd,
+        env,
+    } = *request;
     let (mut child, group) = crate::unix::spawn(
-        crate::unix::shell_command(command, cwd, Stdio::piped()),
+        crate::unix::shell_command(command, cwd, env, Stdio::piped()),
         "spawn persistent process",
     )?;
     let stdout = child.stdout.take().ok_or_else(missing_pipe)?;
