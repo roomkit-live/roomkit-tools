@@ -188,7 +188,7 @@ async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
         .with_limits(glob_limits)
         .unwrap();
     assert!(matches!(
-        glob.glob(GlobInput::new("*.txt"), &CancellationToken::new())
+        glob.glob(GlobInput::new("**/*.txt"), &CancellationToken::new())
             .await,
         Err(Error::LimitExceeded(_))
     ));
@@ -506,19 +506,92 @@ async fn symlinks_are_listed_but_never_recursed_into() {
 
 #[cfg(unix)]
 #[tokio::test]
-async fn non_utf8_names_fail_instead_of_returning_unusable_paths() {
+async fn non_utf8_names_are_skipped_and_counted_anywhere_in_the_tree() {
+    use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(
-        root.path().join(std::ffi::OsString::from_vec(vec![0xff])),
-        "",
-    )
-    .unwrap();
-    let tool = ListTool::new(root.path()).await.unwrap();
+    std::fs::write(root.path().join(OsString::from_vec(vec![0xff])), "hit\n").unwrap();
+    let hidden = root.path().join("sub").join(OsString::from_vec(vec![0xfe]));
+    std::fs::create_dir_all(&hidden).unwrap();
+    std::fs::write(hidden.join("inner.txt"), "hit\n").unwrap();
+    std::fs::write(root.path().join("sub/ok.txt"), "hit\n").unwrap();
+    let cancel = CancellationToken::new();
+    let list = ListTool::new(root.path()).await.unwrap();
+    let listing = list.list(ListInput::new("."), &cancel).await.unwrap();
+    assert_eq!(listing.data.entries.len(), 1);
+    assert_eq!(listing.data.skipped_entries, 1);
+    let glob = GlobTool::new(root.path()).await.unwrap();
+    let found = glob
+        .glob(GlobInput::new("**/*.txt"), &cancel)
+        .await
+        .unwrap();
+    assert_eq!(found.data.entries.len(), 1);
+    assert_eq!(found.data.entries[0].path, "sub/ok.txt");
+    assert_eq!(found.data.skipped_entries, 2);
+    let grep = GrepTool::new(root.path()).await.unwrap();
+    let matches = grep.grep(GrepInput::new("hit"), &cancel).await.unwrap();
+    assert_eq!(matches.data.matches.len(), 1);
+    assert_eq!(matches.data.matches[0].path, "sub/ok.txt");
+    assert_eq!(matches.data.skipped_entries, 2);
+}
+
+#[tokio::test]
+async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("top.rs"), "hit\n").unwrap();
+    let mut deep = root.path().join("deep");
+    for level in 0..5 {
+        std::fs::create_dir(&deep).unwrap();
+        for file in 0..4 {
+            std::fs::write(deep.join(format!("{level}-{file}.rs")), "hit\n").unwrap();
+        }
+        deep.push("deep");
+    }
+    let cancel = CancellationToken::new();
+    let mut glob_limits = GlobLimits::default();
+    glob_limits.max_scan_entries = 8;
+    glob_limits.max_depth = 2;
+    let glob = GlobTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(glob_limits)
+        .unwrap();
+    let shallow = glob.glob(GlobInput::new("*.rs"), &cancel).await.unwrap();
+    assert_eq!(shallow.data.entries.len(), 1);
+    assert_eq!(
+        glob.glob(GlobInput::new("deep/*.rs"), &cancel)
+            .await
+            .unwrap()
+            .data
+            .entries
+            .len(),
+        4
+    );
+    for unbounded in ["**/*.rs", "deep/*/*.rs", "[d]eep/*.rs"] {
+        assert!(
+            matches!(
+                glob.glob(GlobInput::new(unbounded), &cancel).await,
+                Err(Error::LimitExceeded(_))
+            ),
+            "{unbounded}"
+        );
+    }
+    let mut grep_limits = GrepLimits::default();
+    grep_limits.max_scan_entries = 8;
+    grep_limits.max_depth = 2;
+    let grep = GrepTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(grep_limits)
+        .unwrap();
+    let mut input = GrepInput::new("hit");
+    input.include = Some("*.rs".into());
+    let matches = grep.grep(input.clone(), &cancel).await.unwrap();
+    assert_eq!(matches.data.matches.len(), 1);
+    input.include = Some("**/*.rs".into());
     assert!(matches!(
-        tool.list(ListInput::new("."), &CancellationToken::new())
-            .await,
-        Err(Error::Unsupported(_))
+        grep.grep(input, &cancel).await,
+        Err(Error::LimitExceeded(_))
     ));
 }
 

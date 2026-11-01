@@ -11,7 +11,7 @@ use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::ReadLine;
-use crate::paths::{self, PathEntry, PathKind, Root, first_entry, workspace_path};
+use crate::paths::{self, PathEntry, PathKind, Root, Scan, first_entry, workspace_path};
 
 /// Search UTF-8 file contents, one match per matching line.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -92,6 +92,9 @@ pub struct GrepPage {
     pub next_offset: Option<usize>,
     /// Files skipped as binary or non-UTF-8 before this page ended.
     pub skipped_files: usize,
+    /// Entries left out of the whole scan because their names are not UTF-8;
+    /// a skipped directory is not searched.
+    pub skipped_entries: usize,
 }
 
 /// Host-owned traversal, ingestion and output bounds.
@@ -200,7 +203,13 @@ impl GrepTool {
         }
     }
 
-    async fn files(&self, path: &Path) -> Result<(Vec<PathEntry>, String), Error> {
+    /// Files to search and the prefix that `include` patterns are relative to.
+    /// `include_depth` stops the walk where the include glob cannot match.
+    async fn files(
+        &self,
+        path: &Path,
+        include_depth: Option<usize>,
+    ) -> Result<(Scan, String), Error> {
         let info = fs::metadata(path).await.map_err(|source| Error::Io {
             operation: "inspect the search path",
             source,
@@ -213,26 +222,29 @@ impl GrepTool {
                 .ok_or_else(|| Error::Unsupported("filename is not UTF-8".into()))?
                 .to_owned();
             let prefix = relative.strip_suffix(&name).unwrap_or_default().to_owned();
+            let entries = vec![PathEntry {
+                path: relative,
+                name,
+                kind: PathKind::File,
+            }];
             return Ok((
-                vec![PathEntry {
-                    path: relative,
-                    name,
-                    kind: PathKind::File,
-                }],
+                Scan {
+                    entries,
+                    skipped: 0,
+                },
                 prefix,
             ));
         }
         let prefix = self.root.prefix(path)?;
-        Ok((
-            paths::walk(
-                &self.root,
-                path,
-                self.limits.max_scan_entries,
-                self.limits.max_depth,
-            )
-            .await?,
-            prefix,
-        ))
+        let scan = paths::walk(
+            &self.root,
+            path,
+            self.limits.max_scan_entries,
+            self.limits.max_depth,
+            include_depth,
+        )
+        .await?;
+        Ok((scan, prefix))
     }
 
     async fn search(&self, input: &GrepInput) -> Result<Output<GrepPage>, Error> {
@@ -260,10 +272,16 @@ impl GrepTool {
             .map_err(|error| Error::InvalidInput(format!("invalid regex: {error}")))?;
         let include = input.include.as_deref().map(paths::pattern).transpose()?;
         let path = self.root.resolve(&input.path).await?;
-        let (files, prefix) = self.files(&path).await?;
+        let include_depth = input.include.as_deref().and_then(paths::match_depth);
+        let (files, prefix) = self.files(&path, include_depth).await?;
         let mut page = Matches::new(self.root.relative(&path)?, input, self.limits);
+        page.data.skipped_entries = files.skipped;
         let mut ingested = 0;
-        'files: for file in files.into_iter().filter(|file| file.kind == PathKind::File) {
+        'files: for file in files
+            .entries
+            .into_iter()
+            .filter(|file| file.kind == PathKind::File)
+        {
             let relative = file.path.strip_prefix(&prefix).unwrap_or(&file.path);
             if include
                 .as_ref()
@@ -369,6 +387,7 @@ impl Matches {
                 truncated: false,
                 next_offset: None,
                 skipped_files: 0,
+                skipped_entries: 0,
             },
             text: String::new(),
             seen: 0,

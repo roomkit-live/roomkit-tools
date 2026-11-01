@@ -117,12 +117,12 @@ impl ListTool {
 
     async fn list_directory(&self, input: ListInput) -> Result<Output<PathPage>, Error> {
         let path = self.root.resolve(&input.path).await?;
-        let mut entries =
+        let mut scan =
             paths::directory_entries(&self.root, &path, self.limits.max_scan_entries).await?;
-        entries.sort_unstable_by(|a, b| a.path.cmp(&b.path));
+        scan.entries.sort_unstable_by(|a, b| a.path.cmp(&b.path));
         paths::page(
             self.root.relative(&path)?,
-            entries,
+            scan,
             input.offset,
             input
                 .limit

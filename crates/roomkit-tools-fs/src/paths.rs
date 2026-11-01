@@ -54,6 +54,9 @@ pub struct PathPage {
     pub truncated: bool,
     /// One-based entry offset to request next, or `None` at the end.
     pub next_offset: Option<usize>,
+    /// Entries left out of the whole scan because their names are not UTF-8;
+    /// a skipped directory is not searched.
+    pub skipped_entries: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -127,11 +130,27 @@ pub(crate) const fn first_entry() -> NonZeroUsize {
     NonZeroUsize::MIN
 }
 
+/// Entries found by a bounded scan.
+#[derive(Debug, Default)]
+pub(crate) struct Scan {
+    pub(crate) entries: Vec<PathEntry>,
+    /// Entries skipped because their names are not UTF-8. They count toward
+    /// the scan bound; a skipped directory's contents are not visited.
+    pub(crate) skipped: usize,
+}
+
+impl Scan {
+    fn visited(&self) -> usize {
+        self.entries.len() + self.skipped
+    }
+}
+
+/// List one directory. `maximum` bounds the entries visited, skipped included.
 pub(crate) async fn directory_entries(
     root: &Root,
     path: &Path,
     maximum: usize,
-) -> Result<Vec<PathEntry>, Error> {
+) -> Result<Scan, Error> {
     let info = fs::metadata(path).await.map_err(|source| Error::Io {
         operation: "inspect the directory",
         source,
@@ -143,68 +162,90 @@ pub(crate) async fn directory_entries(
         operation: "open the directory",
         source,
     })?;
-    let mut entries = Vec::new();
+    let mut scan = Scan::default();
     while let Some(entry) = directory.next_entry().await.map_err(|source| Error::Io {
         operation: "list the directory",
         source,
     })? {
-        if entries.len() >= maximum {
+        if scan.visited() >= maximum {
             return Err(Error::LimitExceeded(
                 "directory scan exceeds max_scan_entries".into(),
             ));
         }
-        let name = entry
-            .file_name()
-            .into_string()
-            .map_err(|_| Error::Unsupported("filename is not UTF-8".into()))?;
+        if scan.visited() % 256 == 255 {
+            tokio::task::yield_now().await;
+        }
+        let Ok(name) = entry.file_name().into_string() else {
+            scan.skipped += 1;
+            continue;
+        };
         let kind = entry.file_type().await.map_err(|source| Error::Io {
             operation: "inspect the directory entry",
             source,
         })?;
-        let kind = if kind.is_symlink() {
-            PathKind::Symlink
-        } else if kind.is_file() {
-            PathKind::File
-        } else if kind.is_dir() {
-            PathKind::Directory
-        } else {
-            PathKind::Other
-        };
-        entries.push(PathEntry {
+        scan.entries.push(PathEntry {
             name,
             path: root.relative(&entry.path())?,
-            kind,
+            kind: kind_of(kind),
         });
-        if entries.len() % 256 == 0 {
-            tokio::task::yield_now().await;
-        }
     }
-    Ok(entries)
+    Ok(scan)
 }
 
+fn kind_of(kind: std::fs::FileType) -> PathKind {
+    if kind.is_symlink() {
+        PathKind::Symlink
+    } else if kind.is_file() {
+        PathKind::File
+    } else if kind.is_dir() {
+        PathKind::Directory
+    } else {
+        PathKind::Other
+    }
+}
+
+/// Visit `path` recursively, without following symlinks, sorted by path.
+///
+/// Directories at level `match_depth` (the starting directory is level one)
+/// are listed but not entered: their contents could not match. `None` scans
+/// every level. The entry and depth bounds apply to what is visited.
 pub(crate) async fn walk(
     root: &Root,
     path: &Path,
     maximum: usize,
     max_depth: usize,
-) -> Result<Vec<PathEntry>, Error> {
+    match_depth: Option<usize>,
+) -> Result<Scan, Error> {
     let mut pending = vec![(path.to_path_buf(), 1)];
-    let mut entries = Vec::new();
+    let mut scan = Scan::default();
     while let Some((directory, depth)) = pending.pop() {
         if depth > max_depth {
             return Err(Error::LimitExceeded(
                 "directory scan exceeds max_depth".into(),
             ));
         }
-        for entry in directory_entries(root, &directory, maximum - entries.len()).await? {
-            if entry.kind == PathKind::Directory {
+        let listed = directory_entries(root, &directory, maximum - scan.visited()).await?;
+        scan.skipped += listed.skipped;
+        for entry in listed.entries {
+            if entry.kind == PathKind::Directory && match_depth.is_none_or(|limit| depth < limit) {
                 pending.push((root.resolve(&entry.path).await?, depth + 1));
             }
-            entries.push(entry);
+            scan.entries.push(entry);
         }
     }
-    entries.sort_unstable_by(|a, b| a.path.cmp(&b.path));
-    Ok(entries)
+    scan.entries.sort_unstable_by(|a, b| a.path.cmp(&b.path));
+    Ok(scan)
+}
+
+/// Deepest relative path, in components, that a glob can match, or `None`
+/// when unbounded. With literal separators, `*`, `?` and literals never match
+/// `/`, but `**` crosses directories and a class such as `[!a]` can match it.
+pub(crate) fn match_depth(pattern: &str) -> Option<usize> {
+    if pattern.contains("**") || pattern.contains('[') {
+        None
+    } else {
+        Some(pattern.matches('/').count() + 1)
+    }
 }
 
 /// Compile a model-supplied glob. A one-pattern set is built instead of a
@@ -231,11 +272,12 @@ pub(crate) fn pattern(pattern: &str) -> Result<globset::GlobSet, Error> {
 
 pub(crate) fn page(
     path: String,
-    entries: Vec<PathEntry>,
+    scan: Scan,
     offset: NonZeroUsize,
     limit: usize,
     bytes: usize,
 ) -> Result<Output<PathPage>, Error> {
+    let Scan { entries, skipped } = scan;
     let offset = offset.get();
     if offset > entries.len() && !(offset == 1 && entries.is_empty()) {
         return Err(Error::InvalidInput(
@@ -266,6 +308,7 @@ pub(crate) fn page(
             entries: selected,
             truncated: next_offset.is_some(),
             next_offset,
+            skipped_entries: skipped,
         },
         text,
     ))

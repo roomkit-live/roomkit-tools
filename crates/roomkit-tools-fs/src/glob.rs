@@ -131,25 +131,23 @@ impl GlobTool {
         let matcher = paths::pattern(&input.pattern)?;
         let path = self.root.resolve(&input.path).await?;
         let prefix = self.root.prefix(&path)?;
-        let entries = paths::walk(
+        let mut scan = paths::walk(
             &self.root,
             &path,
             self.limits.max_scan_entries,
             self.limits.max_depth,
+            paths::match_depth(&input.pattern),
         )
         .await?;
-        let entries = entries
-            .into_iter()
-            .filter(|entry| {
-                entry
-                    .path
-                    .strip_prefix(&prefix)
-                    .is_some_and(|relative| matcher.is_match(relative))
-            })
-            .collect();
+        scan.entries.retain(|entry| {
+            entry
+                .path
+                .strip_prefix(&prefix)
+                .is_some_and(|relative| matcher.is_match(relative))
+        });
         paths::page(
             self.root.relative(&path)?,
-            entries,
+            scan,
             input.offset,
             input
                 .limit

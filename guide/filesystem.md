@@ -70,7 +70,12 @@ usable by `read`. Every page rescans; results are not snapshots across external 
 Hidden entries are included, ignore files are not applied, and child symlinks
 are not traversed. Grep supports Rust regex syntax, `literal=True`,
 `ignore_case=True`, `include`, `context_before` and `context_after`.
-It skips binary/non-UTF-8 files and reports `data.skipped_files`.
+It skips binary/non-UTF-8 files and reports `data.skipped_files`. All three
+tools skip entries whose names are not UTF-8, without searching a skipped
+directory, and report them in `data.skipped_entries`. A glob pattern or grep
+`include` without `**` or a `[...]` class only scans as many directory levels as
+it has components: `*.rs` reads only the search directory, so unrelated large or
+deep subtrees do not exhaust the scan bounds.
 
 Host bounds are explicit constructor keywords for both APIs:
 
