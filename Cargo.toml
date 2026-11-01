@@ -59,7 +59,7 @@ url = "2"
 htmd = "0.5.6"
 # Same parser htmd uses, driven chunk by chunk through a bounded tree sink.
 html5ever = "0.38"
-markup5ever_rcdom = "0.38"
+markup5ever_rcdom = "0.39"
 
 [workspace.lints.rust]
 # The single exception is `new_session` in crates/roomkit-tools-process/src/unix.rs
