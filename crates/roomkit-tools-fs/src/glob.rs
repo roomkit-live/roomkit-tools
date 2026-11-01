@@ -118,11 +118,12 @@ impl GlobTool {
     ///
     /// Cancellation, or dropping the returned future, returns promptly; the
     /// blocking matching worker stops at its next check, before the next
-    /// entry.
+    /// entry. Entries whose names are not UTF-8 are skipped and counted in
+    /// `skipped_entries`, and a skipped directory is not searched.
     ///
     /// # Errors
     /// Returns invalid patterns or offsets, refusal outside the root,
-    /// unsupported non-directories or non-UTF-8 names, I/O failures, or limits.
+    /// unsupported non-directories, I/O failures, or limits.
     pub async fn glob(
         &self,
         input: GlobInput,

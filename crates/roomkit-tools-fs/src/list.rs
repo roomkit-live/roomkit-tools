@@ -100,10 +100,12 @@ impl ListTool {
     }
 
     /// List one page; cancellation stops waiting for filesystem work.
+    /// Entries whose names are not UTF-8 are skipped and counted in
+    /// `skipped_entries`.
     ///
     /// # Errors
-    /// Returns refusal outside the root, unsupported for a file or non-UTF-8
-    /// name, an I/O failure, invalid offset, or a scan/output limit failure.
+    /// Returns refusal outside the root, unsupported for a file, an I/O
+    /// failure, invalid offset, or a scan/output limit failure.
     pub async fn list(
         &self,
         input: ListInput,
