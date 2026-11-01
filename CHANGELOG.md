@@ -107,6 +107,10 @@ part of an existing published preview.
 
 ### Packaging and documentation
 
+- Update to sha2 0.11, base64 0.23 and reqwest 0.13. HTTPS keeps the ring
+  provider and the bundled Mozilla roots, now configured explicitly, so
+  certificate trust does not depend on the host's certificate store.
+  `roomkit_tools_core::revision::sha256` spells every content revision.
 - The wheel ships the license notices of every native dependency
   (`licenses/native_dependencies.txt`), checked against the lock file.
 - Distribution checks admit only tracked files in source archives and expected
