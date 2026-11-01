@@ -4,7 +4,9 @@
 //! [`GrepToolset`], [`WriteToolset`], [`EditToolset`] and [`ShellToolset`] independently with `AiAgent::with_tools` or
 //! `OpenAiAgent::with_tools`. RoomKit retains argument validation, policies,
 //! hooks, timeouts and turn cancellation. The filesystem implementation
-//! remains usable without RoomKit.
+//! remains usable without RoomKit. [`roomkit_owner`] names the owner under
+//! which the shell, process and output toolsets keep a room and agent's jobs
+//! and archives.
 
 #[cfg(feature = "plans")]
 mod plans;
@@ -37,6 +39,19 @@ use roomkit_tools_ocr::OcrTool;
 use roomkit_tools_search::WebSearchTool;
 use roomkit_tools_web::WebFetchTool;
 use tokio_util::sync::CancellationToken;
+
+/// The owner key of the shell, process and output toolsets for the calls of
+/// the agent `channel_id` in the room `room_id`.
+///
+/// Those toolsets file the jobs and archives of each call under this key:
+/// compact JSON of `[room_id, channel_id]`, the key Python's `roomkit_owner`
+/// also returns, so neither part can be mistaken for the other. Pass it to
+/// [`ProcessManager`](roomkit_tools_process::ProcessManager) and
+/// [`OutputStore`](roomkit_tools_process::OutputStore) methods to list, read,
+/// stop or release them from the host.
+pub fn roomkit_owner(room_id: &str, channel_id: &str) -> String {
+    serde_json::Value::from(vec![room_id, channel_id]).to_string()
+}
 
 // Each adapter exposes one capability. Composing toolsets remains the host's
 // choice; this macro only shares the RoomKit argument/result/lifecycle bridge.

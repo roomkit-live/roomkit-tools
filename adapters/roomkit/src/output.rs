@@ -29,8 +29,8 @@ macro_rules! owned_toolset {
                 if call.name != $wire || self.closed.is_cancelled() {
                     return Err(ToolError::refused(concat!("Unavailable tool: ", $wire)));
                 }
-                let owner = serde_json::to_string(&(context.room_id, context.channel_id))
-                    .map_err(|error| ToolError::raised(&error))?;
+                let owner =
+                    super::roomkit_owner(context.room_id.as_str(), context.channel_id.as_str());
                 let input = roomkit_ai::arguments(&call)?;
                 let cancel = self.closed.child_token();
                 let _cancel_on_drop = cancel.clone().drop_guard();

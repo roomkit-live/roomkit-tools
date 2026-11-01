@@ -79,7 +79,9 @@ The adapter implements RoomKit's `Toolset` interface for filesystem, outline,
 command, process, output, web-fetch and search tools. Register them individually
 and supply roots, limits and lifetimes. RoomKit manages argument validation,
 policies, hooks and turn cancellation. Process/archive owners are derived from
-the conversation and agent.
+the conversation and agent: `roomkit_owner(room_id, channel_id)` returns that
+key, so the host can pass it to `ProcessManager` and `OutputStore` methods to
+reach the jobs and archives of an agent's calls in a room.
 
 | Capability | Native Rust tool | RoomKit Rust adapter |
 | --- | --- | --- |
