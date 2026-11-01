@@ -14,7 +14,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::{Cancellation, InvalidInputError, ShellOptions, ToolError, tool_error};
 
-// Python hosts supply a separate OutputStore per isolated conversation/agent.
+// The owner of standalone Python calls. RoomKit handlers pass the trusted
+// owner of each call, derived from its room and acting agent.
 pub(super) const OWNER: &str = "default";
 
 #[derive(Default, Deserialize)]
@@ -117,14 +118,17 @@ impl PythonOutputStore {
             .map_err(|_| ToolError::new_err("Unable to serialize output definition"))
     }
 
+    #[pyo3(signature = (name, arguments_json, cancellation, owner=None))]
     fn call<'py>(
         &self,
         py: Python<'py>,
         name: String,
         arguments_json: String,
         cancellation: &Cancellation,
+        owner: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let state = Arc::clone(&self.state);
+        let owner = owner.unwrap_or_else(|| OWNER.to_owned());
         let token = cancellation.token.clone();
         let guard = token.clone().drop_guard();
         crate::runtime::future_into_py(py, async move {
@@ -138,7 +142,7 @@ impl PythonOutputStore {
                         .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
                     let store = state.resolve().await.map_err(|e| tool_error(&e))?;
                     let result = store
-                        .$method(OWNER, input, &token)
+                        .$method(&owner, input, &token)
                         .await
                         .map_err(|e| tool_error(&e))?;
                     serde_json::to_string(&result)
@@ -150,7 +154,7 @@ impl PythonOutputStore {
                 "output_forget" => invoke!(forget, OutputForgetInput),
                 "initialize" | "list" => {
                     let store = state.resolve().await.map_err(|e| tool_error(&e))?;
-                    let entries = store.list(OWNER, &token).map_err(|e| tool_error(&e))?;
+                    let entries = store.list(&owner, &token).map_err(|e| tool_error(&e))?;
                     serde_json::to_string(&entries)
                         .map_err(|_| ToolError::new_err("Unable to serialize output list"))
                 }
@@ -224,13 +228,16 @@ impl PythonShellTool {
             .map_err(|_| ToolError::new_err("Unable to serialize tool definition"))
     }
 
+    #[pyo3(signature = (arguments_json, cancellation, owner=None))]
     fn call<'py>(
         &self,
         py: Python<'py>,
         arguments_json: String,
         cancellation: &Cancellation,
+        owner: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tool = self.tool.clone();
+        let owner = owner.unwrap_or_else(|| OWNER.to_owned());
         let token = cancellation.token.clone();
         let guard = token.clone().drop_guard();
         crate::runtime::future_into_py(py, async move {
@@ -238,7 +245,7 @@ impl PythonShellTool {
             let input: ShellInput = serde_json::from_str(&arguments_json)
                 .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
             let result = tool
-                .shell_owned(OWNER, input, &token)
+                .shell_owned(&owner, input, &token)
                 .await
                 .map_err(|e| tool_error(&e))?;
             serde_json::to_string(&result)

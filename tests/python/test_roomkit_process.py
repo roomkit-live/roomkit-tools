@@ -8,7 +8,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from roomkit import AIChannel
+from roomkit import (
+    AIChannel,
+    HookExecution,
+    HookResult,
+    HookTrigger,
+    InboundMessage,
+    RoomKit,
+    ToolCallEvent,
+    WebSocketChannel,
+)
 from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
 from roomkit.models.channel import ChannelBinding
 from roomkit.models.context import RoomContext
@@ -18,18 +27,34 @@ from roomkit.models.room import Room
 from roomkit.providers.ai.base import AIContext, AIResponse, AIToolCall, AIToolResultPart
 from roomkit.providers.ai.mock import MockAIProvider
 from roomkit.tools.compose import extract_tools
+from roomkit_helpers import in_call
 from roomkit_tools import (
+    OutputRead,
+    OutputStore,
     ProcessRead,
     ProcessSession,
     ProcessStart,
     ProcessStatus,
     ProcessStop,
     ProcessWrite,
+    Shell,
     ToolIOError,
 )
-from test_process import wait_status
+from roomkit_tools.roomkit import _roomkit_owner
 
 ADAPTERS = (ProcessStart, ProcessStatus, ProcessRead, ProcessWrite, ProcessStop)
+
+
+async def wait_job(session: ProcessSession, room: str, agent: str, pid: str, **expected):
+    """Wait until `agent`'s job in `room` reports the expected status fields."""
+    async with asyncio.timeout(5):
+        while True:
+            with in_call(room, agent):
+                result = await ProcessStatus(session).handler("process_status", {"process_id": pid})
+            status = json.loads(result)["data"][0]
+            if all(status[key] == value for key, value in expected.items()):
+                return status
+            await asyncio.sleep(0.005)
 
 
 class RoomKitProcessTests(unittest.IsolatedAsyncioTestCase):
@@ -54,27 +79,28 @@ class RoomKitProcessTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failures_and_closed_session_map_to_roomkit_errors(self) -> None:
         session = ProcessSession(self.root, max_processes=1, max_processes_per_owner=1)
-        async with session:
-            _, handler = extract_tools([adapter(session) for adapter in ADAPTERS])
-            for name, arguments in [
-                ("process_start", {"command": ""}),
-                ("process_start", {"command": "pwd", "owner": "other"}),
-                ("process_start", {"command": "pwd", "cwd": ".."}),
-                ("process_status", {"process_id": "missing"}),
-                ("process_read", {"process_id": "missing"}),
-                ("process_write", {"process_id": "missing", "text": "x"}),
-                ("process_stop", {"process_id": "missing"}),
-            ]:
-                with self.subTest(name=name, arguments=arguments):
-                    with self.assertRaises(ToolRefusedError):
-                        await handler(name, arguments)
-            with self.assertRaises(ToolIOError):
-                await handler("process_start", {"command": "pwd", "cwd": "missing"})
-            await handler("process_start", {"command": "cat"})
-            with self.assertRaises(ToolFailedError):
+        _, handler = extract_tools([adapter(session) for adapter in ADAPTERS])
+        with in_call("room", "agent"):
+            async with session:
+                for name, arguments in [
+                    ("process_start", {"command": ""}),
+                    ("process_start", {"command": "pwd", "owner": "other"}),
+                    ("process_start", {"command": "pwd", "cwd": ".."}),
+                    ("process_status", {"process_id": "missing"}),
+                    ("process_read", {"process_id": "missing"}),
+                    ("process_write", {"process_id": "missing", "text": "x"}),
+                    ("process_stop", {"process_id": "missing"}),
+                ]:
+                    with self.subTest(name=name, arguments=arguments):
+                        with self.assertRaises(ToolRefusedError):
+                            await handler(name, arguments)
+                with self.assertRaises(ToolIOError):
+                    await handler("process_start", {"command": "pwd", "cwd": "missing"})
                 await handler("process_start", {"command": "cat"})
-        with self.assertRaises(ToolRefusedError):
-            await handler("process_start", {"command": "pwd"})
+                with self.assertRaises(ToolFailedError):
+                    await handler("process_start", {"command": "cat"})
+            with self.assertRaises(ToolRefusedError):
+                await handler("process_start", {"command": "pwd"})
 
     async def test_agent_uses_all_five_tools_across_turns_without_implicit_eof(self) -> None:
         async with ProcessSession(self.root) as session:
@@ -84,9 +110,16 @@ class RoomKitProcessTests(unittest.IsolatedAsyncioTestCase):
                     # Synchronize the scripted provider with real pipe capture,
                     # without changing the non-waiting process_read contract.
                     if len(self.calls) == 3:
-                        await wait_status(session, "p1", stdout_bytes=8)
+                        await wait_job(session, "test-room", "agent", "p1", stdout_bytes=8)
                     elif len(self.calls) == 6:
-                        await wait_status(session, "p1", state="finished", output_complete=True)
+                        await wait_job(
+                            session,
+                            "test-room",
+                            "agent",
+                            "p1",
+                            state="finished",
+                            output_complete=True,
+                        )
                     return await super().generate(context)
 
             script = [
@@ -167,46 +200,175 @@ class RoomKitProcessTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(statuses[0]["signal"])
             self.assertEqual(statuses[0]["end"], "exited")
             self.assertTrue(stop["forgotten"])
-            self.assertEqual((await session.status())["data"], [])
+            with in_call("test-room", "agent"):
+                status = await ProcessStatus(session).handler("process_status", {})
+            self.assertEqual(json.loads(status)["data"], [])
 
     async def test_concurrent_adapters_share_session_but_separate_sessions_are_isolated(
         self,
     ) -> None:
-        async with ProcessSession(self.root) as first, ProcessSession(self.root) as second:
-            results = await asyncio.gather(
-                *[
-                    ProcessStart(first).handler("process_start", {"command": "cat"})
-                    for _ in range(3)
-                ]
-            )
-            self.assertEqual(
-                {json.loads(result)["data"]["process_id"] for result in results},
-                {"p1", "p2", "p3"},
-            )
-            status = json.loads(await ProcessStatus(first).handler("process_status", {}))
-            self.assertEqual(len(status["data"]), 3)
-            with self.assertRaises(ToolRefusedError):
-                await ProcessRead(second).handler("process_read", {"process_id": "p1"})
-            self.assertEqual((await second.status())["data"], [])
+        with in_call("room", "agent"):
+            async with ProcessSession(self.root) as first, ProcessSession(self.root) as second:
+                results = await asyncio.gather(
+                    *[
+                        ProcessStart(first).handler("process_start", {"command": "cat"})
+                        for _ in range(3)
+                    ]
+                )
+                self.assertEqual(
+                    {json.loads(result)["data"]["process_id"] for result in results},
+                    {"p1", "p2", "p3"},
+                )
+                status = json.loads(await ProcessStatus(first).handler("process_status", {}))
+                self.assertEqual(len(status["data"]), 3)
+                with self.assertRaises(ToolRefusedError):
+                    await ProcessRead(second).handler("process_read", {"process_id": "p1"})
+                status = json.loads(await ProcessStatus(second).handler("process_status", {}))
+                self.assertEqual(status["data"], [])
+
+    async def test_rooms_and_agents_sharing_a_session_only_reach_their_own_jobs(self) -> None:
+        async with ProcessSession(self.root) as session:
+            _, handler = extract_tools([adapter(session) for adapter in ADAPTERS])
+            with in_call("room-a", "agent"):
+                started = json.loads(await handler("process_start", {"command": "cat"}))
+                job = started["data"]["process_id"]
+            for room, agent in [("room-b", "agent"), ("room-a", "other-agent")]:
+                with self.subTest(room=room, agent=agent), in_call(room, agent):
+                    listed = json.loads(await handler("process_status", {}))
+                    self.assertEqual(listed["data"], [])
+                    for name, arguments in [
+                        ("process_status", {"process_id": job}),
+                        ("process_read", {"process_id": job}),
+                        ("process_write", {"process_id": job, "text": "x"}),
+                        ("process_stop", {"process_id": job}),
+                    ]:
+                        with self.assertRaises(ToolRefusedError):
+                            await handler(name, arguments)
+                    own = json.loads(await handler("process_start", {"command": "true"}))
+                    self.assertEqual(own["data"]["process_id"], "p2" if room == "room-b" else "p3")
+            with in_call("room-a", "agent"):
+                listed = json.loads(await handler("process_status", {}))
+                self.assertEqual([s["process_id"] for s in listed["data"]], [job])
+                written = json.loads(
+                    await handler("process_write", {"process_id": job, "text": "a\n"})
+                )
+                self.assertTrue(written["data"]["complete"])
+                stopped = json.loads(
+                    await handler("process_stop", {"process_id": job, "forget": True})
+                )
+                self.assertTrue(stopped["data"]["forgotten"])
+            for name in ("process_start", "process_status"):
+                with self.assertRaises(ToolRefusedError):
+                    await handler(name, {"command": "true"} if name == "process_start" else {})
+            self.assertEqual((await session.status())["data"], [])
+
+    def test_owner_key_is_composed_as_in_the_rust_adapter(self) -> None:
+        # The Rust adapter's key is serde_json::to_string(&(room_id, channel_id)).
+        for room, agent, key in [
+            ("room-a", "agent", '["room-a","agent"]'),
+            ('salle "é"', "agent:1", '["salle \\"é\\"","agent:1"]'),
+        ]:
+            with self.subTest(room=room), in_call(room, agent):
+                self.assertEqual(_roomkit_owner("process"), key)
 
     async def test_cancelled_handler_write_preserves_job_and_partial_stdin(self) -> None:
         async with ProcessSession(
             self.root, max_write_bytes=1_000_000, write_timeout_ms=5000
         ) as session:
-            started = await session.start("sleep 60")
-            process_id = started["data"]["process_id"]
-            task = asyncio.create_task(
-                ProcessWrite(session).handler(
-                    "process_write", {"process_id": process_id, "text": "x" * 1_000_000}
+            with in_call("room", "agent"):
+                started = await ProcessStart(session).handler(
+                    "process_start", {"command": "sleep 60"}
                 )
-            )
+                process_id = json.loads(started)["data"]["process_id"]
+                task = asyncio.create_task(
+                    ProcessWrite(session).handler(
+                        "process_write", {"process_id": process_id, "text": "x" * 1_000_000}
+                    )
+                )
             await asyncio.sleep(0.02)
             task.cancel()
             with self.assertRaises(asyncio.CancelledError):
                 await task
-            status = (await session.status(process_id))["data"][0]
+            status = await wait_job(session, "room", "agent", process_id)
             self.assertEqual(status["state"], "running")
             self.assertFalse(status["stdin_closed"])
+
+
+class RoomKitTwoRoomsTests(unittest.IsolatedAsyncioTestCase):
+    """One agent attached to two rooms, driven through RoomKit's own tool loop."""
+
+    async def test_one_agent_in_two_rooms_keeps_jobs_and_archives_apart(self) -> None:
+        # p1 captures into o1/o2; the shell call in room-a writes o3/o4.
+        turns = [
+            ("room-a", [("process_start", {"command": "cat"}), ("shell", {"command": "printf a"})]),
+            (
+                "room-b",
+                [
+                    ("process_status", {}),
+                    ("process_read", {"process_id": "p1"}),
+                    ("process_write", {"process_id": "p1", "text": "x"}),
+                    ("process_stop", {"process_id": "p1"}),
+                    ("output_read", {"archive_id": "o3"}),
+                ],
+            ),
+            ("room-a", [("process_status", {}), ("output_read", {"archive_id": "o3"})]),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            events = await self._run(Path(directory), turns)
+        # Calls of one round run concurrently; key their outcomes by tool name.
+        room_a, room_b = (
+            {e.name: (e.is_error, e.result) for e in events if e.room_id == room}
+            for room in ("room-a", "room-b")
+        )
+        self.assertEqual(len(room_b), 5, room_b)
+        status_error, status = room_b.pop("process_status")
+        self.assertFalse(status_error)
+        self.assertEqual(json.loads(status)["data"], [])
+        self.assertTrue(all(is_error for is_error, _ in room_b.values()), room_b)
+        self.assertFalse(any(is_error for is_error, _ in room_a.values()), room_a)
+        listed = json.loads(room_a["process_status"][1])["data"]
+        self.assertEqual([(s["process_id"], s["state"]) for s in listed], [("p1", "running")])
+        self.assertEqual(json.loads(room_a["output_read"][1])["data"]["text"], "a")
+
+    async def _run(self, root: Path, turns) -> list[ToolCallEvent]:
+        responses = []
+        for index, (_, calls) in enumerate(turns):
+            tool_calls = [
+                AIToolCall(id=f"call-{index}-{n}", name=name, arguments=arguments)
+                for n, (name, arguments) in enumerate(calls)
+            ]
+            responses += [
+                AIResponse(content="", finish_reason="tool_calls", tool_calls=tool_calls),
+                AIResponse(content="Done."),
+            ]
+        events: list[ToolCallEvent] = []
+        async with (
+            OutputStore(root) as outputs,
+            ProcessSession(root, outputs=outputs) as session,
+            RoomKit() as kit,
+        ):
+            tools = [adapter(session) for adapter in ADAPTERS]
+            tools += [Shell(root, outputs=outputs), OutputRead(outputs)]
+            provider = MockAIProvider(ai_responses=responses, streaming=False)
+            kit.register_channel(AIChannel("agent", provider=provider, tools=tools))
+            kit.register_channel(WebSocketChannel("user"))
+
+            @kit.hook(HookTrigger.ON_TOOL_CALL, execution=HookExecution.ASYNC)
+            async def observe(event: ToolCallEvent, _context: RoomContext) -> HookResult:
+                if event.result is not None:
+                    events.append(event)
+                return HookResult.allow()
+
+            for room in ("room-a", "room-b"):
+                await kit.create_room(room_id=room)
+                await kit.attach_channel(room, "agent", category=ChannelCategory.INTELLIGENCE)
+                await kit.attach_channel(room, "user")
+            for room, _ in turns:
+                message = InboundMessage(
+                    channel_id="user", sender_id="developer", content=TextContent(body="Go")
+                )
+                await kit.process_inbound(message, room_id=room)
+        return events
 
 
 if __name__ == "__main__":

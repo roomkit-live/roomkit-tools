@@ -14,10 +14,12 @@ from . import _native
 class OutputStore:
     """Ephemeral disk copies shared by selected shell and process tools.
 
-    Construct a separate store per isolated conversation/agent. Pass it as
-    ``outputs=store`` to Shell/ShellTool or ProcessSession; select OutputRead
-    and optionally OutputForget for the agent. No arbitrary paths are accepted
-    by those tools. The host controls the parent directory and quotas.
+    Pass it as ``outputs=store`` to Shell/ShellTool or ProcessSession; select
+    OutputRead and optionally OutputForget for the agent. The RoomKit tools
+    give each room and acting agent its own archives, so one store can serve
+    several conversations; standalone calls share one owner. No arbitrary
+    paths are accepted by those tools. The host controls the parent directory
+    and quotas.
 
     Archives survive process-record deletion and manager close. Explicit forget
     or store close releases them; nothing is promised across host restarts.
@@ -37,8 +39,9 @@ class OutputStore:
     ) -> None:
         """Configure lazy Rust storage, defaulting to the system temporary parent.
 
-        Defaults: 64 retained streams, 16 per owner (one owner in a Python
-        store), 8 MiB per stream, 64 MiB total, 16 KiB/read, 1 s writer wait.
+        Defaults: 64 retained streams, 16 per owner (the standalone owner, or
+        one room and agent), 8 MiB per stream, 64 MiB total, 16 KiB/read, 1 s
+        writer wait.
         Stored and queued reservations count toward quota; failed reservations
         remain charged until forget/close. All bounds must be positive.
         A stream over quota retains a prefix and reports incomplete metadata.
@@ -87,11 +90,14 @@ class OutputStore:
 
     async def call(self, name: str, arguments: dict[str, Any]) -> Any:
         """Execute Rust-validated input; preserve structured metadata and text."""
+        return await self._call(name, arguments, None)
+
+    async def _call(self, name: str, arguments: dict[str, Any], owner: str | None) -> Any:
+        """Run for a trusted owner key; None is the standalone owner."""
         token = _native._Cancellation()
         try:
-            return json.loads(
-                await self._native.call(name, json.dumps(arguments, allow_nan=False), token)
-            )
+            arguments_json = json.dumps(arguments, allow_nan=False)
+            return json.loads(await self._native.call(name, arguments_json, token, owner))
         finally:
             token.cancel()
 
@@ -113,7 +119,11 @@ class OutputStore:
         return await self.call("output_forget", {"archive_id": archive_id})
 
     async def list(self) -> list[dict[str, Any]]:
-        """Host API to recover retained IDs, including calls whose response was cancelled."""
+        """Host API to recover the standalone owner's retained IDs, in creation order.
+
+        Includes calls whose response was cancelled. Archives of commands run
+        through the RoomKit tools belong to their room and agent.
+        """
         return await self.call("list", {})
 
     async def close(self) -> bool:

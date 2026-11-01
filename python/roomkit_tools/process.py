@@ -135,9 +135,14 @@ class ShellTool:
         are outside that mechanism, and the result is still returned.
         Already-performed effects are not rolled back.
         """
+        return await self._call(arguments, None)
+
+    async def _call(self, arguments: dict[str, Any], owner: str | None) -> dict[str, Any]:
+        """Run for a trusted archive owner key; None is the standalone owner."""
         cancel = _native._Cancellation()
         try:
-            result = await self._native.call(json.dumps(arguments, allow_nan=False), cancel)
+            arguments_json = json.dumps(arguments, allow_nan=False)
+            result = await self._native.call(arguments_json, cancel, owner)
         finally:
             cancel.cancel()
         return json.loads(result)
@@ -148,9 +153,11 @@ class ProcessSession:
 
     Use ``async with ProcessSession(root) as session`` for bounded cleanup on
     exit. Construction captures an absolute root; first use resolves it in Rust.
-    Each session owns a separate manager and one trusted owner. Never reuse it
-    across conversations that must be isolated. IDs are local to this session,
-    not OS PIDs, credentials or portable identifiers.
+    Each session owns a separate manager. Its standalone methods share one
+    owner; the RoomKit process tools give each room and acting agent its own
+    owner, so one session can serve several conversations without them seeing
+    each other's jobs. IDs are local to this session and sequential, not OS
+    PIDs, credentials or portable identifiers.
 
     Commands use /bin/sh -c with piped stdin, the host's permissions, the
     environment selected by inherit_env and env (as for ShellTool), a new
@@ -181,9 +188,9 @@ class ProcessSession:
         inherit_env and env select the environment as for ShellTool.create and
         are validated here. Defaults: 32 total/8 per owner, 16 KiB command,
         1 MiB retained bytes per stream, 16 KiB/read/stream, 64 KiB/write, 1 s
-        stdin deadline, 5 min default and 1 h maximum lifetime. This session has
-        one owner, so both quotas apply to its records; neither quota is global
-        across Python sessions.
+        stdin deadline, 5 min default and 1 h maximum lifetime. The per-owner
+        quota applies to the standalone owner and to each room and agent; the
+        total quota to the whole session. Neither is global across sessions.
         All bounds must be positive, per-owner quota <= total quota, stdin
         deadline <= 60 s, and default lifetime <= maximum lifetime <= 24 h.
         """
@@ -263,9 +270,16 @@ class ProcessSession:
         write may have delivered bytes; do not blindly replay. Once requested,
         stop continues even if its waiter is cancelled. Shutdown is explicit.
         """
+        return await self._call(name, arguments, None)
+
+    async def _call(
+        self, name: str, arguments: dict[str, Any], owner: str | None
+    ) -> dict[str, Any]:
+        """Run for a trusted owner key; None is the standalone owner."""
         cancel = _native._Cancellation()
         try:
-            result = await self._native.call(name, json.dumps(arguments, allow_nan=False), cancel)
+            arguments_json = json.dumps(arguments, allow_nan=False)
+            result = await self._native.call(name, arguments_json, cancel, owner)
         finally:
             cancel.cancel()
         return json.loads(result)
@@ -288,7 +302,11 @@ class ProcessSession:
         )
 
     async def status(self, process_id: str | None = None) -> dict[str, Any]:
-        """Inspect one ID or list all retained jobs, including completed ones."""
+        """Inspect one ID or list retained jobs, including completed ones.
+
+        Lists the standalone owner's jobs in creation order; jobs started
+        through the RoomKit tools belong to their room and agent.
+        """
         return await self.call("process_status", {"process_id": process_id})
 
     async def read(

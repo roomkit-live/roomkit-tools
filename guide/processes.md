@@ -103,13 +103,17 @@ async with ProcessSession(root="./workspace") as processes:
     # leaving this scope. Only the selected tools are exposed.
 ```
 
-`ProcessSession` owns a distinct Rust manager with one host-selected owner.
-Create one session per conversation/agent requiring isolation: the Python Tool
-handler does not receive a trusted conversation identity. Sharing a session
-deliberately shares all its jobs. IDs such as `p1` are local record identifiers,
-not OS PIDs or secrets, and can coincide across sessions. There is no global
-registry or cross-session quota. Passing a `Workspace` supplies only its path;
-processes do not acquire the filesystem mutation lock or run in a sandbox.
+`ProcessSession` owns a distinct Rust manager. Each RoomKit process tool call
+belongs to an owner derived from RoomKit's trusted context, the current room and
+the acting AI channel, composed as the RoomKit Rust adapter does; model arguments
+never select it. One session can serve several rooms and agents: none can list,
+read, write or stop another's jobs. A handler called outside a RoomKit tool call
+is refused. The standalone methods below use one separate host owner, so they do
+not see jobs started through the RoomKit tools. IDs such as `p1` are sequential
+record identifiers, not OS PIDs or secrets, and can coincide across sessions.
+There is no global registry or cross-session quota. Passing a `Workspace`
+supplies only its path; processes do not acquire the filesystem mutation lock or
+run in a sandbox.
 
 Standalone callers use `await processes.start("cat")`, `.status(process_id)`,
 `.read(process_id, stdout_offset=0, stderr_offset=0, max_bytes=None)`,
@@ -134,7 +138,7 @@ child consumed them. Send EOF explicitly with `close_stdin=True` when requested.
 | Session constructor option | Default |
 | --- | --- |
 | `inherit_env` / `env` | `DEFAULT_INHERITED_ENV` / no explicit values |
-| `max_processes` / `max_processes_per_owner` | 32 / 8 retained jobs; both apply to the session's single owner |
+| `max_processes` / `max_processes_per_owner` | 32 / 8 retained jobs, in the whole session / per room and agent (or for the standalone owner) |
 | `max_command_bytes` | 16 KiB UTF-8 |
 | `max_output_bytes` | 1 MiB recent raw bytes per stream per job |
 | `max_read_bytes` | 16 KiB per stream per call |
@@ -193,11 +197,13 @@ async with OutputStore() as outputs, RoomKit() as kit:
 
 For persistent jobs, use `async with ProcessSession(root, outputs=outputs)` inside
 that store's context, then select the desired `Process*` tools. Close RoomKit and
-the process session before the output store. Python hosts must create a separate
-store per conversation/agent requiring isolation; sharing a store intentionally
-shares access to its logs. Rust hosts supply trusted owner keys; Rust RoomKit
-adapters derive them from the room and agent. Owners and storage paths are not
-model arguments.
+the process session before the output store. Archives belong to the owner of
+the command that produced them: in RoomKit, Python and Rust alike, the current
+room and acting agent, so one store can serve several conversations without
+them reading or forgetting each other's logs. `Shell` with an output store, and
+`OutputRead`/`OutputForget`, refuse calls outside a RoomKit tool call. Rust hosts
+supply trusted owner keys directly. Owners and storage paths are not model
+arguments.
 
 Standalone Python uses the same Rust implementation:
 
@@ -256,8 +262,8 @@ forget/close. There is no silent eviction or unlimited queue.
 
 Completed logs survive process `forget` and `ProcessSession.close()`.
 `output_forget` refuses active capture/writers, then invalidates the ID and frees
-its reservation. The host's `await outputs.list()` recovers IDs after a cancelled
-command response. `await outputs.close()` permanently refuses reads and new
+its reservation. The host's `await outputs.list()` recovers the standalone
+owner's IDs, in creation order, after a cancelled command response. `await outputs.close()` permanently refuses reads and new
 records, stops writers and releases retained files; it does not stop commands.
 It waits up to two seconds for writers; `False` means cleanup needs another
 close attempt. An issued close continues if its Python awaiter is cancelled.

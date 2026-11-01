@@ -41,6 +41,23 @@ type _BoundTool = (
 )
 
 
+def _roomkit_owner(tools: str) -> str:
+    """The trusted owner of the current RoomKit call: its room and acting agent.
+
+    Composed as the RoomKit Rust adapter composes it, compact JSON of
+    ``[room_id, channel_id]``, so neither part can be mistaken for the other.
+    Model arguments never select it. Outside a RoomKit tool call, refuse.
+    """
+    from roomkit.core.exceptions import ToolRefusedError
+    from roomkit.tools.context import current_tool_call, current_tool_room_id
+
+    room, call = current_tool_room_id(), current_tool_call()
+    actor = call.channel_id if call is not None else None
+    if not room or not actor:
+        raise ToolRefusedError(f"{tools} tools require a conversation and an acting agent")
+    return json.dumps([room, actor], ensure_ascii=False, separators=(",", ":"))
+
+
 class _ToolAdapter:
     _tool_type: ClassVar[type[_BoundTool]]
 
@@ -445,8 +462,10 @@ class Shell(_ConfiguredTool):
     Captures an absolute root without spawning and validates inherit_env/env
     at once. First use resolves the root and validates limits asynchronously.
     A Workspace is accepted as a path only; shell commands do not share its
-    mutation lock or filesystem restrictions. See ShellTool for the command
-    environment, host permissions, bounds and cancellation semantics.
+    mutation lock or filesystem restrictions. With outputs, archives belong to
+    the calling room and agent, and a call outside a RoomKit tool call is
+    refused. See ShellTool for the command environment, host permissions,
+    bounds and cancellation semantics.
     """
 
     _tool_type = ShellTool
@@ -464,6 +483,7 @@ class Shell(_ConfiguredTool):
         max_timeout_ms: int | None = None,
     ) -> None:
         _env_options(inherit_env, env)
+        self._outputs = outputs
         self._configure(
             root,
             outputs=outputs,
@@ -474,6 +494,11 @@ class Shell(_ConfiguredTool):
             default_timeout_ms=default_timeout_ms,
             max_timeout_ms=max_timeout_ms,
         )
+
+    async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        owner = None if self._outputs is None else _roomkit_owner("shell archive")
+        tool = await self._get_tool()
+        return await tool._call(arguments, owner)
 
 
 class _ProcessAdapter(_ToolAdapter):
@@ -495,15 +520,16 @@ class _ProcessAdapter(_ToolAdapter):
         }
 
     async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        return await self._session.call(self._name, arguments)
+        return await self._session._call(self._name, arguments, _roomkit_owner("process"))
 
 
 class ProcessStart(_ProcessAdapter):
     """Start persistent jobs in a host-selected ProcessSession.
 
-    Pass the same session to selected process tools and close it at conversation
-    shutdown. Python's Tool protocol supplies no room identity: create a separate
-    session for each conversation/agent that must be isolated.
+    Pass the same session to selected process tools and close it at shutdown.
+    Jobs belong to RoomKit's current room and acting agent, never to a model
+    argument: other rooms and agents sharing the session cannot list, read,
+    write or stop them. Calls outside a RoomKit tool call are refused.
     """
 
     _name = "process_start"
@@ -551,11 +577,11 @@ class _OutputAdapter(_ToolAdapter):
         }
 
     async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        return await self._store.call(self._name, arguments)
+        return await self._store._call(self._name, arguments, _roomkit_owner("output"))
 
 
 class OutputRead(_OutputAdapter):
-    """Read an owned disk copy by ID; register independently from output deletion."""
+    """Read a disk copy of the current room and agent by ID; register independently."""
 
     _name = "output_read"
 

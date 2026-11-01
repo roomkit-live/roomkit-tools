@@ -16,8 +16,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::{Cancellation, InvalidInputError, ToolError, tool_error};
 
-// Each Python session owns a separate manager with a single trusted owner.
-// Neither the manager nor this key is selected by model arguments.
+// Standalone calls use this owner; RoomKit handlers pass the trusted owner of
+// each call. Neither the manager nor an owner is selected by model arguments.
 const OWNER: &str = super::output::OWNER;
 
 /// Add the default inherited variable names and the environment check.
@@ -217,14 +217,17 @@ impl PythonProcessSession {
             .map_err(|_| ToolError::new_err("Unable to serialize the tool definition"))
     }
 
+    #[pyo3(signature = (name, arguments_json, cancellation, owner=None))]
     fn call<'py>(
         &self,
         py: Python<'py>,
         name: String,
         arguments_json: String,
         cancellation: &Cancellation,
+        owner: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let state = Arc::clone(&self.state);
+        let owner = owner.unwrap_or_else(|| OWNER.to_owned());
         let token = cancellation.token.clone();
         let guard = token.clone().drop_guard();
         crate::runtime::future_into_py(py, async move {
@@ -238,7 +241,7 @@ impl PythonProcessSession {
                         .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
                     let manager = state.resolve().await.map_err(|error| tool_error(&error))?;
                     let result = manager
-                        .$method(OWNER, input, &token)
+                        .$method(&owner, input, &token)
                         .await
                         .map_err(|error| tool_error(&error))?;
                     serde_json::to_string(&result)
