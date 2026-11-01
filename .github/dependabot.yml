@@ -14,12 +14,7 @@ updates:
       - dependency-name: "roomkit*"
       # The OCR engine is pinned exactly and checked against real models.
       - dependency-name: "rusto-rs"
-      # These must stay at the versions htmd (html5ever, markup5ever_rcdom)
-      # and rusto-rs (ndarray) build against; they move with those crates.
-      - dependency-name: "html5ever"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "markup5ever_rcdom"
-        update-types: ["version-update:semver-major"]
+      # Must stay at the version rusto-rs builds against; it moves with it.
       - dependency-name: "ndarray"
         update-types: ["version-update:semver-major"]
     groups:

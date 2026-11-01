@@ -50,33 +50,32 @@ these stages. A clipped preview has no archive or continuation cursor.
 non-2xx responses remain data if their body is supported. Transport failures,
 refused destinations, limits and unsupported content are typed tool errors.
 
-HTML conversion runs outside the async executor with two slots per tool (shared
-by clones). The parser reads the page in 1 KiB chunks and stops building the
-DOM once it holds more than 100,000 nodes or nests deeper than 128 levels,
-counting the elements HTML parsing recreates for unclosed formatting tags and
-the attributes repeated `<html>` or `<body>` tags merge (each merge counts the
-attributes it is compared with); the page is then refused. The finished DOM is
-walked again with the same node and depth limits, and expanded link bytes are
-bounded. The parser compares each attribute of a tag with the earlier ones of
-that tag before any limit sees it, so a tag with tens of thousands of
-attributes takes seconds; only cancellation and the deadline stop that work.
+HTML conversion runs outside the async executor with two slots per tool
+(shared by clones), through the [`htmlmark`](../crates/htmlmark/README.md)
+crate. The Markdown follows CommonMark, with GitHub pipe tables and
+strikethrough; text that would read as Markdown syntax is escaped. The parser
+reads the page in 1 KiB chunks and stops building the document once it holds
+more than 100,000 nodes or nests deeper than 128 levels, counting the elements
+HTML parsing recreates for unclosed formatting tags and the attributes
+repeated `<html>` or `<body>` tags merge (each merge counts the attributes it is
+compared with); the page is then refused. Rendering walks the document again
+with the same limits, without recursion. Expanded link and image URLs are
+counted as they are resolved and bounded by `max_converted_bytes`. The parser
+compares each attribute of a tag with the earlier ones of that tag before any
+limit sees it, so a tag with tens of thousands of attributes takes seconds;
+only cancellation and the deadline stop that work.
 
-Markdown can be much larger than the page: a pipe table pads every row to the
-widest cell of each column and to the widest row, and each enclosing quote or
-list item prefixes every line inside it again. Code and math spans keep their
-whitespace and line breaks, so their text is padded and prefixed as written.
-The same walk therefore computes an upper bound of the Markdown size from the
-DOM, counting that padding and those prefixes, and refuses the page with the
-converted-text limit error before any Markdown is written when the bound exceeds
-`max_converted_bytes`. The bound follows the converter's choices: only a table
-with header cells that is not inside another table's cell becomes a padded pipe
-table; layout tables count as their plain content. The bound only overestimates,
-by up to about two times on ordinary pages, so a page whose Markdown would fall
-just under the limit can be refused. The rendered Markdown
-is checked against the limit again. These are work/output bounds, not strict
-peak memory limits. Cancellation and the deadline drop network work and stop
-parsing at the next chunk; issued DNS and Markdown rendering already under way
-may finish later. Fetched content remains untrusted reference data.
+Markdown can be larger than the page: each enclosing quote or list item
+prefixes every line inside it again, and a pipe table writes every missing
+cell of a row. The converted-text limit is checked on every write, so a page
+whose Markdown or text would exceed `max_converted_bytes` is refused as soon as
+it does, never returned in part. Pipe tables are not padded to a common column
+width. Only a table with header cells that is not inside another table's cell
+becomes one; other tables render as their content. These are work/output
+bounds, not strict peak memory limits. Cancellation and the deadline drop
+network work, stop parsing at the next chunk and stop rendering within a few
+hundred nodes; issued DNS may finish later. Fetched content remains untrusted
+reference data.
 
 Run `python examples/roomkit_web.py` for a self-checking local demonstration,
 or add `--live` with `OPENAI_BASE_URL` and `OPENAI_MODEL` for vLLM. The local

@@ -6,9 +6,7 @@
 #![forbid(unsafe_code)]
 
 mod convert;
-mod markdown_bound;
 mod network;
-mod parse;
 mod types;
 
 pub use types::{FetchFormat, WebFetchInput, WebFetchLimits, WebFetchPolicy, WebFetchResult};

@@ -196,6 +196,10 @@
       "type": "text/html",
       "body": "<table><tr><th>wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww</th></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr></table>"
     },
+    "/sparse-table": {
+      "type": "text/html",
+      "body": "<table><tr><th>h</th></tr><tr><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td><td>x</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr><tr><td>y</td></tr></table>"
+    },
     "/nested-quotes": {
       "type": "text/html",
       "body": "<blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><pre>x\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\n</pre>"
@@ -513,9 +517,22 @@
       }
     },
     {
-      "name": "padded_table_limit",
+      "name": "wide_header_table",
       "input": {
         "url": "$ORIGIN/padded-table"
+      },
+      "limits": {
+        "max_converted_bytes": 4096
+      },
+      "expect": {
+        "/data/content_bytes": 732,
+        "/data/truncated": false
+      }
+    },
+    {
+      "name": "sparse_table_limit",
+      "input": {
+        "url": "$ORIGIN/sparse-table"
       },
       "limits": {
         "max_converted_bytes": 4096

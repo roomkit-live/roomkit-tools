@@ -27,6 +27,7 @@ rayon = "1"
 roomkit-tools-fs = { path = "crates/roomkit-tools-fs" }
 roomkit-tools-process = { path = "crates/roomkit-tools-process" }
 roomkit-tools-web = { path = "crates/roomkit-tools-web" }
+htmlmark = { path = "crates/htmlmark" }
 roomkit-tools-http = { path = "crates/roomkit-tools-http" }
 roomkit-tools-search = { path = "crates/roomkit-tools-search", default-features = false }
 
@@ -60,10 +61,6 @@ reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 webpki-roots = "1"
 url = "2"
-htmd = "0.5.6"
-# Same parser htmd uses, driven chunk by chunk through a bounded tree sink.
-html5ever = "0.38"
-markup5ever_rcdom = "0.38"
 
 [workspace.lints.rust]
 # The single exception is `new_session` in crates/roomkit-tools-process/src/unix.rs

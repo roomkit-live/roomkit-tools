@@ -29,8 +29,20 @@ part of an existing published preview.
 - Jobs, output archives and plans are listed in creation order (`p2` before
   `p10`).
 
+### Changed
+
+- `web_fetch` converts HTML with the new `htmlmark` crate. Its Markdown differs
+  from before in form: pipe tables are not padded to a common column width,
+  lists use `- ` and `1. ` markers, emphasis that a CommonMark reader would
+  show as literal asterisks is left out (its text stays), and a link nested in
+  another keeps only its text. Text format output is unchanged.
+
 ### Added
 
+- `htmlmark` (`crates/htmlmark`): bounded, interruptible HTML to Markdown and
+  text conversion for untrusted pages, on html5ever with its own tree. A
+  property test reads its Markdown back with a CommonMark parser and checks
+  the page's text and links survive exactly.
 - Add independently selectable `docs_list`, `docs_search` and `docs_read` in Rust,
   Python and both RoomKit adapters, over injected documentation backends.
 - Include an optional file backend with bounded immutable Markdown/text snapshots,
@@ -55,6 +67,10 @@ part of an existing published preview.
 
 ### Fixed
 
+- `web_fetch` checks `max_converted_bytes` on every write of the converted
+  text. It no longer refuses a page whose Markdown fits the limit but whose
+  estimated size did not, and cancellation or the deadline now also stops
+  Markdown rendering under way.
 - A deeply nested brace glob no longer panics `glob` and `grep`.
 - `grep` and `glob` match on a cancellable worker, so a costly pattern no
   longer blocks the async runtime and cancellation stops it between entries.
@@ -107,6 +123,8 @@ part of an existing published preview.
 
 ### Packaging and documentation
 
+- Drop `htmd` and `markup5ever_rcdom`, html5ever's test DOM that its authors
+  do not support for untrusted input; update html5ever to 0.40.
 - Update to sha2 0.11, base64 0.23 and reqwest 0.13. HTTPS keeps the ring
   provider and the bundled Mozilla roots, now configured explicitly, so
   certificate trust does not depend on the host's certificate store.
