@@ -68,6 +68,33 @@ async fn explicit_override_does_not_bypass_path_or_regular_text_checks() {
     ));
 }
 
+#[tokio::test]
+async fn outside_paths_are_refused_whether_or_not_they_exist() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("present.py"), "def outside(): pass\n").unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    for path in [
+        outside.path().join("present.py").display().to_string(),
+        outside.path().join("missing.py").display().to_string(),
+        outside
+            .path()
+            .join("missing/child.py")
+            .display()
+            .to_string(),
+        "../missing-sibling/child.py".into(),
+    ] {
+        let result = tool
+            .outline(CodeOutlineInput::new(path.clone()), &token)
+            .await;
+        assert!(
+            matches!(result, Err(Error::Refused(_))),
+            "{path}: {result:?}"
+        );
+    }
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn symlinks_must_resolve_to_regular_files_inside_the_root() {

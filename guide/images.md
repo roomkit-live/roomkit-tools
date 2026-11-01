@@ -56,8 +56,10 @@ is 10 seconds, including queueing and I/O, with a 120-second per-call maximum.
 These are configurable host limits. The decoder allocation setting is not a
 total process memory quota. Two worker slots are shared by clones of each tool;
 cancellation/deadlines return promptly, but decode/resize cannot be interrupted
-mid-stage and retain their slot until they stop. Root containment assumes a
-host-controlled workspace, not hostile concurrent path replacement or an OS sandbox.
+mid-stage and retain their slot until they stop. A path that lexically leaves
+the root is refused before any filesystem lookup; symlinks are checked after
+canonicalization. Root containment assumes a host-controlled workspace, not
+hostile concurrent path replacement or an OS sandbox.
 
 `cargo run --example view_image` checks native image preparation.
 `python examples/roomkit_image.py` checks actual multimodal delivery with a

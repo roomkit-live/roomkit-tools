@@ -1,11 +1,11 @@
 use std::path::{Path, PathBuf};
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::{Error, WorkspaceRoot};
 use tokio::fs::{self, File};
 use tokio::io::AsyncReadExt;
 
-pub(crate) async fn root(path: &Path) -> Result<PathBuf, Error> {
-    let path = fs::canonicalize(path).await.map_err(|source| Error::Io {
+pub(crate) async fn root(given: &Path) -> Result<WorkspaceRoot, Error> {
+    let path = fs::canonicalize(given).await.map_err(|source| Error::Io {
         operation: "resolve the image workspace root",
         source,
     })?;
@@ -21,21 +21,22 @@ pub(crate) async fn root(path: &Path) -> Result<PathBuf, Error> {
             "workspace root must be a directory".into(),
         ));
     }
-    Ok(path)
+    let given = std::path::absolute(given).unwrap_or_else(|_| path.clone());
+    Ok(WorkspaceRoot::new(path, &given))
 }
 
 pub(crate) async fn load(
-    root: &Path,
+    root: &WorkspaceRoot,
     input: &str,
     maximum: usize,
 ) -> Result<(PathBuf, Vec<u8>), Error> {
-    let path = fs::canonicalize(root.join(input))
+    let path = fs::canonicalize(root.join(input)?)
         .await
         .map_err(|source| Error::Io {
             operation: "resolve the image path",
             source,
         })?;
-    if !path.starts_with(root) {
+    if !path.starts_with(root.path()) {
         return Err(Error::Refused("path is outside the workspace root".into()));
     }
     let metadata = fs::metadata(&path).await.map_err(|source| Error::Io {

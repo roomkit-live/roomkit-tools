@@ -2,7 +2,12 @@
 //!
 //! Tool implementations own their I/O. Hosts own their registry, permissions
 //! and conversations. Input and output schemas are derived from the same
-//! Rust types an implementation uses.
+//! Rust types an implementation uses. [`WorkspaceRoot`] holds the lexical
+//! path rules that root-configured tools share; it performs no I/O.
+
+mod workspace;
+
+pub use workspace::WorkspaceRoot;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

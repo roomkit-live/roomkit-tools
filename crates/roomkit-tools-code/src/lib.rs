@@ -14,11 +14,11 @@ pub use types::{
     CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage, CodeSymbol, SymbolKind,
 };
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Error, Output, WorkspaceRoot};
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
@@ -30,7 +30,7 @@ use tokio_util::sync::CancellationToken;
 /// replacement or an operating-system sandbox.
 #[derive(Clone, Debug)]
 pub struct CodeOutlineTool {
-    root: PathBuf,
+    root: WorkspaceRoot,
     limits: CodeOutlineLimits,
     workers: Arc<Semaphore>,
 }

@@ -5,7 +5,9 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage, Rgba, RgbaImage};
 use roomkit_tools_core::Error;
-use roomkit_tools_image::{ImageMime, ViewImageInput, ViewImageLimits, ViewImageTool};
+use roomkit_tools_image::{
+    ImageMime, ImageWorkspace, ViewImageInput, ViewImageLimits, ViewImageTool,
+};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
@@ -115,6 +117,36 @@ async fn static_webp_is_detected_and_normalized() {
             .to_rgb8(),
         original
     );
+}
+
+#[tokio::test]
+async fn outside_paths_are_refused_whether_or_not_they_exist() {
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("present.png"), b"irrelevant").unwrap();
+    let tool = ViewImageTool::new(root.path()).await.unwrap();
+    let workspace = ImageWorkspace::new(root.path()).await.unwrap();
+    for path in [
+        outside.path().join("present.png").display().to_string(),
+        outside.path().join("missing.png").display().to_string(),
+        outside
+            .path()
+            .join("missing/child.png")
+            .display()
+            .to_string(),
+        "../missing-sibling/child.png".into(),
+    ] {
+        let result = tool.view(input(&path), &CancellationToken::new()).await;
+        assert!(
+            matches!(result, Err(Error::Refused(_))),
+            "{path}: {result:?}"
+        );
+        let result = workspace.load(&path, 1024).await;
+        assert!(
+            matches!(result, Err(Error::Refused(_))),
+            "{path}: {result:?}"
+        );
+    }
 }
 
 #[tokio::test]

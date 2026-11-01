@@ -51,7 +51,7 @@ Run `cargo doc --workspace --no-deps --open` for field-level API documentation.
 
 | Crate | Responsibility |
 | --- | --- |
-| `roomkit-tools-core` | Definitions, schemas, structured output and errors; no I/O or async runtime |
+| `roomkit-tools-core` | Definitions, schemas, structured output, errors and lexical workspace paths; no I/O or async runtime |
 | `roomkit-tools-fs` | Text files, discovery, revisions, mutations, comparisons and structured patches |
 | `roomkit-tools-process` | Shell, persistent jobs, output stores, owner scopes and cleanup |
 | `roomkit-tools-code` | Tree-sitter outlines for Rust and Python |

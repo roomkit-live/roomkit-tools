@@ -111,7 +111,7 @@ pub(crate) fn destination(root: &Root, input: &str) -> Result<PathBuf, Error> {
     ) {
         return Err(Error::InvalidInput("path must name a file".into()));
     }
-    let joined = root.path().join(input);
+    let joined = root.join(input)?;
     let name = joined
         .file_name()
         .ok_or_else(|| Error::InvalidInput("path must name a file".into()))?;
@@ -142,7 +142,7 @@ pub(crate) fn write_destination(
         Err(Error::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
     }
-    let joined = root.path().join(input);
+    let joined = root.join(input)?;
     if joined
         .components()
         .any(|c| c == std::path::Component::ParentDir)

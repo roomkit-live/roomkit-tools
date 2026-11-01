@@ -1,8 +1,11 @@
 # Filesystem tools
 
-All paths are resolved beneath a host-selected workspace. These checks assume a
-host-controlled filesystem; they do not provide an OS sandbox against concurrent
-path replacement. Select RoomKit classes such as `Read` and `Edit`, or use their
+All paths are resolved beneath a host-selected workspace. A path that lexically
+leaves it (an absolute path elsewhere, or `..` past the root) is refused before
+the filesystem is consulted, so the error is the same whether or not the target
+exists. Accepted paths are then canonicalized, and a symlink resolving outside
+the root is refused. These checks assume a host-controlled filesystem; they do
+not provide an OS sandbox against concurrent path replacement. Select RoomKit classes such as `Read` and `Edit`, or use their
 standalone `ReadTool` and `EditTool` counterparts. Examples below assume an async
 function and an existing `./workspace` directory.
 

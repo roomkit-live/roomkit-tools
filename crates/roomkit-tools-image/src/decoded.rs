@@ -1,14 +1,14 @@
 use std::path::{Path, PathBuf};
 
 use image::{DynamicImage, metadata::Orientation};
-use roomkit_tools_core::Error;
+use roomkit_tools_core::{Error, WorkspaceRoot};
 
 use crate::{ImageMime, ViewImageLimits, prepare, source};
 
 /// Canonical workspace for tools that consume local image bytes.
 #[derive(Clone, Debug)]
 pub struct ImageWorkspace {
-    root: PathBuf,
+    root: WorkspaceRoot,
 }
 
 impl ImageWorkspace {

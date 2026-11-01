@@ -2,7 +2,7 @@ use std::fmt;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
-use roomkit_tools_core::{Error, Output};
+use roomkit_tools_core::{Error, Output, WorkspaceRoot};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
@@ -57,15 +57,16 @@ pub struct PathPage {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Root(PathBuf);
+pub(crate) struct Root(WorkspaceRoot);
 
 impl Root {
     pub(crate) fn path(&self) -> &Path {
-        &self.0
+        self.0.path()
     }
 
     pub(crate) async fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
-        let path = fs::canonicalize(path).await.map_err(|source| Error::Io {
+        let given = path.as_ref();
+        let path = fs::canonicalize(given).await.map_err(|source| Error::Io {
             operation: "resolve the workspace root",
             source,
         })?;
@@ -81,20 +82,23 @@ impl Root {
                 "workspace root must be a directory".into(),
             ));
         }
-        Ok(Self(path))
+        let given = std::path::absolute(given).unwrap_or_else(|_| path.clone());
+        Ok(Self(WorkspaceRoot::new(path, &given)))
+    }
+
+    /// Join a model-supplied path lexically; refuses escapes without I/O.
+    pub(crate) fn join(&self, input: &str) -> Result<PathBuf, Error> {
+        self.0.join(input)
     }
 
     pub(crate) async fn resolve(&self, input: &str) -> Result<PathBuf, Error> {
-        if input.is_empty() {
-            return Err(Error::InvalidInput("path must not be empty".into()));
-        }
-        let path = fs::canonicalize(self.0.join(input))
+        let path = fs::canonicalize(self.join(input)?)
             .await
             .map_err(|source| Error::Io {
                 operation: "resolve the path",
                 source,
             })?;
-        if !path.starts_with(&self.0) {
+        if !path.starts_with(self.path()) {
             return Err(Error::Refused("path is outside the workspace root".into()));
         }
         Ok(path)
@@ -102,7 +106,7 @@ impl Root {
 
     pub(crate) fn relative(&self, path: &Path) -> Result<String, Error> {
         let relative = path
-            .strip_prefix(&self.0)
+            .strip_prefix(self.path())
             .map_err(|_| Error::Refused("path is outside the workspace root".into()))?;
         relative
             .to_str()

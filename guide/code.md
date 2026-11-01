@@ -57,6 +57,8 @@ native tool clones; blocking workers retain their slot until cooperative
 cancellation finishes. Whole-file parsing retains source bytes and a syntax
 tree; these limits are not a hard memory sandbox. Paths must resolve to regular
 files under the configured root, assuming a host-controlled workspace as for
-`read`. No filesystem writes are performed.
+`read`: a path that lexically leaves the root is refused before any filesystem
+lookup, and symlinks are checked after canonicalization. No filesystem writes
+are performed.
 
 [Documentation index](README.md) · [Project overview](../README.md)

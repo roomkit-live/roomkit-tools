@@ -1,13 +1,13 @@
 use std::path::{Path, PathBuf};
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::{Error, WorkspaceRoot};
 use tokio::fs::{self, File};
 use tokio::io::AsyncReadExt;
 
 use crate::CodeLanguage;
 
-pub(crate) async fn root(path: &Path) -> Result<PathBuf, Error> {
-    let path = fs::canonicalize(path).await.map_err(|source| Error::Io {
+pub(crate) async fn root(given: &Path) -> Result<WorkspaceRoot, Error> {
+    let path = fs::canonicalize(given).await.map_err(|source| Error::Io {
         operation: "resolve the workspace root",
         source,
     })?;
@@ -23,25 +23,23 @@ pub(crate) async fn root(path: &Path) -> Result<PathBuf, Error> {
             "workspace root must be a directory".into(),
         ));
     }
-    Ok(path)
+    let given = std::path::absolute(given).unwrap_or_else(|_| path.clone());
+    Ok(WorkspaceRoot::new(path, &given))
 }
 
 pub(crate) async fn load(
-    root: &Path,
+    root: &WorkspaceRoot,
     input: &str,
     language: Option<CodeLanguage>,
     max_bytes: usize,
 ) -> Result<(PathBuf, CodeLanguage, String), Error> {
-    if input.is_empty() {
-        return Err(Error::InvalidInput("path must not be empty".into()));
-    }
-    let path = fs::canonicalize(root.join(input))
+    let path = fs::canonicalize(root.join(input)?)
         .await
         .map_err(|source| Error::Io {
             operation: "resolve the source path",
             source,
         })?;
-    if !path.starts_with(root) {
+    if !path.starts_with(root.path()) {
         return Err(Error::Refused("path is outside the workspace root".into()));
     }
     let language = language.map_or_else(|| infer_language(&path), Ok)?;

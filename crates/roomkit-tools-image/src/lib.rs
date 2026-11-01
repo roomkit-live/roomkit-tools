@@ -12,11 +12,11 @@ pub use decoded::{DecodedImage, ImageWorkspace, decode_rgb};
 
 pub use types::{ImageMime, ImagePayload, ViewImageInput, ViewImageLimits, ViewImageResult};
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Error, Output, WorkspaceRoot};
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
@@ -28,7 +28,7 @@ use tokio_util::sync::CancellationToken;
 /// Root checks assume a host-controlled filesystem, not hostile path replacement.
 #[derive(Clone, Debug)]
 pub struct ViewImageTool {
-    root: PathBuf,
+    root: WorkspaceRoot,
     limits: ViewImageLimits,
     workers: Arc<Semaphore>,
 }
