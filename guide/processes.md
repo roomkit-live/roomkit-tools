@@ -69,11 +69,17 @@ Timeout, cancellation and normal shell exit stop the Unix process group and
 reap the direct child. Processes that deliberately leave that group are outside
 this cleanup mechanism, as are members the host cannot signal, such as ones left
 running under other credentials (`sudo -b`); the command's exit status and
-output are still returned. Stopping a group sends SIGKILL to every member at
-once: there is no SIGTERM grace period, so a command cannot save state or
-remove its own temporary files when stopped. Cancelling a Python task raises `CancelledError` and
-requests cleanup in the owned Rust worker; cleanup can finish after that
-exception is delivered. Keep the host process/native runtime alive for cleanup;
+output are still returned. A shell that itself runs under other credentials,
+as when the shell is replaced by `sudo` (`sudo sleep 600`), cannot be stopped
+either: after a timeout or cancellation the call waits 250 ms for it to exit,
+then returns and leaves it running. Such a timed-out result has `exit_code` and
+`signal` both null and `output_complete` false.
+
+Stopping a group sends SIGKILL to every member at once: there is no SIGTERM
+grace period, so a command cannot save state or remove its own temporary files
+when stopped. Cancelling a Python task raises `CancelledError` and requests
+cleanup in the owned Rust worker; cleanup can finish after that exception is
+delivered. Keep the host process/native runtime alive for cleanup;
 already-performed effects are not rolled back. Linux is validated. The existing
 Rust implementation returns an unsupported error on non-Unix platforms.
 See [the standalone shell example](../examples/run_shell.py):
@@ -153,6 +159,9 @@ Completed jobs retain output and consume quota until `stop(..., forget=True)`
 or session shutdown. `stop` sends SIGKILL to the Unix process group at once,
 without a graceful phase, waits up to two seconds and reports `forgotten=False`
 if cleanup is still pending. Lifetime expiry and `close()` stop jobs the same way.
+A job whose shell runs under other credentials and refuses SIGKILL finishes
+250 ms later with `end` `failed`, no exit code or signal, and the error
+`process could not be stopped`; the command keeps running outside cleanup.
 
 `await processes.close()` permanently closes the session, stops owned jobs and
 waits up to two seconds: `True` means cleanup finished and records were released;

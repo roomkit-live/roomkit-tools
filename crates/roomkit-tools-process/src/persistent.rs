@@ -656,7 +656,7 @@ impl ProcessManager {
 }
 
 /// The status of a process that has just started.
-fn initial_status(process_id: String, cwd: &Path, timeout_ms: u64) -> ProcessStatus {
+pub(crate) fn initial_status(process_id: String, cwd: &Path, timeout_ms: u64) -> ProcessStatus {
     ProcessStatus {
         process_id,
         cwd: cwd.to_string_lossy().into_owned(),

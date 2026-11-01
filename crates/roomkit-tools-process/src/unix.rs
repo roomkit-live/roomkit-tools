@@ -67,12 +67,18 @@ fn new_session(command: &mut Command) {
     }
 }
 
+/// How long a shell that refused SIGKILL is awaited before it is left running.
+const REAP_GRACE: Duration = Duration::from_millis(250);
+
 type Kill = fn(Pid, Signal) -> rustix::io::Result<()>;
+type KillShell = fn(&mut Child) -> std::io::Result<()>;
 
 /// A spawned command's process group, stopped on drop.
 pub(crate) struct Group {
     pid: Option<Pid>,
     kill: Kill,
+    /// SIGKILL to the shell alone; tokio's, which never signals a reaped PID.
+    kill_shell: KillShell,
 }
 
 impl Group {
@@ -80,6 +86,26 @@ impl Group {
         Self {
             pid: Some(pid),
             kill: kill_process_group,
+            kill_shell: Child::start_kill,
+        }
+    }
+
+    /// Send SIGKILL to the shell, if still running, and reap it.
+    ///
+    /// A shell that refuses the signal, such as one replaced by `sudo` and
+    /// running under other credentials, is awaited [`REAP_GRACE`] at most:
+    /// `None` then means it runs on outside cleanup, and the runtime reaps it
+    /// whenever it exits.
+    pub(crate) async fn reap_shell(
+        &self,
+        child: &mut Child,
+    ) -> Option<std::io::Result<ExitStatus>> {
+        let refused = (self.kill_shell)(child)
+            .is_err_and(|error| error.kind() == std::io::ErrorKind::PermissionDenied);
+        if refused {
+            tokio::time::timeout(REAP_GRACE, child.wait()).await.ok()
+        } else {
+            Some(child.wait().await)
         }
     }
 
@@ -180,8 +206,8 @@ async fn supervise(
     }
     Ok(render(ShellResult {
         cwd: foreground.cwd.to_string_lossy().into_owned(),
-        exit_code: status.code(),
-        signal: status.signal(),
+        exit_code: status.and_then(|status| status.code()),
+        signal: status.and_then(|status| status.signal()),
         timed_out,
         timeout_ms: foreground.timeout_ms,
         output_complete,
@@ -191,19 +217,19 @@ async fn supervise(
 }
 
 /// Stop the whole group, which also ends background jobs after a normal exit,
-/// then reap the shell.
+/// then stop and reap the shell.
 ///
 /// The group signal fails only when no member can be signalled, such as
-/// members left running under other credentials (`sudo -b`). Those stay
-/// outside cleanup; the shell itself is killed if still running and reaped,
-/// so the command's status and output are still returned.
-async fn stop_and_reap(group: &mut Group, child: &mut Child) -> Result<ExitStatus, Error> {
-    if group.stop().is_err() {
-        drop(child.start_kill());
-    }
-    child
-        .wait()
+/// members left running under other credentials (`sudo -b`); those stay
+/// outside cleanup. A shell that runs under other credentials itself cannot be
+/// stopped either: past a short grace it is left running and `None` is
+/// returned, so the call still ends with its timeout or cancellation.
+async fn stop_and_reap(group: &mut Group, child: &mut Child) -> Result<Option<ExitStatus>, Error> {
+    drop(group.stop());
+    group
+        .reap_shell(child)
         .await
+        .transpose()
         .map_err(|source| io("reap shell", source))
 }
 
@@ -247,10 +273,25 @@ fn render(data: ShellResult) -> Output<ShellResult> {
 }
 
 #[cfg(test)]
+impl Group {
+    /// The group id, for a test that stops the command itself.
+    pub(crate) fn pid(&self) -> Option<Pid> {
+        self.pid
+    }
+
+    /// Refuse every signal, to the group and to the shell, as members running
+    /// under other credentials do. The test stops the command itself.
+    pub(crate) fn refuse_all(&mut self) {
+        self.kill = tests::refuse;
+        self.kill_shell = |_| Err(std::io::ErrorKind::PermissionDenied.into());
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
-    fn refuse(_: Pid, _: Signal) -> rustix::io::Result<()> {
+    pub(super) fn refuse(_: Pid, _: Signal) -> rustix::io::Result<()> {
         Err(rustix::io::Errno::PERM)
     }
 
@@ -282,5 +323,59 @@ mod tests {
         assert_eq!(result.stdout.text, "done");
         assert_eq!(result.stderr.text, "warning");
         assert!(result.output_complete);
+    }
+
+    /// Supervise `command` while every signal is refused, as for a shell
+    /// running under other credentials, then stop it for real.
+    async fn supervise_refused(
+        command: &str,
+        timeout_ms: u64,
+        cancel: &CancellationToken,
+    ) -> Result<Output<ShellResult>, Error> {
+        let root = tempfile::tempdir().unwrap();
+        let foreground = Foreground {
+            command: command.into(),
+            cwd: root.path().to_owned(),
+            env: Arc::default(),
+            limits: ShellLimits::default(),
+            timeout_ms,
+            outputs: None,
+        };
+        let shell = shell_command(
+            &foreground.command,
+            &foreground.cwd,
+            &foreground.env,
+            Stdio::null(),
+        );
+        let (child, mut group) = spawn(shell, "spawn shell").unwrap();
+        let pid = group.pid.unwrap();
+        group.refuse_all();
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            supervise(child, group, foreground, cancel),
+        )
+        .await;
+        let _killed = kill_process_group(pid, Signal::KILL);
+        result.expect("a shell refusing SIGKILL held the call")
+    }
+
+    #[tokio::test]
+    async fn refused_shell_signal_still_returns_the_timeout() {
+        let result = supervise_refused("sleep 30", 100, &CancellationToken::new())
+            .await
+            .unwrap()
+            .data;
+        assert!(result.timed_out);
+        // No status: the shell could not be stopped and runs on outside cleanup.
+        assert_eq!((result.exit_code, result.signal), (None, None));
+        assert!(!result.output_complete);
+    }
+
+    #[tokio::test]
+    async fn refused_shell_signal_still_returns_the_cancellation() {
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+        let result = supervise_refused("sleep 30", 10_000, &cancel).await;
+        assert!(matches!(result, Err(Error::Cancelled)), "{result:?}");
     }
 }

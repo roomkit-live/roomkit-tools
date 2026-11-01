@@ -142,7 +142,8 @@ impl Default for ProcessLimits {
 pub enum ProcessState {
     /// Still executing or cleaning up.
     Running,
-    /// Direct child has been reaped and capture has stopped.
+    /// Capture has stopped and the direct child has been reaped, or could not
+    /// be stopped and was left running: `end` is then `failed`.
     Finished,
 }
 

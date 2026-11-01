@@ -67,6 +67,9 @@ pub struct ShellResult {
     /// Canonical initial working directory.
     pub cwd: String,
     /// Exit code when the shell exited normally; nonzero is a command result.
+    /// Both this and `signal` are null only after a timeout when the shell
+    /// itself runs under other credentials and refused SIGKILL: it was left
+    /// running, outside cleanup.
     pub exit_code: Option<i32>,
     /// Unix signal number when terminated by a signal.
     pub signal: Option<i32>,
