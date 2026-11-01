@@ -35,7 +35,9 @@ part of an existing published preview.
   from before in form: pipe tables are not padded to a common column width,
   lists use `- ` and `1. ` markers, emphasis that a CommonMark reader would
   show as literal asterisks is left out (its text stays), and a link nested in
-  another keeps only its text. Text format output is unchanged.
+  another keeps only its text. Text format output keeps the same words; it no
+  longer resolves link URLs it never shows, so a page is no longer refused in
+  text format for the size of its expanded links.
 
 ### Added
 

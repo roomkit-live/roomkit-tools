@@ -21,9 +21,10 @@ class WebFetchTool:
     Defaults: 8 KiB URL, 5 MiB decoded HTTP body, 5 MiB converted text,
     50 KiB returned content, 10 redirects, 30 s default / 120 s maximum deadline.
     HTML conversion admits at most 100,000 nodes and 128 levels. The converted
-    bound is checked after conversion, not a hard peak-memory limit. Two blocking
-    conversion slots are shared by calls to this instance. Cancellation/deadline
-    drops network work; issued DNS/conversion work may finish later.
+    bound is checked on every write of the converted text; it is not a hard
+    peak-memory limit. Two blocking conversion slots are shared by calls to this
+    instance. Cancellation/deadline drops network work and stops conversion
+    within a few hundred nodes; issued DNS may finish later.
     """
 
     def __init__(

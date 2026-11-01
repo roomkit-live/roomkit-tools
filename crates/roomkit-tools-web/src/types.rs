@@ -77,9 +77,9 @@ pub struct WebFetchLimits {
     pub max_url_bytes: usize,
     /// Maximum decoded response body. Default: 5 MiB.
     pub max_response_bytes: usize,
-    /// Maximum complete converted text. HTML is refused before conversion when
-    /// an upper bound of its Markdown exceeds it, and every result is checked
-    /// after conversion. Default: 5 MiB.
+    /// Maximum complete converted text, checked on every write: HTML whose
+    /// Markdown or text would exceed it is refused. Expanded link URLs are
+    /// bounded by it too. Default: 5 MiB.
     pub max_converted_bytes: usize,
     /// Maximum returned content prefix, excluding metadata. Default: 50 KiB.
     pub max_output_bytes: usize,
