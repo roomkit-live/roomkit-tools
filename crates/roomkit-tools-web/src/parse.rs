@@ -6,6 +6,14 @@
 //! and nesting as the parser creates and inserts them. Past a limit it stops
 //! building the tree, and the input, fed in small chunks, is abandoned at the
 //! next chunk boundary. Cancellation is checked between chunks too.
+//!
+//! Each repeated `<html>` or `<body>` tag merges its attributes into the
+//! existing element after comparing them with every attribute already there,
+//! so the sink counts a merge as that many nodes. The tokenizer also compares
+//! each attribute of a tag with the earlier ones of the same tag, before the
+//! sink sees the element: a single tag with tens of thousands of attributes
+//! takes seconds to tokenize, and only cancellation or the caller's deadline
+//! stops that work, at the next chunk boundary.
 
 use html5ever::interface::{ElementFlags, NodeOrText, QuirksMode, TreeSink};
 use html5ever::tendril::{StrTendril, TendrilSink};
@@ -73,7 +81,12 @@ struct BoundedDom {
 impl BoundedDom {
     /// Count one more node; false once the document has too many.
     fn admit(&self) -> bool {
-        let nodes = self.nodes.get().saturating_add(1);
+        self.admit_many(1)
+    }
+
+    /// Count `count` more nodes; false once the document has too many.
+    fn admit_many(&self, count: usize) -> bool {
+        let nodes = self.nodes.get().saturating_add(count);
         self.nodes.set(nodes);
         if nodes > MAX_NODES {
             self.exceeded.set(true);
@@ -223,8 +236,22 @@ impl TreeSink for BoundedDom {
         self.dom.append_before_sibling(sibling, child);
     }
 
+    /// A repeated `<html>` or `<body>` tag merges its attributes into the
+    /// existing element. The DOM compares them with every attribute the
+    /// element already has, so a merge counts both against the node bound.
     fn add_attrs_if_missing(&self, target: &Handle, attrs: Vec<Attribute>) {
-        if !self.exceeded.get() {
+        if attrs.is_empty() || self.exceeded.get() {
+            return;
+        }
+        let existing = match &target.data {
+            NodeData::Element { attrs, .. } => attrs.borrow().len(),
+            NodeData::Document
+            | NodeData::Doctype { .. }
+            | NodeData::Text { .. }
+            | NodeData::Comment { .. }
+            | NodeData::ProcessingInstruction { .. } => return,
+        };
+        if self.admit_many(existing.saturating_add(attrs.len())) {
             self.dom.add_attrs_if_missing(target, attrs);
         }
     }
@@ -254,6 +281,7 @@ impl TreeSink for BoundedDom {
 mod tests {
     use super::*;
     use std::fmt::Write as _;
+    use std::rc::Rc;
 
     /// `width` formatting elements left open, then `runs` blocks of text: the
     /// parser recreates every open formatting element inside each block.
@@ -285,6 +313,44 @@ mod tests {
                 outcome(&result)
             );
         }
+    }
+
+    /// The attributes of an element, as `name=value`.
+    fn attributes(node: &Handle) -> Vec<String> {
+        let NodeData::Element { attrs, .. } = &node.data else {
+            panic!("not an element");
+        };
+        attrs
+            .borrow()
+            .iter()
+            .map(|attr| format!("{}={}", attr.name.local, attr.value))
+            .collect()
+    }
+
+    #[test]
+    fn merged_attributes_count_against_the_node_limit() {
+        // Each stray `<html>` merges its attribute into the root element, and
+        // the DOM compares it with every attribute merged before.
+        let html = (0..3_000).fold(String::new(), |mut html, index| {
+            write!(html, "<html a{index}>").unwrap();
+            html
+        });
+        let result = parse(&html, &CancellationToken::new());
+        assert!(
+            matches!(result, Err(Error::LimitExceeded(_))),
+            "{}",
+            outcome(&result)
+        );
+        // A few stray tags still merge their attributes.
+        let tree = parse(
+            "<html lang=en><body><p>x</p><body class=late><html lang=fr dir=ltr>",
+            &CancellationToken::new(),
+        )
+        .unwrap();
+        let root = Rc::clone(&tree.children.borrow()[0]);
+        assert_eq!(attributes(&root), ["lang=en", "dir=ltr"]);
+        let body = Rc::clone(&root.children.borrow()[1]);
+        assert_eq!(attributes(&body), ["class=late"]);
     }
 
     #[test]

@@ -51,9 +51,13 @@ refused destinations, limits and unsupported content are typed tool errors.
 HTML conversion runs outside the async executor with two slots per tool (shared
 by clones). The parser reads the page in 1 KiB chunks and stops building the
 DOM once it holds more than 100,000 nodes or nests deeper than 128 levels,
-counting the elements HTML parsing recreates for unclosed formatting tags; the
-page is then refused. The finished DOM is walked again with the same node and
-depth limits, and expanded link bytes are bounded.
+counting the elements HTML parsing recreates for unclosed formatting tags and
+the attributes repeated `<html>` or `<body>` tags merge (each merge counts the
+attributes it is compared with); the page is then refused. The finished DOM is
+walked again with the same node and depth limits, and expanded link bytes are
+bounded. The parser compares each attribute of a tag with the earlier ones of
+that tag before any limit sees it, so a tag with tens of thousands of
+attributes takes seconds; only cancellation and the deadline stop that work.
 
 Markdown can be much larger than the page: a pipe table pads every row to the
 widest cell of each column and to the widest row, and each enclosing quote or
