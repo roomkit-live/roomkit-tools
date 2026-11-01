@@ -232,8 +232,8 @@ fn emphasis_next_to_marks_and_symbols_is_left_out_when_unsure() {
     // A nested emphasis that adds nothing does not keep a visible space
     // inside the closer when the line ends.
     assert_eq!(
-        markdown("<p><b><i>x.</i><b>y&nbsp;<div>z</div></b></b></p>"),
-        "**x.y**\u{a0}\n\n**z**"
+        markdown("<p><b><i>x.</i><b>y&nbsp;<br>z</b></b></p>"),
+        "**x.y**\u{a0}  \n**z**"
     );
 }
 
