@@ -38,4 +38,4 @@ unmaintained `paste` build-time macro (RUSTSEC-2024-0436), with narrow documente
 repository policy exceptions. Third-party notices are included in the distribution.
 
 Maintainers: regenerate native notices after dependency changes with
-`python backends/rusto/python/update_notices.py` from the repository root.
+`python scripts/native-notices.py write roomkit-tools-ocr-rusto` from the repository root.

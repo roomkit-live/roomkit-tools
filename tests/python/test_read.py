@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib.resources
 import importlib.util
 import json
 import os
@@ -45,6 +46,23 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse((self.root / "not-created-yet").exists())
         with self.assertRaises(InvalidInputError):
             Read("")
+
+    def test_notices_for_native_dependencies_are_installed(self) -> None:
+        notices = (
+            importlib.resources.files("roomkit_tools")
+            .joinpath("licenses/native_dependencies.txt")
+            .read_text(encoding="utf-8")
+        )
+        # scripts/check-python.py checks every locked dependency; these span
+        # the runtime, bridge, serialization, transport, parsing and codecs.
+        for package in ["tokio", "pyo3", "serde", "regex", "reqwest", "rustls", "ring"]:
+            with self.subTest(package=package):
+                self.assertRegex(notices, rf"\n--- {package}-[0-9][^/]*/")
+        # Nested components carry their own notices, such as Unicode data.
+        nested = ["regex-syntax-[^/]+/src/unicode_tables/", "tree-sitter-[^/]+/src/unicode/"]
+        for component in nested:
+            with self.subTest(component=component):
+                self.assertRegex(notices, rf"\n--- {component}")
 
     async def test_pagination_preserves_structured_results_and_rereads_changes(self) -> None:
         result = await self.tool.read("source.txt", limit=1)

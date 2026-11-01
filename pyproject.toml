@@ -9,7 +9,7 @@ description = "Composable Rust tools for coding agents, Python and RoomKit"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-license-files = ["LICENSE", "python/roomkit_tools/licenses/*.txt"]
+license-files = ["LICENSE", "python/roomkit_tools/licenses/native_dependencies.txt"]
 keywords = ["agents", "tools", "rust", "asyncio", "roomkit"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -41,7 +41,7 @@ exclude = ["docs/**", "AGENTS.md", "integrations/**", "scripts/roomkit-bakery.py
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-include = ["python/**/*.py", "tests/python/**/*.py", "examples/*.py", "scripts/check-python.py", "scripts/check-ocr-python.py"]
+include = ["python/**/*.py", "tests/python/**/*.py", "examples/*.py", "scripts/check-python.py", "scripts/check-ocr-python.py", "scripts/native-notices.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]

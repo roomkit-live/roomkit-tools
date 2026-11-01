@@ -69,7 +69,13 @@ def main():
             (source,) = artifacts.glob("*.tar.gz")
         with zipfile.ZipFile(wheel) as archive:
             names = archive.namelist()
-            assert any(n.endswith("/licenses/native_dependencies.txt") for n in names)
+            shipped = [n for n in names if n.endswith("/licenses/native_dependencies.txt")]
+            assert shipped, names
+            # The notices cover every locked crate linked into the extension.
+            notices = work / "native_dependencies.txt"
+            notices.write_bytes(archive.read(shipped[0]))
+            script = str(root / "scripts/native-notices.py")
+            run(sys.executable, script, "check", project["name"], str(notices), cwd=root)
             assert any(n.endswith((".so", ".pyd")) for n in names)
             assert not any(n.endswith((".onnx", ".rten")) for n in names)
             assert not any(

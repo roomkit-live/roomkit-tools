@@ -29,7 +29,11 @@ Other wheel platforms need their own build and validation work before release.
    Update the changelog and installation instructions to describe only artifacts that will be shipped.
 2. Run `make all`, `make python-check`, and the applicable MSRV checks. Check
    public Markdown links, examples and metadata. Keep internal plans, fixtures
-   and credentials out of version control and both distributions.
+   and credentials out of version control and both distributions. After a
+   dependency change, regenerate the native notices of each package with
+   `python scripts/native-notices.py write roomkit-tools` (or
+   `roomkit-tools-ocr-rusto`); the artifact checks refuse a wheel whose notices
+   miss a locked dependency.
 3. Commit the candidate and validate that exact commit through CI, or the
    equivalent recorded checks described below if hosted runners are unavailable.
    A job that never starts does not validate a release. Source access for linked public

@@ -14,9 +14,26 @@ import zipfile
 from email.parser import BytesParser
 from pathlib import Path
 
+NOTICES = "roomkit_tools/licenses/native_dependencies.txt"
+
 
 def run(*arguments: str, cwd: Path) -> None:
     subprocess.run(arguments, cwd=cwd, check=True)
+
+
+def check_notices(wheel: zipfile.ZipFile, root: Path, work: Path) -> None:
+    """The wheel's notices cover every locked crate linked into the extension."""
+    assert NOTICES in wheel.namelist(), "the wheel has no native dependency notices"
+    notices = work / "native_dependencies.txt"
+    notices.write_bytes(wheel.read(NOTICES))
+    run(
+        sys.executable,
+        str(root / "scripts/native-notices.py"),
+        "check",
+        "roomkit-tools",
+        str(notices),
+        cwd=root,
+    )
 
 
 def main() -> None:
@@ -152,9 +169,7 @@ def main() -> None:
             names = archive.namelist()
             assert any(name.endswith((".so", ".pyd")) for name in names), names
             assert "roomkit_tools/py.typed" in names, names
-            assert "roomkit_tools/licenses/web_transport.txt" in names, names
-            assert "roomkit_tools/licenses/code_parsing.txt" in names, names
-            assert "roomkit_tools/licenses/image_processing.txt" in names, names
+            check_notices(archive, root, work)
             assert not any(
                 name.startswith(("docs/", "integrations/"))
                 or "bakery" in name
@@ -169,6 +184,7 @@ def main() -> None:
             assert metadata["License-Expression"] == "MIT"
             license_files = metadata.get_all("License-File", [])
             assert "LICENSE" in license_files
+            assert f"python/{NOTICES}" in license_files, license_files
             assert all(
                 any(name.endswith(f".dist-info/licenses/{license_file}") for name in names)
                 for license_file in license_files
