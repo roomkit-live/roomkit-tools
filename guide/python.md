@@ -98,7 +98,11 @@ raises `ForkedProcessError` at once, and the exit hook returns without waiting
 for the parent's calls. Importing `roomkit_tools` and constructing tool classes
 start no thread. Create and call tools only in processes forked before the
 first awaited call, or start workers with the `spawn` or `forkserver` method of
-`multiprocessing`:
+`multiprocessing`. A fork that happens while native calls are running can, in
+rare cases, leave the child blocked on a lock held by a native thread at the
+time of the fork, before any of these checks run; a child that ends with
+`os._exit`, as `multiprocessing`'s fork workers do, avoids the exit path, but
+`spawn` is the safe choice:
 
 ```python
 import multiprocessing
@@ -124,12 +128,12 @@ RoomKit handlers does.
 | Rooted file/code/image tool | Choose a workspace and limits; no explicit close is required |
 | `ProcessSession` | Keep alive for the conversation; close to stop jobs and release records, or `close_owner(owner)` for one owner's jobs |
 | `OutputStore` | Close after command/session shutdown; logs are temporary |
+| `RoomKitAgentBackend` | Close before `RoomKit`; it owns child instances/providers and task cleanup |
 
 The RoomKit shell, process and output tools keep each room and agent's jobs and
 archives under `roomkit_owner(room_id, channel_id)`. The host passes that key as
 `owner=` to `ProcessSession` and `OutputStore` methods to list, read, stop or
 release them; see [process ownership](processes.md#persistent-processes).
-| `RoomKitAgentBackend` | Close before `RoomKit`; it owns child instances/providers and task cleanup |
 
 Prefer `async with` for resources that support it. A process or output-store
 `close()` result of `False` means cleanup is still pending, not successful

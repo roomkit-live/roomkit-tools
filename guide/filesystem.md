@@ -4,8 +4,11 @@ All paths are resolved beneath a host-selected workspace. A path that lexically
 leaves it at any point (an absolute path elsewhere, or a `..` above the root,
 even when later components come back inside) is refused before the filesystem
 is consulted, so the error is the same whether or not the target exists.
-Accepted paths are then canonicalized, and a path that a symlink takes outside
-the root is refused whether or not it exists there. Every path in a result is
+Accepted paths are then canonicalized, and a path beneath a symlink that leads
+outside the root is refused whether or not it exists there. A workspace symlink
+whose own target is missing still answers differently from one whose target
+exists; that target is fixed by whoever created the link, not chosen by the
+model, and the tools cannot create links. Every path in a result is
 workspace-relative, with `/` separators and `.` for the root; the host's
 absolute paths are not returned.
 These checks assume a host-controlled filesystem; they do not provide an OS

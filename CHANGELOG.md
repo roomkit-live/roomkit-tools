@@ -61,7 +61,8 @@ part of an existing published preview.
 - Paths outside the workspace are refused before any filesystem call, including
   paths that leave the root and come back (`../x/../root/a`) and paths beneath
   a workspace symlink that points outside, so the answer no longer reveals
-  whether an outside file or directory exists. A root given with `..` after a
+  whether an outside file or directory exists (only a dangling workspace
+  link's own, host-chosen target remains distinguishable). A root given with `..` after a
   symlink no longer accepts absolute paths in an unrelated directory.
 - `write` and `patch` create new files with the umask-derived mode instead of
   0600.
@@ -86,11 +87,14 @@ part of an existing published preview.
   under other credentials) no longer holds a timed-out or cancelled call: the
   result reports no exit status and incomplete output, and a persistent job
   ends as failed.
-- A forked child no longer hangs on native calls or at exit, and a call that
-  completes after its event loop closed no longer prints a traceback. Forked
-  children are detected without an at-fork hook, so forking while native calls
-  run cannot block inside `os.fork()`, and `close()` in a forked child is
-  refused before it changes any state. The optional OCR engine package behaves
+- A child forked after the package was used no longer hangs on every native
+  call and at exit: calls raise `ForkedProcessError` and the exit hook returns
+  at once. A call that completes after its event loop closed no longer prints a
+  traceback. Forked children are detected without an at-fork hook, so forking
+  cannot block inside `os.fork()`, and `close()` in a forked child is refused
+  before it changes any state. A fork that happens while native calls run can
+  still, rarely, block the child on a lock held by a native thread; prefer the
+  `spawn` start method. The optional OCR engine package behaves
   the same way and raises the base package's `ForkedProcessError`; it now
   requires the matching base version.
 - `Shell` keeps its environment options as validated at construction, and the
