@@ -14,6 +14,8 @@ serde.workspace = true
 schemars.workspace = true
 reqwest.workspace = true
 htmd.workspace = true
+# Parse incrementally into the converter's DOM, bounding nodes and depth.
+html5ever.workspace = true
 # Walk the converter's DOM to bound depth/nodes and produce plain text.
 markup5ever_rcdom.workspace = true
 tokio = { workspace = true, features = ["net", "time", "rt", "macros", "sync"] }

@@ -57,6 +57,8 @@ rustix = { version = "1", features = ["process"] }
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "gzip"] }
 url = "2"
 htmd = "0.5.6"
+# Same parser htmd uses, driven chunk by chunk through a bounded tree sink.
+html5ever = "0.38"
 markup5ever_rcdom = "0.38"
 
 [workspace.lints.rust]

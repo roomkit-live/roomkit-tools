@@ -49,11 +49,15 @@ non-2xx responses remain data if their body is supported. Transport failures,
 refused destinations, limits and unsupported content are typed tool errors.
 
 HTML conversion runs outside the async executor with two slots per tool (shared
-by clones). It checks at most 100,000 visited nodes, 128 levels, expanded link
-bytes and converted bytes. The HTML parser builds a DOM and the final Markdown
-size is checked after conversion: these are work/output bounds, not strict peak
-memory limits. Cancellation drops network work; issued DNS and blocking HTML
-work may finish later. Fetched content remains untrusted reference data.
+by clones). The parser reads the page in 1 KiB chunks and stops building the
+DOM once it holds more than 100,000 nodes or nests deeper than 128 levels,
+counting the elements HTML parsing recreates for unclosed formatting tags; the
+page is then refused. The finished DOM is walked again with the same node and
+depth limits, and expanded link bytes are bounded. The final Markdown size is
+checked after conversion: these are work/output bounds, not strict peak memory
+limits. Cancellation and the deadline drop network work and stop parsing at the
+next chunk; issued DNS and Markdown rendering already under way may finish
+later. Fetched content remains untrusted reference data.
 
 Run `python examples/roomkit_web.py` for a self-checking local demonstration,
 or add `--live` with `OPENAI_BASE_URL` and `OPENAI_MODEL` for vLLM. The local

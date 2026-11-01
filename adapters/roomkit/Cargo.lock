@@ -1430,6 +1430,7 @@ name = "roomkit-tools-web"
 version = "0.1.0"
 dependencies = [
  "htmd",
+ "html5ever",
  "markup5ever_rcdom",
  "reqwest",
  "roomkit-tools-core",

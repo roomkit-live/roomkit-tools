@@ -1,4 +1,4 @@
-use crate::FetchFormat;
+use crate::{FetchFormat, parse};
 use markup5ever_rcdom::NodeData;
 use reqwest::Url;
 use roomkit_tools_core::Error;
@@ -23,9 +23,7 @@ pub(crate) fn convert(
     let converter = htmd::HtmlToMarkdown::builder()
         .skip_tags(SKIP.to_vec())
         .build();
-    let tree = converter
-        .html_to_tree(&source)
-        .map_err(|e| crate::network::io("parse HTML", e))?;
+    let tree = parse::parse(&source, cancel)?;
     let mut pending = vec![(Rc::clone(&tree), 0)];
     let mut nodes = 0;
     let mut text = String::new();
@@ -35,10 +33,8 @@ pub(crate) fn convert(
             return Err(Error::Cancelled);
         }
         nodes += 1;
-        if nodes > 100_000 || depth > 128 {
-            return Err(Error::LimitExceeded(
-                "HTML exceeds 100000 nodes or 128 levels".into(),
-            ));
+        if nodes > parse::MAX_NODES || depth > parse::MAX_DEPTH {
+            return Err(parse::too_large());
         }
         match &node.data {
             NodeData::Element { name, attrs, .. } => {

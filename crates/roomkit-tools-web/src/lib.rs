@@ -5,6 +5,7 @@
 
 mod convert;
 mod network;
+mod parse;
 mod types;
 
 pub use types::{FetchFormat, WebFetchInput, WebFetchLimits, WebFetchPolicy, WebFetchResult};
