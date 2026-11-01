@@ -178,3 +178,21 @@ class SharedContractTests(unittest.IsolatedAsyncioTestCase):
         }
         self.assertEqual(files, expected, "final file bytes")
         return {"results": results, "files": files}
+
+
+class NativeModuleTests(unittest.TestCase):
+    def test_native_classes_report_the_native_module(self) -> None:
+        classes = [
+            value
+            for value in vars(_native).values()
+            if isinstance(value, type) and not issubclass(value, BaseException)
+        ]
+        self.assertIn(_native._AgentContract, classes)
+        self.assertIn(_native._DocsContract, classes)
+        self.assertIn(_native._PlanContract, classes)
+        misplaced = {
+            cls.__name__: cls.__module__
+            for cls in classes
+            if cls.__module__ != "roomkit_tools._native"
+        }
+        self.assertEqual(misplaced, {})

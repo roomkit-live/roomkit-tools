@@ -8,7 +8,7 @@ use roomkit_tools_agents::{
 };
 
 #[derive(Debug)]
-#[pyclass(name = "_AgentContract")]
+#[pyclass(name = "_AgentContract", module = "roomkit_tools._native")]
 pub(crate) struct PythonAgentContract;
 
 fn encode<T: serde::Serialize>(value: &T) -> PyResult<String> {

@@ -8,7 +8,7 @@ use roomkit_tools_plans::{
 };
 
 #[derive(Debug)]
-#[pyclass(name = "_PlanContract")]
+#[pyclass(name = "_PlanContract", module = "roomkit_tools._native")]
 pub(crate) struct PythonPlanContract;
 fn encode<T: serde::Serialize>(value: &T) -> PyResult<String> {
     serde_json::to_string(value).map_err(|e| InvalidInputError::new_err(e.to_string()))

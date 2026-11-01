@@ -19,7 +19,7 @@ fn unknown() -> PyErr {
     InvalidInputError::new_err("unknown documentation tool")
 }
 #[derive(Debug)]
-#[pyclass(name = "_DocsContract")]
+#[pyclass(name = "_DocsContract", module = "roomkit_tools._native")]
 pub(crate) struct PythonDocsContract;
 #[pymethods]
 impl PythonDocsContract {
