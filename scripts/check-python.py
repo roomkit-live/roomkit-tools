@@ -175,7 +175,10 @@ def main() -> None:
             metadata = BytesParser().parsebytes(metadata)
             assert metadata["Version"] == version, metadata["Version"]
             assert metadata["Description-Content-Type"].split(";", 1)[0] == "text/markdown"
-            assert metadata.get_payload().strip() == (root / "README.md").read_text().strip()
+            assert (
+                metadata.get_payload(decode=True).decode("utf-8").strip()
+                == (root / "README.md").read_text(encoding="utf-8").strip()
+            )
             assert metadata["License-Expression"] == "MIT"
             license_files = metadata.get_all("License-File", [])
             assert "LICENSE" in license_files

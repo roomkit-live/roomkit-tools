@@ -86,7 +86,10 @@ def main():
             assert metadata["Name"] == project["name"]
             assert metadata["Version"] == project["version"]
             assert metadata["License-Expression"] == "MIT"
-            assert metadata.get_payload().strip() == (plugin / "README.md").read_text().strip()
+            assert (
+                metadata.get_payload(decode=True).decode("utf-8").strip()
+                == (plugin / "README.md").read_text(encoding="utf-8").strip()
+            )
             assert metadata.get_all("Requires-Dist", []) == project["dependencies"]
             assert all(
                 any(n.endswith(f".dist-info/licenses/{notice}") for n in names)
