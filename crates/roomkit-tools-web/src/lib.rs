@@ -4,6 +4,7 @@
 //! JavaScript execution, model/provider dependency, shell or global registry.
 
 mod convert;
+mod markdown_bound;
 mod network;
 mod parse;
 mod types;

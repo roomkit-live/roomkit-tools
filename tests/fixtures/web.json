@@ -191,6 +191,14 @@
     "/reopened-formatting": {
       "type": "text/html",
       "body": "<div><b i=0><b i=1><b i=2><b i=3><b i=4><b i=5><b i=6><b i=7><b i=8><b i=9><b i=10><b i=11><b i=12><b i=13><b i=14><b i=15><b i=16><b i=17><b i=18><b i=19><b i=20><b i=21><b i=22><b i=23><b i=24><b i=25><b i=26><b i=27><b i=28><b i=29><b i=30><b i=31><b i=32><b i=33><b i=34><b i=35><b i=36><b i=37><b i=38><b i=39><b i=40><b i=41><b i=42><b i=43><b i=44><b i=45><b i=46><b i=47><b i=48><b i=49><b i=50><b i=51><b i=52><b i=53><b i=54><b i=55><b i=56><b i=57><b i=58><b i=59><b i=60><b i=61><b i=62><b i=63><b i=64><b i=65><b i=66><b i=67><b i=68><b i=69><b i=70><b i=71><b i=72><b i=73><b i=74><b i=75><b i=76><b i=77><b i=78><b i=79><b i=80><b i=81><b i=82><b i=83><b i=84><b i=85><b i=86><b i=87><b i=88><b i=89><b i=90><b i=91><b i=92><b i=93><b i=94><b i=95><b i=96><b i=97><b i=98><b i=99><b i=100><b i=101><b i=102><b i=103><b i=104><b i=105><b i=106><b i=107><b i=108><b i=109><b i=110><b i=111><b i=112><b i=113><b i=114><b i=115><b i=116><b i=117><b i=118><b i=119><b i=120><b i=121><b i=122><b i=123><b i=124><b i=125><b i=126><b i=127><b i=128><b i=129><b i=130><b i=131><b i=132><b i=133><b i=134><b i=135><b i=136><b i=137><b i=138><b i=139><b i=140><b i=141><b i=142><b i=143><b i=144><b i=145><b i=146><b i=147><b i=148><b i=149></div><div>x</div><div>x</div><div>x</div>"
+    },
+    "/padded-table": {
+      "type": "text/html",
+      "body": "<table><tr><th>wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww</th></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr><tr><td>x</td></tr></table>"
+    },
+    "/nested-quotes": {
+      "type": "text/html",
+      "body": "<blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><blockquote><pre>x\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\n</pre>"
     }
   },
   "cases": [
@@ -469,6 +477,30 @@
       "name": "reopened_formatting_limit",
       "input": {
         "url": "$ORIGIN/reopened-formatting"
+      },
+      "expect": {
+        "/error": "limit"
+      }
+    },
+    {
+      "name": "padded_table_limit",
+      "input": {
+        "url": "$ORIGIN/padded-table"
+      },
+      "limits": {
+        "max_converted_bytes": 4096
+      },
+      "expect": {
+        "/error": "limit"
+      }
+    },
+    {
+      "name": "nested_quotes_limit",
+      "input": {
+        "url": "$ORIGIN/nested-quotes"
+      },
+      "limits": {
+        "max_converted_bytes": 4096
       },
       "expect": {
         "/error": "limit"

@@ -53,11 +53,20 @@ by clones). The parser reads the page in 1 KiB chunks and stops building the
 DOM once it holds more than 100,000 nodes or nests deeper than 128 levels,
 counting the elements HTML parsing recreates for unclosed formatting tags; the
 page is then refused. The finished DOM is walked again with the same node and
-depth limits, and expanded link bytes are bounded. The final Markdown size is
-checked after conversion: these are work/output bounds, not strict peak memory
-limits. Cancellation and the deadline drop network work and stop parsing at the
-next chunk; issued DNS and Markdown rendering already under way may finish
-later. Fetched content remains untrusted reference data.
+depth limits, and expanded link bytes are bounded.
+
+Markdown can be much larger than the page: a pipe table pads every row to the
+widest cell of each column and to the widest row, and each enclosing quote or
+list item prefixes every line inside it again. The same walk therefore computes
+an upper bound of the Markdown size from the DOM, counting that padding and
+those prefixes, and refuses the page with the converted-text limit error before
+any Markdown is written when the bound exceeds `max_converted_bytes`. The bound
+only overestimates, by up to about two times on ordinary pages, so a page whose
+Markdown would fall just under the limit can be refused. The rendered Markdown
+is checked against the limit again. These are work/output bounds, not strict
+peak memory limits. Cancellation and the deadline drop network work and stop
+parsing at the next chunk; issued DNS and Markdown rendering already under way
+may finish later. Fetched content remains untrusted reference data.
 
 Run `python examples/roomkit_web.py` for a self-checking local demonstration,
 or add `--live` with `OPENAI_BASE_URL` and `OPENAI_MODEL` for vLLM. The local
