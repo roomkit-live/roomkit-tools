@@ -87,8 +87,9 @@ pub struct ShellResult {
 /// the host environment and permissions and can access paths outside the root.
 /// Each command leads a new Unix session without a controlling terminal, so
 /// opening `/dev/tty` fails. Process-group cleanup covers children that remain
-/// in the group, including background jobs after a normal shell exit. It is not
-/// an OS sandbox.
+/// in the group, including background jobs after a normal shell exit. Members
+/// the host cannot signal, such as ones running under other credentials, stay
+/// outside cleanup and the result is still returned. It is not an OS sandbox.
 #[derive(Clone, Debug)]
 pub struct ShellTool {
     root: PathBuf,
@@ -218,24 +219,22 @@ impl ShellTool {
         let _cancel_on_drop = child_cancel.clone().drop_guard();
         #[cfg(unix)]
         {
-            let limits = self.limits;
-            let outputs = self
-                .outputs
-                .as_ref()
-                .map(|store| (store.clone(), owner.to_owned()));
-            tokio::spawn(crate::unix::run(
-                input.command,
+            let foreground = crate::unix::Foreground {
+                command: input.command,
                 cwd,
-                limits,
+                limits: self.limits,
                 timeout_ms,
-                child_cancel,
-                outputs,
-            ))
-            .await
-            .map_err(|error| Error::Io {
-                operation: "join shell worker",
-                source: std::io::Error::other(error),
-            })?
+                outputs: self
+                    .outputs
+                    .as_ref()
+                    .map(|store| (store.clone(), owner.to_owned())),
+            };
+            tokio::spawn(crate::unix::run(foreground, child_cancel))
+                .await
+                .map_err(|error| Error::Io {
+                    operation: "join shell worker",
+                    source: std::io::Error::other(error),
+                })?
         }
         #[cfg(not(unix))]
         {

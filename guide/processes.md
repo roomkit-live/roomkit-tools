@@ -45,7 +45,9 @@ tool results; timeouts retain the output captured before termination.
 
 Timeout, cancellation and normal shell exit stop the Unix process group and
 reap the direct child. Processes that deliberately leave that group are outside
-this cleanup mechanism. Cancelling a Python task raises `CancelledError` and
+this cleanup mechanism, as are members the host cannot signal, such as ones left
+running under other credentials (`sudo -b`); the command's exit status and
+output are still returned. Cancelling a Python task raises `CancelledError` and
 requests cleanup in the owned Rust worker; cleanup can finish after that
 exception is delivered. Keep the host process/native runtime alive for cleanup;
 already-performed effects are not rolled back. Linux is validated. The existing

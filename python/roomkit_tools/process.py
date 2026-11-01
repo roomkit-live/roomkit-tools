@@ -101,7 +101,8 @@ class ShellTool:
         from the owned Rust worker. It may finish cleanup after Python receives
         cancellation. Keep the host process/native runtime alive for cleanup.
         The shell's process group is stopped on cancellation, timeout and normal
-        exit; deliberately detached processes are outside that mechanism.
+        exit; deliberately detached processes and members under other credentials
+        are outside that mechanism, and the result is still returned.
         Already-performed effects are not rolled back.
         """
         cancel = _native._Cancellation()
