@@ -224,13 +224,16 @@ class BridgeLifetimeTests(unittest.TestCase):
                         _native.Cancellation()
                     except ToolError as error:
                         print('child refused:', type(error).__name__, flush=True)
-                    # A normal exit runs the inherited native exit hook.
-                    sys.exit(0)
+                    return pid, None
                 sys.setswitchinterval(0.005)
                 return pid, pending
 
             loop = asyncio.new_event_loop()
             pid, pending = loop.run_until_complete(fork_during_call())
+            if pid == 0:
+                # Leave the loop first: a normal exit then runs the inherited
+                # native exit hook.
+                sys.exit(0)
             deadline = time.monotonic() + 15
             while (status := os.waitpid(pid, os.WNOHANG))[0] == 0:
                 if time.monotonic() > deadline:
