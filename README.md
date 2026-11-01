@@ -86,8 +86,12 @@ python -m pip install "roomkit-tools[roomkit] @ https://github.com/roomkit-live/
 ```
 
 Omit `[roomkit]` to use the tools without RoomKit: the base package has no
-Python dependencies. On other platforms, or to work on the project, build from
-a checkout; this needs [Rust](https://rustup.rs) to compile the extension:
+Python dependencies. The 0.1.0a15 preview predates the changes listed under
+*Unreleased* in the
+[changelog](https://github.com/roomkit-live/roomkit-tools/blob/main/CHANGELOG.md),
+including the minimal command environment described below. To use them, on
+other platforms, or to work on the project, build from a checkout; this needs
+[Rust](https://rustup.rs) to compile the extension:
 
 ```sh
 git clone https://github.com/roomkit-live/roomkit-tools
@@ -258,7 +262,7 @@ permissions:
 | Preview wheels | Linux x86_64, glibc 2.34+ |
 | Rust | 1.94 or later |
 | RoomKit Python | `roomkit>=0.110,<0.112` |
-| Commands and processes | Linux; Unix process groups. Other platforms return an unsupported error |
+| Commands and processes | Linux. Other Unix systems run the same code without validation; non-Unix systems return an unsupported error |
 
 macOS, Windows, ARM64, musl, PyPy and free-threaded Python have no validated
 builds yet. Source builds may work there, but are not supported.
