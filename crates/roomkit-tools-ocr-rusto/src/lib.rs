@@ -14,7 +14,7 @@ use std::{
 use roomkit_tools_core::Error;
 use roomkit_tools_image::DecodedImage;
 use roomkit_tools_ocr::{OcrBackend, OcrBlock, OcrEngine, OcrIdentity, OcrPoint};
-use rusto::{DetectTextResult, InitializeConfig, OcrRunOptions, RustO};
+use rusto::{DetectTextResult, InferenceSession, InitializeConfig, OcrRunOptions, RustO};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
@@ -65,6 +65,7 @@ impl std::fmt::Debug for RustoBackend {
 
 impl RustoBackend {
     /// Load local PP-OCRv6 models once. Each model is capped at 256 MiB, dictionary at 4 MiB.
+    /// Each file is read once; the engine uses the bytes that were checked and fingerprinted.
     /// This synchronous initialization belongs on a host-owned blocking worker.
     ///
     /// # Errors
@@ -90,8 +91,10 @@ impl RustoBackend {
         let detection = read_file(&config.detection_model, 256 * 1024 * 1024)?;
         let recognition = read_file(&config.recognition_model, 256 * 1024 * 1024)?;
         let dictionary = read_file(&config.dictionary, 4 * 1024 * 1024)?;
-        std::str::from_utf8(&dictionary)
-            .map_err(|_| Error::InvalidInput("OCR dictionary must be UTF-8".into()))?;
+        let characters = vocabulary(
+            std::str::from_utf8(&dictionary)
+                .map_err(|_| Error::InvalidInput("OCR dictionary must be UTF-8".into()))?,
+        );
         let mut digest = Sha256::new();
         for bytes in [&detection, &recognition, &dictionary] {
             digest.update((bytes.len() as u64).to_le_bytes());
@@ -106,12 +109,7 @@ impl RustoBackend {
             model: rten::Model::load(recognition).map_err(|_| model_error())?,
             pool,
         };
-        let preset = InitializeConfig::ppv6(
-            config.detection_model,
-            config.recognition_model,
-            config.dictionary,
-        );
-        let engine = RustO::with_custom_engines(preset, det, rec).map_err(|_| model_error())?;
+        let engine = engine(&config, det, rec, characters)?;
         let options = OcrRunOptions {
             detection: Some(rusto::rusto_ocr::DetectionRunOptions {
                 limit_side_len: Some(
@@ -137,6 +135,33 @@ impl RustoBackend {
             },
         })
     }
+}
+
+/// Split the validated dictionary into entries exactly as `RustO` reads a
+/// dictionary file: one entry per line, `\n` or `\r\n` terminated.
+fn vocabulary(text: &str) -> Vec<String> {
+    text.lines().map(str::to_owned).collect()
+}
+
+/// Build the engine from loaded sessions and the validated dictionary entries.
+/// No dictionary path is passed on, so the engine cannot read the file again.
+fn engine(
+    config: &RustoConfig,
+    det: impl InferenceSession + 'static,
+    rec: impl InferenceSession + 'static,
+    characters: Vec<String>,
+) -> Result<RustO, Error> {
+    let mut preset = InitializeConfig::ppv6(
+        config.detection_model.clone(),
+        config.recognition_model.clone(),
+        config.dictionary.clone(),
+    );
+    preset.rec.rec_keys_path = None;
+    let rec = session::Vocabulary {
+        session: rec,
+        characters,
+    };
+    RustO::with_custom_engines(preset, det, rec).map_err(|_| model_error())
 }
 
 fn validate(config: &RustoConfig) -> Result<(), Error> {
@@ -280,4 +305,93 @@ fn read_file(path: &Path, maximum: u64) -> Result<Vec<u8>, Error> {
         return Err(Error::LimitExceeded("OCR model file is too large".into()));
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ndarray::{ArrayD, IxDyn};
+    use rusto::engine::EngineError;
+    use rusto::image_impl::Mat;
+    use std::collections::HashMap;
+
+    /// Inference stub returning fixed recognizer scores.
+    struct Scores(ArrayD<f32>);
+
+    impl InferenceSession for Scores {
+        fn run(&mut self, _input: ArrayD<f32>) -> Result<ArrayD<f32>, EngineError> {
+            Ok(self.0.clone())
+        }
+        fn run_all(
+            &mut self,
+            _input: ArrayD<f32>,
+        ) -> Result<HashMap<String, ArrayD<f32>>, EngineError> {
+            Err(EngineError::OutputError("not used".into()))
+        }
+        fn run_with_inputs(
+            &mut self,
+            _inputs: HashMap<String, ArrayD<f32>>,
+        ) -> Result<HashMap<String, ArrayD<f32>>, EngineError> {
+            Err(EngineError::OutputError("not used".into()))
+        }
+    }
+
+    fn config(dictionary: PathBuf) -> RustoConfig {
+        RustoConfig {
+            detection_model: "det.onnx".into(),
+            recognition_model: "rec.onnx".into(),
+            dictionary,
+            model_name: "test".into(),
+            threads: 1,
+            detection_max_edge: 960,
+        }
+    }
+
+    /// Scores selecting vocabulary entries 1 and 2, then the CTC blank.
+    fn scores_for_first_two_entries() -> ArrayD<f32> {
+        let mut scores = ArrayD::zeros(IxDyn(&[1, 3, 4]));
+        scores[[0, 0, 1]] = 1.0;
+        scores[[0, 1, 2]] = 1.0;
+        scores[[0, 2, 0]] = 1.0;
+        scores
+    }
+
+    #[test]
+    fn recognizer_decodes_with_the_validated_dictionary_bytes() {
+        // The configured path holds other content than the validated bytes, as
+        // when the file changes after validation: decoding must not reread it.
+        let other_file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let validated = std::str::from_utf8(b"a\nb\n").unwrap();
+        let mut engine = engine(
+            &config(other_file),
+            Scores(ArrayD::zeros(IxDyn(&[1]))),
+            Scores(scores_for_first_two_entries()),
+            vocabulary(validated),
+        )
+        .unwrap();
+        let line = Mat::from_rgb8(8, 8, vec![255; 8 * 8 * 3]).unwrap();
+        let output = engine.rec.run(&[line], false).unwrap();
+        assert_eq!(output.txts, ["ab"]);
+    }
+
+    #[test]
+    fn vocabulary_matches_the_entries_rusto_reads_from_a_file() {
+        let directory = tempfile::tempdir().unwrap();
+        for text in [
+            "",
+            "a",
+            "a\nb\n",
+            "a\r\nb\r\n\nc",
+            "é\n\n \nlast\r",
+            "x\ry\n",
+        ] {
+            let path = directory.path().join("dict.txt");
+            std::fs::write(&path, text).unwrap();
+            let decoder = rusto::rec::CtcDecoder::from_file(&path).unwrap();
+            let mut expected = vec!["blank".to_owned()];
+            expected.extend(vocabulary(text));
+            expected.push(" ".to_owned());
+            assert_eq!(decoder.chars, expected, "{text:?}");
+        }
+    }
 }

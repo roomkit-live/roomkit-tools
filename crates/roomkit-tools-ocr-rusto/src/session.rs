@@ -59,6 +59,40 @@ impl Session {
     }
 }
 
+/// Recognizer session that supplies the already validated vocabulary in memory,
+/// so `RustO` never opens the dictionary path itself.
+pub(crate) struct Vocabulary<S> {
+    pub session: S,
+    pub characters: Vec<String>,
+}
+
+const CHARACTER_KEY: &str = "character";
+
+impl<S: InferenceSession> InferenceSession for Vocabulary<S> {
+    fn run(&mut self, input: ArrayD<f32>) -> Result<ArrayD<f32>, EngineError> {
+        self.session.run(input)
+    }
+
+    fn run_all(&mut self, input: ArrayD<f32>) -> Result<HashMap<String, ArrayD<f32>>, EngineError> {
+        self.session.run_all(input)
+    }
+
+    fn run_with_inputs(
+        &mut self,
+        inputs: HashMap<String, ArrayD<f32>>,
+    ) -> Result<HashMap<String, ArrayD<f32>>, EngineError> {
+        self.session.run_with_inputs(inputs)
+    }
+
+    fn get_character_list(&self, key: &str) -> Option<Vec<String>> {
+        (key == CHARACTER_KEY).then(|| self.characters.clone())
+    }
+
+    fn have_key(&self, key: &str) -> bool {
+        key == CHARACTER_KEY
+    }
+}
+
 impl InferenceSession for Session {
     fn run(&mut self, input: ArrayD<f32>) -> Result<ArrayD<f32>, EngineError> {
         let output = self

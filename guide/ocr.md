@@ -138,7 +138,8 @@ are modified. Limits are not a hard process-wide memory quota.
 Paths must resolve to regular files inside the configured root. These checks
 assume host-controlled files and do not provide an OS sandbox against concurrent
 hostile filesystem replacement. Models are trusted host configuration, capped
-at 256 MiB each and 4 MiB for the dictionary, and must stay unchanged during load.
+at 256 MiB each and 4 MiB for the dictionary. Each of the three files is read
+once; the engine uses exactly the bytes that were size-checked and fingerprinted.
 
 ## Recognition limits and dependencies
 
