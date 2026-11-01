@@ -90,7 +90,10 @@ Already-issued blocking I/O can delay exit until it returns.
 The RoomKit classes expose the Rust-derived input schema through its `Tool` protocol.
 Text tools return both result representations; `ViewImage` returns typed text and
 image parts instead of embedding pixels in ordinary text. Refusal and resource failure stay
-distinct. The lower-level `roomkit_tools.roomkit.ReadToolAdapter` remains
+distinct: every RoomKit adapter raises `ToolRefusedError` for `InvalidInputError` and
+`AccessRefusedError`, `ToolFailedError` for `LimitExceededError` and
+`UnsupportedResourceError`, and lets `ToolIOError` and other errors propagate for
+RoomKit to report without their message. The lower-level `roomkit_tools.roomkit.ReadToolAdapter` remains
 available for an already-created `ReadTool`. Importing `roomkit_tools` and
 configuring these tools does not import or require RoomKit; calling their
 RoomKit handlers does.

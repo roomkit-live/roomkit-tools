@@ -9,7 +9,7 @@ from typing import Any, ClassVar, Protocol
 from ._native import (
     AccessRefusedError,
     InvalidInputError,
-    ToolError,
+    LimitExceededError,
     UnsupportedResourceError,
     _Cancellation,
     _DocsContract,
@@ -138,7 +138,11 @@ class _DocsTool:
         return json.loads(_DocsContract.output_json(self.name, json.dumps(data, allow_nan=False)))
 
     async def handler(self, name: str, arguments: dict[str, Any]) -> str:
-        """RoomKit adapter; the host selects the documentation accessible here."""
+        """RoomKit adapter; the host selects the documentation accessible here.
+
+        Refusals and resource failures expose their public messages. I/O and
+        other tool errors propagate for RoomKit to report without host details.
+        """
         from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
         from roomkit.tools.context import current_tool_call
 
@@ -148,7 +152,7 @@ class _DocsTool:
             result = await self.call(arguments)
         except (InvalidInputError, AccessRefusedError) as error:
             raise ToolRefusedError(str(error)) from error
-        except ToolError as error:
+        except (LimitExceededError, UnsupportedResourceError) as error:
             raise ToolFailedError(str(error)) from error
         context = current_tool_call()
         if context is not None:
