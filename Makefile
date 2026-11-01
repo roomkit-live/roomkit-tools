@@ -65,8 +65,8 @@ python-check:
 	$(CARGO) clippy --manifest-path $(PYTHON_MANIFEST) --all-targets --locked -- -D warnings
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(PYTHON_MANIFEST) --no-deps --locked
 	$(CARGO) deny --manifest-path $(PYTHON_MANIFEST) --config deny.toml check
-	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python examples scripts/check-python.py
-	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python examples scripts/check-python.py
+	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py
+	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py
 	$(PYTHON) scripts/check-python.py
 
 python-msrv:
@@ -78,8 +78,8 @@ ocr-python-check:
 	$(CARGO) fmt --manifest-path backends/rusto/python/Cargo.toml --all -- --check
 	$(CARGO) clippy --manifest-path backends/rusto/python/Cargo.toml --all-targets --locked -- -D warnings
 	$(CARGO) deny --manifest-path backends/rusto/python/Cargo.toml --config deny.toml check
-	uv tool run --from 'ruff>=0.14,<1' ruff check backends/rusto/python scripts/check-ocr-python.py
-	uv tool run --from 'ruff>=0.14,<1' ruff format --check backends/rusto/python scripts/check-ocr-python.py
+	uv tool run --from 'ruff>=0.14,<1' ruff check backends/rusto/python scripts/check-ocr-python.py scripts/native-notices.py scripts/artifact_files.py
+	uv tool run --from 'ruff>=0.14,<1' ruff format --check backends/rusto/python scripts/check-ocr-python.py scripts/native-notices.py scripts/artifact_files.py
 	$(PYTHON) scripts/check-ocr-python.py
 
 ocr-python-msrv:

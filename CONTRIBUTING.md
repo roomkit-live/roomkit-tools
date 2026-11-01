@@ -98,14 +98,18 @@ links use absolute URLs that work on an index page. Keep it concise; put detaile
 contracts and budgets in the guides. Verify changed snippets and local link targets.
 
 Code, comments, examples and public documentation use English and generic data.
-Keep local planning and private integration assets ignored and excluded from
-archives. Do not force-add ignored material. The distribution checker rejects
-internal documentation/integration assets in the wheel and source archive.
+Keep local files out of version control with your checkout's `.git/info/exclude`
+and do not force-add ignored material. The distribution checkers accept only
+tracked files in source archives and expected paths in wheels, so an untracked
+local file fails the check instead of being published.
 
 See [release preparation](guide/releasing.md) for artifact validation and the
 planned TestPyPI/PyPI flow. The existing distribution workflow only builds and
-tests; it does not publish. Native dependency license notices belong in the
-package's `licenses/` directory and must remain in the wheel.
+tests; it does not publish. Each wheel ships the license notices of every
+native dependency in its `licenses/` directory. After a dependency change,
+regenerate them with `python scripts/native-notices.py write roomkit-tools`
+(and `roomkit-tools-ocr-rusto` for the OCR package); the checkers verify that
+the shipped notices cover every locked dependency.
 
 ## Commits
 
