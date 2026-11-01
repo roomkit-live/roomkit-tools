@@ -18,6 +18,7 @@ use tokio_util::sync::CancellationToken;
 use crate::ReadLine;
 use crate::grep::{GrepInput, GrepLimits, GrepMatch, GrepPage};
 use crate::paths::{PathEntry, PathKind, Root};
+use crate::worker::check;
 
 /// One prepared search, moved onto a blocking worker.
 pub(crate) struct Search {
@@ -74,14 +75,6 @@ pub(crate) fn run(search: Search, cancel: &CancellationToken) -> Result<Output<G
         }
     }
     page.finish()
-}
-
-fn check(cancel: &CancellationToken) -> Result<(), Error> {
-    if cancel.is_cancelled() {
-        Err(Error::Cancelled)
-    } else {
-        Ok(())
-    }
 }
 
 /// UTF-8 text without its BOM, or `None` for binary or non-UTF-8 content.

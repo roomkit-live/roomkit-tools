@@ -79,12 +79,13 @@ directory, and report them in `data.skipped_entries`. A glob pattern or grep
 it has components: `*.rs` reads only the search directory, so unrelated large or
 deep subtrees do not exhaust the scan bounds.
 
-Grep reads and matches files on a blocking worker, never on the async
-executor. Lines longer than `max_line_bytes` are not handed to the regex: they
-are not searched, can still appear as context, and are counted in
-`data.skipped_lines`. Cancellation, or dropping the call, returns at once; the
-worker checks cancellation before each file and each line, so it stops after
-at most one line of up to `max_line_bytes`. A match that does not fit
+Glob matches paths, and grep reads and matches files, on a blocking worker,
+never on the async executor. Cancellation, or dropping the call, returns at
+once. Glob's worker checks cancellation before each entry. Lines longer than
+`max_line_bytes` are not handed to grep's regex: they are not searched, can
+still appear as context, and are counted in `data.skipped_lines`. Grep's worker
+checks cancellation before each file and each line, so it stops after at most
+one line of up to `max_line_bytes`. A match that does not fit
 `max_output_bytes` together with its context ends the page before it; when it
 is the first match of a page it is returned alone with `clipped: true`, its
 context omitted and its `text` cut at a UTF-8 boundary to fit, so the next

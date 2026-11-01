@@ -1,12 +1,14 @@
 use std::num::NonZeroUsize;
 use std::path::Path;
 
+use globset::GlobSet;
 use roomkit_tools_core::{Definition, Error, Output};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-use crate::paths::{self, PathPage, Root, first_entry, workspace_path};
+use crate::paths::{self, PathPage, Root, Scan, first_entry, workspace_path};
+use crate::worker;
 
 /// Search paths relative to a directory using a glob pattern.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -66,6 +68,7 @@ impl Default for GlobLimits {
 ///
 /// Hidden entries are included; ignore files are not consulted. Files,
 /// directories and symlinks can match. Each call performs a fresh bounded scan.
+/// Pattern matching runs on a blocking worker, never on the async executor.
 #[derive(Clone, Debug)]
 pub struct GlobTool {
     root: Root,
@@ -111,7 +114,11 @@ impl GlobTool {
         )
     }
 
-    /// Find one page of paths; cancellation stops waiting for filesystem work.
+    /// Find one page of paths.
+    ///
+    /// Cancellation, or dropping the returned future, returns promptly; the
+    /// blocking matching worker stops at its next check, before the next
+    /// entry.
     ///
     /// # Errors
     /// Returns invalid patterns or offsets, refusal outside the root,
@@ -121,17 +128,20 @@ impl GlobTool {
         input: GlobInput,
         cancel: &CancellationToken,
     ) -> Result<Output<PathPage>, Error> {
-        tokio::select! { biased;
-            () = cancel.cancelled() => Err(Error::Cancelled),
-            result = self.search(input) => result,
-        }
+        worker::cancellable(cancel, |cancel| self.search(input, cancel)).await
     }
 
-    async fn search(&self, input: GlobInput) -> Result<Output<PathPage>, Error> {
+    /// Walk on the async side, then match and page on a blocking worker that
+    /// observes `cancel`.
+    async fn search(
+        &self,
+        input: GlobInput,
+        cancel: CancellationToken,
+    ) -> Result<Output<PathPage>, Error> {
         let matcher = paths::pattern(&input.pattern)?;
         let path = self.root.resolve(&input.path).await?;
         let prefix = self.root.prefix(&path)?;
-        let mut scan = paths::walk(
+        let scan = paths::walk(
             &self.root,
             &path,
             self.limits.max_scan_entries,
@@ -139,21 +149,42 @@ impl GlobTool {
             paths::match_depth(&input.pattern),
         )
         .await?;
-        scan.entries.retain(|entry| {
-            entry
-                .path
-                .strip_prefix(&prefix)
-                .is_some_and(|relative| matcher.is_match(relative))
-        });
-        paths::page(
-            self.root.relative(&path)?,
-            scan,
-            input.offset,
-            input
-                .limit
-                .map_or(self.limits.max_matches, NonZeroUsize::get)
-                .min(self.limits.max_matches),
-            self.limits.max_output_bytes,
-        )
+        let searched = self.root.relative(&path)?;
+        let limit = input
+            .limit
+            .map_or(self.limits.max_matches, NonZeroUsize::get)
+            .min(self.limits.max_matches);
+        let bytes = self.limits.max_output_bytes;
+        worker::blocking("finish the path search", move || {
+            let scan = matching(scan, &prefix, &matcher, &cancel)?;
+            paths::page(searched, scan, input.offset, limit, bytes)
+        })
+        .await
     }
+}
+
+/// Keep the entries whose path below `prefix` matches; blocking, checking
+/// `cancel` before each entry.
+fn matching(
+    scan: Scan,
+    prefix: &str,
+    matcher: &GlobSet,
+    cancel: &CancellationToken,
+) -> Result<Scan, Error> {
+    let Scan { entries, skipped } = scan;
+    let mut kept = Vec::new();
+    for entry in entries {
+        worker::check(cancel)?;
+        if entry
+            .path
+            .strip_prefix(prefix)
+            .is_some_and(|relative| matcher.is_match(relative))
+        {
+            kept.push(entry);
+        }
+    }
+    Ok(Scan {
+        entries: kept,
+        skipped,
+    })
 }

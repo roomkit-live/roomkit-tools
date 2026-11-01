@@ -11,6 +11,7 @@ use tokio_util::sync::CancellationToken;
 use crate::ReadLine;
 use crate::grep_scan::{self, Matches, Search};
 use crate::paths::{self, PathEntry, PathKind, Root, Scan, first_entry, workspace_path};
+use crate::worker;
 
 /// Search UTF-8 file contents, one match per matching line.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -214,12 +215,7 @@ impl GrepTool {
         input: GrepInput,
         cancel: &CancellationToken,
     ) -> Result<Output<GrepPage>, Error> {
-        let cancel = cancel.child_token();
-        let _stop_worker = cancel.clone().drop_guard();
-        tokio::select! { biased;
-            () = cancel.cancelled() => Err(Error::Cancelled),
-            result = self.search(input, &cancel) => result,
-        }
+        worker::cancellable(cancel, |cancel| self.search(input, cancel)).await
     }
 
     /// Files to search and the prefix that `include` patterns are relative to.
@@ -271,7 +267,7 @@ impl GrepTool {
     async fn search(
         &self,
         input: GrepInput,
-        cancel: &CancellationToken,
+        cancel: CancellationToken,
     ) -> Result<Output<GrepPage>, Error> {
         let regex = self.regex(&input)?;
         let include = input.include.as_deref().map(paths::pattern).transpose()?;
@@ -290,13 +286,10 @@ impl GrepTool {
             limits: self.limits,
             page,
         };
-        let cancel = cancel.clone();
-        tokio::task::spawn_blocking(move || grep_scan::run(search, &cancel))
-            .await
-            .map_err(|source| Error::Io {
-                operation: "finish the search task",
-                source: std::io::Error::other(source),
-            })?
+        worker::blocking("finish the search task", move || {
+            grep_scan::run(search, &cancel)
+        })
+        .await
     }
 
     /// Check model arguments against host bounds and compile the pattern.
