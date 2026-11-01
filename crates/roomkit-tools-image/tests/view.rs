@@ -55,7 +55,7 @@ async fn transparent_pixels_revision_and_source_are_preserved() {
     assert_eq!(result.data.output_bytes, png.len());
     assert_eq!(
         result.data.revision,
-        format!("sha256:{:x}", Sha256::digest(bytes.get_ref()))
+        roomkit_tools_core::revision::sha256(&Sha256::digest(bytes.get_ref()))
     );
     assert_eq!(
         std::fs::read(root.path().join("pixels.bin")).unwrap(),

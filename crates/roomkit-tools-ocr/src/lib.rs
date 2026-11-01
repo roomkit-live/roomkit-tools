@@ -205,7 +205,7 @@ impl OcrTool {
                 }
             };
             check()?;
-            let revision = format!("sha256:{:x}", Sha256::digest(&bytes));
+            let revision = roomkit_tools_core::revision::sha256(&Sha256::digest(&bytes));
             if input
                 .expected_revision
                 .as_ref()

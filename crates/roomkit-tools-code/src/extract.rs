@@ -61,7 +61,7 @@ pub(crate) fn outline(
     control: &Control,
 ) -> Result<SourceOutline, Error> {
     control.check()?;
-    let revision = format!("sha256:{:x}", Sha256::digest(text.as_bytes()));
+    let revision = roomkit_tools_core::revision::sha256(&Sha256::digest(text.as_bytes()));
     if input
         .expected_revision
         .as_ref()

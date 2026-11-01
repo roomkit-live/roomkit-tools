@@ -133,7 +133,7 @@ impl RustoBackend {
             identity: OcrIdentity {
                 provider: "rusto".into(),
                 model: config.model_name,
-                revision: Some(format!("sha256:{:x}", digest.finalize())),
+                revision: Some(roomkit_tools_core::revision::sha256(&digest.finalize())),
             },
         })
     }

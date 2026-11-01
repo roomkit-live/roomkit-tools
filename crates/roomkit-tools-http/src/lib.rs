@@ -18,6 +18,7 @@ pub struct NetworkPolicy {
 }
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 
 use reqwest::{Url, redirect::Policy};
 use roomkit_tools_core::Error;
@@ -149,6 +150,7 @@ pub async fn checked_client(url: &Url, policy: &NetworkPolicy) -> Result<reqwest
     // New client per hop: pin validated addresses, disable inherited proxy routes,
     // redirects, cookies and referers. TLS still checks the original hostname.
     reqwest::Client::builder()
+        .tls_backend_preconfigured(tls_config()?)
         .no_proxy()
         .redirect(Policy::none())
         .referer(false)
@@ -156,6 +158,21 @@ pub async fn checked_client(url: &Url, policy: &NetworkPolicy) -> Result<reqwest
         .user_agent("roomkit-tools/0.1")
         .build()
         .map_err(|e| io_error("create HTTP client", e))
+}
+
+/// TLS with the ring provider and the bundled Mozilla roots, so certificate
+/// trust is the same on every host, including one without a system store.
+fn tls_config() -> Result<rustls::ClientConfig, Error> {
+    let roots = rustls::RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+    };
+    Ok(rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .map_err(|e| io_error("configure TLS", e))?
+    .with_root_certificates(roots)
+    .with_no_client_auth())
 }
 
 /// Wrap a diagnostic source with a safe public operation name.
@@ -212,6 +229,23 @@ pub async fn read_body(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn https_clients_build_with_the_bundled_roots_and_ring() {
+        let url = parse_url("https://127.0.0.1:8443/", 8192).unwrap();
+        let policy = NetworkPolicy {
+            allowed_origins: None,
+            private_origins: vec![url.origin().ascii_serialization()],
+        };
+        // A TLS configuration reqwest does not recognize fails at build time.
+        checked_client(&url, &policy).await.unwrap();
+        let config = tls_config().unwrap();
+        assert_eq!(
+            config.crypto_provider().cipher_suites,
+            rustls::crypto::ring::default_provider().cipher_suites
+        );
+    }
+
     #[test]
     fn non_public_addresses_and_mixed_dns_answers_are_refused() {
         for ip in [

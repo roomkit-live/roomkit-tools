@@ -11,7 +11,12 @@ publish.workspace = true
 roomkit-tools-core.workspace = true
 serde.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
+webpki-roots.workspace = true
 tokio = { workspace = true, features = ["net"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true

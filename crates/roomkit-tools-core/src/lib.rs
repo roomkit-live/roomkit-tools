@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 pub mod identifiers;
+pub mod revision;
 mod workspace;
 
 pub use workspace::WorkspaceRoot;

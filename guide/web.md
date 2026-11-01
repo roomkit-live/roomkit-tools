@@ -33,8 +33,10 @@ link-local and reserved addresses are refused unless the host explicitly adds
 the exact origin to `private_origins`; this never bypasses `allowed_origins`.
 Each redirect repeats origin and DNS checks. Validated IP addresses are pinned
 for the connection while TLS checks the original hostname. Ambient proxies,
-cookies and URL credentials are disabled. No custom authentication/header API
-is provided. These controls apply to this tool, not other selected capabilities.
+cookies and URL credentials are disabled. TLS uses the ring provider and the
+bundled Mozilla root certificates, the same on every host: the system
+certificate store is not consulted, so a private certificate authority is not
+trusted. No custom authentication/header API is provided. These controls apply to this tool, not other selected capabilities.
 
 Default bounds: 8 KiB URL, 5 MiB decoded body, 5 MiB converted text, 50 KiB
 returned content, 10 redirects, 30-second total deadline (host maximum 120

@@ -2,7 +2,7 @@ use roomkit_tools_core::Error;
 use sha2::{Digest, Sha256};
 
 pub(crate) fn finish(hash: Sha256) -> String {
-    format!("sha256:{:x}", hash.finalize())
+    roomkit_tools_core::revision::sha256(&hash.finalize())
 }
 
 pub(crate) fn of(bytes: &[u8]) -> String {

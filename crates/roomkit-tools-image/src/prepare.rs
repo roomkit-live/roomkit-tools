@@ -176,7 +176,7 @@ pub(crate) fn prepare(
     encoded.map_err(image_error)?;
     let result = ViewImageResult {
         path,
-        revision: format!("sha256:{:x}", Sha256::digest(bytes)),
+        revision: roomkit_tools_core::revision::sha256(&Sha256::digest(bytes)),
         source_mime_type: mime,
         input_bytes: bytes.len(),
         original_width,

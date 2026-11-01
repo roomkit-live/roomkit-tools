@@ -36,10 +36,10 @@ schemars = "1.2"
 globset = "0.4"
 regex = "1"
 # Content revisions for optimistic filesystem mutations; never in core.
-sha2 = "0.10"
+sha2 = "0.11"
 # Local image preparation only; no codecs or image I/O in core or fs.
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
-base64 = "0.22"
+base64 = "0.23"
 # Optional source outlines: parser and two grammars stay in the code crate.
 tree-sitter = "0.27.1"
 tree-sitter-rust = "0.24.2"
@@ -54,7 +54,11 @@ tempfile = "3"
 # `setsid` call between fork and exec in roomkit-tools-process.
 rustix = { version = "1", features = ["process"] }
 # Independent HTTP fetching and HTML conversion; never in core.
-reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "gzip"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "gzip"] }
+# TLS for reqwest: ring and the bundled Mozilla roots, the same on every host,
+# including containers without a system certificate store.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "1"
 url = "2"
 htmd = "0.5.6"
 # Same parser htmd uses, driven chunk by chunk through a bounded tree sink.

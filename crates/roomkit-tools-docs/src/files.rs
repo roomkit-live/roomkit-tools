@@ -373,7 +373,7 @@ fn load(inner: &Inner, cancel: &CancellationToken) -> Result<Snapshot, Error> {
                 "documentation catalogue byte budget exceeded".into(),
             ));
         }
-        let revision = format!("sha256:{:x}", Sha256::digest(&data));
+        let revision = roomkit_tools_core::revision::sha256(&Sha256::digest(&data));
         let text = String::from_utf8(data)
             .map_err(|_| Error::Unsupported("documentation must be UTF-8 text".into()))?;
         if text.contains('\0') {
@@ -416,7 +416,7 @@ fn load(inner: &Inner, cancel: &CancellationToken) -> Result<Snapshot, Error> {
     cancelled(cancel)?;
     Ok(Snapshot {
         documents,
-        revision: format!("sha256:{:x}", hash.finalize()),
+        revision: roomkit_tools_core::revision::sha256(&hash.finalize()),
     })
 }
 fn search(
