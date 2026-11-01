@@ -233,7 +233,23 @@ mod tests {
             "<blockquote>".repeat(100),
             "x\n".repeat(2_000)
         );
-        for (name, html) in [("table", table), ("quotes", quotes)] {
+        // htmd writes a math span's text verbatim, keeping spaces and newlines.
+        let math_table = format!(
+            "<table><tr><th>h</th></tr><tr><td>{}</td></tr>{}</table>",
+            math_span("inline", &format!("a{}b", " ".repeat(5_000))),
+            "<tr><td></td></tr>".repeat(200)
+        );
+        let math_quotes = format!(
+            "{}{}",
+            "<blockquote>".repeat(100),
+            math_span("display", &"x\n".repeat(2_000))
+        );
+        for (name, html) in [
+            ("table", table),
+            ("quotes", quotes),
+            ("math table", math_table),
+            ("math quotes", math_quotes),
+        ] {
             let result = markdown(&html, 256 * 1024);
             assert!(
                 matches!(result, Err(Error::LimitExceeded(_))),
@@ -242,6 +258,11 @@ mod tests {
                 outcome(&result)
             );
         }
+    }
+
+    /// A span htmd renders as math, with `text` as its only child.
+    fn math_span(mode: &str, text: &str) -> String {
+        format!("<span class=\"math math-{mode}\">{text}</span>")
     }
 
     /// The bound and the actual Markdown length for one document.
@@ -312,7 +333,98 @@ mod tests {
         ));
         documents.push(article(40));
         documents.push(navigation(30));
+        documents.push(discussion(20));
+        documents.extend(math_documents());
+        documents.extend(layout_tables());
         documents
+    }
+
+    /// Math spans, written verbatim by htmd, in every context that amplifies
+    /// text: padded cells, prefixed lines, code fences.
+    fn math_documents() -> Vec<String> {
+        let spaced = format!("a{}b", " ".repeat(500));
+        let lines = "x\n".repeat(20);
+        vec![
+            format!(
+                "<table><tr><th>h</th></tr><tr><td>{}</td></tr>{}</table>",
+                math_span("inline", &spaced),
+                "<tr><td></td></tr>".repeat(20)
+            ),
+            format!(
+                "{}{}",
+                "<blockquote>".repeat(20),
+                math_span("display", &lines)
+            ),
+            format!(
+                "<ul><li>{}<ol><li>{}</li></ol></li></ul>",
+                math_span("display", &lines),
+                math_span("inline", "\r\n\t |`` ~ é")
+            ),
+            format!(
+                "<table><tr><th>{}</th></tr><tr><td>{}{}</td></tr></table>",
+                math_span("inline", "| a | b |"),
+                math_span("display", "`x`\n``y``"),
+                math_span("display", " ")
+            ),
+            format!(
+                "<pre><code>{}</code></pre><p>{}</p><p>{}{}</p>",
+                math_span("display", "```\n~~~"),
+                math_span("inline", "*_[]\\<b>"),
+                math_span("inline", "a  b"),
+                math_span("inline", "c\n\nd")
+            ),
+            // Not math for htmd: a second attribute, another class, element
+            // children, or no text at all.
+            format!(
+                "<p><span class=\"math math-inline\" id=\"m\">{spaced}</span><span class=\"math\">{spaced}</span><span class=\"math math-display\"><b>{spaced}</b></span><span class=\"math math-inline\"></span></p>"
+            ),
+        ]
+    }
+
+    /// Tables without header cells, or nested in a cell, which htmd writes as
+    /// plain content, next to header tables it pads.
+    fn layout_tables() -> Vec<String> {
+        vec![
+            "<table><tr><td>a</td><td>b</td></tr><tr><td>c</td></tr></table>".to_owned(),
+            "<table><tr><th>h</th></tr><tr><td><table><tr><th>inner</th></tr><tr><td>x</td></tr></table></td></tr></table>".to_owned(),
+            "<table><tr><td><table><tr><td><table><tr><th>deep</th></tr></table></td></tr></table></td></tr></table>".to_owned(),
+            "<table><thead><tr><td>h</td></tr></thead><tr><td>x</td></tr></table>".to_owned(),
+            "<table><tr><td><div><span>th</span></div></td></tr><caption>c</caption></table>".to_owned(),
+            format!(
+                "<table><tr><td>{}</td></tr></table><table><tr><th>{}</th></tr><tr><td>x</td></tr></table>",
+                "w".repeat(200),
+                "<table><tr><td>y</td></tr></table>"
+            ),
+        ]
+    }
+
+    /// A discussion page laid out with tables: a page table holding a comment
+    /// table, one single-row table per comment, and no header cells.
+    fn discussion(comments: usize) -> String {
+        let text = "This matches what we saw in production: the cache was warm, \
+            but the first request after a deploy still paid for the schema load. \
+            Moving it to startup fixed the latency spike for us. ";
+        let mut html = String::from(
+            "<html><body><center><table id=\"page\" width=\"85%\"><tr><td>\
+             <table class=\"comments\" border=\"0\">\n",
+        );
+        for comment in 0..comments {
+            writeln!(
+                html,
+                "<tr class=\"comment\" id=\"c{comment}\"><td><table border=\"0\"><tr>\
+                 <td class=\"indent\"><img src=\"/s.gif\" height=\"1\" width=\"{indent}\"></td>\
+                 <td class=\"votes\"><a href=\"/vote?id={comment}&amp;how=up\"><div class=\"arrow\" title=\"upvote\"></div></a></td>\
+                 <td class=\"body\"><div class=\"head\"><a href=\"/user?id=reader{comment}\" class=\"user\">reader{comment}</a> \
+                 <span class=\"age\"><a href=\"/item?id={comment}\">{hours} hours ago</a></span></div>\
+                 <div class=\"text\"><p>{text}{text}{text}</p><p>{text}{text}</p><p>{text}{text}{text}</p></div>\
+                 <div class=\"reply\"><a href=\"/reply?id={comment}&amp;goto=item\">reply</a></div></td></tr></table></td></tr>",
+                indent = (comment % 5) * 40,
+                hours = comment % 24
+            )
+            .unwrap();
+        }
+        html.push_str("</table></td></tr></table></center></body></html>");
+        html
     }
 
     /// A documentation page: sections with prose, links, inline code, a code
@@ -382,11 +494,16 @@ mod tests {
             "<table><tr><th>Id</th><th>Name</th></tr>{}</table>",
             item_rows(1_000, false)
         );
-        for html in [article(200), navigation(100), table] {
+        for (name, html) in [
+            ("article", article(200)),
+            ("navigation", navigation(100)),
+            ("table", table),
+            ("discussion", discussion(300)),
+        ] {
             let (bound, actual) = bound_and_actual(&html);
             assert!(
                 bound <= 2 * u64::try_from(actual).unwrap(),
-                "bound {bound} for {actual} bytes"
+                "{name}: bound {bound} for {actual} bytes"
             );
         }
     }

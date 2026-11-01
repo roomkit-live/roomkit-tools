@@ -4,245 +4,54 @@
 //! htmd pads every pipe-table row to the widest cell of each column and to the
 //! widest row, and prefixes every line of a blockquote or list item once per
 //! enclosing level, so its output can be many times larger than the page. The
-//! rules below follow htmd 0.5.6 with the converter's options and only ever
+//! rules follow htmd 0.5.6 with the converter's options and only ever
 //! overestimate: text counts its escapes, elements their markup and the
 //! attributes they copy, and quotes and list items a prefix for every line
-//! inside them. A table counts as the larger of its padded pipe form and its
-//! plain content, since htmd chooses between the two from the DOM.
+//! inside them. Text inside `pre`, `code` or a math span counts verbatim, with
+//! its whitespace and line breaks, as htmd writes it. A table counts as plain
+//! content, or as a padded pipe table where htmd may write one.
+
+mod kind;
+mod size;
+mod table;
+
+pub(crate) use size::Size;
 
 use html5ever::Attribute;
+use kind::{Kind, is_math};
 use markup5ever_rcdom::{Handle, NodeData};
-
-/// Bound of one subtree's Markdown.
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct Size {
-    /// Bytes, including the line prefixes the subtree adds itself.
-    pub(crate) bytes: u64,
-    /// Line breaks; every enclosing quote or list item prefixes each line.
-    lines: u64,
-    /// Backticks, which lengthen the code fences around them.
-    ticks: u64,
-    /// Pipes, which a table cell escapes as five bytes.
-    pipes: u64,
-    /// Bytes beyond one per character, which table padding does not count.
-    wide: u64,
-}
-
-impl Size {
-    fn add(&mut self, other: Self) {
-        self.bytes = self.bytes.saturating_add(other.bytes);
-        self.lines = self.lines.saturating_add(other.lines);
-        self.ticks = self.ticks.saturating_add(other.ticks);
-        self.pipes = self.pipes.saturating_add(other.pipes);
-        self.wide = self.wide.saturating_add(other.wide);
-    }
-
-    /// Bound of a text node. Preformatted text is kept verbatim with its line
-    /// breaks, after a backslash before a leading fence character. Other text
-    /// has whitespace runs collapsed, a backslash before each Markdown special,
-    /// and one more escape for a leading block marker or list-number dot.
-    fn text(text: &str, pre: bool) -> Self {
-        let first = text.bytes().next().unwrap_or_default();
-        let leading = if pre {
-            matches!(first, b'`' | b'~')
-        } else {
-            matches!(first, b'=' | b'~' | b'>' | b'-' | b'+' | b'#' | b'0'..=b'9')
-        };
-        let mut size = Self {
-            bytes: u64::from(leading),
-            ..Self::default()
-        };
-        let mut blank = false;
-        for byte in text.bytes() {
-            let space = byte.is_ascii_whitespace();
-            if pre || !(space && blank) {
-                size.bytes += 1;
-            }
-            blank = space;
-            if !pre && matches!(byte, b'\\' | b'*' | b'_' | b'`' | b'[' | b']' | b'<') {
-                size.bytes += 1;
-            }
-            size.count(byte, pre);
-        }
-        size
-    }
-
-    /// Bound of an attribute value copied into Markdown: parentheses in link
-    /// destinations and quotes in titles gain a backslash, and a destination
-    /// with spaces is wrapped in angle brackets.
-    fn attribute(value: &str) -> Self {
-        let mut size = Self {
-            bytes: count(value.len()).saturating_add(2),
-            ..Self::default()
-        };
-        for byte in value.bytes() {
-            if matches!(byte, b'(' | b')' | b'"') {
-                size.bytes += 1;
-            }
-            size.count(byte, true);
-        }
-        size
-    }
-
-    fn count(&mut self, byte: u8, keep_lines: bool) {
-        match byte {
-            b'`' => self.ticks += 1,
-            b'|' => self.pipes += 1,
-            b'\n' if keep_lines => self.lines += 1,
-            _ if byte & 0xC0 == 0x80 => self.wide += 1,
-            _ => {}
-        }
-    }
-}
-
-fn count(value: usize) -> u64 {
-    u64::try_from(value).unwrap_or(u64::MAX)
-}
+use size::count;
+use table::{Gathered, Rows};
 
 /// Width of an unordered list marker, `*` and three spaces.
 const BULLET_WIDTH: u64 = 4;
 
-/// Elements htmd renders as blocks separated by blank lines.
-const BLOCKS: &[&str] = &[
-    "address",
-    "article",
-    "aside",
-    "base",
-    "basefont",
-    "body",
-    "center",
-    "col",
-    "colgroup",
-    "dd",
-    "details",
-    "dialog",
-    "dir",
-    "div",
-    "dl",
-    "dt",
-    "fieldset",
-    "figcaption",
-    "figure",
-    "footer",
-    "form",
-    "frame",
-    "frameset",
-    "head",
-    "header",
-    "html",
-    "iframe",
-    "legend",
-    "link",
-    "main",
-    "menu",
-    "menuitem",
-    "nav",
-    "noframes",
-    "ol",
-    "optgroup",
-    "option",
-    "p",
-    "param",
-    "pre",
-    "script",
-    "search",
-    "section",
-    "style",
-    "summary",
-    "textarea",
-    "title",
-    "track",
-    "ul",
-];
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Kind {
-    Document,
-    Anchor,
-    Image,
-    Code,
-    /// List item with its marker width.
-    Item(u64),
-    Quote,
-    Table,
-    /// `tr`, `thead`, `tbody` or `tfoot`.
-    RowGroup,
-    Cell,
-    Caption,
-    Heading,
-    Rule,
-    Break,
-    Block,
-    Inline,
-}
-
-impl Kind {
-    fn of(name: &str, item_width: u64) -> Self {
-        match name {
-            "a" => Self::Anchor,
-            "img" => Self::Image,
-            "code" => Self::Code,
-            "li" => Self::Item(item_width),
-            "blockquote" => Self::Quote,
-            "table" => Self::Table,
-            "tr" | "thead" | "tbody" | "tfoot" => Self::RowGroup,
-            "td" | "th" => Self::Cell,
-            "caption" => Self::Caption,
-            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => Self::Heading,
-            "hr" => Self::Rule,
-            "br" => Self::Break,
-            _ if BLOCKS.contains(&name) => Self::Block,
-            _ => Self::Inline,
-        }
-    }
-}
-
 /// What an element tells the elements inside it.
 #[derive(Clone, Copy, Debug)]
 struct Context {
-    /// Inside `pre` or `code`, where htmd keeps text verbatim.
-    pre: bool,
+    /// Inside `pre`, `code` or a math span, where htmd keeps text verbatim.
+    verbatim: bool,
     /// Class of the nearest `pre`, where a code block may take its language.
     pre_class: Size,
     /// Marker width of list items directly inside.
     item_width: u64,
-}
-
-/// Table rows gathered below a table, as a count and the widest cell bound of
-/// each column.
-#[derive(Debug, Default)]
-struct Rows {
-    count: u64,
-    widths: Vec<u64>,
-}
-
-impl Rows {
-    fn merge(&mut self, other: Self) {
-        self.count = self.count.saturating_add(other.count);
-        for (column, width) in other.widths.into_iter().enumerate() {
-            match self.widths.get_mut(column) {
-                Some(widest) => *widest = (*widest).max(width),
-                None => self.widths.push(width),
-            }
-        }
-    }
+    /// Inside a `td` or `th`, where htmd writes every table as plain content.
+    in_cell: bool,
 }
 
 /// An open element whose children are being measured.
 #[derive(Debug)]
 pub(crate) struct Element {
     kind: Kind,
+    /// A `th` or `thead`, which makes htmd consider a pipe table.
+    header: bool,
     /// An `ol`, whose direct text children htmd never keeps verbatim.
     ordered: bool,
     context: Context,
     children: Size,
     /// Attribute values the element copies into Markdown.
     attributes: Size,
-    rows: Rows,
-    /// Bounds of the cells directly inside, forming one row.
-    cells: Vec<u64>,
-    /// Captions directly inside, each on its own line.
-    captions: Size,
+    table: Gathered,
 }
 
 impl Element {
@@ -250,9 +59,10 @@ impl Element {
         Self::new(
             Kind::Document,
             Context {
-                pre: false,
+                verbatim: false,
                 pre_class: Size::default(),
                 item_width: BULLET_WIDTH,
+                in_cell: false,
             },
             Size::default(),
         )
@@ -261,22 +71,24 @@ impl Element {
     fn new(kind: Kind, context: Context, attributes: Size) -> Self {
         Self {
             kind,
+            header: false,
             ordered: false,
             context,
             children: Size::default(),
             attributes,
-            rows: Rows::default(),
-            cells: Vec::new(),
-            captions: Size::default(),
+            table: Gathered::default(),
         }
     }
 
-    /// Open a child element of `self`. `attrs` are the values htmd will see.
+    /// Open a child element of `self`. `attrs` and `children` are what htmd
+    /// will see.
     pub(crate) fn open(&self, name: &str, attrs: &[Attribute], children: &[Handle]) -> Self {
         let kind = Kind::of(name, self.context.item_width);
         let class = copied(attrs, &["class"]);
         let context = Context {
-            pre: self.context.pre || matches!(name, "pre" | "code"),
+            verbatim: self.context.verbatim
+                || matches!(name, "pre" | "code")
+                || is_math(name, attrs, children),
             pre_class: if name == "pre" {
                 class
             } else {
@@ -287,29 +99,11 @@ impl Element {
             } else {
                 BULLET_WIDTH
             },
+            in_cell: self.context.in_cell || matches!(name, "td" | "th"),
         };
-        let attributes = match kind {
-            Kind::Anchor => copied(attrs, &["href", "title"]),
-            Kind::Image => copied(attrs, &["src", "href", "alt", "title"]),
-            Kind::Code => {
-                let mut language = class;
-                language.add(self.context.pre_class);
-                language
-            }
-            Kind::Document
-            | Kind::Item(_)
-            | Kind::Quote
-            | Kind::Table
-            | Kind::RowGroup
-            | Kind::Cell
-            | Kind::Caption
-            | Kind::Heading
-            | Kind::Rule
-            | Kind::Break
-            | Kind::Block
-            | Kind::Inline => Size::default(),
-        };
+        let attributes = copied_by(kind, attrs, class, self.context.pre_class);
         let mut element = Self::new(kind, context, attributes);
+        element.header = matches!(name, "th" | "thead");
         element.ordered = name == "ol";
         element
     }
@@ -317,30 +111,20 @@ impl Element {
     pub(crate) fn add_text(&mut self, text: &str) {
         // htmd renders text directly inside an `ol` as ordinary text, even
         // within `pre`.
-        let verbatim = self.context.pre && !self.ordered;
+        let verbatim = self.context.verbatim && !self.ordered;
         self.children.add(Size::text(text, verbatim));
     }
 
     /// Finish this element, add its bound to `parent` and return it.
     pub(crate) fn close(mut self, parent: Option<&mut Self>) -> Size {
-        let rows = self.take_rows();
+        let rows = self.table.take_rows();
         let size = self.bound(&rows);
         if let Some(parent) = parent {
-            parent.adopt(self.kind, size, rows);
+            parent.children.add(size);
+            let headers = self.header || self.table.headers();
+            parent.table.adopt(self.kind, size, rows, headers);
         }
         size
-    }
-
-    /// Rows below, plus the cells directly inside as one more row.
-    fn take_rows(&mut self) -> Rows {
-        let mut rows = std::mem::take(&mut self.rows);
-        if !self.cells.is_empty() {
-            rows.merge(Rows {
-                count: 1,
-                widths: std::mem::take(&mut self.cells),
-            });
-        }
-        rows
     }
 
     fn bound(&self, rows: &Rows) -> Size {
@@ -363,72 +147,43 @@ impl Element {
             Kind::Break => (3, 1),
             Kind::Block | Kind::RowGroup | Kind::Cell | Kind::Caption => (4, 4),
             Kind::Inline => (4, 0),
-            Kind::Table => return self.table(size, rows),
+            Kind::Table => return self.table.bound(size, rows, self.context.in_cell),
         };
         size.bytes = size.bytes.saturating_add(bytes);
         size.lines = size.lines.saturating_add(lines);
         size
-    }
-
-    /// The larger of the padded pipe table and the plain content: each row
-    /// spans every column at its widest cell, plus a header separator row.
-    fn table(&self, content: Size, rows: &Rows) -> Size {
-        let line = rows.widths.iter().fold(2_u64, |line, width| {
-            line.saturating_add(width.saturating_add(3))
-        });
-        let lines = rows.count.saturating_add(2);
-        let pipe = lines
-            .saturating_mul(line)
-            .saturating_add(self.captions.bytes)
-            .saturating_add(content.wide)
-            .saturating_add(6);
-        let mut size = content;
-        size.bytes = pipe.max(content.bytes.saturating_add(4));
-        size.lines = lines
-            .saturating_add(self.captions.lines)
-            .max(content.lines)
-            .saturating_add(4);
-        size.pipes = size
-            .pipes
-            .saturating_add(lines.saturating_mul(count(rows.widths.len()).saturating_add(1)));
-        size
-    }
-
-    fn adopt(&mut self, kind: Kind, size: Size, rows: Rows) {
-        self.children.add(size);
-        match kind {
-            // The table trims the cell's block separators and escapes each pipe
-            // as `&#124;`.
-            Kind::Cell => self.cells.push(
-                size.bytes
-                    .saturating_sub(4)
-                    .saturating_add(size.pipes.saturating_mul(4)),
-            ),
-            Kind::RowGroup => self.rows.merge(rows),
-            Kind::Caption => self.captions.add(Size {
-                bytes: size.bytes.saturating_add(1),
-                lines: size.lines.saturating_add(1),
-                ..Size::default()
-            }),
-            Kind::Document
-            | Kind::Anchor
-            | Kind::Image
-            | Kind::Code
-            | Kind::Item(_)
-            | Kind::Quote
-            | Kind::Table
-            | Kind::Heading
-            | Kind::Rule
-            | Kind::Break
-            | Kind::Block
-            | Kind::Inline => {}
-        }
     }
 }
 
 /// Prefix bytes for every line of content with `lines` line breaks.
 fn prefixed(width: u64, lines: u64) -> u64 {
     width.saturating_mul(lines.saturating_add(1))
+}
+
+/// Attribute values an element of `kind` copies into Markdown. A code block
+/// takes its language from its own class or from the class of its `pre`.
+fn copied_by(kind: Kind, attrs: &[Attribute], class: Size, pre_class: Size) -> Size {
+    match kind {
+        Kind::Anchor => copied(attrs, &["href", "title"]),
+        Kind::Image => copied(attrs, &["src", "href", "alt", "title"]),
+        Kind::Code => {
+            let mut language = class;
+            language.add(pre_class);
+            language
+        }
+        Kind::Document
+        | Kind::Item(_)
+        | Kind::Quote
+        | Kind::Table
+        | Kind::RowGroup
+        | Kind::Cell
+        | Kind::Caption
+        | Kind::Heading
+        | Kind::Rule
+        | Kind::Break
+        | Kind::Block
+        | Kind::Inline => Size::default(),
+    }
 }
 
 /// Values of the named attributes, as copied into Markdown.
@@ -459,4 +214,103 @@ fn ordered_width(attrs: &[Attribute], children: &[Handle]) -> u64 {
     let highest = start.saturating_add(count(items));
     let digits = highest.checked_ilog10().map_or(1, |log| u64::from(log) + 1);
     digits + 4
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parse;
+    use tokio_util::sync::CancellationToken;
+
+    /// The bound and htmd's Markdown length for `html`.
+    fn bound_and_actual(html: &str) -> (u64, u64) {
+        let tree = parse::parse(html, &CancellationToken::new()).unwrap();
+        let bound = measure(&tree, Element::document(), None).bytes;
+        let markdown = htmd::HtmlToMarkdown::new().tree_to_markdown(&tree);
+        (bound, count(markdown.len()))
+    }
+
+    fn measure(node: &Handle, mut element: Element, parent: Option<&mut Element>) -> Size {
+        for child in node.children.borrow().iter() {
+            match &child.data {
+                NodeData::Element { name, attrs, .. } => {
+                    let inner = element.open(
+                        name.local.as_ref(),
+                        &attrs.borrow(),
+                        &child.children.borrow(),
+                    );
+                    measure(child, inner, Some(&mut element));
+                }
+                NodeData::Text { contents } => element.add_text(&contents.borrow()),
+                NodeData::Document
+                | NodeData::Doctype { .. }
+                | NodeData::Comment { .. }
+                | NodeData::ProcessingInstruction { .. } => {}
+            }
+        }
+        element.close(parent)
+    }
+
+    /// Assert that the bound covers htmd's output and stays within `factor`
+    /// times it; return the output length.
+    fn assert_close(html: &str, factor: u64) -> u64 {
+        let (bound, actual) = bound_and_actual(html);
+        assert!(
+            actual <= bound && bound <= factor * actual,
+            "bound {bound} for {actual} bytes: {html}"
+        );
+        actual
+    }
+
+    #[test]
+    fn math_spans_count_their_text_verbatim() {
+        let spaced = format!("a{}b", " ".repeat(100));
+        let math = format!("<p><span class=\"math math-inline\">{spaced}</span></p>");
+        assert!(assert_close(&math, 2) > 100);
+        // Any other span has its whitespace collapsed, and so has its bound.
+        let other = format!("<p><span class=\"math\">{spaced}</span></p>");
+        let (bound, actual) = bound_and_actual(&other);
+        assert!(
+            actual <= bound && bound < 30,
+            "bound {bound} for {actual} bytes"
+        );
+    }
+
+    #[test]
+    fn math_lines_take_the_prefix_of_each_enclosing_quote() {
+        let html = format!(
+            "{}<span class=\"math math-display\">{}</span>",
+            "<blockquote>".repeat(10),
+            "x\n".repeat(50)
+        );
+        assert!(assert_close(&html, 2) > 50 * 20);
+    }
+
+    #[test]
+    fn only_header_tables_outside_cells_are_padded() {
+        let rows = "<tr><td>x</td></tr>".repeat(50);
+        let wide = "w".repeat(500);
+        // A header row pads every row to the widest cell.
+        let padded = format!("<table><tr><th>{wide}</th></tr>{rows}</table>");
+        assert!(assert_close(&padded, 2) > 50 * 500);
+        // Without a header cell, or inside a cell, htmd writes plain content.
+        for html in [
+            format!("<table><tr><td>{wide}</td></tr>{rows}</table>"),
+            format!("<table><tr><td>{padded}</td></tr></table>"),
+            format!("<table><tr><th>h</th></tr><tr><td>{padded}</td></tr></table>"),
+        ] {
+            assert!(assert_close(&html, 2) < 2_000, "{html}");
+        }
+    }
+
+    #[test]
+    fn headers_of_a_nested_table_do_not_pad_the_outer_one() {
+        let inner = "<table><tr><th>h</th></tr></table>";
+        let html = format!(
+            "<table><tr><td>{}</td></tr><tr><td>{inner}</td></tr>{}</table>",
+            "w".repeat(500),
+            "<tr><td>x</td></tr>".repeat(50)
+        );
+        assert!(assert_close(&html, 2) < 2_000);
+    }
 }

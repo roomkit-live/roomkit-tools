@@ -57,12 +57,16 @@ depth limits, and expanded link bytes are bounded.
 
 Markdown can be much larger than the page: a pipe table pads every row to the
 widest cell of each column and to the widest row, and each enclosing quote or
-list item prefixes every line inside it again. The same walk therefore computes
-an upper bound of the Markdown size from the DOM, counting that padding and
-those prefixes, and refuses the page with the converted-text limit error before
-any Markdown is written when the bound exceeds `max_converted_bytes`. The bound
-only overestimates, by up to about two times on ordinary pages, so a page whose
-Markdown would fall just under the limit can be refused. The rendered Markdown
+list item prefixes every line inside it again. Code and math spans keep their
+whitespace and line breaks, so their text is padded and prefixed as written.
+The same walk therefore computes an upper bound of the Markdown size from the
+DOM, counting that padding and those prefixes, and refuses the page with the
+converted-text limit error before any Markdown is written when the bound exceeds
+`max_converted_bytes`. The bound follows the converter's choices: only a table
+with header cells that is not inside another table's cell becomes a padded pipe
+table; layout tables count as their plain content. The bound only overestimates,
+by up to about two times on ordinary pages, so a page whose Markdown would fall
+just under the limit can be refused. The rendered Markdown
 is checked against the limit again. These are work/output bounds, not strict
 peak memory limits. Cancellation and the deadline drop network work and stop
 parsing at the next chunk; issued DNS and Markdown rendering already under way
