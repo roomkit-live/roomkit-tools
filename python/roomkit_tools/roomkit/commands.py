@@ -7,6 +7,7 @@ import os
 from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
+from .._native import InvalidInputError
 from ..output import OutputStore
 from ..process import DEFAULT_INHERITED_ENV, ProcessSession, ShellTool, _env_options
 from ._adapter import _ConfiguredTool, _ToolAdapter
@@ -19,11 +20,18 @@ def roomkit_owner(room_id: str, channel_id: str) -> str:
     compact JSON of ``[room_id, channel_id]``, the key the RoomKit Rust
     adapter's roomkit_owner returns, so neither part can be mistaken for the
     other. Pass it as owner= to ProcessSession and OutputStore methods to list,
-    read, stop or release them.
+    read, stop or release them. An id that is not Unicode text, such as one
+    holding a lone surrogate, raises InvalidInputError: no RoomKit Rust id can
+    hold one.
     """
     if not isinstance(room_id, str) or not isinstance(channel_id, str):
         raise TypeError("roomkit_owner requires str room and channel ids")
-    return json.dumps([room_id, channel_id], ensure_ascii=False, separators=(",", ":"))
+    owner = json.dumps([room_id, channel_id], ensure_ascii=False, separators=(",", ":"))
+    try:
+        owner.encode("utf-8")
+    except UnicodeEncodeError:
+        raise InvalidInputError("room and channel ids must be Unicode text") from None
+    return owner
 
 
 def _roomkit_owner(tools: str) -> str:

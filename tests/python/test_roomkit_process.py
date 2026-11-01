@@ -29,6 +29,7 @@ from roomkit.providers.ai.mock import MockAIProvider
 from roomkit.tools.compose import extract_tools
 from roomkit_helpers import in_call
 from roomkit_tools import (
+    InvalidInputError,
     OutputRead,
     OutputStore,
     ProcessRead,
@@ -275,6 +276,26 @@ class RoomKitProcessTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(_roomkit_owner("process"), case["owner"])
         with self.assertRaises(TypeError):
             roomkit_owner("room", 1)
+
+    async def test_ids_that_are_not_unicode_text_are_refused(self) -> None:
+        # Python strings can hold lone surrogates; RoomKit Rust ids cannot.
+        for room, agent in [("room\ud800", "agent"), ("room", "agent\udfff")]:
+            with self.subTest(room=room, agent=agent), self.assertRaises(InvalidInputError):
+                roomkit_owner(room, agent)
+        async with OutputStore(self.root) as outputs, ProcessSession(self.root) as session:
+            tools = [ProcessStart(session), OutputRead(outputs), Shell(self.root, outputs=outputs)]
+            calls = [
+                ("process_start", {"command": "true"}),
+                ("output_read", {"archive_id": "o1"}),
+                ("shell", {"command": "true"}),
+            ]
+            for tool, (name, arguments) in zip(tools, calls, strict=True):
+                with (
+                    self.subTest(name=name),
+                    in_call("room\ud800", "agent"),
+                    self.assertRaises(ToolRefusedError),
+                ):
+                    await tool.handler(name, arguments)
 
     async def test_host_reaches_a_room_s_jobs_and_archives_through_its_owner(self) -> None:
         async with (
