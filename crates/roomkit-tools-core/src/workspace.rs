@@ -24,9 +24,13 @@ impl WorkspaceRoot {
     /// When the host's spelling differs (for example through a symbolic link
     /// in a parent directory), absolute inputs written with it stay accepted
     /// by the lexical check; canonical containment still decides access.
+    /// A spelling with a `..` component gives no alias: after a symbolic link,
+    /// `..` need not lead where its lexical form says, so the lexical form
+    /// could name an unrelated directory.
     pub fn new(canonical: PathBuf, given: &Path) -> Self {
+        let parent = given.components().any(|c| c == Component::ParentDir);
         let given = normalize(given);
-        let alias = (given.is_absolute() && given != canonical).then_some(given);
+        let alias = (given.is_absolute() && !parent && given != canonical).then_some(given);
         Self { canonical, alias }
     }
 
@@ -138,6 +142,20 @@ mod tests {
             );
         }
         assert!(matches!(root.join(""), Err(Error::InvalidInput(_))));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_host_spelling_with_dot_dot_is_not_an_alias() {
+        let root = WorkspaceRoot::new("/work/root".into(), Path::new("/link/../root"));
+        assert_eq!(root.alias, None);
+        for outside in ["/root/a", "/link/../root/a"] {
+            assert!(
+                matches!(root.join(outside), Err(Error::Refused(_))),
+                "{outside}"
+            );
+        }
+        assert!(root.join("/work/root/a").is_ok());
     }
 
     #[cfg(unix)]

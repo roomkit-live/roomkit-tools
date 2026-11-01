@@ -159,3 +159,30 @@ async fn absolute_paths_through_the_hosts_root_spelling_stay_accepted() {
         "missing sibling of the root",
     );
 }
+
+/// With `m` a symlink to `real/sub`, the root spelled `m/../ws` is `real/ws`,
+/// so the lexically similar `ws` beside `m` is an unrelated directory and
+/// must not be accepted as the root's spelling.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_root_spelling_with_dot_dot_after_a_symlink_is_not_an_alias() {
+    let parent = tempfile::tempdir().unwrap();
+    let base = parent.path().canonicalize().unwrap();
+    for directory in ["real/ws", "real/sub", "ws"] {
+        std::fs::create_dir_all(base.join(directory)).unwrap();
+    }
+    std::fs::write(base.join("real/ws/notes.txt"), "inside\n").unwrap();
+    std::fs::write(base.join("ws/present.txt"), "unrelated\n").unwrap();
+    std::os::unix::fs::symlink(base.join("real/sub"), base.join("m")).unwrap();
+    let read = ReadTool::new(base.join("m/../ws")).await.unwrap();
+    let cancel = CancellationToken::new();
+    let page = read.read(ReadInput::new("notes.txt"), &cancel).await;
+    assert_eq!(page.unwrap().text, "1: inside\n");
+    for name in ["present.txt", "missing.txt"] {
+        let path = base.join("ws").join(name).display().to_string();
+        refused(
+            &read.read(ReadInput::new(path.clone()), &cancel).await,
+            &path,
+        );
+    }
+}
