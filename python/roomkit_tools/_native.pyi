@@ -1,5 +1,6 @@
 from collections.abc import Awaitable
 
+def _activity() -> int: ...
 def _shutdown() -> int: ...
 
 class _AgentContract:

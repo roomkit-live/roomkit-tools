@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -87,6 +88,49 @@ class InterpreterShutdownTests(unittest.TestCase):
             loop.close()
         """)
         self.assertIn("normal exit cancelled the parent scope", result.stdout)
+
+    def test_completion_after_its_loop_closed_is_silent(self) -> None:
+        if os.name != "posix":
+            self.skipTest("the gate is a named pipe")
+        # A host abandons calls, closes their loop and keeps running. Each call
+        # waits on its own named pipe, so it completes only after the close.
+        result = self.run_child("""
+            import asyncio
+            import json
+            import os
+            import sys
+            import time
+            from roomkit_tools import ShellTool, _native
+
+            gates = [os.path.join(sys.argv[1], f'gate{index}') for index in range(4)]
+            for gate in gates:
+                os.mkfifo(gate)
+
+            async def main():
+                tool = await ShellTool.create(sys.argv[1])
+                return [
+                    tool._native.call(
+                        json.dumps({'command': f'cat {os.path.basename(gate)}'}),
+                        _native._Cancellation(),
+                    )
+                    for gate in gates
+                ]
+
+            loop = asyncio.new_event_loop()
+            pending = loop.run_until_complete(main())
+            loop.close()
+            for gate in gates:
+                with open(gate, 'w') as writer:
+                    writer.write('done\\n')
+            deadline = time.monotonic() + 20
+            while _native._activity() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert _native._activity() == 0, _native._activity()
+            assert not any(future.done() for future in pending)
+            print('completed after the loop closed')
+        """)
+        self.assertIn("completed after the loop closed", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_shutdown_waits_for_activity_and_refuses_reopening(self) -> None:
         result = self.run_child("""

@@ -76,7 +76,8 @@ Errors inherit from `ToolError`: `InvalidInputError`, `AccessRefusedError`,
 omit OS diagnostics and host paths. Cancellation remains `asyncio.CancelledError`.
 Async construction keeps root resolution off the Python event loop. Each native
 tool call has its own cancellation scope; native wrappers can be reused across
-event loops. The optional `RoomKitAgentBackend` is tied to one asyncio loop.
+event loops. A result that arrives after its event loop was closed is discarded
+without an error report. The optional `RoomKitAgentBackend` is tied to one asyncio loop.
 JSON argument encoding can also raise Python `TypeError` or `ValueError` before
 Rust validation.
 
