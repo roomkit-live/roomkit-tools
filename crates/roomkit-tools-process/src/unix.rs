@@ -1,15 +1,68 @@
 use std::os::unix::process::ExitStatusExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
 use roomkit_tools_core::{Error, Output};
 use rustix::process::{Pid, Signal, kill_process_group};
-use tokio::process::Command;
+use tokio::process::{Child, Command};
 use tokio_util::sync::CancellationToken;
 
 use crate::capture::Capture;
 use crate::{ShellLimits, ShellResult};
+
+/// `/bin/sh -c command` started in `cwd`, with piped stdout and stderr.
+pub(crate) fn shell_command(command: &str, cwd: &Path, stdin: Stdio) -> Command {
+    let mut shell = Command::new("/bin/sh");
+    shell
+        .arg("-c")
+        .arg(command)
+        .current_dir(cwd)
+        .stdin(stdin)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    shell
+}
+
+/// Spawn `command` as the leader of a new session and of its process group.
+///
+/// The new session has no controlling terminal: a command that opens
+/// `/dev/tty` fails instead of writing into the host's terminal or being
+/// stopped by its job control. The group id is the child's pid.
+pub(crate) fn spawn(
+    mut command: Command,
+    operation: &'static str,
+) -> Result<(Child, Group), Error> {
+    new_session(&mut command);
+    let child = command
+        .spawn()
+        .map_err(|source| Error::Io { operation, source })?;
+    // The group is exactly the positive child PID, never 0 or -1.
+    let pid = child
+        .id()
+        .and_then(|id| i32::try_from(id).ok())
+        .filter(|id| *id > 1)
+        .and_then(Pid::from_raw)
+        .ok_or_else(|| Error::Io {
+            operation: "identify process group",
+            source: std::io::Error::other("missing child PID"),
+        })?;
+    Ok((child, Group(Some(pid))))
+}
+
+#[expect(
+    unsafe_code,
+    reason = "setsid must run in the child between fork and exec"
+)]
+fn new_session(command: &mut Command) {
+    // SAFETY: the closure runs in the forked child before exec. It captures
+    // nothing, allocates nothing, takes no lock and only calls setsid, which
+    // is async-signal-safe; an errno converts to an I/O error without allocating.
+    unsafe {
+        command.pre_exec(|| rustix::process::setsid().map(drop).map_err(Into::into));
+    }
+}
 
 pub(crate) struct Group(pub(crate) Option<Pid>);
 
@@ -46,30 +99,8 @@ pub(crate) async fn run(
     if cancel.is_cancelled() {
         return Err(Error::Cancelled);
     }
-    let mut child = Command::new("/bin/sh")
-        .arg("-c")
-        .arg(command)
-        .current_dir(&cwd)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .process_group(0)
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|source| io("spawn shell", source))?;
-    // The new group is exactly the positive child PID, never 0 or -1.
-    let pid = child
-        .id()
-        .and_then(|id| i32::try_from(id).ok())
-        .filter(|id| *id > 1)
-        .and_then(Pid::from_raw)
-        .ok_or_else(|| {
-            io(
-                "identify shell process group",
-                std::io::Error::other("missing child PID"),
-            )
-        })?;
-    let mut group = Group(Some(pid));
+    let (mut child, mut group) =
+        spawn(shell_command(&command, &cwd, Stdio::null()), "spawn shell")?;
     let mut stdout = child
         .stdout
         .take()

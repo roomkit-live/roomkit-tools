@@ -85,8 +85,10 @@ pub struct ShellResult {
 ///
 /// Executes `/bin/sh -c` without a login shell; stdin is closed. Commands inherit
 /// the host environment and permissions and can access paths outside the root.
-/// Unix process-group cleanup covers children that remain in the group, including
-/// background jobs after a normal shell exit. It is not an OS sandbox.
+/// Each command leads a new Unix session without a controlling terminal, so
+/// opening `/dev/tty` fails. Process-group cleanup covers children that remain
+/// in the group, including background jobs after a normal shell exit. It is not
+/// an OS sandbox.
 #[derive(Clone, Debug)]
 pub struct ShellTool {
     root: PathBuf,

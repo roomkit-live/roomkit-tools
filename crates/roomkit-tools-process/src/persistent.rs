@@ -99,7 +99,8 @@ pub struct ObservedProcess {
 /// Hosts supply a trusted owner key on every operation, never from model arguments.
 /// Clones share ownership; dropping the last clone requests all process cleanup.
 /// Keep the Tokio runtime alive and prefer awaiting [`Self::close`]. This is not
-/// a sandbox: commands inherit host permissions and environment.
+/// a sandbox: commands inherit host permissions and environment. Each command
+/// leads a new Unix session without a controlling terminal.
 #[derive(Clone, Debug)]
 pub struct ProcessManager {
     inner: Arc<Inner>,

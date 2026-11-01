@@ -744,6 +744,49 @@ async fn normal_exit_stops_background_children_and_reaps_the_direct_child() {
     manager.close().await;
 }
 
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn each_process_leads_a_new_session_without_the_host_terminal() {
+    let root = tempfile::tempdir().unwrap();
+    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let id = manager
+        .start(
+            "a",
+            ProcessStartInput::new("printf '%s ' $$; cat /proc/$$/stat"),
+            &token,
+        )
+        .await
+        .unwrap()
+        .data
+        .process_id;
+    finished(&manager, "a", &id).await;
+    let output = manager
+        .read("a", ProcessReadInput::new(&id), &token)
+        .await
+        .unwrap()
+        .data
+        .stdout
+        .text;
+    let (pid, stat) = output.split_once(' ').unwrap();
+    // After the parenthesised name: state, ppid, pgrp, session, tty_nr.
+    let fields = |stat: &str| -> Vec<String> {
+        let tail = stat.rsplit_once(") ").unwrap().1;
+        tail.split_whitespace()
+            .skip(2)
+            .take(3)
+            .map(str::to_owned)
+            .collect()
+    };
+    let child = fields(stat);
+    let host = fields(&std::fs::read_to_string("/proc/self/stat").unwrap());
+    assert_eq!(child[1], pid, "the shell leads its own session");
+    assert_ne!(child[1], host[1]);
+    assert_eq!(child[0], pid, "group signals still target the shell's pid");
+    assert_eq!(child[2], "0", "no controlling terminal");
+    manager.close().await;
+}
+
 #[tokio::test]
 async fn reading_cat_preserves_stdin_and_reports_newline_and_normal_eof_exactly() {
     let root = tempfile::tempdir().unwrap();

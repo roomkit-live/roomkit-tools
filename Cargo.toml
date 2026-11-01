@@ -50,7 +50,8 @@ tokio = { version = "1", default-features = false }
 tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
 # Atomic staged writes in filesystem tools; also test/example fixtures.
 tempfile = "3"
-# Safe Unix process-group signals; no unsafe code in our implementation.
+# Unix sessions and process-group signals. The only unsafe code is the
+# `setsid` call between fork and exec in roomkit-tools-process.
 rustix = { version = "1", features = ["process"] }
 # Independent HTTP fetching and HTML conversion; never in core.
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "gzip"] }
@@ -59,7 +60,7 @@ htmd = "0.5.6"
 markup5ever_rcdom = "0.38"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 missing_docs = "warn"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"

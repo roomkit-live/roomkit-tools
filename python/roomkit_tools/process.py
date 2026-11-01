@@ -17,7 +17,8 @@ class ShellTool:
     Commands inherit the host environment and permissions. The root bounds only
     the initial cwd, not filesystem/network access. No sandbox, mutation lock,
     login shell, PTY, interactive stdin or persistent session is provided.
-    Stdin is closed. Unix is implemented; Linux is the validated platform.
+    Stdin is closed. Each command leads a new Unix session without a controlling
+    terminal, so opening /dev/tty fails. Unix is implemented; Linux is validated.
     """
 
     def __init__(self, native: _native._ShellTool, outputs: OutputStore | None = None) -> None:
@@ -120,9 +121,10 @@ class ProcessSession:
     across conversations that must be isolated. IDs are local to this session,
     not OS PIDs, credentials or portable identifiers.
 
-    Commands use /bin/sh -c with piped stdin, inherited environment/permissions
-    and no PTY or sandbox. Workspace is accepted as a path only. Closing stops
-    process groups; escaped groups and already-performed effects are not undone.
+    Commands use /bin/sh -c with piped stdin, inherited environment/permissions,
+    a new session without a controlling terminal, and no PTY or sandbox.
+    Workspace is accepted as a path only. Closing stops process groups; escaped
+    groups and already-performed effects are not undone.
     """
 
     def __init__(

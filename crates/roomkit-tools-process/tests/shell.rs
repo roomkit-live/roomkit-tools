@@ -290,6 +290,41 @@ async fn cancellation_and_dropped_call_stop_the_shell_and_its_background_child()
     }
 }
 
+/// Process group, session and controlling terminal of a `/proc/<pid>/stat` line.
+#[cfg(target_os = "linux")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a malformed stat line must fail the test"
+)]
+fn session_fields(stat: &str) -> [u32; 3] {
+    // After the parenthesised name: state, ppid, pgrp, session, tty_nr.
+    let fields: Vec<u32> = stat
+        .rsplit_once(") ")
+        .unwrap()
+        .1
+        .split_whitespace()
+        .skip(2)
+        .take(3)
+        .map(|field| field.parse().unwrap())
+        .collect();
+    fields.try_into().unwrap()
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn each_command_leads_a_new_session_without_the_host_terminal() {
+    let root = tempfile::tempdir().unwrap();
+    let result = execute(root.path(), "printf '%s ' $$; cat /proc/$$/stat").await;
+    let (pid, stat) = result.stdout.text.split_once(' ').unwrap();
+    let pid: u32 = pid.parse().unwrap();
+    let [group, session, terminal] = session_fields(stat);
+    let [_, host, _] = session_fields(&std::fs::read_to_string("/proc/self/stat").unwrap());
+    assert_eq!(session, pid, "the shell leads its own session");
+    assert_ne!(session, host);
+    assert_eq!(group, pid, "group signals still target the shell's pid");
+    assert_eq!(terminal, 0, "no controlling terminal");
+}
+
 #[cfg(target_os = "linux")]
 #[tokio::test]
 async fn successful_shell_exit_also_terminates_its_background_jobs() {

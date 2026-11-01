@@ -5,9 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use roomkit_tools_core::Error;
-use rustix::process::Pid;
 use tokio::io::{AsyncRead, AsyncReadExt};
-use tokio::process::{Child, ChildStderr, ChildStdout, Command};
+use tokio::process::{Child, ChildStderr, ChildStdout};
 use tokio::sync::{Mutex, watch};
 use tokio_util::sync::CancellationToken;
 
@@ -25,30 +24,10 @@ pub(crate) fn launch(
     stop: CancellationToken,
     outputs: Option<&crate::OutputStore>,
 ) -> Result<(Arc<Entry>, ProcessStatus), Error> {
-    let mut child = Command::new("/bin/sh")
-        .arg("-c")
-        .arg(command)
-        .current_dir(cwd)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .process_group(0)
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|source| Error::Io {
-            operation: "spawn persistent process",
-            source,
-        })?;
-    let pid = child
-        .id()
-        .and_then(|id| i32::try_from(id).ok())
-        .filter(|id| *id > 1)
-        .and_then(Pid::from_raw)
-        .ok_or_else(|| Error::Io {
-            operation: "identify persistent process group",
-            source: std::io::Error::other("missing child PID"),
-        })?;
-    let group = Group(Some(pid));
+    let (mut child, group) = crate::unix::spawn(
+        crate::unix::shell_command(command, cwd, Stdio::piped()),
+        "spawn persistent process",
+    )?;
     let stdout = child.stdout.take().ok_or_else(missing_pipe)?;
     let stderr = child.stderr.take().ok_or_else(missing_pipe)?;
     let stdin = child.stdin.take().ok_or_else(missing_pipe)?;

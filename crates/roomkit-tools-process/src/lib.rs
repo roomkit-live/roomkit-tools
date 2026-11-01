@@ -1,9 +1,10 @@
 //! Independent shell and persistent processes with bounded output and owned cleanup.
 //!
 //! [`ShellTool`] runs trusted commands with the host process's permissions.
-//! A checked working directory is not a filesystem or network sandbox. Unix
-//! process groups are supported; other platforms return an explicit refusal
-//! until equivalent cleanup is implemented. No RoomKit or Python is required.
+//! A checked working directory is not a filesystem or network sandbox. On Unix
+//! each command leads a new session, without a controlling terminal, and its
+//! process group is stopped on cleanup; other platforms return an explicit
+//! refusal until equivalent cleanup is implemented. No RoomKit or Python is required.
 
 mod capture;
 mod journal;

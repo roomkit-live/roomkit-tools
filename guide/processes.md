@@ -24,7 +24,9 @@ Commands run with `/bin/sh -c`, inherit the Python host's environment and
 permissions, and can access paths outside the root. This is not a sandbox.
 Passing a `Workspace` supplies its path only; shell writes do not share the
 filesystem mutation lock. There is no login shell, PTY, interactive stdin or
-persistent session; stdin receives EOF.
+persistent session; stdin receives EOF. Each command leads a new Unix session
+with no controlling terminal: a program that opens `/dev/tty` gets an error
+instead of writing into the host's terminal or waiting on it.
 
 Host constructor bounds are `max_command_bytes` (16 KiB), `max_output_bytes`
 (32 KiB raw bytes per stream), `default_timeout_ms` (10,000) and `max_timeout_ms`
@@ -90,7 +92,8 @@ All return the existing Rust `data`/`text` dictionaries. `.call(name, arguments)
 and `.definition(name)` expose each `process_*` contract and its derived schemas.
 `status()` lists retained jobs, including completed ones. `start` returns an ID
 with open stdin, not proof of command completion. Commands use `/bin/sh -c`
-with the same host permissions, environment and initial-cwd boundary as shell.
+with the same host permissions, environment, initial-cwd boundary and new
+session without a terminal as shell.
 
 `read` immediately observes available output without consuming it or sending
 EOF. Use each stream's `next_offset` separately. Empty output while running
