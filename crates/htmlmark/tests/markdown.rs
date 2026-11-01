@@ -83,6 +83,19 @@ fn code_keeps_its_text_inside_long_enough_fences() {
         markdown("<pre><code class=\"language-rust\">fn x() {\n    ```\n}\n</code></pre>"),
         "````rust\nfn x() {\n    ```\n}\n````"
     );
+    // Adjacent code spans would join their fences: the second one is text,
+    // the third code again.
+    assert_eq!(
+        markdown(
+            "<p><code>a</code><code>b*</code><code>c</code> <b>x<code>d</code></b><code>e</code></p>"
+        ),
+        "`a`b\\*`c` **x`d`**`e`"
+    );
+    // Even once the same emphasis continues across the closer between them.
+    assert_eq!(
+        markdown("<p><b>x<code>a</code></b><b><code>b</code></b></p>"),
+        "**x`a`b**"
+    );
     assert_eq!(
         markdown("<p><code>a`b</code> and <code> spaced </code>x <code>*no* [escape]</code></p>"),
         "``a`b`` and `spaced` x `*no* [escape]`"

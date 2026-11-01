@@ -20,9 +20,9 @@ pub(crate) struct Inline {
     unsettled: Vec<Unsettled>,
     /// The closers ending the line, innermost first.
     closed: Vec<Closed>,
-    /// The last code span: its start, its end and its code. Another one right
-    /// after it joins it, since their backtick fences would merge.
-    code: Option<(usize, usize, String)>,
+    /// Where the last code span ends. Another one right after it would join
+    /// its backtick fences, so it is written as text.
+    code: Option<usize>,
     /// Whether text or an atom was written on this line; markers alone do not
     /// count, since a marker may be removed again.
     content: bool,
@@ -146,12 +146,16 @@ impl Inline {
         self.line.push_str(markdown);
     }
 
-    /// Add a code span; one directly after another joins it. Inside a link,
-    /// code holding `]` is written as text instead: at the start of a line,
-    /// `[` up to a `]:` reads as a link definition, and a code span cannot
-    /// escape the bracket.
+    /// Add a code span. It is written as escaped text instead in two cases:
+    /// right after another code span, whose backtick fences it would join
+    /// (joining the two would rewrite the whole span each time); and inside a
+    /// link when it holds `]`, since at the start of a line `[` up to a `]:`
+    /// reads as a link definition and a code span cannot escape the bracket.
     pub(crate) fn code(&mut self, code: &str) {
-        if code.contains(']') && self.markers.iter().any(|marker| marker.open == "[") {
+        let after_code = self.code == Some(self.line.len()) && !self.space;
+        let in_link = self.markers.iter().any(|marker| marker.open == "[");
+        if after_code || (in_link && code.contains(']')) {
+            self.code = None;
             self.text(code);
             return;
         }
@@ -160,15 +164,15 @@ impl Inline {
             return;
         };
         self.before_content(first);
-        let (start, joined) = match self.code.take() {
-            Some((start, end, previous)) if end == self.line.len() => {
-                self.line.truncate(start);
-                (start, previous + code)
-            }
-            Some(_) | None => (self.line.len(), code.to_owned()),
-        };
-        self.line.push_str(&code_span(&joined));
-        self.code = Some((start, self.line.len(), joined));
+        // A closer continued by the same emphasis is removed again, which can
+        // bring the previous code span back to the end of the line.
+        if self.code == Some(self.line.len()) {
+            self.code = None;
+            self.text(code);
+            return;
+        }
+        self.line.push_str(&span);
+        self.code = Some(self.line.len());
     }
 
     /// Escape a closing sequence of `#` that would end a heading line.
