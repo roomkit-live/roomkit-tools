@@ -186,3 +186,61 @@ async fn a_root_spelling_with_dot_dot_after_a_symlink_is_not_an_alias() {
         );
     }
 }
+
+/// A path that leaves the root and comes back is refused before any lookup,
+/// so the directories it passes through cannot be probed for existence.
+#[tokio::test]
+async fn paths_that_leave_the_root_and_come_back_are_refused() {
+    let parent = tempfile::tempdir().unwrap();
+    let base = parent.path().canonicalize().unwrap();
+    let root = base.join("ws");
+    std::fs::create_dir_all(root.join("sub")).unwrap();
+    std::fs::create_dir(base.join("exists_dir")).unwrap();
+    std::fs::write(root.join("a.txt"), "inside\n").unwrap();
+    let detours = |name: &str| {
+        [
+            format!("../exists_dir/../ws/{name}"),
+            format!("../missing_dir/../ws/{name}"),
+            format!("sub/../../ws/{name}"),
+            format!("{}/exists_dir/../ws/{name}", base.display()),
+            format!("{}/missing_dir/../ws/{name}", base.display()),
+            format!("{}/../ws/{name}", root.display()),
+        ]
+    };
+    let cancel = CancellationToken::new();
+    let read = ReadTool::new(&root).await.unwrap();
+    let list = ListTool::new(&root).await.unwrap();
+    let write = WriteTool::new(&root).await.unwrap();
+    let edit = EditTool::new(&root).await.unwrap();
+    for path in detours("a.txt") {
+        refused(
+            &read.read(ReadInput::new(path.clone()), &cancel).await,
+            &path,
+        );
+        refused(
+            &edit
+                .edit(EditInput::new(path.clone(), "inside", "x"), &cancel)
+                .await,
+            &path,
+        );
+    }
+    for path in detours("sub") {
+        refused(
+            &list.list(ListInput::new(path.clone()), &cancel).await,
+            &path,
+        );
+    }
+    for path in detours("new.txt") {
+        refused(
+            &write
+                .write(WriteInput::new(path.clone(), "x"), &cancel)
+                .await,
+            &path,
+        );
+    }
+    assert_eq!(
+        std::fs::read_to_string(root.join("a.txt")).unwrap(),
+        "inside\n"
+    );
+    assert!(!root.join("new.txt").exists());
+}

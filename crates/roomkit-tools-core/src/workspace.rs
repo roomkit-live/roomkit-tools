@@ -7,11 +7,11 @@ use crate::Error;
 /// A host-selected workspace root and the path rules tools apply beneath it.
 ///
 /// Tools canonicalize the root themselves, then use this value to refuse
-/// model-supplied paths that lexically leave the workspace before any
-/// filesystem call can reveal whether they exist, and to present resolved
-/// paths relative to the root. It performs no I/O and resolves no symbolic
-/// links: callers still canonicalize an accepted path and check the result
-/// with [`WorkspaceRoot::relative`].
+/// model-supplied paths that lexically leave the workspace, at any point,
+/// before any filesystem call can reveal whether they exist, and to present
+/// resolved paths relative to the root. It performs no I/O and resolves no
+/// symbolic links: callers still canonicalize an accepted path and check the
+/// result with [`WorkspaceRoot::relative`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkspaceRoot {
     canonical: PathBuf,
@@ -29,7 +29,7 @@ impl WorkspaceRoot {
     /// could name an unrelated directory.
     pub fn new(canonical: PathBuf, given: &Path) -> Self {
         let parent = given.components().any(|c| c == Component::ParentDir);
-        let given = normalize(given);
+        let given: PathBuf = given.components().collect();
         let alias = (given.is_absolute() && !parent && given != canonical).then_some(given);
         Self { canonical, alias }
     }
@@ -41,30 +41,40 @@ impl WorkspaceRoot {
 
     /// Join a model-supplied path to the root, refusing lexical escapes.
     ///
-    /// `.` and `..` are resolved without consulting the filesystem. The
-    /// returned path is the unnormalized join, so a caller's canonicalization
-    /// keeps the filesystem's meaning of `..` after a symbolic link.
+    /// An absolute path must start with the canonical root or the host's
+    /// spelling of it, and that prefix is removed. The rest, like a relative
+    /// path, is walked component by component without consulting the
+    /// filesystem: a `..` that would go above the root is refused, even when
+    /// later components come back inside. The returned path is the canonical
+    /// root joined with that rest, unnormalized, so a caller's
+    /// canonicalization keeps the filesystem's meaning of `..` after a
+    /// symbolic link and never looks up a directory the input names outside
+    /// the root.
     ///
     /// # Errors
     /// Returns invalid input for an empty path, and an access refusal for an
-    /// absolute path outside the root or a relative path whose `..`
-    /// components leave it.
+    /// absolute path that does not start with the root, or a path whose `..`
+    /// components go above the root at any point.
     pub fn join(&self, input: &str) -> Result<PathBuf, Error> {
         if input.is_empty() {
             return Err(Error::InvalidInput("path must not be empty".into()));
         }
-        let joined = self.canonical.join(input);
-        let lexical = normalize(&joined);
-        if lexical.starts_with(&self.canonical)
-            || self
-                .alias
-                .as_ref()
-                .is_some_and(|alias| lexical.starts_with(alias))
-        {
-            Ok(joined)
+        let input = Path::new(input);
+        let below = if input.is_absolute() {
+            self.below_root(input)?
         } else {
-            Err(outside())
-        }
+            input
+        };
+        stays_below(below)?;
+        Ok(self.canonical.join(below))
+    }
+
+    /// The part of an absolute path below the canonical root or its alias.
+    fn below_root<'a>(&self, input: &'a Path) -> Result<&'a Path, Error> {
+        std::iter::once(&self.canonical)
+            .chain(&self.alias)
+            .find_map(|root| input.strip_prefix(root).ok())
+            .ok_or_else(outside)
     }
 
     /// Present a resolved path relative to the canonical root, with `/`
@@ -92,20 +102,19 @@ fn outside() -> Error {
     Error::Refused("path is outside the workspace root".into())
 }
 
-fn normalize(path: &Path) -> PathBuf {
-    let mut normal = PathBuf::new();
+/// Refuse a path below the root that is not relative, or whose `..`
+/// components go above its start at any point.
+fn stays_below(path: &Path) -> Result<(), Error> {
+    let mut depth = 0_usize;
     for component in path.components() {
         match component {
-            Component::ParentDir => {
-                normal.pop();
-            }
+            Component::Normal(_) => depth += 1,
             Component::CurDir => {}
-            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
-                normal.push(component);
-            }
+            Component::ParentDir => depth = depth.checked_sub(1).ok_or_else(outside)?,
+            Component::Prefix(_) | Component::RootDir => return Err(outside()),
         }
     }
-    normal
+    Ok(())
 }
 
 #[cfg(test)]
@@ -114,27 +123,31 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn lexical_escapes_are_refused_and_internal_paths_are_joined_unchanged() {
+    fn lexical_escapes_are_refused_and_internal_paths_are_joined_below_the_root() {
         let root = WorkspaceRoot::new("/work/root".into(), Path::new("/alias/root/./"));
-        for inside in [
-            "a.txt",
-            "./a/../b",
-            "/work/root/a",
-            "/work/root",
-            "/alias/root/a",
-            "sub/../../root/x",
+        for (inside, joined) in [
+            ("a.txt", "/work/root/a.txt"),
+            ("./a/../b", "/work/root/a/../b"),
+            ("/work/root/a", "/work/root/a"),
+            ("/work/root/a/../b", "/work/root/a/../b"),
+            ("/work/root", "/work/root"),
+            ("/alias/root/a", "/work/root/a"),
         ] {
-            let joined = root.join(inside).unwrap();
-            assert_eq!(joined, Path::new("/work/root").join(inside), "{inside}");
+            assert_eq!(root.join(inside).unwrap(), Path::new(joined), "{inside}");
         }
         for outside in [
             "..",
             "../root2",
             "a/../../x",
+            "sub/../../root/x",
             "/work/root2",
             "/etc/passwd",
             "/alias",
             "/alias/root/../x",
+            "/alias/root/../root/x",
+            "/work/root/../root/x",
+            "/work/../work/root/x",
+            "/etc/../work/root/x",
         ] {
             assert!(
                 matches!(root.join(outside), Err(Error::Refused(_))),
