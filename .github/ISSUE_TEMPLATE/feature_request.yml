@@ -1,0 +1,18 @@
+name: Feature request
+description: Propose a tool, an option or an integration.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What an agent or a host cannot do today, and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The behaviour you would like, including the limits the host should control. Say whether it belongs in Rust, Python or both.
+    validations:
+      required: true

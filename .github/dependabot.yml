@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directories:
+      - /
+      - /bindings/python
+      - /backends/rusto/python
+      - /adapters/roomkit
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # The engine is pinned to one validated revision and updated by hand.
+      - dependency-name: "roomkit*"
+      # The OCR engine is pinned exactly and checked against real models.
+      - dependency-name: "rusto-rs"
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
