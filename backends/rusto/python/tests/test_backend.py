@@ -105,7 +105,9 @@ async def rejected_rotation():
 class BridgeLifetimeTests(unittest.TestCase):
     """The engine's native bridge across fork() and closed event loops, without models."""
 
-    def run_child(self, body: str) -> subprocess.CompletedProcess[str]:
+    def run_child(
+        self, body: str, *, prelude: str = BRIDGE_PRELUDE
+    ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory(prefix="roomkit ocr-") as models:
             result = subprocess.run(
                 [
@@ -114,7 +116,7 @@ class BridgeLifetimeTests(unittest.TestCase):
                     "faulthandler",
                     "-I",
                     "-c",
-                    BRIDGE_PRELUDE + textwrap.dedent(body),
+                    prelude + textwrap.dedent(body),
                     models,
                     str(FIXTURES),
                 ],
@@ -250,6 +252,37 @@ class BridgeLifetimeTests(unittest.TestCase):
         """)
         self.assertIn("child refused: ForkedProcessError", result.stdout)
         self.assertIn("forked child exited", result.stdout)
+
+    def test_importing_registers_no_fork_hook(self):
+        if not hasattr(os, "register_at_fork"):
+            self.skipTest("os.register_at_fork")
+        # A native hook would run PyO3 code inside every child's fork(). This
+        # child records hooks before importing the engine: it has no prelude.
+        result = self.run_child(
+            """
+            import os
+
+            hooks = []
+            register = os.register_at_fork
+
+            def recording(**callbacks):
+                hooks.append(callbacks)
+                register(**callbacks)
+
+            os.register_at_fork = recording
+            import roomkit_tools_ocr_rusto
+            native = [
+                callback
+                for callbacks in hooks
+                for callback in callbacks.values()
+                if getattr(callback, '__module__', '').startswith('roomkit_tools_ocr_rusto')
+            ]
+            assert native == [], native
+            print('no fork hook')
+            """,
+            prelude="",
+        )
+        self.assertIn("no fork hook", result.stdout)
 
     def test_child_forked_before_any_native_call_can_use_the_engine(self):
         if not hasattr(os, "fork"):

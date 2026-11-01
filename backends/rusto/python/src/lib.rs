@@ -123,7 +123,6 @@ impl Tool {
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     runtime::install(module)?;
-    fork::install(module)?;
     module.add_class::<Cancellation>()?;
     module.add_class::<Engine>()?;
     module.add_class::<Tool>()?;
