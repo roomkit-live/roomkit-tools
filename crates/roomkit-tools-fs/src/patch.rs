@@ -1,13 +1,12 @@
-use std::borrow::Cow;
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use roomkit_tools_core::{Definition, Error, Output};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-use crate::{DiffLimits, DiffResult, MutationWorkspace, diff, mutation, paths::Root};
+use crate::patch_prepare::{Job, prepare};
+use crate::{DiffLimits, DiffResult, MutationWorkspace, mutation};
 
 /// A version-1 structured patch operation. Text expectations match whole files exactly.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -236,193 +235,6 @@ impl PatchTool {
     }
 }
 
-struct Job {
-    source: PathBuf,
-    target: Option<PathBuf>,
-    before: Option<mutation::Snapshot>,
-    after: Option<String>,
-    preview: PatchPreview,
-}
-
-type ChangeParts<'a> = (
-    &'a str,
-    Option<&'a str>,
-    Option<&'a str>,
-    Option<&'a str>,
-    PatchOperation,
-);
-
-fn parts(change: &PatchChange) -> ChangeParts<'_> {
-    match change {
-        PatchChange::Add { path, content } => (
-            path,
-            None,
-            None,
-            Some(content.as_str()),
-            PatchOperation::Add,
-        ),
-        PatchChange::Update {
-            path,
-            old_content,
-            new_content,
-        } => (
-            path,
-            None,
-            Some(old_content.as_str()),
-            Some(new_content.as_str()),
-            PatchOperation::Update,
-        ),
-        PatchChange::Delete { path, old_content } => (
-            path,
-            None,
-            Some(old_content.as_str()),
-            None,
-            PatchOperation::Delete,
-        ),
-        PatchChange::Move {
-            from,
-            to,
-            old_content,
-            new_content,
-        } => (
-            from,
-            Some(to.as_str()),
-            Some(old_content.as_str()),
-            Some(new_content.as_deref().unwrap_or(old_content)),
-            PatchOperation::Move,
-        ),
-    }
-}
-
-fn prepare(
-    root: &Root,
-    changes: &[PatchChange],
-    limits: PatchLimits,
-    cancel: &CancellationToken,
-) -> Result<Vec<Job>, Error> {
-    if changes.is_empty() || changes.len() > limits.max_changes {
-        return Err(Error::InvalidInput(
-            "patch requires 1..max_changes operations".into(),
-        ));
-    }
-    let mut input_bytes = 0_usize;
-    let mut output_bytes = 0_usize;
-    let mut touched = BTreeSet::new();
-    let mut jobs = Vec::new();
-    for (index, change) in changes.iter().enumerate() {
-        mutation::check_cancel(cancel)?;
-        let (path, to, expected, after, operation) = parts(change);
-        for part in [Some(path), to, expected, after].into_iter().flatten() {
-            input_bytes = input_bytes
-                .checked_add(part.len())
-                .filter(|n| *n <= limits.max_input_bytes)
-                .ok_or_else(|| Error::LimitExceeded("patch exceeds max_input_bytes".into()))?;
-        }
-        if let Some(text) = expected {
-            mutation::bounded_text(text, limits.diff.max_file_bytes)?;
-        }
-        if let Some(text) = after {
-            mutation::bounded_text(text, limits.diff.max_file_bytes)?;
-        }
-        let source = mutation::destination(root, path)?;
-        let target = to
-            .map(|path| mutation::destination(root, path))
-            .transpose()?;
-        for path in std::iter::once(&source).chain(target.iter()) {
-            if !touched.insert(path.clone()) {
-                return Err(Error::InvalidInput(
-                    "patch paths overlap; each file may be touched once".into(),
-                ));
-            }
-        }
-        let before = mutation::snapshot(&source, limits.diff.max_file_bytes)?;
-        let (expected, after) =
-            in_source_endings(before.as_ref(), expected, after, limits.diff.max_file_bytes)?;
-        let (expected, after) = (expected.as_deref(), after.as_deref());
-        if before.as_ref().map(|s| s.bytes.as_slice()) != expected.map(str::as_bytes) {
-            return Err(Error::Refused(
-                "patch source differs from old_content or required existence; read it again".into(),
-            ));
-        }
-        if let Some(target) = &target
-            && mutation::inspect(target)?.is_some()
-        {
-            return Err(Error::Refused(
-                "patch move destination already exists".into(),
-            ));
-        }
-        let path = root.relative(&source)?;
-        let to = target
-            .as_ref()
-            .map(|path| root.relative(path))
-            .transpose()?;
-        let old_label = if before.is_some() {
-            path.as_str()
-        } else {
-            "/dev/null"
-        };
-        let new_label = if after.is_some() {
-            to.as_deref().unwrap_or(&path)
-        } else {
-            "/dev/null"
-        };
-        let compared = diff::compare(
-            expected.unwrap_or(""),
-            after.unwrap_or(""),
-            old_label,
-            new_label,
-            3,
-            limits.diff,
-            cancel,
-        )?;
-        let heading = format!("{}: {operation:?} {path:?} -> {to:?}\n", index + 1);
-        output_bytes = output_bytes
-            .checked_add(heading.len())
-            .and_then(|n| n.checked_add(compared.text.len()))
-            .filter(|n| *n <= limits.diff.max_output_bytes)
-            .ok_or_else(|| Error::LimitExceeded("patch previews exceed max_output_bytes".into()))?;
-        let modifies = operation != PatchOperation::Update || expected != after;
-        jobs.push(Job {
-            source,
-            target,
-            before,
-            after: after.map(str::to_owned),
-            preview: PatchPreview {
-                index: index + 1,
-                operation,
-                path,
-                to,
-                changed: modifies,
-                diff: compared.data,
-                text: format!("{heading}{}", compared.text),
-            },
-        });
-    }
-    Ok(jobs)
-}
-
-type Contents<'a> = (Option<Cow<'a, str>>, Option<Cow<'a, str>>);
-
-/// Expected and new contents in the source's line endings. `read` shows CRLF
-/// lines without `\r`; when the existing source uses CRLF throughout, LF
-/// endings in both texts stand for CRLF. Other sources compare exactly.
-fn in_source_endings<'a>(
-    before: Option<&mutation::Snapshot>,
-    expected: Option<&'a str>,
-    after: Option<&'a str>,
-    maximum: usize,
-) -> Result<Contents<'a>, Error> {
-    let crlf = before
-        .and_then(|snapshot| std::str::from_utf8(&snapshot.bytes).ok())
-        .is_some_and(mutation::uniformly_crlf);
-    let expected = expected.map(|text| mutation::in_file_endings(crlf, text));
-    let after = after.map(|text| mutation::in_file_endings(crlf, text));
-    if let Some(text) = &after {
-        mutation::bounded_text(text, maximum)?;
-    }
-    Ok((expected, after))
-}
-
 fn apply(
     jobs: &[Job],
     dry_run: bool,
@@ -527,6 +339,7 @@ fn apply_one(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paths::Root;
 
     #[tokio::test]
     async fn external_conflict_after_preparation_returns_actual_committed_effects() {

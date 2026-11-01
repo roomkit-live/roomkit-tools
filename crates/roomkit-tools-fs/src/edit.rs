@@ -5,7 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-use crate::{MutationWorkspace, mutation, revision};
+use crate::paths::Root;
+use crate::{MutationWorkspace, line_endings, mutation, revision};
 
 /// Replace an exact, nonempty piece of a UTF-8 text file.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -135,72 +136,109 @@ impl EditTool {
         let maximum = self.limits.max_file_bytes;
         self.workspace
             .run(cancel, move |root, cancel| {
-                if input.old_text.is_empty() {
-                    return Err(Error::InvalidInput("old_text must not be empty".into()));
-                }
-                mutation::bounded_text(&input.old_text, maximum)?;
-                mutation::bounded_text(&input.new_text, maximum)?;
-                let path = mutation::destination(root, &input.path)?;
-                let relative = root.relative(&path)?;
-                let before = mutation::snapshot(&path, maximum)?.ok_or_else(|| {
-                    mutation::io(
-                        "open the edit file",
-                        std::io::Error::from(std::io::ErrorKind::NotFound),
-                    )
-                })?;
-                revision::check(input.expected_revision.as_deref(), Some(&before.bytes))?;
-                let source = mutation::validate_text(&before.bytes)?;
-                let crlf = mutation::uniformly_crlf(source);
-                let old_text = mutation::in_file_endings(crlf, &input.old_text);
-                let new_text = mutation::in_file_endings(crlf, &input.new_text);
-                let count = source.matches(old_text.as_ref()).count();
-                if count == 0 {
-                    return Err(Error::InvalidInput(
-                        "old_text was not found; read the file again".into(),
-                    ));
-                }
-                if count > 1 && !input.replace_all {
-                    return Err(Error::InvalidInput(format!(
-                        "old_text matches {count} times; use a unique passage or replace_all: true"
-                    )));
-                }
-                let size = source
-                    .len()
-                    .checked_sub(old_text.len().saturating_mul(count))
-                    .and_then(|size| {
-                        new_text
-                            .len()
-                            .checked_mul(count)
-                            .and_then(|added| size.checked_add(added))
-                    })
-                    .filter(|size| *size <= maximum)
-                    .ok_or_else(|| {
-                        Error::LimitExceeded("edited file exceeds max_file_bytes".into())
-                    })?;
-                mutation::check_cancel(cancel)?;
-                let changed = old_text != new_text;
-                let revision = if changed {
-                    let after = source.replace(old_text.as_ref(), &new_text);
-                    let revision = revision::of(after.as_bytes());
-                    mutation::commit(&path, Some(&before), after.as_bytes(), maximum, cancel)?;
-                    revision
-                } else {
-                    revision::of(&before.bytes)
-                };
-                let data = EditResult {
-                    path: relative,
-                    replacements: count,
-                    changed,
-                    bytes_before: before.bytes.len(),
-                    bytes_after: size,
-                    revision,
-                };
-                let text = format!(
-                    "edit {:?}: replacements={}, changed={}, bytes_before={}, bytes_after={}\n",
-                    data.path, data.replacements, data.changed, data.bytes_before, data.bytes_after
-                );
-                Ok(Output::new(data, text))
+                apply(root, &input, maximum, cancel)
             })
             .await
     }
+}
+
+/// Check, match and commit one edit under the workspace lock; blocking.
+fn apply(
+    root: &Root,
+    input: &EditInput,
+    maximum: usize,
+    cancel: &CancellationToken,
+) -> Result<Output<EditResult>, Error> {
+    check_arguments(input, maximum)?;
+    let path = mutation::destination(root, &input.path)?;
+    let relative = root.relative(&path)?;
+    let before = existing(&path, maximum)?;
+    revision::check(input.expected_revision.as_deref(), Some(&before.bytes))?;
+    let source = mutation::validate_text(&before.bytes)?;
+    let crlf = line_endings::uniformly_crlf(source);
+    let old_text = line_endings::in_file_endings(crlf, &input.old_text);
+    let new_text = line_endings::in_file_endings(crlf, &input.new_text);
+    let count = occurrences(source, &old_text, input.replace_all)?;
+    let size = edited_size(source.len(), old_text.len(), new_text.len(), count, maximum)?;
+    mutation::check_cancel(cancel)?;
+    let changed = old_text != new_text;
+    let revision = if changed {
+        let after = source.replace(old_text.as_ref(), &new_text);
+        let revision = revision::of(after.as_bytes());
+        mutation::commit(&path, Some(&before), after.as_bytes(), maximum, cancel)?;
+        revision
+    } else {
+        revision::of(&before.bytes)
+    };
+    Ok(render(EditResult {
+        path: relative,
+        replacements: count,
+        changed,
+        bytes_before: before.bytes.len(),
+        bytes_after: size,
+        revision,
+    }))
+}
+
+/// Refuse an empty `old_text` and texts that exceed the file bound.
+fn check_arguments(input: &EditInput, maximum: usize) -> Result<(), Error> {
+    if input.old_text.is_empty() {
+        return Err(Error::InvalidInput("old_text must not be empty".into()));
+    }
+    mutation::bounded_text(&input.old_text, maximum)?;
+    mutation::bounded_text(&input.new_text, maximum)
+}
+
+/// The file to edit, which must exist.
+fn existing(path: &Path, maximum: usize) -> Result<mutation::Snapshot, Error> {
+    mutation::snapshot(path, maximum)?.ok_or_else(|| {
+        mutation::io(
+            "open the edit file",
+            std::io::Error::from(std::io::ErrorKind::NotFound),
+        )
+    })
+}
+
+/// Occurrences of `old_text`: at least one, and exactly one unless
+/// `replace_all`.
+fn occurrences(source: &str, old_text: &str, replace_all: bool) -> Result<usize, Error> {
+    let count = source.matches(old_text).count();
+    if count == 0 {
+        return Err(Error::InvalidInput(
+            "old_text was not found; read the file again".into(),
+        ));
+    }
+    if count > 1 && !replace_all {
+        return Err(Error::InvalidInput(format!(
+            "old_text matches {count} times; use a unique passage or replace_all: true"
+        )));
+    }
+    Ok(count)
+}
+
+/// Size of the edited file, refused above the file bound.
+fn edited_size(
+    source: usize,
+    old_text: usize,
+    new_text: usize,
+    count: usize,
+    maximum: usize,
+) -> Result<usize, Error> {
+    source
+        .checked_sub(old_text.saturating_mul(count))
+        .and_then(|size| {
+            new_text
+                .checked_mul(count)
+                .and_then(|added| size.checked_add(added))
+        })
+        .filter(|size| *size <= maximum)
+        .ok_or_else(|| Error::LimitExceeded("edited file exceeds max_file_bytes".into()))
+}
+
+fn render(data: EditResult) -> Output<EditResult> {
+    let text = format!(
+        "edit {:?}: replacements={}, changed={}, bytes_before={}, bytes_after={}\n",
+        data.path, data.replacements, data.changed, data.bytes_before, data.bytes_after
+    );
+    Output::new(data, text)
 }
