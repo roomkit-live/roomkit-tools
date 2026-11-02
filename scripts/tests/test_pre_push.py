@@ -18,6 +18,64 @@ HOOK = Path(__file__).resolve().parents[2] / ".githooks" / "pre-push"
 ZERO = "0" * 40
 
 
+def scratch_env() -> dict[str, str]:
+    """The environment without git's own variables. The hook runs these tests
+    (through `make api-test`), and git exports GIT_DIR, GIT_WORK_TREE or
+    GIT_CONFIG_PARAMETERS to a hook: inherited, they would aim each git
+    command of a test at the repository being pushed instead of the scratch
+    one."""
+    return {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
+
+
+class Isolation(unittest.TestCase):
+    def test_the_repository_a_hook_runs_in_is_never_touched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outer = Path(tmp) / "outer"
+            outer.mkdir()
+            quiet = {**scratch_env(), "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+            def git(*arguments: str) -> str:
+                return subprocess.run(
+                    [
+                        "git",
+                        "-c",
+                        "user.name=Outer",
+                        "-c",
+                        "user.email=outer@example.com",
+                        *arguments,
+                    ],
+                    cwd=outer,
+                    env=quiet,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip()
+
+            git("init", "-q", "-b", "main")
+            (outer / "README.md").write_text("outer\n")
+            git("add", "README.md")
+            git("commit", "-q", "-m", "outer")
+            head = git("rev-parse", "HEAD")
+            hooked = {
+                **quiet,
+                "GIT_DIR": str(outer / ".git"),
+                "GIT_WORK_TREE": str(outer),
+                "GIT_INDEX_FILE": str(outer / ".git" / "index"),
+                "GIT_CONFIG_PARAMETERS": "'core.hookspath=/nonexistent'",
+            }
+            result = subprocess.run(
+                ["python3", "-m", "unittest", "-q", "test_pre_push.PrePush"],
+                cwd=Path(__file__).parent,
+                env=hooked,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+            self.assertEqual(git("rev-parse", "HEAD"), head)
+            self.assertEqual(git("status", "--porcelain"), "")
+            self.assertEqual(git("tag", "-l"), "")
+
+
 class PrePush(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -32,7 +90,7 @@ class PrePush(unittest.TestCase):
         )
         fake.chmod(0o755)
         self.env = {
-            **os.environ,
+            **scratch_env(),
             "MAKE": str(fake),
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_CONFIG_NOSYSTEM": "1",
