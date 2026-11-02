@@ -391,29 +391,14 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_docs::DocsBackend / roomkit_tools.FileDocs: defaulted (9)"
-covers = [
-  "rust roomkit_tools_docs::DocsListInput::offset (defaulted)",  # Python defaults it (offset=0); Rust requires it
-  "rust roomkit_tools_docs::DocsListInput::limit (defaulted)",  # Python defaults it (limit=20); Rust requires it
-  "rust roomkit_tools_docs::DocsListInput::expected_catalog_revision (defaulted)",  # Python defaults it (expected_catalog_revision=None); Rust requires it
-  "rust roomkit_tools_docs::DocsReadInput::offset (defaulted)",  # Python defaults it (offset=1); Rust requires it
-  "rust roomkit_tools_docs::DocsReadInput::limit (defaulted)",  # Python defaults it (limit=100); Rust requires it
-  "rust roomkit_tools_docs::DocsReadInput::expected_revision (defaulted)",  # Python defaults it (expected_revision=None); Rust requires it
-  "rust roomkit_tools_docs::DocsSearchInput::offset (defaulted)",  # Python defaults it (offset=0); Rust requires it
-  "rust roomkit_tools_docs::DocsSearchInput::limit (defaulted)",  # Python defaults it (limit=10); Rust requires it
-  "rust roomkit_tools_docs::DocsSearchInput::expected_catalog_revision (defaulted)",  # Python defaults it (expected_catalog_revision=None); Rust requires it
-]
-
-[[pending]]
 reason = "roomkit_tools_docs::DocsContract / no Python name: unmatched"
 covers = [
   "rust roomkit_tools_docs::DocsContract (unmatched)",  # no Python name
 ]
 
 [[pending]]
-reason = "roomkit_tools_docs::FileDocs / roomkit_tools.FileDocs: defaulted, variadic"
+reason = "roomkit_tools_docs::FileDocs / roomkit_tools.FileDocs: variadic"
 covers = [
-  "rust roomkit_tools_docs::FileDocs::new(version) (defaulted)",  # Python defaults it (version=None); Rust requires it
   "python roomkit_tools.FileDocs.__init__(limits) (variadic)",  # takes **limits; Rust's FileDocsLimits names max_documents, max_document_bytes, max_total_bytes, max_entries, max_depth, max_total_lines, max_read_bytes
 ]
 
@@ -461,10 +446,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::ListTool / roomkit_tools.ListTool: unmatched, defaulted"
+reason = "roomkit_tools_fs::ListTool / roomkit_tools.ListTool: unmatched"
 covers = [
   "python roomkit_tools.ListTool.call (unmatched)",  # no Rust method
-  "rust roomkit_tools_fs::ListInput::path (defaulted)",  # Python defaults it (path='.'); Rust requires it
 ]
 
 [[pending]]
@@ -555,10 +539,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_image::ViewImageTool / roomkit_tools.ViewImageTool: unmatched, required"
+reason = "roomkit_tools_image::ViewImageTool / roomkit_tools.ViewImageTool: unmatched"
 covers = [
   "python roomkit_tools.ViewImageTool.call (unmatched)",  # no Rust method
-  "rust roomkit_tools_image::ViewImageInput::path (required)",  # Python requires it; Rust defaults it
 ]
 
 [[pending]]
@@ -588,14 +571,11 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool: unmatched, variadic, name, defaulted (3)"
+reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool: unmatched, variadic, name"
 covers = [
   "python roomkit_tools.OcrTool.call (unmatched)",  # no Rust method
   "python roomkit_tools.OcrTool.create(limits) (variadic)",  # takes **limits; Rust's OcrLimits names max_file_bytes, max_dimension, max_pixels, max_decode_bytes, max_output_bytes, max_blocks, default_timeout_ms, max_timeout_ms
   "rust roomkit_tools_ocr::OcrTool::new(engine) (name)",  # the one parameter left on each side: named backend in Python
-  "rust roomkit_tools_ocr::OcrInput::rotation_degrees (defaulted)",  # Python defaults it (rotation_degrees=0); Rust requires it
-  "rust roomkit_tools_ocr::OcrInput::expected_revision (defaulted)",  # Python defaults it (expected_revision=None); Rust requires it
-  "rust roomkit_tools_ocr::OcrInput::timeout_ms (defaulted)",  # Python defaults it (timeout_ms=None); Rust requires it
 ]
 
 [[pending]]
@@ -611,21 +591,6 @@ covers = [
   "rust roomkit_tools_ocr_rusto::RustoConfig::dictionary (unmatched)",  # no Python parameter
   "python roomkit_tools_ocr_rusto.RustoOcr.bind (unmatched)",  # no Rust method
   "rust roomkit_tools_ocr_rusto::RustoOcr::load (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_plans::MemoryPlanBackend / roomkit_tools.MemoryPlanBackend: defaulted (2)"
-covers = [
-  "rust roomkit_tools_plans::MemoryPlanBackend::new(max_plans) (defaulted)",  # Python defaults it (max_plans=256); Rust requires it
-  "rust roomkit_tools_plans::MemoryPlanBackend::new(max_plans_per_scope) (defaulted)",  # Python defaults it (max_plans_per_scope=64); Rust requires it
-]
-
-[[pending]]
-reason = "roomkit_tools_plans::PlanBackend / roomkit_tools.MemoryPlanBackend: defaulted (3)"
-covers = [
-  "rust roomkit_tools_plans::PlanUpdateInput::title (defaulted)",  # Python defaults it (title=None); Rust requires it
-  "rust roomkit_tools_plans::PlanUpdateInput::objective (defaulted)",  # Python defaults it (objective=None); Rust requires it
-  "rust roomkit_tools_plans::PlanUpdateInput::steps (defaulted)",  # Python defaults it (steps=None); Rust requires it
 ]
 
 [[pending]]
@@ -665,7 +630,7 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async, defaulted (6), unmatched (4)"
+reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async, defaulted (4), unmatched (4)"
 covers = [
   "rust roomkit_tools_process::OutputStore::new (async)",  # async in Rust, not in Python
   "rust roomkit_tools_process::OutputStore::new(parent) (defaulted)",  # Python defaults it (parent=None); Rust requires it
@@ -673,15 +638,13 @@ covers = [
   "python roomkit_tools.OutputStore.definition (unmatched)",  # no Rust method
   "rust roomkit_tools_process::OutputStore::forget(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::OutputStore::list(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::OutputReadInput::offset (defaulted)",  # Python defaults it (offset=0); Rust requires it
-  "rust roomkit_tools_process::OutputReadInput::max_bytes (defaulted)",  # Python defaults it (max_bytes=None); Rust requires it
   "rust roomkit_tools_process::OutputStore::read(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::OutputStore::read_definition (unmatched)",  # no Python member
   "rust roomkit_tools_process::OutputStore::forget_definition (unmatched)",  # no Python member
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: async, unmatched (9), defaulted (8)"
+reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: async, unmatched (9), defaulted (5)"
 covers = [
   "rust roomkit_tools_process::ProcessSession::new (async)",  # async in Rust, not in Python
   "python roomkit_tools.ProcessSession.call (unmatched)",  # no Rust method
@@ -689,10 +652,7 @@ covers = [
   "rust roomkit_tools_process::ProcessSession::read(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::ProcessSession::start(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::ProcessSession::status(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::ProcessStopInput::forget (defaulted)",  # Python defaults it (forget=False); Rust requires it
   "rust roomkit_tools_process::ProcessSession::stop(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::ProcessWriteInput::text (defaulted)",  # Python defaults it (text=''); Rust requires it
-  "rust roomkit_tools_process::ProcessWriteInput::close_stdin (defaulted)",  # Python defaults it (close_stdin=False); Rust requires it
   "rust roomkit_tools_process::ProcessSession::write(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::ProcessSession::start_definition (unmatched)",  # no Python member
   "rust roomkit_tools_process::ProcessSession::status_definition (unmatched)",  # no Python member
@@ -913,9 +873,8 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_search::ExaSearch / roomkit_tools.search.ExaSearch: defaulted, form"
+reason = "roomkit_tools_search::ExaSearch / roomkit_tools.search.ExaSearch: form"
 covers = [
-  "rust roomkit_tools_search::ExaSearch::new(api_key) (defaulted)",  # Python defaults it (api_key=None); Rust requires it
   "rust roomkit_tools_search::SearchHttpConfig::policy (form)",  # nests allowed_origins, private_origins in a NetworkPolicy; Python takes them flat
 ]
 

@@ -22,13 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write(root.path().join("image.png"), bytes)?;
     let tool = ViewImageTool::new(root.path()).await?;
     let result = tool
-        .view(
-            ViewImageInput {
-                path: "image.png".into(),
-                ..Default::default()
-            },
-            &CancellationToken::new(),
-        )
+        .view(ViewImageInput::new("image.png"), &CancellationToken::new())
         .await?;
     assert_eq!((result.data.width, result.data.height), (2, 2));
     assert_ne!(result.data.image.base64, "");

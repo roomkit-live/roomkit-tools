@@ -84,6 +84,18 @@ pub struct ProcessWriteInput {
     pub close_stdin: bool,
 }
 
+impl ProcessWriteInput {
+    /// Send nothing to `process_id` and keep stdin open, as Python's
+    /// `write(process_id)`; set `text` or `close_stdin` by struct update.
+    pub fn new(process_id: impl Into<String>) -> Self {
+        Self {
+            process_id: process_id.into(),
+            text: String::new(),
+            close_stdin: false,
+        }
+    }
+}
+
 /// Stop a process group with SIGKILL, optionally releasing its retained state
 /// and output. There is no graceful phase before the kill.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -94,6 +106,16 @@ pub struct ProcessStopInput {
     /// Remove the completed record and output after cleanup. Default: false.
     #[serde(default)]
     pub forget: bool,
+}
+
+impl ProcessStopInput {
+    /// Stop `process_id` and keep its record, as Python's `stop(process_id)`.
+    pub fn new(process_id: impl Into<String>) -> Self {
+        Self {
+            process_id: process_id.into(),
+            forget: false,
+        }
+    }
 }
 
 /// Host-selected aggregate, per-process and per-call bounds.

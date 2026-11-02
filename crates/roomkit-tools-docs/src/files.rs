@@ -100,17 +100,11 @@ pub struct FileDocs {
 }
 impl FileDocs {
     /// Capture the root relative to the current directory; defer file I/O.
+    /// Documents declare no version until [`Self::with_version`] sets one.
     /// # Errors
-    /// Rejects invalid version/budgets or an unavailable current directory.
-    pub fn new(
-        root: impl AsRef<Path>,
-        version: Option<String>,
-        limits: FileDocsLimits,
-    ) -> Result<Self, ToolError> {
+    /// Rejects invalid budgets or an unavailable current directory.
+    pub fn new(root: impl AsRef<Path>, limits: FileDocsLimits) -> Result<Self, ToolError> {
         limits.validate()?;
-        if let Some(v) = &version {
-            crate::validation::bounded(v, 128)?;
-        }
         let path = root.as_ref();
         let root = if path.is_absolute() {
             path.to_path_buf()
@@ -125,12 +119,26 @@ impl FileDocs {
         Ok(Self {
             inner: Arc::new(Inner {
                 root,
-                version,
+                version: None,
                 limits,
                 snapshot: OnceCell::new(),
                 slots: Arc::new(Semaphore::new(2)),
             }),
         })
+    }
+    /// Declare the documentation version every document reports, as
+    /// Python's `FileDocs(root, version=...)`; set it before cloning.
+    /// # Errors
+    /// Rejects an empty version, one with NUL or over 128 bytes, and a backend
+    /// already cloned.
+    pub fn with_version(mut self, version: impl Into<String>) -> Result<Self, ToolError> {
+        let version = version.into();
+        crate::validation::bounded(&version, 128)?;
+        let inner = Arc::get_mut(&mut self.inner).ok_or_else(|| {
+            ToolError::AccessRefused("set the documentation version before cloning".into())
+        })?;
+        inner.version = Some(version);
+        Ok(self)
     }
     async fn run<T, F>(&self, cancel: &CancellationToken, work: F) -> Result<T, ToolError>
     where
@@ -557,7 +565,7 @@ mod tests {
     #[tokio::test]
     async fn cancelled_worker_retains_its_slot_until_native_work_finishes() {
         let root = tempfile::tempdir().unwrap();
-        let backend = FileDocs::new(root.path(), None, FileDocsLimits::default()).unwrap();
+        let backend = FileDocs::new(root.path(), FileDocsLimits::default()).unwrap();
         let worker = backend.clone();
         let cancel = CancellationToken::new();
         let token = cancel.clone();

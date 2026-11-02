@@ -166,13 +166,7 @@ mod tests {
             Err(ToolError::LimitExceeded(_))
         ));
         let cancel = CancellationToken::new();
-        let mut call = Box::pin(tool.view(
-            ViewImageInput {
-                path: "missing.png".into(),
-                ..Default::default()
-            },
-            &cancel,
-        ));
+        let mut call = Box::pin(tool.view(ViewImageInput::new("missing.png"), &cancel));
         tokio::select! {
             biased;
             _result = &mut call => panic!("queued view must not finish yet"),

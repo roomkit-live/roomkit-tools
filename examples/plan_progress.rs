@@ -51,11 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .execute(
             &scope,
             PlanUpdateInput {
-                plan_id: plan.plan_id.clone(),
-                expected_revision: plan.revision,
-                title: None,
-                objective: None,
                 steps: Some(plan.steps),
+                ..PlanUpdateInput::new(plan.plan_id.clone(), plan.revision)
             },
             &cancel,
         )

@@ -2,9 +2,10 @@
 use super::{Cancellation, InvalidInputError, tool_error};
 use pyo3::prelude::*;
 use roomkit_tools_plans::{
-    MemoryPlanBackend, Plan, PlanBackend, PlanContract, PlanCreateInput, PlanCreateTool,
-    PlanDeleteInput, PlanDeleteResult, PlanDeleteTool, PlanListInput, PlanListResult, PlanListTool,
-    PlanReadInput, PlanReadTool, PlanScope, PlanUpdateInput, PlanUpdateTool, decode, render,
+    MemoryPlanBackend, MemoryPlanLimits, Plan, PlanBackend, PlanContract, PlanCreateInput,
+    PlanCreateTool, PlanDeleteInput, PlanDeleteResult, PlanDeleteTool, PlanListInput,
+    PlanListResult, PlanListTool, PlanReadInput, PlanReadTool, PlanScope, PlanUpdateInput,
+    PlanUpdateTool, decode, render,
 };
 
 #[derive(Debug)]
@@ -74,8 +75,11 @@ impl PythonMemoryPlanBackend {
     #[new]
     fn new(max_plans: usize, max_plans_per_scope: usize) -> PyResult<Self> {
         Ok(Self {
-            backend: MemoryPlanBackend::new(max_plans, max_plans_per_scope)
-                .map_err(|e| tool_error(&e))?,
+            backend: MemoryPlanBackend::new(MemoryPlanLimits {
+                max_plans,
+                max_plans_per_scope,
+            })
+            .map_err(|e| tool_error(&e))?,
         })
     }
     fn call<'py>(

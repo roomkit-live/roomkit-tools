@@ -9,6 +9,14 @@ use roomkit_tools_fs::{
 };
 use tokio_util::sync::CancellationToken;
 
+/// A listing of `path`, Python's `list(path)`: the other arguments default.
+fn listing(path: impl Into<String>) -> ListInput {
+    ListInput {
+        path: path.into(),
+        ..ListInput::default()
+    }
+}
+
 #[expect(clippy::unwrap_used, reason = "a fixture must be created successfully")]
 fn fixture() -> tempfile::TempDir {
     let root = tempfile::tempdir().unwrap();
@@ -35,7 +43,7 @@ async fn list_is_sorted_non_recursive_and_includes_hidden_entries() {
     let root = fixture();
     let tool = ListTool::new(root.path()).await.unwrap();
     let output = tool
-        .list(ListInput::new("."), &CancellationToken::new())
+        .list(ListInput::default(), &CancellationToken::new())
         .await
         .unwrap();
     assert_eq!(
@@ -70,7 +78,7 @@ async fn list_pagination_uses_host_limits_and_workspace_relative_paths() {
         .unwrap()
         .with_limits(limits)
         .unwrap();
-    let mut input = ListInput::new("menus");
+    let mut input = listing("menus");
     input.limit = NonZeroUsize::new(100);
     let first = tool
         .list(input.clone(), &CancellationToken::new())
@@ -88,7 +96,7 @@ async fn list_pagination_uses_host_limits_and_workspace_relative_paths() {
 async fn empty_directory_and_past_end_offset_are_distinct() {
     let root = fixture();
     let tool = ListTool::new(root.path()).await.unwrap();
-    let mut input = ListInput::new("empty");
+    let mut input = listing("empty");
     assert_eq!(
         tool.list(input.clone(), &CancellationToken::new())
             .await
@@ -103,15 +111,12 @@ async fn empty_directory_and_past_end_offset_are_distinct() {
         Err(ToolError::InvalidInput(_))
     ));
     assert!(matches!(
-        tool.list(
-            ListInput::new("opening-hours.txt"),
-            &CancellationToken::new()
-        )
-        .await,
+        tool.list(listing("opening-hours.txt"), &CancellationToken::new())
+            .await,
         Err(ToolError::UnsupportedResource(_))
     ));
     assert!(matches!(
-        tool.list(ListInput::new("missing"), &CancellationToken::new())
+        tool.list(listing("missing"), &CancellationToken::new())
             .await,
         Err(ToolError::Io { .. })
     ));
@@ -133,13 +138,15 @@ async fn names_are_escaped_in_rendering_and_utf8_bytes_count_toward_the_budget()
         .with_limits(limits)
         .unwrap();
     let first = tool
-        .list(ListInput::new("."), &CancellationToken::new())
+        .list(ListInput::default(), &CancellationToken::new())
         .await
         .unwrap();
     assert_eq!(first.text.len(), limits.max_output_bytes);
     assert_eq!(first.data.next_offset, Some(2));
-    let mut input = ListInput::new(".");
-    input.offset = NonZeroUsize::new(2).unwrap();
+    let input = ListInput {
+        offset: NonZeroUsize::new(2).unwrap(),
+        ..ListInput::default()
+    };
     assert!(matches!(
         tool.list(input, &CancellationToken::new()).await,
         Err(ToolError::LimitExceeded(_))
@@ -149,7 +156,7 @@ async fn names_are_escaped_in_rendering_and_utf8_bytes_count_toward_the_budget()
         std::fs::write(root.path().join("line\nbreak"), "").unwrap();
         let tool = ListTool::new(root.path()).await.unwrap();
         let output = tool
-            .list(ListInput::new("."), &CancellationToken::new())
+            .list(ListInput::default(), &CancellationToken::new())
             .await
             .unwrap();
         assert_eq!(output.text.lines().count(), 3);
@@ -170,7 +177,7 @@ async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
         .with_limits(list_limits)
         .unwrap();
     assert!(matches!(
-        list.list(ListInput::new("."), &CancellationToken::new())
+        list.list(ListInput::default(), &CancellationToken::new())
             .await,
         Err(ToolError::LimitExceeded(_))
     ));
@@ -430,7 +437,7 @@ async fn all_discovery_tools_refuse_root_escape_and_honor_pre_cancellation() {
     grep_input.path = path.into();
     let cancel = CancellationToken::new();
     assert!(matches!(
-        list.list(ListInput::new(path), &cancel).await,
+        list.list(listing(path), &cancel).await,
         Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
@@ -442,12 +449,12 @@ async fn all_discovery_tools_refuse_root_escape_and_honor_pre_cancellation() {
         Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
-        list.list(ListInput::new(".."), &cancel).await,
+        list.list(listing(".."), &cancel).await,
         Err(ToolError::AccessRefused(_))
     ));
     cancel.cancel();
     assert!(matches!(
-        list.list(ListInput::new(path), &cancel).await,
+        list.list(listing(path), &cancel).await,
         Err(ToolError::Cancelled)
     ));
     assert!(matches!(
@@ -492,12 +499,12 @@ async fn symlinks_are_listed_but_never_recursed_into() {
     );
     let list = ListTool::new(root.path()).await.unwrap();
     assert!(matches!(
-        list.list(ListInput::new("outside"), &CancellationToken::new())
+        list.list(listing("outside"), &CancellationToken::new())
             .await,
         Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(
-        list.list(ListInput::new("inside"), &CancellationToken::new())
+        list.list(listing("inside"), &CancellationToken::new())
             .await
             .unwrap()
             .data
@@ -529,7 +536,7 @@ async fn non_utf8_names_are_skipped_and_counted_anywhere_in_the_tree() {
     std::fs::write(root.path().join("sub/ok.txt"), "hit\n").unwrap();
     let cancel = CancellationToken::new();
     let list = ListTool::new(root.path()).await.unwrap();
-    let listing = list.list(ListInput::new("."), &cancel).await.unwrap();
+    let listing = list.list(ListInput::default(), &cancel).await.unwrap();
     assert_eq!(listing.data.entries.len(), 1);
     assert_eq!(listing.data.skipped_entries, 1);
     let glob = GlobTool::new(root.path()).await.unwrap();

@@ -15,31 +15,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         root.path().join("agents.md"),
         include_str!("fixtures/documentation/agents.md"),
     )?;
-    let backend: Arc<dyn DocsBackend> = Arc::new(FileDocs::new(
-        root.path(),
-        Some("demo-v1".into()),
-        FileDocsLimits::default(),
-    )?);
+    let backend: Arc<dyn DocsBackend> =
+        Arc::new(FileDocs::new(root.path(), FileDocsLimits::default())?.with_version("demo-v1")?);
     let cancel = CancellationToken::new();
     let catalogue = DocsListTool::new(Arc::clone(&backend))
-        .execute(
-            DocsListInput {
-                offset: 0,
-                limit: 20,
-                expected_catalog_revision: None,
-            },
-            &cancel,
-        )
+        .execute(DocsListInput::default(), &cancel)
         .await?
         .data;
     assert_eq!(catalogue.total_documents, 1);
     let matches = DocsSearchTool::new(Arc::clone(&backend))
         .execute(
             DocsSearchInput {
-                query: "agent_followup idle".into(),
-                offset: 0,
-                limit: 10,
                 expected_catalog_revision: Some(catalogue.catalog_revision),
+                ..DocsSearchInput::new("agent_followup idle")
             },
             &cancel,
         )
@@ -53,10 +41,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let page = DocsReadTool::new(backend)
         .execute(
             DocsReadInput {
-                document_id: hit.document.document_id.clone(),
                 offset: 5,
                 limit: 2,
                 expected_revision: Some(hit.document.revision.clone()),
+                ..DocsReadInput::new(hit.document.document_id.clone())
             },
             &cancel,
         )

@@ -20,14 +20,12 @@ pub struct ExaSearch {
     transport: Transport,
 }
 impl ExaSearch {
-    /// Construct with an optional explicit API key; no environment lookup or I/O.
+    /// Construct without an API key, for the anonymous service; no environment
+    /// lookup or I/O. [`Self::with_api_key`] adds one, as Python's `api_key=`.
     /// # Errors
-    /// Rejects malformed credentials or invalid host transport configuration.
-    pub fn new(api_key: Option<&str>, config: SearchHttpConfig) -> Result<Self, ToolError> {
+    /// Rejects invalid host transport configuration.
+    pub fn new(config: SearchHttpConfig) -> Result<Self, ToolError> {
         let mut headers = HeaderMap::new();
-        if let Some(key) = api_key {
-            headers.insert("x-api-key", credential(key, false)?);
-        }
         headers.insert(
             header::ACCEPT,
             header::HeaderValue::from_static("application/json, text/event-stream"),
@@ -35,6 +33,16 @@ impl ExaSearch {
         Ok(Self {
             transport: Transport::new("https://mcp.exa.ai/mcp", config, headers)?,
         })
+    }
+
+    /// Send `api_key` with every request.
+    /// # Errors
+    /// Rejects an empty key, or one with surrounding whitespace or characters
+    /// a header cannot carry.
+    pub fn with_api_key(mut self, api_key: &str) -> Result<Self, ToolError> {
+        let key = credential(api_key, false)?;
+        self.transport.headers.insert("x-api-key", key);
+        Ok(self)
     }
 }
 impl SearchBackend for ExaSearch {

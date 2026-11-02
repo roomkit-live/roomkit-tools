@@ -32,7 +32,7 @@ async fn selected_tools_use_actual_schemas_and_share_the_host_snapshot() {
     )
     .unwrap();
     let backend: Arc<dyn DocsBackend> =
-        Arc::new(FileDocs::new(root.path(), None, FileDocsLimits::default()).unwrap());
+        Arc::new(FileDocs::new(root.path(), FileDocsLimits::default()).unwrap());
     let lister = DocsListToolset::new(DocsListTool::new(Arc::clone(&backend)));
     let searcher = DocsSearchToolset::new(DocsSearchTool::new(Arc::clone(&backend)));
     let reader = DocsReadToolset::new(DocsReadTool::new(backend));

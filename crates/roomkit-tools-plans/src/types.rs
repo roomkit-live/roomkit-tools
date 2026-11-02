@@ -80,6 +80,21 @@ pub struct PlanUpdateInput {
     pub steps: Option<Vec<PlanStep>>,
 }
 
+impl PlanUpdateInput {
+    /// Change nothing yet in `plan_id` at `expected_revision`, as Python's
+    /// `update(scope, plan_id=..., expected_revision=...)`: set `title`,
+    /// `objective` or `steps` by struct update; `None` preserves each.
+    pub fn new(plan_id: impl Into<String>, expected_revision: u64) -> Self {
+        Self {
+            plan_id: plan_id.into(),
+            expected_revision,
+            title: None,
+            objective: None,
+            steps: None,
+        }
+    }
+}
+
 /// Delete one plan. Does not cancel any process or delegated agent task.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

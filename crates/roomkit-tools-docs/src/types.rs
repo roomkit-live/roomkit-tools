@@ -28,6 +28,16 @@ pub struct DocsListInput {
     #[serde(default)]
     pub expected_catalog_revision: Option<String>,
 }
+/// The first page of 20, unchecked, as Python's `FileDocs.list()`.
+impl Default for DocsListInput {
+    fn default() -> Self {
+        Self {
+            offset: 0,
+            limit: list_limit(),
+            expected_catalog_revision: None,
+        }
+    }
+}
 /// Literal case-insensitive search, with all whitespace-separated terms required.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -44,6 +54,18 @@ pub struct DocsSearchInput {
     #[serde(default)]
     pub expected_catalog_revision: Option<String>,
 }
+impl DocsSearchInput {
+    /// The first 10 hits for `query`, unchecked, as Python's
+    /// `FileDocs.search(query=...)`.
+    pub fn new(query: impl Into<String>) -> Self {
+        Self {
+            query: query.into(),
+            offset: 0,
+            limit: search_limit(),
+            expected_catalog_revision: None,
+        }
+    }
+}
 /// Read an identified document, optionally checking its content revision.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -59,6 +81,18 @@ pub struct DocsReadInput {
     /// Document revision returned by discovery/search/read.
     #[serde(default)]
     pub expected_revision: Option<String>,
+}
+impl DocsReadInput {
+    /// The first 100 lines of `document_id`, unchecked, as Python's
+    /// `FileDocs.read(document_id=...)`.
+    pub fn new(document_id: impl Into<String>) -> Self {
+        Self {
+            document_id: document_id.into(),
+            offset: first_line(),
+            limit: read_limit(),
+            expected_revision: None,
+        }
+    }
 }
 /// Provenance of a document; documentation does not grant execution capabilities.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

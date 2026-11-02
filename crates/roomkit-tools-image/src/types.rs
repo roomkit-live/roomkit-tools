@@ -4,13 +4,23 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Model arguments; resource bounds belong to the host.
-#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ViewImageInput {
     /// One local regular PNG, JPEG or static WebP file beneath the configured root.
     pub path: String,
     /// Optional positive per-call deadline, bounded by the host maximum.
     pub timeout_ms: Option<usize>,
+}
+
+impl ViewImageInput {
+    /// View `path` within the host's default deadline, as Python's `view(path)`.
+    pub fn new(path: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            timeout_ms: None,
+        }
+    }
 }
 
 /// Supported detected media types, independent of the file extension.

@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let live = std::env::args().any(|arg| arg == "--live");
     let backend: Arc<dyn SearchBackend> = if live {
-        Arc::new(ExaSearch::new(None, SearchHttpConfig::default())?)
+        Arc::new(ExaSearch::new(SearchHttpConfig::default())?)
     } else {
         // A tiny fixture service for an offline example; HTTP and parsing remain in Rust.
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;

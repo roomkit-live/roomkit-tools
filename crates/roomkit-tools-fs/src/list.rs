@@ -23,11 +23,12 @@ pub struct ListInput {
     pub limit: Option<NonZeroUsize>,
 }
 
-impl ListInput {
-    /// List `path` from its first entry.
-    pub fn new(path: impl Into<String>) -> Self {
+/// The workspace root from its first entry, as Python's `list()`; set
+/// `path`, `offset` or `limit` by struct update.
+impl Default for ListInput {
+    fn default() -> Self {
         Self {
-            path: path.into(),
+            path: workspace_path(),
             offset: first_entry(),
             limit: None,
         }

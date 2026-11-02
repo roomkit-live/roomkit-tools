@@ -49,7 +49,11 @@ async fn shared_search_contracts() {
             config.max_response_bytes = usize::try_from(cap).unwrap();
         }
         let backend: Arc<dyn SearchBackend> = match case["backend"].as_str().unwrap() {
-            "exa" => Arc::new(ExaSearch::new(Some("fixture-key"), config).unwrap()),
+            "exa" => Arc::new(
+                ExaSearch::new(config)
+                    .and_then(|exa| exa.with_api_key("fixture-key"))
+                    .unwrap(),
+            ),
             "ollama" => Arc::new(OllamaSearch::new("fixture-key", config).unwrap()),
             "openai" => {
                 let mut options = case.get("backend_options").cloned().unwrap_or(json!({}));

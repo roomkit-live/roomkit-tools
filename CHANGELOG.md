@@ -65,6 +65,16 @@ part of an existing published preview.
   longer `#[non_exhaustive]`, so `ReadLimits { max_lines: 200,
   ..ReadLimits::default() }` sets some fields as Python's keywords do. A
   literal naming every field now breaks when a field is added.
+- Rust takes Python's defaults: `ListInput::default()` lists the root;
+  `ProcessWriteInput`, `ProcessStopInput`, `OutputReadInput`, `OcrInput`,
+  `DocsSearchInput`, `DocsReadInput` and `PlanUpdateInput` gain `new` with
+  their required fields, and `DocsListInput` a `Default`, the rest defaulted
+  as in Python; `ViewImageInput::new(path)` replaces its `Default`, the path
+  being required. `FileDocs::new(root, limits)` takes the version from
+  `with_version`, `ExaSearch::new(config)` the key from `with_api_key`,
+  `MemoryPlanBackend::new` a `MemoryPlanLimits` (256 and 64 by default), and
+  `OutputStore::new` an optional parent, the system temporary directory for
+  `None`.
 
 ### Added
 

@@ -68,6 +68,18 @@ pub struct OutputReadInput {
     pub max_bytes: Option<NonZeroUsize>,
 }
 
+impl OutputReadInput {
+    /// Read `archive_id` from its first byte, a host-sized page, as Python's
+    /// `read(archive_id)`.
+    pub fn new(archive_id: impl Into<String>) -> Self {
+        Self {
+            archive_id: archive_id.into(),
+            offset: 0,
+            max_bytes: None,
+        }
+    }
+}
+
 /// A raw archive page and its lossy UTF-8 display.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct OutputPage {

@@ -18,6 +18,25 @@ struct State {
     plans: BTreeMap<String, (PlanScope, Plan)>,
 }
 
+/// Capacity bounds of a [`MemoryPlanBackend`], Python's keywords of
+/// `MemoryPlanBackend(*, max_plans=256, max_plans_per_scope=64)`. Each plan
+/// record is at most 64 KiB.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MemoryPlanLimits {
+    /// Plans retained across every scope, 1 to 4096. Default: 256.
+    pub max_plans: usize,
+    /// Plans retained in one scope, 1 to 64 and at most `max_plans`. Default: 64.
+    pub max_plans_per_scope: usize,
+}
+impl Default for MemoryPlanLimits {
+    fn default() -> Self {
+        Self {
+            max_plans: 256,
+            max_plans_per_scope: 64,
+        }
+    }
+}
+
 /// In-memory storage. Clones share state; separate instances do not. No disk I/O,
 /// scheduler, background worker or automatic eviction. Drop all clones to release.
 /// Listings return plans in creation order.
@@ -30,18 +49,23 @@ pub struct MemoryPlanBackend {
 }
 impl Default for MemoryPlanBackend {
     fn default() -> Self {
+        let limits = MemoryPlanLimits::default();
         Self {
             state: Arc::default(),
-            max_plans: 256,
-            max_plans_per_scope: 64,
+            max_plans: limits.max_plans,
+            max_plans_per_scope: limits.max_plans_per_scope,
         }
     }
 }
 impl MemoryPlanBackend {
-    /// Configure independent global/per-owner record counts. Record size is 64 KiB.
+    /// Configure independent global/per-owner record counts.
     /// # Errors
     /// Rejects zero bounds, more than 4096 total or more than 64 plans per scope.
-    pub fn new(max_plans: usize, max_plans_per_scope: usize) -> Result<Self, ToolError> {
+    pub fn new(limits: MemoryPlanLimits) -> Result<Self, ToolError> {
+        let MemoryPlanLimits {
+            max_plans,
+            max_plans_per_scope,
+        } = limits;
         if !(1..=4096).contains(&max_plans)
             || !(1..=64).contains(&max_plans_per_scope)
             || max_plans_per_scope > max_plans

@@ -35,7 +35,7 @@ pixels = metadata["image"]  # mime_type and complete base64; deliver as image co
 ```
 
 Rust hosts use `ViewImageTool::new(root).await?`, optionally `with_limits(...)`,
-then `view(ViewImageInput { path, ..Default::default() }, &cancel).await?`.
+then `view(ViewImageInput::new(path), &cancel).await?`.
 `result.data.image.data_url()` provides a data URL for multimodal transport.
 The pinned optional RoomKit **Rust** adapter currently has only text/JSON tool
 results, so it does not yet expose an image toolset.

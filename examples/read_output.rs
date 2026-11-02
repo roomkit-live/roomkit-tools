@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         root.path().join("build.log"),
         format!("{}{middle}{}", "x".repeat(65_536), "y".repeat(65_536)),
     )?;
-    let outputs = OutputStore::new(parent.path(), OutputLimits::default()).await?;
+    let outputs = OutputStore::new(Some(parent.path()), OutputLimits::default()).await?;
     let limits = ShellLimits {
         max_output_bytes: 16,
         ..ShellLimits::default()
@@ -47,9 +47,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .read(
             None,
             OutputReadInput {
-                archive_id: archive.archive_id.clone().ok_or("missing archive ID")?,
                 offset: 65_536,
                 max_bytes: NonZeroUsize::new(middle.len()),
+                ..OutputReadInput::new(archive.archive_id.clone().ok_or("missing archive ID")?)
             },
             &token,
         )

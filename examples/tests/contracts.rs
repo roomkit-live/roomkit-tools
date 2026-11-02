@@ -223,7 +223,11 @@ async fn run_case(root: &Path, case: &Value, reports: &mut BTreeMap<String, Valu
             max_read_bytes: 3,
             ..OutputLimits::default()
         };
-        Some(OutputStore::new(storage.path(), limits).await.unwrap())
+        Some(
+            OutputStore::new(Some(storage.path()), limits)
+                .await
+                .unwrap(),
+        )
     } else {
         None
     };

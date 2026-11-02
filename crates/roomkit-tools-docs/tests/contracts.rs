@@ -15,12 +15,10 @@ async fn shared_documentation_contracts() {
         std::fs::write(root.path().join(path), text.as_str().unwrap()).unwrap();
     }
     let backend: Arc<dyn DocsBackend> = Arc::new(
-        FileDocs::new(
-            root.path(),
-            Some("fixture-v1".into()),
-            FileDocsLimits::default(),
-        )
-        .unwrap(),
+        FileDocs::new(root.path(), FileDocsLimits::default())
+            .unwrap()
+            .with_version("fixture-v1")
+            .unwrap(),
     );
     let token = CancellationToken::new();
     let mut results = Vec::new();

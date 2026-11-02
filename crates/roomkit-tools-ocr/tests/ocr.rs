@@ -69,7 +69,7 @@ fn fixture() -> Fixture {
     }
 }
 fn input(path: &str) -> OcrInput {
-    serde_json::from_value(serde_json::json!({ "path": path })).unwrap()
+    OcrInput::new(path)
 }
 fn fixture_root() -> tempfile::TempDir {
     let root = tempfile::tempdir().unwrap();

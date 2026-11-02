@@ -57,7 +57,7 @@ impl State {
         }
         let store = self
             .store
-            .get_or_try_init(|| OutputStore::new(&self.parent, self.limits))
+            .get_or_try_init(|| OutputStore::new(Some(&self.parent), self.limits))
             .await?;
         if self.closed.is_cancelled() {
             store.close().await;

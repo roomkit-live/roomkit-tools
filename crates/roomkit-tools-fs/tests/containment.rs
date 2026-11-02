@@ -7,6 +7,14 @@ use roomkit_tools_fs::{
 };
 use tokio_util::sync::CancellationToken;
 
+/// A listing of `path`, Python's `list(path)`: the other arguments default.
+fn listing(path: impl Into<String>) -> ListInput {
+    ListInput {
+        path: path.into(),
+        ..ListInput::default()
+    }
+}
+
 fn refused<T: std::fmt::Debug>(result: &Result<T, ToolError>, path: &str) {
     assert!(
         matches!(result, Err(ToolError::AccessRefused(_))),
@@ -44,10 +52,7 @@ async fn read_only_tools_refuse_outside_paths_whether_or_not_they_exist() {
             &read.read(ReadInput::new(path.clone()), &cancel).await,
             &path,
         );
-        refused(
-            &list.list(ListInput::new(path.clone()), &cancel).await,
-            &path,
-        );
+        refused(&list.list(listing(path.clone()), &cancel).await, &path);
         let mut input = GlobInput::new("*");
         input.path.clone_from(&path);
         refused(&glob.glob(input, &cancel).await, &path);
@@ -114,7 +119,7 @@ async fn results_name_paths_relative_to_the_workspace_never_the_host_path() {
     }
     let list = ListTool::new(root.path()).await.unwrap();
     for (input, expected) in [(".", "."), ("menus", "menus")] {
-        let page = list.list(ListInput::new(input), &cancel).await.unwrap();
+        let page = list.list(listing(input), &cancel).await.unwrap();
         assert_eq!(page.data.path, expected);
     }
     let glob = GlobTool::new(root.path()).await.unwrap();
@@ -225,10 +230,7 @@ async fn paths_that_leave_the_root_and_come_back_are_refused() {
         );
     }
     for path in detours("sub") {
-        refused(
-            &list.list(ListInput::new(path.clone()), &cancel).await,
-            &path,
-        );
+        refused(&list.list(listing(path.clone()), &cancel).await, &path);
     }
     for path in detours("new.txt") {
         refused(
@@ -271,7 +273,7 @@ async fn paths_beneath_a_symlink_to_outside_are_refused_whether_or_not_they_exis
         "link/../missing.txt",
     ] {
         refused(&read.read(ReadInput::new(path), &cancel).await, path);
-        refused(&list.list(ListInput::new(path), &cancel).await, path);
+        refused(&list.list(listing(path), &cancel).await, path);
         let mut input = GrepInput::new("outside");
         input.path = path.into();
         refused(&grep.grep(input, &cancel).await, path);

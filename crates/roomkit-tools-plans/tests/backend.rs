@@ -1,8 +1,9 @@
 //! Plan storage and cross-language contract checks.
 use roomkit_tools_core::ToolError;
 use roomkit_tools_plans::{
-    MemoryPlanBackend, PlanBackend, PlanContract, PlanCreateInput, PlanDeleteInput, PlanListInput,
-    PlanReadInput, PlanScope, PlanStep, PlanUpdateInput, StepStatus, decode,
+    MemoryPlanBackend, MemoryPlanLimits, PlanBackend, PlanContract, PlanCreateInput,
+    PlanDeleteInput, PlanListInput, PlanReadInput, PlanScope, PlanStep, PlanUpdateInput,
+    StepStatus, decode,
 };
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -26,11 +27,8 @@ fn create() -> PlanCreateInput {
 }
 fn update(id: &str, rev: u64) -> PlanUpdateInput {
     PlanUpdateInput {
-        plan_id: id.into(),
-        expected_revision: rev,
         title: Some("Reviewed".into()),
-        objective: None,
-        steps: None,
+        ..PlanUpdateInput::new(id, rev)
     }
 }
 
@@ -104,7 +102,11 @@ async fn assert_other_scopes_refused(
 
 #[tokio::test]
 async fn ownership_revisions_noop_delete_and_capacity_are_enforced() {
-    let backend = MemoryPlanBackend::new(2, 1).unwrap();
+    let limits = MemoryPlanLimits {
+        max_plans: 2,
+        max_plans_per_scope: 1,
+    };
+    let backend = MemoryPlanBackend::new(limits).unwrap();
     let owner = scope();
     let token = CancellationToken::new();
     let plan = backend.create(&owner, &create(), &token).await.unwrap();
@@ -314,7 +316,8 @@ async fn validation_size_and_precancellation_do_not_mutate_state() {
 
 #[tokio::test]
 async fn bounded_listing_can_recover_all_escaped_titles() {
-    let backend = MemoryPlanBackend::new(64, 64).unwrap();
+    // Python's MemoryPlanBackend() holds 64 plans per scope, as Rust's default.
+    let backend = MemoryPlanBackend::new(MemoryPlanLimits::default()).unwrap();
     let mut input = create();
     input.title = format!("x{}", "\u{1}".repeat(255));
     for _ in 0..64 {

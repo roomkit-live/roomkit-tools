@@ -62,9 +62,12 @@ impl PythonFileDocs {
     fn new(root: String, version: Option<String>, limits_json: &str) -> PyResult<Self> {
         let limits: FileDocsLimits = serde_json::from_str(limits_json)
             .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
-        Ok(Self {
-            backend: FileDocs::new(root, version, limits).map_err(|e| tool_error(&e))?,
-        })
+        let backend = FileDocs::new(root, limits).map_err(|e| tool_error(&e))?;
+        let backend = match version {
+            Some(version) => backend.with_version(version).map_err(|e| tool_error(&e))?,
+            None => backend,
+        };
+        Ok(Self { backend })
     }
     fn call<'py>(
         &self,

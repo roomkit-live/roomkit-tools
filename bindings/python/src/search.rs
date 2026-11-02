@@ -82,7 +82,10 @@ impl PythonSearchBackend {
     fn exa(api_key: Option<&str>, config_json: &str) -> PyResult<Self> {
         let config = serde_json::from_str(config_json)
             .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
-        let backend = ExaSearch::new(api_key, config).map_err(|e| tool_error(&e))?;
+        let mut backend = ExaSearch::new(config).map_err(|e| tool_error(&e))?;
+        if let Some(api_key) = api_key {
+            backend = backend.with_api_key(api_key).map_err(|e| tool_error(&e))?;
+        }
         Ok(Self {
             backend: Arc::new(backend),
         })

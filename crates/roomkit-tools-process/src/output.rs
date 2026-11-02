@@ -147,11 +147,13 @@ pub(crate) fn append_metadata(
 }
 
 impl OutputStore {
-    /// Create a private temporary subdirectory (mode 0700) beneath a host-selected parent.
+    /// Create a private temporary subdirectory (mode 0700) beneath a host-selected
+    /// parent, or the system temporary directory for `None`, as Python's
+    /// `OutputStore(parent=None)`.
     ///
     /// # Errors
     /// Rejects invalid bounds, inaccessible parents and unsupported platforms.
-    pub async fn new(parent: impl AsRef<Path>, limits: OutputLimits) -> Result<Self, ToolError> {
+    pub async fn new(parent: Option<&Path>, limits: OutputLimits) -> Result<Self, ToolError> {
         if !cfg!(unix) {
             return Err(ToolError::UnsupportedResource(
                 "output archives currently require Unix".into(),
@@ -170,7 +172,7 @@ impl OutputStore {
                 "invalid output store limits".into(),
             ));
         }
-        let parent = parent.as_ref().to_owned();
+        let parent = parent.map_or_else(std::env::temp_dir, Path::to_path_buf);
         let directory = tokio::task::spawn_blocking(move || private_directory(&parent))
             .await
             .map_err(|error| ToolError::Io {

@@ -16,6 +16,19 @@ pub struct OcrInput {
     pub timeout_ms: Option<usize>,
 }
 
+impl OcrInput {
+    /// Transcribe `path` as stored, with no revision check and the host's
+    /// default timeout, as Python's `ocr(path)`.
+    pub fn new(path: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            rotation_degrees: 0,
+            expected_revision: None,
+            timeout_ms: None,
+        }
+    }
+}
+
 /// Host resource bounds, independent of the selected recognition engine.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]

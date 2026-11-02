@@ -22,7 +22,7 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
     let cancel = CancellationToken::new();
     let listing = ListTool::new(directory.path())
         .await?
-        .list(ListInput::new("."), &cancel)
+        .list(ListInput::default(), &cancel)
         .await?;
     print!("list:\n{}", listing.text);
     let paths = GlobTool::new(directory.path())

@@ -7,7 +7,7 @@
 mod memory;
 mod types;
 mod validation;
-pub use memory::MemoryPlanBackend;
+pub use memory::{MemoryPlanBackend, MemoryPlanLimits};
 pub use types::*;
 
 use roomkit_tools_core::{Definition, Output, ToolError};

@@ -26,10 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = tool
         .ocr(
             OcrInput {
-                path,
                 rotation_degrees,
-                expected_revision: None,
-                timeout_ms: None,
+                ..OcrInput::new(path)
             },
             &CancellationToken::new(),
         )

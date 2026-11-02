@@ -13,9 +13,9 @@ use tokio_util::sync::CancellationToken;
 
 fn page(id: &str, offset: u64, max_bytes: usize) -> OutputReadInput {
     OutputReadInput {
-        archive_id: id.into(),
         offset,
         max_bytes: NonZeroUsize::new(max_bytes),
+        ..OutputReadInput::new(id)
     }
 }
 
@@ -25,7 +25,7 @@ async fn recover_full_binary_output_without_rerunning_a_command() {
     let storage = tempfile::tempdir().unwrap();
     let original: Vec<u8> = (0..=255).cycle().take(256 * 1024).collect();
     std::fs::write(root.path().join("payload"), &original).unwrap();
-    let store = OutputStore::new(storage.path(), OutputLimits::default())
+    let store = OutputStore::new(Some(storage.path()), OutputLimits::default())
         .await
         .unwrap();
     let limits = ShellLimits {
@@ -74,7 +74,7 @@ async fn recover_full_binary_output_without_rerunning_a_command() {
 async fn listing_follows_creation_order_past_nine_archives() {
     let root = tempfile::tempdir().unwrap();
     let storage = tempfile::tempdir().unwrap();
-    let store = OutputStore::new(storage.path(), OutputLimits::default())
+    let store = OutputStore::new(Some(storage.path()), OutputLimits::default())
         .await
         .unwrap();
     let shell = ShellTool::new(root.path())
@@ -101,7 +101,7 @@ async fn listing_follows_creation_order_past_nine_archives() {
 async fn no_owner_is_the_standalone_owner_of_shell_archives() {
     let root = tempfile::tempdir().unwrap();
     let storage = tempfile::tempdir().unwrap();
-    let store = OutputStore::new(storage.path(), OutputLimits::default())
+    let store = OutputStore::new(Some(storage.path()), OutputLimits::default())
         .await
         .unwrap();
     let shell = ShellTool::new(root.path())
@@ -122,7 +122,8 @@ async fn no_owner_is_the_standalone_owner_of_shell_archives() {
     // Standalone commands file stdout and stderr under the owner None names.
     assert_eq!(store.list(None, &cancel).await.unwrap().len(), 2);
     assert_eq!(store.list(Some("a"), &cancel).await.unwrap().len(), 2);
-    let page_of_mine = store.read(None, page(&mine, 0, 64), &cancel).await;
+    // A read from no offset and no size reads the stored bytes from the start.
+    let page_of_mine = store.read(None, OutputReadInput::new(&mine), &cancel).await;
     assert_eq!(page_of_mine.unwrap().data.text, "mine");
     assert!(matches!(
         store.read(None, page(&theirs, 0, 64), &cancel).await,
@@ -135,12 +136,36 @@ async fn no_owner_is_the_standalone_owner_of_shell_archives() {
     assert!(store.close().await);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "the temporary directory must be listable"
+)]
+fn temporary_stores() -> std::collections::BTreeSet<std::ffi::OsString> {
+    std::fs::read_dir(std::env::temp_dir())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .filter(|name| name.to_string_lossy().starts_with("roomkit-output-"))
+        .collect()
+}
+
+#[tokio::test]
+async fn no_parent_keeps_the_store_in_the_system_temporary_directory() {
+    let before = temporary_stores();
+    let store = OutputStore::new(None, OutputLimits::default())
+        .await
+        .unwrap();
+    let created: Vec<_> = temporary_stores().difference(&before).cloned().collect();
+    assert_eq!(created.len(), 1, "{created:?}");
+    assert!(store.close().await);
+    assert!(!std::env::temp_dir().join(&created[0]).exists());
+}
+
 #[tokio::test]
 async fn store_directory_is_private_to_the_host_user() {
     use std::os::unix::fs::PermissionsExt;
 
     let storage = tempfile::tempdir().unwrap();
-    let store = OutputStore::new(storage.path(), OutputLimits::default())
+    let store = OutputStore::new(Some(storage.path()), OutputLimits::default())
         .await
         .unwrap();
     let directories: Vec<_> = std::fs::read_dir(storage.path())
@@ -164,7 +189,7 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
         max_read_bytes: 2,
         ..OutputLimits::default()
     };
-    let store = OutputStore::new(root.path(), limits).await.unwrap();
+    let store = OutputStore::new(Some(root.path()), limits).await.unwrap();
     let shell = ShellTool::new(root.path())
         .await
         .unwrap()
@@ -231,7 +256,7 @@ async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
         max_total_bytes: 4,
         ..OutputLimits::default()
     };
-    let store = OutputStore::new(root.path(), limits).await.unwrap();
+    let store = OutputStore::new(Some(root.path()), limits).await.unwrap();
     let shell = ShellTool::new(root.path())
         .await
         .unwrap()
@@ -281,7 +306,7 @@ async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
 #[tokio::test]
 async fn process_archives_remain_readable_after_manager_close() {
     let root = tempfile::tempdir().unwrap();
-    let store = OutputStore::new(root.path(), OutputLimits::default())
+    let store = OutputStore::new(Some(root.path()), OutputLimits::default())
         .await
         .unwrap();
     let limits = ProcessLimits {
@@ -306,9 +331,8 @@ async fn process_archives_remain_readable_after_manager_close() {
         .write(
             Some("owner"),
             ProcessWriteInput {
-                process_id: start.process_id.clone(),
                 text: "πabc\n".into(),
-                close_stdin: false,
+                ..ProcessWriteInput::new(start.process_id.clone())
             },
             &cancel,
         )
@@ -369,7 +393,7 @@ async fn process_archives_remain_readable_after_manager_close() {
 #[tokio::test]
 async fn closing_store_keeps_the_process_running_and_refuses_reads() {
     let root = tempfile::tempdir().unwrap();
-    let store = OutputStore::new(root.path(), OutputLimits::default())
+    let store = OutputStore::new(Some(root.path()), OutputLimits::default())
         .await
         .unwrap();
     let manager = ProcessSession::new(root.path())
@@ -389,9 +413,9 @@ async fn closing_store_keeps_the_process_running_and_refuses_reads() {
         .write(
             Some("owner"),
             ProcessWriteInput {
-                process_id: start.process_id,
                 text: "still running\n".into(),
                 close_stdin: true,
+                ..ProcessWriteInput::new(start.process_id)
             },
             &cancel,
         )

@@ -11,7 +11,7 @@ use serde_json::json;
 #[tokio::test]
 async fn archived_shell_output_uses_room_and_agent_scope() {
     let root = tempfile::tempdir().unwrap();
-    let store = OutputStore::new(root.path(), OutputLimits::default())
+    let store = OutputStore::new(Some(root.path()), OutputLimits::default())
         .await
         .unwrap();
     let shell = ShellToolset::new(

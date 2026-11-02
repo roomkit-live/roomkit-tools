@@ -33,9 +33,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .write(
             Some("example-demo"),
             ProcessWriteInput {
-                process_id: id.clone(),
                 text: "43: 2 notebooks\n".into(),
                 close_stdin: true,
+                ..ProcessWriteInput::new(id.clone())
             },
             &cancel,
         )
@@ -79,8 +79,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .stop(
             Some("example-demo"),
             ProcessStopInput {
-                process_id: id,
                 forget: true,
+                ..ProcessStopInput::new(id)
             },
             &cancel,
         )

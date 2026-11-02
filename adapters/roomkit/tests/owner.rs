@@ -56,7 +56,7 @@ async fn start(toolset: &ProcessStartToolset, room: &str, agent: &str, command: 
 #[tokio::test]
 async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
     let root = tempfile::tempdir().unwrap();
-    let store = OutputStore::new(root.path(), OutputLimits::default())
+    let store = OutputStore::new(Some(root.path()), OutputLimits::default())
         .await
         .unwrap();
     let session = ProcessSession::new(root.path())
@@ -77,10 +77,7 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].process_id, id);
     assert_eq!(listed[0].state, ProcessState::Running);
-    let stop = ProcessStopInput {
-        process_id: id.into(),
-        forget: false,
-    };
+    let stop = ProcessStopInput::new(id);
     let stopped = session.stop(Some(&owner), stop, &cancel).await.unwrap();
     assert_eq!(stopped.data.status.state, ProcessState::Finished);
     let page = session
@@ -125,7 +122,7 @@ async fn refusal_outside_roomkit(tool: &impl Tool, name: &str, arguments: Value)
 #[tokio::test]
 async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     let root = tempfile::tempdir().unwrap();
-    let store = OutputStore::new(root.path(), OutputLimits::default())
+    let store = OutputStore::new(Some(root.path()), OutputLimits::default())
         .await
         .unwrap();
     let session = ProcessSession::new(root.path()).await.unwrap();

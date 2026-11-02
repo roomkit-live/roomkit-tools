@@ -82,9 +82,9 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
         .write(
             Some("alice"),
             ProcessWriteInput {
-                process_id: id.clone(),
                 text: "πxπ\nhello\n".into(),
                 close_stdin: true,
+                ..ProcessWriteInput::new(id.clone())
             },
             &token,
         )
@@ -194,9 +194,8 @@ async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
         .write(
             Some("a"),
             ProcessWriteInput {
-                process_id: id.clone(),
                 text: "second\n".into(),
-                close_stdin: false,
+                ..ProcessWriteInput::new(id.clone())
             },
             &token,
         )
@@ -332,14 +331,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     ));
     assert!(!root.path().join("unexpected").exists());
     let stopped = manager
-        .stop(
-            Some("a"),
-            ProcessStopInput {
-                process_id: id.clone(),
-                forget: false,
-            },
-            &token,
-        )
+        .stop(Some("a"), ProcessStopInput::new(id.clone()), &token)
         .await
         .unwrap()
         .data;
@@ -461,14 +453,13 @@ async fn no_owner_is_one_standalone_owner_with_its_own_quota() {
         .await
         .unwrap();
     let close = ProcessWriteInput {
-        process_id: id.clone(),
-        text: String::new(),
         close_stdin: true,
+        ..ProcessWriteInput::new(id.clone())
     };
     session.write(None, close, &token).await.unwrap();
     let stop = ProcessStopInput {
-        process_id: id,
         forget: true,
+        ..ProcessStopInput::new(id)
     };
     session.stop(None, stop, &token).await.unwrap();
     assert!(session.close().await);
@@ -578,9 +569,9 @@ async fn blocked_stdin_reports_partial_bytes_and_does_not_prevent_stop() {
         .write(
             Some("a"),
             ProcessWriteInput {
-                process_id: id.clone(),
                 text: "x".repeat(limits.max_write_bytes),
                 close_stdin: true,
+                ..ProcessWriteInput::new(id.clone())
             },
             &token,
         )
@@ -704,8 +695,8 @@ async fn closed_output_pipes_do_not_finish_a_still_running_process() {
         .stop(
             Some("a"),
             ProcessStopInput {
-                process_id: id,
                 forget: true,
+                ..ProcessStopInput::new(id)
             },
             &token,
         )
@@ -729,9 +720,8 @@ async fn concurrent_stdin_calls_preserve_each_payload_and_drain_all_bytes() {
     let a = "x".repeat(32_768);
     let b = "y".repeat(32_768);
     let write = |text: String| ProcessWriteInput {
-        process_id: id.clone(),
         text,
-        close_stdin: false,
+        ..ProcessWriteInput::new(id.clone())
     };
     let (first, second) = tokio::join!(
         manager.write(Some("a"), write(a.clone()), &token),
@@ -742,9 +732,8 @@ async fn concurrent_stdin_calls_preserve_each_payload_and_drain_all_bytes() {
         .write(
             Some("a"),
             ProcessWriteInput {
-                process_id: id.clone(),
-                text: String::new(),
                 close_stdin: true,
+                ..ProcessWriteInput::new(id.clone())
             },
             &token,
         )
@@ -793,9 +782,9 @@ async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable(
                 .write(
                     Some("a"),
                     ProcessWriteInput {
-                        process_id: write_id,
                         text: "x".repeat(65_536),
                         close_stdin: true,
+                        ..ProcessWriteInput::new(write_id)
                     },
                     &write_token,
                 )
@@ -833,8 +822,8 @@ async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable(
             .stop(
                 Some("a"),
                 ProcessStopInput {
-                    process_id: id,
                     forget: true,
+                    ..ProcessStopInput::new(id)
                 },
                 &CancellationToken::new(),
             )
@@ -1007,9 +996,8 @@ async fn reading_cat_preserves_stdin_and_reports_newline_and_normal_eof_exactly(
         .write(
             Some("a"),
             ProcessWriteInput {
-                process_id: id.clone(),
                 text: "Hello!!\n".into(),
-                close_stdin: false,
+                ..ProcessWriteInput::new(id.clone())
             },
             &token,
         )
@@ -1051,9 +1039,8 @@ async fn reading_cat_preserves_stdin_and_reports_newline_and_normal_eof_exactly(
         .write(
             Some("a"),
             ProcessWriteInput {
-                process_id: id.clone(),
-                text: String::new(),
                 close_stdin: true,
+                ..ProcessWriteInput::new(id.clone())
             },
             &token,
         )

@@ -35,9 +35,8 @@ async fn observation_tracks_owners_natural_exit_stable_duration_and_forgetting()
         .write(
             Some("trusted-owner"),
             ProcessWriteInput {
-                process_id: process.process_id.clone(),
                 text: "hello\n".into(),
-                close_stdin: false,
+                ..ProcessWriteInput::new(process.process_id.clone())
             },
             &cancel,
         )
@@ -53,9 +52,8 @@ async fn observation_tracks_owners_natural_exit_stable_duration_and_forgetting()
         .write(
             Some("trusted-owner"),
             ProcessWriteInput {
-                process_id: process.process_id.clone(),
-                text: String::new(),
                 close_stdin: true,
+                ..ProcessWriteInput::new(process.process_id.clone())
             },
             &cancel,
         )
@@ -74,8 +72,8 @@ async fn observation_tracks_owners_natural_exit_stable_duration_and_forgetting()
         .stop(
             Some("trusted-owner"),
             ProcessStopInput {
-                process_id: process.process_id,
                 forget: true,
+                ..ProcessStopInput::new(process.process_id)
             },
             &cancel,
         )

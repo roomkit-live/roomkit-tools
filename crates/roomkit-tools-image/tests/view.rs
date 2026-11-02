@@ -12,10 +12,7 @@ use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
 fn input(path: &str) -> ViewImageInput {
-    ViewImageInput {
-        path: path.into(),
-        ..Default::default()
-    }
+    ViewImageInput::new(path)
 }
 
 #[tokio::test]

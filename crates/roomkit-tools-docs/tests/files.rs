@@ -7,6 +7,24 @@ use roomkit_tools_docs::{
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
+/// `input` as JSON, to compare inputs field by field.
+#[expect(clippy::unwrap_used, reason = "an input always serializes")]
+fn json_of(input: impl serde::Serialize) -> serde_json::Value {
+    serde_json::to_value(input).unwrap()
+}
+
+#[test]
+fn inputs_built_in_rust_default_as_their_json_and_python() {
+    // Python's FileDocs.list(), search(query=...) and read(document_id=...)
+    // default to the offsets, limits and revisions the JSON contract does.
+    let list: DocsListInput = serde_json::from_value(json!({})).unwrap();
+    let search: DocsSearchInput = serde_json::from_value(json!({"query": "q"})).unwrap();
+    let read: DocsReadInput = serde_json::from_value(json!({"document_id": "a.md"})).unwrap();
+    assert_eq!(json_of(DocsListInput::default()), json_of(list));
+    assert_eq!(json_of(DocsSearchInput::new("q")), json_of(search));
+    assert_eq!(json_of(DocsReadInput::new("a.md")), json_of(read));
+}
+
 #[tokio::test]
 async fn snapshot_refresh_and_revision_checked_pages() {
     let root = tempfile::tempdir().unwrap();
@@ -20,7 +38,10 @@ async fn snapshot_refresh_and_revision_checked_pages() {
         "Plans require expected_revision.\n",
     )
     .unwrap();
-    let backend = FileDocs::new(root.path(), Some("v1".into()), FileDocsLimits::default()).unwrap();
+    let backend = FileDocs::new(root.path(), FileDocsLimits::default())
+        .unwrap()
+        .with_version("v1")
+        .unwrap();
     let token = CancellationToken::new();
     let page = backend
         .list(&decode::<DocsListInput>(r#"{"limit":1}"#).unwrap(), &token)
@@ -61,8 +82,10 @@ async fn snapshot_refresh_and_revision_checked_pages() {
         backend.clone().read(&input, &token).await.unwrap().lines[0].text,
         result.lines[0].text
     );
-    let refreshed =
-        FileDocs::new(root.path(), Some("v1".into()), FileDocsLimits::default()).unwrap();
+    let refreshed = FileDocs::new(root.path(), FileDocsLimits::default())
+        .unwrap()
+        .with_version("v1")
+        .unwrap();
     assert!(matches!(
         refreshed.read(&input, &token).await,
         Err(ToolError::AccessRefused(_))
@@ -99,7 +122,7 @@ async fn scan_limits_fail_without_partial_catalogues_and_initialization_can_retr
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("valid.md"), "# Valid\n").unwrap();
     std::fs::write(root.path().join("invalid.txt"), [255, 0]).unwrap();
-    let backend = FileDocs::new(root.path(), None, FileDocsLimits::default()).unwrap();
+    let backend = FileDocs::new(root.path(), FileDocsLimits::default()).unwrap();
     let input = decode::<DocsListInput>("{}").unwrap();
     let token = CancellationToken::new();
     assert!(matches!(
@@ -126,7 +149,7 @@ async fn scan_limits_fail_without_partial_catalogues_and_initialization_can_retr
         },
     ] {
         std::fs::write(root.path().join("valid.md"), "# Valid\nSecond line\n").unwrap();
-        let backend = FileDocs::new(root.path(), None, limits).unwrap();
+        let backend = FileDocs::new(root.path(), limits).unwrap();
         assert!(matches!(
             backend.list(&input, &token).await,
             Err(ToolError::LimitExceeded(_))
@@ -144,7 +167,7 @@ async fn scan_limits_fail_without_partial_catalogues_and_initialization_can_retr
         },
     ] {
         assert!(matches!(
-            FileDocs::new(root.path(), None, limits)
+            FileDocs::new(root.path(), limits)
                 .unwrap()
                 .list(&input, &token)
                 .await,
@@ -155,7 +178,6 @@ async fn scan_limits_fail_without_partial_catalogues_and_initialization_can_retr
     assert!(matches!(
         FileDocs::new(
             root.path(),
-            None,
             FileDocsLimits {
                 max_depth: 1,
                 ..FileDocsLimits::default()
@@ -178,7 +200,6 @@ async fn line_pages_clip_only_between_lines_and_excerpts_preserve_utf8() {
     .unwrap();
     let backend = FileDocs::new(
         root.path(),
-        None,
         FileDocsLimits {
             max_read_bytes: 4096,
             ..FileDocsLimits::default()
@@ -210,7 +231,6 @@ async fn line_pages_clip_only_between_lines_and_excerpts_preserve_utf8() {
     std::fs::write(root.path().join("long.txt"), "x".repeat(5000)).unwrap();
     let fresh = FileDocs::new(
         root.path(),
-        None,
         FileDocsLimits {
             max_read_bytes: 4096,
             ..FileDocsLimits::default()
@@ -242,7 +262,7 @@ async fn symlinks_and_hidden_files_are_not_part_of_the_catalogue() {
     std::fs::create_dir(root.path().join(".hidden")).unwrap();
     std::fs::write(root.path().join(".hidden/private.md"), "Hidden").unwrap();
     std::fs::write(root.path().join("README.md"), "Visible").unwrap();
-    let backend = FileDocs::new(root.path(), None, FileDocsLimits::default()).unwrap();
+    let backend = FileDocs::new(root.path(), FileDocsLimits::default()).unwrap();
     let token = CancellationToken::new();
     assert_eq!(
         backend
