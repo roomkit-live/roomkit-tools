@@ -26,7 +26,8 @@ from api_parity.sides import python_params
 from api_parity.wire import output_of, tools_of
 
 if TYPE_CHECKING:
-    from api_parity.compare import Comparison, Member
+    from api_parity.compare import Comparison
+    from api_parity.members import Member
 
 
 def compare(

@@ -1,16 +1,17 @@
 """Each Python name against the Rust items standing for it.
 
 The rules are written in `scripts/api-parity.py`'s docstring. This module
-pairs the items and compares a class's members; `constructors`, `params`,
-`errors`, `wire` and `leftovers` hold the other comparisons. A finding's kind
-is one of `mapping.KINDS`.
+pairs the items and compares a function or a method; `members` compares a
+class's members, and `constructors`, `params`, `errors`, `wire` and
+`leftovers` hold the other comparisons. A finding's kind is one of
+`mapping.KINDS`.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from api_parity import calls, constructors, errors, leftovers, wire
+from api_parity import errors, leftovers, members, wire
 from api_parity import params as parameters
 from api_parity.defaults import Defaults
 from api_parity.mapping import Entry, Mapping
@@ -36,21 +37,6 @@ class Finding:
         """What an entry's `covers` names it by."""
         key = f"{self.side} {self.path} ({self.kind})"
         return f"{key} [{self.qualifier}]" if self.qualifier else key
-
-
-@dataclass(frozen=True)
-class Member:
-    """A Rust member a Python one may stand for."""
-
-    owner: str  # the Rust item, or the trait a method comes from
-    data: dict
-    inherited: bool
-    kind: str  # "method", "field", "constant" or "variant"
-    implementor: str | None = None  # the item implementing the trait, if inherited
-
-    @property
-    def field(self) -> bool:
-        return self.kind == "field"
 
 
 class Comparison:
@@ -169,7 +155,7 @@ class Comparison:
             errors.compare(self, item, python)
         others = [item for item in items if item not in families]
         if others:
-            self._class(python, spec, others)
+            members.compare(self, python, spec, others)
 
     def _function(self, python: str, spec: list, item: dict) -> None:
         pairs = (item["path"], python)
@@ -189,119 +175,12 @@ class Comparison:
         sides = parameters.Sides(python, item["path"], pairs)
         parameters.compare(self, sides, python_params(spec), rust_side, concrete=True)
 
-    def _class(self, python: str, spec: dict, items: list[dict]) -> None:
-        pool = self._pool(items)
-        used: set[tuple[str, str]] = set()
-        bases = [
-            self.python.specs[base]
-            for base in self.python.bases(python)
-            if base in self.python.specs
-        ]
-        constructor = constructors.python_constructor(self, spec)
-        interface = all(item["kind"] == "trait" for item in items)
-        primary = items[0]["path"]
-        for member, member_spec in spec.items():
-            if member == "__bases__" or (
-                member == "__init__" and constructor == self.rules.factory
-            ):
-                continue  # an async factory's __init__ wraps the native object it built
-            if any(base.get(member) == member_spec for base in bases):
-                continue  # compared on the base
-            if member in self.rules.tool_protocol.members and not _static(member_spec):
-                self._protocol_member(python, member, items)
-            elif member == constructor:
-                constructors.compare(self, python, member, member_spec, items, used)
-            elif calls.compare(self, python, member, spec, pool, used, primary):
-                continue
-            else:
-                self._member(python, member, member_spec, pool, used, interface, primary)
-        wire.call_types(self, python, items)
-        for name, members in pool.items():
-            for found in members:
-                if (
-                    found.inherited
-                    or (found.owner, name) in used
-                    or f"{found.owner}::{name}" in self.rust.consumed
-                ):
-                    continue
-                what = "field" if found.field else "member"
-                self.find(
-                    "rust",
-                    f"{found.owner}::{name}",
-                    "unmatched",
-                    f"no Python {what}",
-                    primary,
-                    python,
-                )
-
-    def _pool(self, items: list[dict]) -> dict[str, list[Member]]:
-        """The Rust members of a Python class's items, by name: their own,
-        and those of the surface's traits they implement."""
-        pool: dict[str, list[Member]] = {}
-        for item in items:
-            own = set()
-            for kind in ("methods", "required", "provided"):
-                for method in item.get(kind, []):
-                    own.add(method["name"])
-                    pool.setdefault(method["name"], []).append(
-                        Member(item["path"], method, False, "method")
-                    )
-            for field in item.get("fields", []):
-                if not field["name"].isdigit():
-                    own.add(field["name"])
-                    pool.setdefault(field["name"], []).append(
-                        Member(item["path"], field, False, "field")
-                    )
-            for name, (trait, method) in self.rust.trait_members(item).items():
-                if name not in own:
-                    pool.setdefault(name, []).append(
-                        Member(trait, method, True, "method", item["path"])
-                    )
-        return pool
-
-    def _protocol_member(self, python: str, member: str, items: list[dict]) -> None:
-        trait = self.rules.tool_protocol.trait
-        if not any(trait in item.get("impls", []) for item in items):
-            detail = f"the RoomKit tool protocol: no Rust item standing for it implements {trait}"
-            self.find("python", f"{python}.{member}", "unmatched", detail, items[0]["path"], python)
-
-    def _member(
-        self,
-        python: str,
-        member: str,
-        spec: list,
-        pool: dict,
-        used: set,
-        interface: bool,
-        primary: str,
-    ) -> None:
-        where = f"{python}.{member}"
-        entry = self.member_entries.get((python, member))
-        if entry is not None and self.rust.member(entry.rust) is not None:
-            item, data = self.rust.member(entry.rust)
-            self.paired_member(entry, python, item["path"])
-            kind = "method" if "params" in data else "field"
-            candidates = [Member(item["path"], data, False, kind)]
-        else:
-            candidates = pool.get(member, [])
-        if spec[0] == "property":
-            self._property(where, candidates, used, python, primary)
-            return
-        methods = [found for found in candidates if not found.field]
-        if not methods:
-            self.find("python", where, "unmatched", "no Rust method", primary, python)
-            return
-        static = _static(spec)
-        found = next((m for m in methods if (m.data["receiver"] is None) == static), methods[0])
-        renames = entry.params if entry is not None and entry.table == "map" else {}
-        self.method(python, member, spec, found, used, renames=renames, concrete=not interface)
-
     def method(
         self,
         python: str,
         member: str,
         spec: list,
-        found: Member,
+        found: members.Member,
         used: set,
         *,
         renames: dict[str, str] | None = None,
@@ -313,8 +192,7 @@ class Comparison:
         used.add((found.owner, found.data["name"]))
         rust_path = f"{found.owner}::{found.data['name']}"
         pairs = (found.owner, python)
-        static = _static(spec)
-        if (found.data["receiver"] is None) != static:
+        if (found.data["receiver"] is None) != members.static(spec):
             rust_form = (
                 "an associated function" if found.data["receiver"] is None else "a method of self"
             )
@@ -333,24 +211,6 @@ class Comparison:
         rust_side = parameters.renamed(rust_side, renames or {})
         sides = parameters.Sides(f"{python}.{member}", rust_path, pairs)
         parameters.compare(self, sides, python_side, rust_side, concrete=concrete)
-
-    def _property(
-        self, where: str, candidates: list[Member], used: set, python: str, primary: str
-    ) -> None:
-        """A property is a field, or a method taking `&self` alone."""
-        if not candidates:
-            self.find(
-                "python", where, "unmatched", "a property: no Rust method or field", primary, python
-            )
-            return
-        found = next((c for c in candidates if c.field), candidates[0])
-        used.add((found.owner, found.data["name"]))
-        if found.field:
-            return
-        data = found.data
-        if data["params"] or data["receiver"] is None:
-            detail = f"{where} is a property: Rust's is no method of &self alone"
-            self.find("rust", f"{found.owner}::{data['name']}", "form", detail, found.owner, python)
 
     def paired_member(self, entry: Entry, python: str, rust_item: str) -> None:
         """A member an entry pairs: a name finding, unless the entry maps."""
@@ -378,8 +238,3 @@ class Comparison:
         (roomkit-rs convention 9)."""
         detail = "#[non_exhaustive]: a caller outside the crate cannot build it by struct update"
         self.find("rust", item["path"], "non_exhaustive", detail, item["path"], python)
-
-
-def _static(spec: list) -> bool:
-    """A static or class method: Rust's associated function."""
-    return spec[0].split()[-1] in ("staticmethod", "classmethod")

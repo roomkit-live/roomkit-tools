@@ -79,17 +79,19 @@ applies with no setting is declared all the same:
 - properties (`[rules] properties`): a Python property is a Rust field, or a
   method of `&self` alone;
 - traits (`[rules] traits`): a Rust trait is the Python class (a protocol)
-  of its name; a type
-  implementing a trait of the surface has its methods, and a Python member a
-  subclass repeats from its base unchanged is compared on the base. A trait
-  against a protocol compares no default: its implementation receives every
-  argument;
+  of its name; a type implementing a trait of the surface has its methods,
+  each on its Python class or on the Python base standing for that trait,
+  and a Python member a subclass repeats unchanged from a base standing for
+  a trait the type implements is compared on the base (see
+  `api_parity/members.py`). A trait against a protocol compares no default:
+  its implementation receives every argument;
 - errors (`[rules] error_families`): an error enum (one implementing
   `Error`) is its Python base class, each variant `X` the class `<Stem>XError` or `XError` of the
   classes deriving from the base (`<Stem>` the base's name without
   `Error`), in Python's acronym casing, or the builtin exception `[rules]
   builtin_errors` names; a class that takes a message alone has its
-  variant's payload compose it;
+  variant's payload compose it, and any other member of the base or a
+  family class is a finding;
 - builtins: a Rust type `[rules] builtins` names stands for a Python builtin
   (`Output` and `Definition` are the dicts a call returns); a member of it
   is a finding;

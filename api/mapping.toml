@@ -253,3 +253,10 @@ reason = "roomkit_tools_search::WebSearchTool / roomkit_tools.WebSearchTool: asy
 covers = [
   "rust roomkit_tools_search::WebSearchTool::new (async)",  # Python's async create(...), naming its parameters, is the constructor; Rust's new(backend) is sync, needing no I/O
 ]
+
+[[pending]]
+reason = "roomkit_tools_ocr_rusto::RustoOcr / roomkit_tools_ocr_rusto.RustoOcr: unmatched (2); the OCR backend protocol excepted for this release, on its Rust implementor, which the gate now reads"
+covers = [
+  "rust roomkit_tools_ocr_rusto::RustoOcr::identity (unmatched)",  # implements OcrBackend's identity; Python's RustoOcr has bind
+  "rust roomkit_tools_ocr_rusto::RustoOcr::recognize (unmatched)",  # implements OcrBackend's recognize
+]

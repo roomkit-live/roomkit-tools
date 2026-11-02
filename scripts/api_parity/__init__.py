@@ -6,7 +6,9 @@
 - `mapping`: `api/mapping.toml`, its rules and its entries;
 - `rust`: what a Rust method's parameters stand for in Python;
 - `compare`: the pairing of each Python name with the Rust items standing
-  for it, and a class's members against theirs;
+  for it, and a function or a method against theirs;
+- `members`: a class's members against theirs, the traits they implement
+  included;
 - `constructors`, `params`, `errors`: a constructor, a call's parameters and
   an error enum against Python's;
 - `defaults`: Python's default values against the Rust dump's;

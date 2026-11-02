@@ -725,6 +725,78 @@ class Members(unittest.TestCase):
         self.assertIn("rust kit::Output::new (unmatched)", keys(report))
 
 
+class Traits(unittest.TestCase):
+    """A Rust type implementing a trait of the surface has its members on
+    its Python class, or on the Python base standing for that trait."""
+
+    BACKEND = trait(
+        "kit::SearchBackend",
+        required=[
+            method("capabilities", returns="Capabilities"),
+            method("search", ("query", "&str"), is_async=True),
+        ],
+    )
+
+    def test_a_trait_member_the_python_class_lacks(self):
+        items = [
+            struct(
+                "kit::FileDocs",
+                methods=[method("new", receiver=None, returns="Self")],
+                impls=["DocsBackend"],
+            ),
+            trait(
+                "kit::DocsBackend",
+                required=[
+                    method("list", ("offset", "usize"), is_async=True),
+                    method("search", ("query", "&str"), is_async=True),
+                ],
+            ),
+        ]
+        specs = {
+            "pkg.FileDocs": {"__init__": ["def"], "list": ["async def", "offset"]},
+            "pkg.DocsBackend": {
+                "list": ["async def", "offset"],
+                "search": ["async def", "query"],
+            },
+        }
+        self.assertEqual(keys(run(items, specs)), {"rust kit::FileDocs::search (unmatched)"})
+
+    def test_a_member_its_base_holds_is_compared_on_the_trait(self):
+        items = [
+            self.BACKEND,
+            struct(
+                "kit::ExaSearch",
+                methods=[method("new", receiver=None, returns="Self")],
+                impls=["SearchBackend"],
+            ),
+        ]
+        specs = {
+            "pkg.SearchBackend": {"capabilities": ["property"]},
+            "pkg.ExaSearch": {
+                "__bases__": ["bases", "pkg.SearchBackend"],
+                "__init__": ["def"],
+                "capabilities": ["property"],
+            },
+        }
+        # search is on neither: the trait's comparison reports it, once.
+        self.assertEqual(keys(run(items, specs)), {"rust kit::SearchBackend::search (unmatched)"})
+
+    def test_a_base_member_is_compared_on_a_class_not_implementing_its_trait(self):
+        items = [
+            self.BACKEND,
+            struct("kit::ExaSearch", methods=[method("new", receiver=None, returns="Self")]),
+        ]
+        specs = {
+            "pkg.SearchBackend": {"capabilities": ["property"], "search": ["async def", "query"]},
+            "pkg.ExaSearch": {
+                "__bases__": ["bases", "pkg.SearchBackend"],
+                "__init__": ["def"],
+                "capabilities": ["property"],
+            },
+        }
+        self.assertEqual(keys(run(items, specs)), {"python pkg.ExaSearch.capabilities (unmatched)"})
+
+
 class ContractTypes(unittest.TestCase):
     def test_a_struct_whose_json_is_flattened(self):
         items = [
@@ -799,6 +871,22 @@ class Errors(unittest.TestCase):
             {
                 "rust kit::KitError::Refused (unmatched)",
                 "python pkg.AccessRefusedError (unmatched)",
+            },
+        )
+
+    def test_a_member_of_a_family_class_is_a_finding(self):
+        """An error variant has no member: a family class's own is a
+        finding, but an `__init__` taking the message alone."""
+        specs = json.loads(json.dumps(self.SPECS))
+        specs["pkg.InvalidInputError"]["field"] = ["property"]
+        specs["pkg.KitIOError"]["__init__"] = ["def", "message"]
+        specs["pkg.KitError"]["code"] = ["def"]
+        found = keys(run(self.ITEMS, specs, rules=ERRORS))
+        self.assertEqual(
+            found - keys(run(self.ITEMS, self.SPECS, rules=ERRORS)),
+            {
+                "python pkg.InvalidInputError.field (unmatched)",
+                "python pkg.KitError.code (unmatched)",
             },
         )
 
