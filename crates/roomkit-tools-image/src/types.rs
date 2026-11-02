@@ -38,7 +38,9 @@ pub enum ImageMime {
 }
 
 impl ImageMime {
-    /// The MIME string used on the wire.
+    /// The MIME string used on the wire. Python reads it from the JSON; this
+    /// helper is the crate's, hidden from the public API.
+    #[doc(hidden)]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Png => "image/png",
@@ -58,7 +60,9 @@ pub struct ImagePayload {
 }
 
 impl ImagePayload {
-    /// Return a data URL for an image-capable provider or adapter.
+    /// Return a data URL for an image-capable provider or adapter. Python
+    /// builds it from the JSON; hidden from the public API.
+    #[doc(hidden)]
     pub fn data_url(&self) -> String {
         format!("data:{};base64,{}", self.mime_type.as_str(), self.base64)
     }

@@ -124,6 +124,14 @@ covers = [
   "rust roomkit_tools_ocr_rusto::RustoOcr::load (unmatched)",
 ]
 
+[[exception]]
+approved = 2026-11-02
+decision = "luge-hitl:76e988fe Q9"
+reason = "forced by the language: ForkedProcessError is Python's guard against using the native extension in a child forked after the parent used it; a Rust host has no such interpreter state"
+covers = [
+  "python roomkit_tools.ForkedProcessError (unmatched)",
+]
+
 # ---------------------------------------------------------------------------
 # MISSING: features one side has and the other lacks, recorded for this
 # release rather than ported.
@@ -141,112 +149,67 @@ covers = [
   "python roomkit_tools.TaskStatus (unmatched)",
 ]
 
+[[missing]]
+approved = 2026-11-02
+decision = "luge-hitl:76e988fe Q9"
+reason = "Rust only: a host's view of every retained job, ProcessSession::subscribe and observe with ObservedProcess; Python hosts read their own owners' jobs"
+covers = [
+  "rust roomkit_tools_process::ProcessSession::subscribe (unmatched)",
+  "rust roomkit_tools_process::ProcessSession::observe (unmatched)",
+  "rust roomkit_tools_process::ObservedProcess (unmatched)",
+]
+
+[[missing]]
+approved = 2026-11-02
+decision = "luge-hitl:76e988fe Q9"
+reason = "Rust only: ShellTool::shell_owned, a shell call filing its archives under a host-given owner"
+covers = [
+  "rust roomkit_tools_process::ShellTool::shell_owned (unmatched)",
+]
+
+[[missing]]
+approved = 2026-11-02
+decision = "luge-hitl:76e988fe Q9"
+reason = "Rust only: the open SearchBackend trait (name, search) a host implements, with BackendOutput, SearchCapabilities and SearchKind, and WebSearchTool::capabilities; Python's search backends are the packaged native ones"
+covers = [
+  "rust roomkit_tools_search::SearchBackend::name (unmatched)",
+  "rust roomkit_tools_search::SearchBackend::search (unmatched)",
+  "rust roomkit_tools_search::BackendOutput::results (unmatched)",
+  "rust roomkit_tools_search::BackendOutput (uncompared)",
+  "rust roomkit_tools_search::SearchCapabilities::direct (unmatched)",
+  "rust roomkit_tools_search::SearchCapabilities (uncompared)",
+  "rust roomkit_tools_search::SearchKind (uncompared)",
+  "rust roomkit_tools_search::WebSearchTool::capabilities (unmatched)",
+]
+
+[[missing]]
+approved = 2026-11-02
+decision = "luge-hitl:76e988fe Q9"
+reason = "Python only: the RoomKit agent backend, roomkit_tools.roomkit_agents"
+covers = [
+  "python roomkit_tools.roomkit_agents.AgentConfig (unmatched)",
+  "python roomkit_tools.roomkit_agents.AgentRequest (unmatched)",
+  "python roomkit_tools.roomkit_agents.RoomKitAgentBackend (unmatched)",
+]
+
+[[missing]]
+approved = 2026-11-02
+decision = "luge-hitl:76e988fe Q9"
+reason = "Python only: the RoomKit ViewImage adapter; roomkit-ai's ToolOutput carries Text or Json, not an image, so Rust has no image adapter"
+covers = [
+  "python roomkit_tools.ViewImage (unmatched)",
+]
+
 # ---------------------------------------------------------------------------
-# PENDING: the differences found on 2026-11-01, awaiting the maintainer's
-# decision. None is approved. The first entries pair counterparts named
-# differently, so their members are compared while the name waits; the
-# others cover the findings of each pair of counterparts, or of an item on
-# one side only.
+# PENDING: the differences awaiting the maintainer's decision. None is
+# approved. Each covers the findings of a pair of counterparts, or of an item
+# on one side only.
 # ---------------------------------------------------------------------------
-
-[[pending]]
-reason = "roomkit_tools_core::ToolError / roomkit_tools.ToolError: unmatched"
-covers = [
-  "python roomkit_tools.ForkedProcessError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::ToolError
-]
-
-[[pending]]
-reason = "roomkit_tools_image::ImageMime / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_image::ImageMime::as_str (unmatched)",  # a contract type's own member: no Python counterpart
-]
-
-[[pending]]
-reason = "roomkit_tools_image::ImagePayload / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_image::ImagePayload::data_url (unmatched)",  # a contract type's own member: no Python counterpart
-]
-
-[[pending]]
-reason = "roomkit_tools_process::ObservedProcess / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_process::ObservedProcess (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: unmatched (2)"
-covers = [
-  "rust roomkit_tools_process::ProcessSession::subscribe (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessSession::observe (unmatched)",  # no Python member
-]
 
 [[pending]]
 reason = "roomkit_tools_process::ProcessStatus / roomkit_tools.ProcessStatus: meaning"
 covers = [
-  "rust roomkit_tools_process::ProcessStatus (meaning)",  # a contract type; Python's roomkit_tools.ProcessStatus of the same name is another thing, a class
-]
-
-[[pending]]
-reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool: unmatched"
-covers = [
-  "rust roomkit_tools_process::ShellTool::shell_owned (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_search::BackendOutput / no Python name: unmatched, uncompared"
-covers = [
-  "rust roomkit_tools_search::BackendOutput::results (unmatched)",  # a contract type's own member: no Python counterpart
-  "rust roomkit_tools_search::BackendOutput (uncompared)",  # a contract type no tool contract holds: its JSON is compared with nothing
-]
-
-[[pending]]
-reason = "roomkit_tools_search::SearchBackend / roomkit_tools.search.SearchBackend: unmatched (2)"
-covers = [
-  "rust roomkit_tools_search::SearchBackend::name (unmatched)",  # no Python member
-  "rust roomkit_tools_search::SearchBackend::search (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_search::SearchCapabilities / no Python name: unmatched, uncompared"
-covers = [
-  "rust roomkit_tools_search::SearchCapabilities::direct (unmatched)",  # a contract type's own member: no Python counterpart
-  "rust roomkit_tools_search::SearchCapabilities (uncompared)",  # a contract type no tool contract holds: its JSON is compared with nothing
-]
-
-[[pending]]
-reason = "roomkit_tools_search::SearchKind / no Python name: uncompared"
-covers = [
-  "rust roomkit_tools_search::SearchKind (uncompared)",  # a contract type no tool contract holds: its JSON is compared with nothing
-]
-
-[[pending]]
-reason = "roomkit_tools_search::WebSearchTool / roomkit_tools.WebSearchTool: unmatched"
-covers = [
-  "rust roomkit_tools_search::WebSearchTool::capabilities (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "no Rust item / roomkit_tools.ViewImage: unmatched"
-covers = [
-  "python roomkit_tools.ViewImage (unmatched)",  # no Rust item
-]
-
-[[pending]]
-reason = "no Rust item / roomkit_tools.roomkit_agents.AgentConfig: unmatched"
-covers = [
-  "python roomkit_tools.roomkit_agents.AgentConfig (unmatched)",  # no Rust item
-]
-
-[[pending]]
-reason = "no Rust item / roomkit_tools.roomkit_agents.AgentRequest: unmatched"
-covers = [
-  "python roomkit_tools.roomkit_agents.AgentRequest (unmatched)",  # no Rust item
-]
-
-[[pending]]
-reason = "no Rust item / roomkit_tools.roomkit_agents.RoomKitAgentBackend: unmatched"
-covers = [
-  "python roomkit_tools.roomkit_agents.RoomKitAgentBackend (unmatched)",  # no Rust item
+  "rust roomkit_tools_process::ProcessStatus (meaning)",  # a contract type; Python's roomkit_tools.ProcessStatus is the RoomKit adapter class, which Rust's roomkit_tools_roomkit::ProcessStatus now pairs with
 ]
 
 [[pending]]
@@ -254,7 +217,6 @@ reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool: unmatched"
 covers = [
   "rust roomkit_tools_process::ShellTool::has_output_store (unmatched)",  # no Python member: added for hosts with the adapter's move to the Tool protocol
 ]
-
 
 [[pending]]
 reason = "roomkit_tools_web::WebFetchTool / roomkit_tools.WebFetchTool: async"

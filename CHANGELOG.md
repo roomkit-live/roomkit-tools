@@ -113,6 +113,9 @@ part of an existing published preview.
   itself still differs for this release (Python's `OcrBackend.bind`, Rust's
   `OcrBackend::recognize` in an `OcrEngine`); the tool and its contract are
   the same.
+- Rust: `ImageMime::as_str` and `ImagePayload::data_url` leave the documented
+  API, as Python reads the same JSON; they stay callable for the crates that
+  share them.
 - Rust RoomKit adapter: each adapter takes the name of its Python RoomKit
   tool, `<X>Toolset` becoming `<X>`: `ReadToolset::new(tool)` is
   `Read::new(tool)`, and likewise `List`, `Glob`, `Grep`, `Diff`, `Edit`,
