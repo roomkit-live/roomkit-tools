@@ -246,6 +246,8 @@ part of an existing published preview.
 
 ### Packaging and documentation
 
+- The RustO OCR crate requires `rusto-rs` 0.3.2 or a compatible later
+  release instead of exactly 0.3.2; `Cargo.lock` keeps 0.3.2.
 - Drop `htmd` and `markup5ever_rcdom`, html5ever's test DOM that its authors
   do not support for untrusted input; update html5ever to 0.40.
 - Update to sha2 0.11, base64 0.23 and reqwest 0.13. HTTPS keeps the ring

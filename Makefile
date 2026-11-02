@@ -142,8 +142,8 @@ python-check:
 	$(CARGO) clippy --manifest-path $(PYTHON_MANIFEST) --all-targets --locked -- -D warnings
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(PYTHON_MANIFEST) --no-deps --locked
 	$(CARGO) deny --manifest-path $(PYTHON_MANIFEST) --config deny.toml check
-	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-parity.py scripts/api-snapshot.py scripts/api_parity scripts/tests/test_api_parity.py scripts/tests/test_pre_push.py
-	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-parity.py scripts/api-snapshot.py scripts/api_parity scripts/tests/test_api_parity.py scripts/tests/test_pre_push.py
+	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-parity.py scripts/api-snapshot.py scripts/api_parity scripts/tests/test_api_parity.py scripts/tests/test_pre_push.py scripts/tests/test_manifest.py
+	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-parity.py scripts/api-snapshot.py scripts/api_parity scripts/tests/test_api_parity.py scripts/tests/test_pre_push.py scripts/tests/test_manifest.py
 	$(PYTHON) scripts/check-python.py
 
 python-msrv:
