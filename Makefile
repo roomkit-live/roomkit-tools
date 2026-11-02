@@ -6,7 +6,7 @@ ROOMKIT_MANIFEST := adapters/roomkit/Cargo.toml
 PYTHON_MANIFEST := bindings/python/Cargo.toml
 PYTHON ?= python3
 
-.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv
+.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot
 
 all: fmt-check clippy test doc deny check-core-deps examples
 
@@ -59,14 +59,20 @@ roomkit-check:
 roomkit-msrv:
 	$(CARGO) +$(MSRV) check --manifest-path $(ROOMKIT_MANIFEST) --all-targets --all-features --locked
 
+# One public API in Python and in Rust (CONTRIBUTING.md). The snapshots of the
+# Python packages are rewritten from freshly built wheels, and the Python tests
+# fail while they differ from the code.
+api-snapshot:
+	$(PYTHON) scripts/api-snapshot.py
+
 # Optional CPython bridge: the standalone Rust gates remain interpreter-free.
 python-check:
 	$(CARGO) fmt --manifest-path $(PYTHON_MANIFEST) --all -- --check
 	$(CARGO) clippy --manifest-path $(PYTHON_MANIFEST) --all-targets --locked -- -D warnings
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(PYTHON_MANIFEST) --no-deps --locked
 	$(CARGO) deny --manifest-path $(PYTHON_MANIFEST) --config deny.toml check
-	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py
-	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py
+	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-snapshot.py
+	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-snapshot.py
 	$(PYTHON) scripts/check-python.py
 
 python-msrv:

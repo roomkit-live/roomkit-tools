@@ -1,0 +1,203 @@
+{
+  "roomkit_tools": [
+    "AccessRefusedError",
+    "AgentBackend",
+    "AgentFollowup",
+    "AgentScope",
+    "AgentSend",
+    "CancelTask",
+    "CodeOutline",
+    "CodeOutlineTool",
+    "DEFAULT_INHERITED_ENV",
+    "DelegateTask",
+    "Diff",
+    "DiffTool",
+    "DocsBackend",
+    "DocsList",
+    "DocsRead",
+    "DocsSearch",
+    "Edit",
+    "EditTool",
+    "FileDocs",
+    "ForkedProcessError",
+    "Glob",
+    "GlobTool",
+    "Grep",
+    "GrepTool",
+    "InvalidInputError",
+    "LimitExceededError",
+    "List",
+    "ListTool",
+    "MemoryPlanBackend",
+    "Ocr",
+    "OcrBackend",
+    "OcrTool",
+    "OutputForget",
+    "OutputRead",
+    "OutputStore",
+    "Patch",
+    "PatchTool",
+    "PlanBackend",
+    "PlanCreate",
+    "PlanDelete",
+    "PlanList",
+    "PlanRead",
+    "PlanScope",
+    "PlanUpdate",
+    "ProcessRead",
+    "ProcessSession",
+    "ProcessStart",
+    "ProcessStatus",
+    "ProcessStop",
+    "ProcessWrite",
+    "Read",
+    "ReadTool",
+    "Shell",
+    "ShellTool",
+    "TaskStatus",
+    "ToolError",
+    "ToolIOError",
+    "UnsupportedResourceError",
+    "ViewImage",
+    "ViewImageTool",
+    "WebFetch",
+    "WebFetchTool",
+    "WebSearch",
+    "WebSearchTool",
+    "Workspace",
+    "Write",
+    "WriteTool",
+    "roomkit_owner"
+  ],
+  "roomkit_tools.agents": [
+    "AgentBackend",
+    "AgentFollowup",
+    "AgentScope",
+    "AgentSend",
+    "CancelTask",
+    "DelegateTask",
+    "TaskStatus"
+  ],
+  "roomkit_tools.code": [
+    "CodeOutlineTool"
+  ],
+  "roomkit_tools.docs": [
+    "DocsBackend",
+    "DocsList",
+    "DocsRead",
+    "DocsSearch",
+    "FileDocs"
+  ],
+  "roomkit_tools.fs": [
+    "DiffTool",
+    "EditTool",
+    "GlobTool",
+    "GrepTool",
+    "ListTool",
+    "PatchTool",
+    "ReadTool",
+    "WriteTool"
+  ],
+  "roomkit_tools.image": [
+    "ViewImageTool"
+  ],
+  "roomkit_tools.ocr": [
+    "BoundOcrBackend",
+    "OcrBackend",
+    "OcrTool"
+  ],
+  "roomkit_tools.output": [
+    "OutputStore"
+  ],
+  "roomkit_tools.plans": [
+    "MemoryPlanBackend",
+    "PlanBackend",
+    "PlanCreate",
+    "PlanDelete",
+    "PlanList",
+    "PlanRead",
+    "PlanScope",
+    "PlanUpdate"
+  ],
+  "roomkit_tools.process": [
+    "DEFAULT_INHERITED_ENV",
+    "ProcessSession",
+    "ShellTool"
+  ],
+  "roomkit_tools.roomkit": [
+    "CodeOutline",
+    "Diff",
+    "Edit",
+    "Glob",
+    "Grep",
+    "List",
+    "Ocr",
+    "OutputForget",
+    "OutputRead",
+    "Patch",
+    "ProcessRead",
+    "ProcessStart",
+    "ProcessStatus",
+    "ProcessStop",
+    "ProcessWrite",
+    "Read",
+    "ReadToolAdapter",
+    "Shell",
+    "ViewImage",
+    "WebFetch",
+    "WebSearch",
+    "Write",
+    "roomkit_owner"
+  ],
+  "roomkit_tools.roomkit.commands": [
+    "OutputForget",
+    "OutputRead",
+    "ProcessRead",
+    "ProcessStart",
+    "ProcessStatus",
+    "ProcessStop",
+    "ProcessWrite",
+    "Shell",
+    "roomkit_owner"
+  ],
+  "roomkit_tools.roomkit.files": [
+    "CodeOutline",
+    "Diff",
+    "Glob",
+    "Grep",
+    "List",
+    "Read",
+    "ReadToolAdapter"
+  ],
+  "roomkit_tools.roomkit.images": [
+    "Ocr",
+    "ViewImage"
+  ],
+  "roomkit_tools.roomkit.mutations": [
+    "Edit",
+    "Patch",
+    "Write"
+  ],
+  "roomkit_tools.roomkit.web": [
+    "WebFetch",
+    "WebSearch"
+  ],
+  "roomkit_tools.roomkit_agents": [
+    "AgentConfig",
+    "AgentRequest",
+    "RoomKitAgentBackend"
+  ],
+  "roomkit_tools.search": [
+    "ExaSearch",
+    "OllamaSearch",
+    "OpenAISearch",
+    "SearchBackend",
+    "WebSearchTool"
+  ],
+  "roomkit_tools.web": [
+    "WebFetchTool"
+  ],
+  "roomkit_tools.workspace": [
+    "Workspace"
+  ]
+}

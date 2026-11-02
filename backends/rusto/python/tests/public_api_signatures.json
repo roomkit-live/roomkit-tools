@@ -1,0 +1,6 @@
+{
+  "roomkit_tools_ocr_rusto.RustoOcr": {
+    "__init__": ["def", "models", "*", "model_name='ppocrv6'", "threads=2", "detection_max_edge=960"],
+    "bind": ["async def", "root", "limits"]
+  }
+}

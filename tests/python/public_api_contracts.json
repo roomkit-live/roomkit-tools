@@ -1,0 +1,1050 @@
+{
+ "tools": {
+  "agent_followup": {
+   "class": "roomkit_tools.AgentFollowup",
+   "input": "FollowupInput",
+   "output": "TaskInfo"
+  },
+  "agent_send": {
+   "class": "roomkit_tools.AgentSend",
+   "input": "SendInput",
+   "output": "SendResult"
+  },
+  "cancel_task": {
+   "class": "roomkit_tools.CancelTask",
+   "input": "CancelInput",
+   "output": "CancelResult"
+  },
+  "code_outline": {
+   "class": "roomkit_tools.CodeOutlineTool",
+   "input": "CodeOutlineInput",
+   "output": "CodeOutlinePage"
+  },
+  "delegate_task": {
+   "class": "roomkit_tools.DelegateTask",
+   "input": "DelegateInput",
+   "output": "TaskInfo"
+  },
+  "diff": {
+   "class": "roomkit_tools.DiffTool",
+   "input": "DiffInput",
+   "output": "DiffResult"
+  },
+  "docs_list": {
+   "class": "roomkit_tools.DocsList",
+   "input": "DocsListInput",
+   "output": "DocsListResult"
+  },
+  "docs_read": {
+   "class": "roomkit_tools.DocsRead",
+   "input": "DocsReadInput",
+   "output": "DocsReadResult"
+  },
+  "docs_search": {
+   "class": "roomkit_tools.DocsSearch",
+   "input": "DocsSearchInput",
+   "output": "DocsSearchResult"
+  },
+  "edit": {
+   "class": "roomkit_tools.EditTool",
+   "input": "EditInput",
+   "output": "EditResult"
+  },
+  "glob": {
+   "class": "roomkit_tools.GlobTool",
+   "input": "GlobInput",
+   "output": "PathPage"
+  },
+  "grep": {
+   "class": "roomkit_tools.GrepTool",
+   "input": "GrepInput",
+   "output": "GrepPage"
+  },
+  "list": {
+   "class": "roomkit_tools.ListTool",
+   "input": "ListInput",
+   "output": "PathPage"
+  },
+  "ocr": {
+   "class": "roomkit_tools.OcrTool",
+   "input": "OcrInput",
+   "output": "OcrResult"
+  },
+  "output_forget": {
+   "class": "roomkit_tools.OutputStore",
+   "input": "OutputForgetInput",
+   "output": "OutputForgetResult"
+  },
+  "output_read": {
+   "class": "roomkit_tools.OutputStore",
+   "input": "OutputReadInput",
+   "output": "OutputPage"
+  },
+  "patch": {
+   "class": "roomkit_tools.PatchTool",
+   "input": "PatchInput",
+   "output": "PatchResult"
+  },
+  "plan_create": {
+   "class": "roomkit_tools.PlanCreate",
+   "input": "PlanCreateInput",
+   "output": "Plan"
+  },
+  "plan_delete": {
+   "class": "roomkit_tools.PlanDelete",
+   "input": "PlanDeleteInput",
+   "output": "PlanDeleteResult"
+  },
+  "plan_list": {
+   "class": "roomkit_tools.PlanList",
+   "input": "PlanListInput",
+   "output": "PlanListResult"
+  },
+  "plan_read": {
+   "class": "roomkit_tools.PlanRead",
+   "input": "PlanReadInput",
+   "output": "Plan"
+  },
+  "plan_update": {
+   "class": "roomkit_tools.PlanUpdate",
+   "input": "PlanUpdateInput",
+   "output": "Plan"
+  },
+  "process_read": {
+   "class": "roomkit_tools.ProcessSession",
+   "input": "ProcessReadInput",
+   "output": "ProcessReadResult"
+  },
+  "process_start": {
+   "class": "roomkit_tools.ProcessSession",
+   "input": "ProcessStartInput",
+   "output": "ProcessStatus"
+  },
+  "process_status": {
+   "class": "roomkit_tools.ProcessSession",
+   "input": "ProcessStatusInput",
+   "output": "Array_of_ProcessStatus"
+  },
+  "process_stop": {
+   "class": "roomkit_tools.ProcessSession",
+   "input": "ProcessStopInput",
+   "output": "ProcessStopResult"
+  },
+  "process_write": {
+   "class": "roomkit_tools.ProcessSession",
+   "input": "ProcessWriteInput",
+   "output": "ProcessWriteResult"
+  },
+  "read": {
+   "class": "roomkit_tools.ReadTool",
+   "input": "ReadInput",
+   "output": "ReadPage"
+  },
+  "shell": {
+   "class": "roomkit_tools.ShellTool",
+   "input": "ShellInput",
+   "output": "ShellResult"
+  },
+  "task_status": {
+   "class": "roomkit_tools.TaskStatus",
+   "input": "StatusInput",
+   "output": "TaskList"
+  },
+  "view_image": {
+   "class": "roomkit_tools.ViewImageTool",
+   "input": "ViewImageInput",
+   "output": "ViewImageResult"
+  },
+  "web_fetch": {
+   "class": "roomkit_tools.WebFetchTool",
+   "input": "WebFetchInput",
+   "output": "WebFetchResult"
+  },
+  "web_search": {
+   "class": "roomkit_tools.WebSearchTool",
+   "input": "SearchInput",
+   "output": "SearchResult"
+  },
+  "write": {
+   "class": "roomkit_tools.WriteTool",
+   "input": "WriteInput",
+   "output": "WriteResult"
+  }
+ },
+ "types": {
+  "Array_of_ProcessStatus": {
+   "items": "ProcessStatus"
+  },
+  "CancelInput": {
+   "fields": [
+    "task_id"
+   ]
+  },
+  "CancelResult": {
+   "fields": [
+    "cancelled",
+    "task"
+   ]
+  },
+  "CapturedOutput": {
+   "fields": [
+    "archive",
+    "omitted_bytes",
+    "text",
+    "total_bytes",
+    "truncated"
+   ]
+  },
+  "CodeLanguage": {
+   "values": [
+    "rust",
+    "python"
+   ]
+  },
+  "CodeOutlineInput": {
+   "fields": [
+    "expected_revision",
+    "language",
+    "limit",
+    "offset",
+    "path",
+    "timeout_ms"
+   ]
+  },
+  "CodeOutlinePage": {
+   "fields": [
+    "language",
+    "next_offset",
+    "path",
+    "revision",
+    "symbols",
+    "syntax_errors",
+    "total_symbols",
+    "truncated"
+   ]
+  },
+  "CodeSymbol": {
+   "fields": [
+    "end_line",
+    "index",
+    "kind",
+    "name",
+    "parent",
+    "signature",
+    "signature_truncated",
+    "start_line"
+   ]
+  },
+  "DelegateInput": {
+   "fields": [
+    "profile",
+    "task"
+   ]
+  },
+  "DeliveryState": {
+   "values": [
+    "pending",
+    "delivered",
+    "failed",
+    "suppressed"
+   ]
+  },
+  "DiffHunk": {
+   "fields": [
+    "lines",
+    "new_count",
+    "new_start",
+    "old_count",
+    "old_start"
+   ]
+  },
+  "DiffInput": {
+   "fields": [
+    "context_lines",
+    "new_path",
+    "old_path"
+   ]
+  },
+  "DiffLine": {
+   "fields": [
+    "kind",
+    "new_line",
+    "old_line",
+    "text"
+   ]
+  },
+  "DiffLineKind": {
+   "values": [
+    "context",
+    "removed",
+    "added"
+   ]
+  },
+  "DiffResult": {
+   "fields": [
+    "additions",
+    "changed",
+    "context_lines",
+    "deletions",
+    "hunks",
+    "new_path",
+    "old_path"
+   ]
+  },
+  "DocsListInput": {
+   "fields": [
+    "expected_catalog_revision",
+    "limit",
+    "offset"
+   ]
+  },
+  "DocsListResult": {
+   "fields": [
+    "catalog_revision",
+    "documents",
+    "next_offset",
+    "offset",
+    "total_documents",
+    "truncated"
+   ]
+  },
+  "DocsReadInput": {
+   "fields": [
+    "document_id",
+    "expected_revision",
+    "limit",
+    "offset"
+   ]
+  },
+  "DocsReadResult": {
+   "fields": [
+    "catalog_revision",
+    "document",
+    "lines",
+    "next_offset",
+    "offset",
+    "truncated"
+   ]
+  },
+  "DocsSearchInput": {
+   "fields": [
+    "expected_catalog_revision",
+    "limit",
+    "offset",
+    "query"
+   ]
+  },
+  "DocsSearchResult": {
+   "fields": [
+    "catalog_revision",
+    "matched_documents",
+    "matches",
+    "next_offset",
+    "offset",
+    "total_documents",
+    "truncated"
+   ]
+  },
+  "DocumentInfo": {
+   "fields": [
+    "document_id",
+    "line_count",
+    "revision",
+    "source",
+    "title",
+    "version"
+   ]
+  },
+  "DocumentLine": {
+   "fields": [
+    "number",
+    "text"
+   ]
+  },
+  "DocumentMatch": {
+   "fields": [
+    "document",
+    "line",
+    "omitted_bytes",
+    "text",
+    "truncated"
+   ]
+  },
+  "EditInput": {
+   "fields": [
+    "expected_revision",
+    "new_text",
+    "old_text",
+    "path",
+    "replace_all"
+   ]
+  },
+  "EditResult": {
+   "fields": [
+    "bytes_after",
+    "bytes_before",
+    "changed",
+    "path",
+    "replacements",
+    "revision"
+   ]
+  },
+  "FetchFormat": {
+   "values": [
+    "markdown",
+    "text",
+    "html"
+   ]
+  },
+  "FollowupInput": {
+   "fields": [
+    "agent_id",
+    "task"
+   ]
+  },
+  "GlobInput": {
+   "fields": [
+    "limit",
+    "offset",
+    "path",
+    "pattern"
+   ]
+  },
+  "GrepInput": {
+   "fields": [
+    "context_after",
+    "context_before",
+    "ignore_case",
+    "include",
+    "limit",
+    "literal",
+    "offset",
+    "path",
+    "pattern"
+   ]
+  },
+  "GrepMatch": {
+   "fields": [
+    "clipped",
+    "context_after",
+    "context_before",
+    "line",
+    "path",
+    "text"
+   ]
+  },
+  "GrepPage": {
+   "fields": [
+    "matches",
+    "next_offset",
+    "path",
+    "skipped_entries",
+    "skipped_files",
+    "skipped_lines",
+    "truncated"
+   ]
+  },
+  "ImageMime": {
+   "values": [
+    "image/png",
+    "image/jpeg",
+    "image/webp"
+   ]
+  },
+  "ImagePayload": {
+   "fields": [
+    "base64",
+    "mime_type"
+   ]
+  },
+  "ListInput": {
+   "fields": [
+    "limit",
+    "offset",
+    "path"
+   ]
+  },
+  "OcrBlock": {
+   "fields": [
+    "polygon",
+    "score",
+    "text"
+   ]
+  },
+  "OcrIdentity": {
+   "fields": [
+    "model",
+    "provider",
+    "revision"
+   ]
+  },
+  "OcrInput": {
+   "fields": [
+    "expected_revision",
+    "path",
+    "rotation_degrees",
+    "timeout_ms"
+   ]
+  },
+  "OcrPoint": {
+   "fields": [
+    "x",
+    "y"
+   ]
+  },
+  "OcrResult": {
+   "fields": [
+    "backend",
+    "blocks",
+    "height",
+    "omitted_blocks",
+    "orientation_applied",
+    "original_height",
+    "original_width",
+    "path",
+    "revision",
+    "rotation_degrees",
+    "text",
+    "truncated",
+    "width"
+   ]
+  },
+  "OutputArchive": {
+   "fields": [
+    "archive_id",
+    "complete",
+    "eof",
+    "error",
+    "finished",
+    "observed_bytes",
+    "stored_bytes"
+   ]
+  },
+  "OutputForgetInput": {
+   "fields": [
+    "archive_id"
+   ]
+  },
+  "OutputForgetResult": {
+   "fields": [
+    "archive_id",
+    "forgotten"
+   ]
+  },
+  "OutputPage": {
+   "fields": [
+    "archive",
+    "bytes",
+    "has_more",
+    "next_offset",
+    "offset",
+    "text"
+   ]
+  },
+  "OutputReadInput": {
+   "fields": [
+    "archive_id",
+    "max_bytes",
+    "offset"
+   ]
+  },
+  "PatchApplied": {
+   "fields": [
+    "index",
+    "operation",
+    "path"
+   ]
+  },
+  "PatchChange": {
+   "tag": "op",
+   "variants": {
+    "add": [
+     "content",
+     "path"
+    ],
+    "update": [
+     "new_content",
+     "old_content",
+     "path"
+    ],
+    "delete": [
+     "old_content",
+     "path"
+    ],
+    "move": [
+     "from",
+     "new_content",
+     "old_content",
+     "to"
+    ]
+   }
+  },
+  "PatchFailure": {
+   "fields": [
+    "cancelled",
+    "index",
+    "message"
+   ]
+  },
+  "PatchInput": {
+   "fields": [
+    "changes",
+    "dry_run"
+   ]
+  },
+  "PatchOperation": {
+   "values": [
+    "add",
+    "update",
+    "delete",
+    "move"
+   ]
+  },
+  "PatchPreview": {
+   "fields": [
+    "changed",
+    "diff",
+    "index",
+    "operation",
+    "path",
+    "text",
+    "to"
+   ]
+  },
+  "PatchResult": {
+   "fields": [
+    "applied",
+    "completed",
+    "dry_run",
+    "failure",
+    "previews"
+   ]
+  },
+  "PathEntry": {
+   "fields": [
+    "kind",
+    "name",
+    "path"
+   ]
+  },
+  "PathKind": {
+   "values": [
+    "file",
+    "directory",
+    "symlink",
+    "other"
+   ]
+  },
+  "PathPage": {
+   "fields": [
+    "entries",
+    "next_offset",
+    "path",
+    "skipped_entries",
+    "truncated"
+   ]
+  },
+  "Plan": {
+   "fields": [
+    "objective",
+    "plan_id",
+    "revision",
+    "steps",
+    "title"
+   ]
+  },
+  "PlanCreateInput": {
+   "fields": [
+    "objective",
+    "steps",
+    "title"
+   ]
+  },
+  "PlanDeleteInput": {
+   "fields": [
+    "expected_revision",
+    "plan_id"
+   ]
+  },
+  "PlanDeleteResult": {
+   "fields": [
+    "deleted",
+    "plan_id",
+    "revision"
+   ]
+  },
+  "PlanListInput": {
+   "fields": []
+  },
+  "PlanListResult": {
+   "fields": [
+    "plans"
+   ]
+  },
+  "PlanReadInput": {
+   "fields": [
+    "plan_id"
+   ]
+  },
+  "PlanStep": {
+   "fields": [
+    "description",
+    "status",
+    "step_id"
+   ]
+  },
+  "PlanSummary": {
+   "fields": [
+    "completed_steps",
+    "plan_id",
+    "revision",
+    "title",
+    "total_steps"
+   ]
+  },
+  "PlanUpdateInput": {
+   "fields": [
+    "expected_revision",
+    "objective",
+    "plan_id",
+    "steps",
+    "title"
+   ]
+  },
+  "ProcessChunk": {
+   "fields": [
+    "bytes",
+    "eof",
+    "has_more",
+    "next_offset",
+    "offset",
+    "omitted_bytes",
+    "text",
+    "total_bytes"
+   ]
+  },
+  "ProcessEnd": {
+   "values": [
+    "exited",
+    "stopped",
+    "timed_out",
+    "failed"
+   ]
+  },
+  "ProcessReadInput": {
+   "fields": [
+    "max_bytes",
+    "process_id",
+    "stderr_offset",
+    "stdout_offset"
+   ]
+  },
+  "ProcessReadResult": {
+   "fields": [
+    "status",
+    "stderr",
+    "stdout"
+   ]
+  },
+  "ProcessStartInput": {
+   "fields": [
+    "command",
+    "cwd",
+    "timeout_ms"
+   ]
+  },
+  "ProcessState": {
+   "values": [
+    "running",
+    "finished"
+   ]
+  },
+  "ProcessStatus": {
+   "fields": [
+    "cwd",
+    "end",
+    "error",
+    "exit_code",
+    "output_complete",
+    "process_id",
+    "signal",
+    "state",
+    "stderr_archive",
+    "stderr_bytes",
+    "stderr_retained_from",
+    "stdin_closed",
+    "stdout_archive",
+    "stdout_bytes",
+    "stdout_retained_from",
+    "timeout_ms"
+   ]
+  },
+  "ProcessStatusInput": {
+   "fields": [
+    "process_id"
+   ]
+  },
+  "ProcessStopInput": {
+   "fields": [
+    "forget",
+    "process_id"
+   ]
+  },
+  "ProcessStopResult": {
+   "fields": [
+    "forgotten",
+    "status"
+   ]
+  },
+  "ProcessWriteInput": {
+   "fields": [
+    "close_stdin",
+    "process_id",
+    "text"
+   ]
+  },
+  "ProcessWriteResult": {
+   "fields": [
+    "bytes_written",
+    "complete",
+    "error",
+    "process_id",
+    "stdin_closed"
+   ]
+  },
+  "ReadInput": {
+   "fields": [
+    "limit",
+    "offset",
+    "path"
+   ]
+  },
+  "ReadLine": {
+   "fields": [
+    "number",
+    "text"
+   ]
+  },
+  "ReadPage": {
+   "fields": [
+    "lines",
+    "next_offset",
+    "path",
+    "revision",
+    "truncated"
+   ]
+  },
+  "SearchCitation": {
+   "fields": [
+    "end",
+    "source_index",
+    "start"
+   ]
+  },
+  "SearchHit": {
+   "fields": [
+    "content",
+    "omitted_bytes",
+    "title",
+    "url"
+   ]
+  },
+  "SearchInput": {
+   "fields": [
+    "limit",
+    "query",
+    "timeout_ms"
+   ]
+  },
+  "SearchPayload": {
+   "tag": "kind",
+   "variants": {
+    "results": [
+     "results"
+    ],
+    "answer": [
+     "answer",
+     "citations",
+     "sources"
+    ],
+    "not_performed": [
+     "reason"
+    ]
+   }
+  },
+  "SearchResult": {
+   "fields": [
+    "notices",
+    "omitted_results",
+    "partial",
+    "payload",
+    "provider",
+    "query",
+    "usage"
+   ]
+  },
+  "SearchUsage": {
+   "fields": [
+    "input_tokens",
+    "output_tokens",
+    "search_requests"
+   ]
+  },
+  "SendInput": {
+   "fields": [
+    "agent_id",
+    "message"
+   ]
+  },
+  "SendResult": {
+   "fields": [
+    "agent_id",
+    "history_recorded",
+    "message_id",
+    "status",
+    "task_id"
+   ]
+  },
+  "SendState": {
+   "values": [
+    "queued",
+    "not_running"
+   ]
+  },
+  "ShellInput": {
+   "fields": [
+    "command",
+    "cwd",
+    "timeout_ms"
+   ]
+  },
+  "ShellResult": {
+   "fields": [
+    "cwd",
+    "exit_code",
+    "output_complete",
+    "signal",
+    "stderr",
+    "stdout",
+    "timed_out",
+    "timeout_ms"
+   ]
+  },
+  "StatusInput": {
+   "fields": [
+    "task_id"
+   ]
+  },
+  "StepStatus": {
+   "values": [
+    "pending",
+    "in_progress",
+    "blocked",
+    "completed",
+    "cancelled"
+   ]
+  },
+  "SymbolKind": {
+   "values": [
+    "function",
+    "method",
+    "class",
+    "struct",
+    "enum",
+    "trait",
+    "impl",
+    "module",
+    "type_alias"
+   ]
+  },
+  "TaskInfo": {
+   "fields": [
+    "agent_available",
+    "agent_id",
+    "delivery",
+    "profile",
+    "result",
+    "result_truncated",
+    "status",
+    "task_id"
+   ]
+  },
+  "TaskList": {
+   "fields": [
+    "pending_launches",
+    "tasks"
+   ]
+  },
+  "TaskState": {
+   "values": [
+    "running",
+    "completed",
+    "failed",
+    "cancelled"
+   ]
+  },
+  "ViewImageInput": {
+   "fields": [
+    "path",
+    "timeout_ms"
+   ]
+  },
+  "ViewImageResult": {
+   "fields": [
+    "height",
+    "image",
+    "input_bytes",
+    "orientation_applied",
+    "original_height",
+    "original_width",
+    "output_bytes",
+    "path",
+    "resized",
+    "revision",
+    "source_mime_type",
+    "width"
+   ]
+  },
+  "WebFetchInput": {
+   "fields": [
+    "format",
+    "timeout_ms",
+    "url"
+   ]
+  },
+  "WebFetchResult": {
+   "fields": [
+    "content",
+    "content_bytes",
+    "content_type",
+    "final_url",
+    "format",
+    "http_ok",
+    "omitted_bytes",
+    "redirects",
+    "response_bytes",
+    "status",
+    "truncated",
+    "url"
+   ]
+  },
+  "WriteInput": {
+   "fields": [
+    "content",
+    "expected_revision",
+    "overwrite",
+    "path"
+   ]
+  },
+  "WriteResult": {
+   "fields": [
+    "bytes_written",
+    "changed",
+    "created",
+    "created_directories",
+    "path",
+    "revision"
+   ]
+  }
+ }
+}

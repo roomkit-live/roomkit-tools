@@ -1,0 +1,428 @@
+{
+  "roomkit_tools.AccessRefusedError": {
+    "__bases__": ["bases", "roomkit_tools.ToolError"]
+  },
+  "roomkit_tools.AgentBackend": {
+    "cancel": ["async def", "scope", "*", "task_id"],
+    "delegate": ["async def", "scope", "*", "profile", "task"],
+    "followup": ["async def", "scope", "*", "agent_id", "task"],
+    "send": ["async def", "scope", "*", "agent_id", "message"],
+    "status": ["async def", "scope", "*", "task_id"]
+  },
+  "roomkit_tools.AgentFollowup": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.AgentScope": {
+    "__init__": ["def", "room_id", "caller_id"]
+  },
+  "roomkit_tools.AgentSend": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.CancelTask": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.CodeOutline": {
+    "__init__": ["def", "root", "*", "max_file_bytes=None", "max_output_bytes=None", "max_symbols=None", "max_scan_symbols=None", "max_scan_nodes=None", "max_depth=None", "max_signature_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.CodeOutlineTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_file_bytes=None", "max_output_bytes=None", "max_symbols=None", "max_scan_symbols=None", "max_scan_nodes=None", "max_depth=None", "max_signature_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "definition": ["staticmethod"],
+    "outline": ["async def", "path", "*", "language=None", "offset=1", "limit=None", "expected_revision=None", "timeout_ms=None"]
+  },
+  "roomkit_tools.DelegateTask": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.Diff": {
+    "__init__": ["def", "root", "*", "max_file_bytes=None", "max_lines=None", "max_comparison_cells=None", "max_output_bytes=None", "max_context_lines=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.DiffTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_file_bytes=None", "max_lines=None", "max_comparison_cells=None", "max_output_bytes=None", "max_context_lines=None"],
+    "definition": ["classmethod"],
+    "diff": ["async def", "old_path", "new_path", "*", "context_lines=3"]
+  },
+  "roomkit_tools.DocsBackend": {
+    "list": ["async def", "*", "offset", "limit", "expected_catalog_revision"],
+    "read": ["async def", "*", "document_id", "offset", "limit", "expected_revision"],
+    "search": ["async def", "*", "query", "offset", "limit", "expected_catalog_revision"]
+  },
+  "roomkit_tools.DocsList": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.DocsRead": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.DocsSearch": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.Edit": {
+    "__init__": ["def", "root", "*", "max_file_bytes=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.EditTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_file_bytes=None"],
+    "definition": ["classmethod"],
+    "edit": ["async def", "path", "old_text", "new_text", "*", "replace_all=False", "expected_revision=None"]
+  },
+  "roomkit_tools.FileDocs": {
+    "__init__": ["def", "root", "*", "version=None", "**limits"],
+    "list": ["async def", "*", "offset=0", "limit=20", "expected_catalog_revision=None"],
+    "read": ["async def", "*", "document_id", "offset=1", "limit=100", "expected_revision=None"],
+    "search": ["async def", "*", "query", "offset=0", "limit=10", "expected_catalog_revision=None"]
+  },
+  "roomkit_tools.ForkedProcessError": {
+    "__bases__": ["bases", "roomkit_tools.ToolError"]
+  },
+  "roomkit_tools.Glob": {
+    "__init__": ["def", "root", "*", "max_matches=None", "max_output_bytes=None", "max_scan_entries=None", "max_depth=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.GlobTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_matches=None", "max_output_bytes=None", "max_scan_entries=None", "max_depth=None"],
+    "definition": ["classmethod"],
+    "glob": ["async def", "pattern", "*", "path='.'", "offset=1", "limit=None"]
+  },
+  "roomkit_tools.Grep": {
+    "__init__": ["def", "root", "*", "max_matches=None", "max_output_bytes=None", "max_scan_entries=None", "max_depth=None", "max_file_bytes=None", "max_total_bytes=None", "max_context_lines=None", "max_line_bytes=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.GrepTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_matches=None", "max_output_bytes=None", "max_scan_entries=None", "max_depth=None", "max_file_bytes=None", "max_total_bytes=None", "max_context_lines=None", "max_line_bytes=None"],
+    "definition": ["classmethod"],
+    "grep": ["async def", "pattern", "*", "path='.'", "include=None", "literal=False", "ignore_case=False", "context_before=0", "context_after=0", "offset=1", "limit=None"]
+  },
+  "roomkit_tools.InvalidInputError": {
+    "__bases__": ["bases", "roomkit_tools.ToolError"]
+  },
+  "roomkit_tools.LimitExceededError": {
+    "__bases__": ["bases", "roomkit_tools.ToolError"]
+  },
+  "roomkit_tools.List": {
+    "__init__": ["def", "root", "*", "max_entries=None", "max_output_bytes=None", "max_scan_entries=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ListTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_entries=None", "max_output_bytes=None", "max_scan_entries=None"],
+    "definition": ["classmethod"],
+    "list": ["async def", "path='.'", "*", "offset=1", "limit=None"]
+  },
+  "roomkit_tools.MemoryPlanBackend": {
+    "__init__": ["def", "*", "max_plans=256", "max_plans_per_scope=64"],
+    "create": ["async def", "scope", "*", "title", "objective", "steps"],
+    "delete": ["async def", "scope", "*", "plan_id", "expected_revision"],
+    "list": ["async def", "scope"],
+    "read": ["async def", "scope", "*", "plan_id"],
+    "update": ["async def", "scope", "*", "plan_id", "expected_revision", "title=None", "objective=None", "steps=None"]
+  },
+  "roomkit_tools.Ocr": {
+    "__init__": ["def", "root", "*", "backend", "max_file_bytes=None", "max_dimension=None", "max_pixels=None", "max_decode_bytes=None", "max_output_bytes=None", "max_blocks=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.OcrBackend": {
+    "bind": ["async def", "root", "limits"]
+  },
+  "roomkit_tools.OcrTool": {
+    "__init__": ["def", "implementation"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "backend", "**limits"],
+    "definition": ["staticmethod"],
+    "ocr": ["async def", "path", "*", "rotation_degrees=0", "expected_revision=None", "timeout_ms=None"]
+  },
+  "roomkit_tools.OutputForget": {
+    "__init__": ["def", "store"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.OutputRead": {
+    "__init__": ["def", "store"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.OutputStore": {
+    "__init__": ["def", "parent=None", "*", "max_archives=None", "max_archives_per_owner=None", "max_stream_bytes=None", "max_total_bytes=None", "max_read_bytes=None", "write_timeout_ms=None"],
+    "call": ["async def", "name", "arguments", "*", "owner=None"],
+    "close": ["async def"],
+    "closed": ["property"],
+    "definition": ["staticmethod", "name"],
+    "forget": ["async def", "archive_id", "*", "owner=None"],
+    "list": ["async def", "*", "owner=None"],
+    "read": ["async def", "archive_id", "*", "offset=0", "max_bytes=None", "owner=None"]
+  },
+  "roomkit_tools.Patch": {
+    "__init__": ["def", "root", "*", "max_changes=None", "max_input_bytes=None", "max_file_bytes=None", "max_lines=None", "max_comparison_cells=None", "max_output_bytes=None", "max_context_lines=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.PatchTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_changes=None", "max_input_bytes=None", "max_file_bytes=None", "max_lines=None", "max_comparison_cells=None", "max_output_bytes=None", "max_context_lines=None"],
+    "definition": ["classmethod"],
+    "patch": ["async def", "changes", "*", "dry_run=True"]
+  },
+  "roomkit_tools.PlanBackend": {
+    "create": ["async def", "scope", "*", "title", "objective", "steps"],
+    "delete": ["async def", "scope", "*", "plan_id", "expected_revision"],
+    "list": ["async def", "scope"],
+    "read": ["async def", "scope", "*", "plan_id"],
+    "update": ["async def", "scope", "*", "plan_id", "expected_revision", "title", "objective", "steps"]
+  },
+  "roomkit_tools.PlanCreate": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.PlanDelete": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.PlanList": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.PlanRead": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.PlanScope": {
+    "__init__": ["def", "room_id", "caller_id"]
+  },
+  "roomkit_tools.PlanUpdate": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ProcessRead": {
+    "__init__": ["def", "session"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ProcessSession": {
+    "__init__": ["def", "root", "*", "outputs=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_processes=None", "max_processes_per_owner=None", "max_command_bytes=None", "max_output_bytes=None", "max_read_bytes=None", "max_write_bytes=None", "write_timeout_ms=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "call": ["async def", "name", "arguments", "*", "owner=None"],
+    "close": ["async def"],
+    "close_owner": ["async def", "owner"],
+    "closed": ["property"],
+    "definition": ["staticmethod", "name"],
+    "read": ["async def", "process_id", "*", "stdout_offset=0", "stderr_offset=0", "max_bytes=None", "owner=None"],
+    "start": ["async def", "command", "*", "cwd=None", "timeout_ms=None", "owner=None"],
+    "status": ["async def", "process_id=None", "*", "owner=None"],
+    "stop": ["async def", "process_id", "*", "forget=False", "owner=None"],
+    "write": ["async def", "process_id", "text=''", "*", "close_stdin=False", "owner=None"]
+  },
+  "roomkit_tools.ProcessStart": {
+    "__init__": ["def", "session"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ProcessStatus": {
+    "__init__": ["def", "session"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ProcessStop": {
+    "__init__": ["def", "session"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ProcessWrite": {
+    "__init__": ["def", "session"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.Read": {
+    "__init__": ["def", "root", "*", "max_file_bytes=None", "max_output_bytes=None", "max_lines=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ReadTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_file_bytes=None", "max_output_bytes=None", "max_lines=None"],
+    "definition": ["staticmethod"],
+    "read": ["async def", "path", "*", "offset=1", "limit=None"]
+  },
+  "roomkit_tools.Shell": {
+    "__init__": ["def", "root", "*", "outputs=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_command_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ShellTool": {
+    "__init__": ["def", "native", "outputs=None"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "outputs=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_command_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "definition": ["staticmethod"],
+    "shell": ["async def", "command", "*", "cwd=None", "timeout_ms=None"]
+  },
+  "roomkit_tools.TaskStatus": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "contract": ["classmethod"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ToolError": {},
+  "roomkit_tools.ToolIOError": {
+    "__bases__": ["bases", "roomkit_tools.ToolError"]
+  },
+  "roomkit_tools.UnsupportedResourceError": {
+    "__bases__": ["bases", "roomkit_tools.ToolError"]
+  },
+  "roomkit_tools.ViewImage": {
+    "__init__": ["def", "root", "*", "max_file_bytes=None", "max_dimension=None", "max_pixels=None", "max_decode_bytes=None", "max_edge=None", "max_image_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.ViewImageTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_file_bytes=None", "max_dimension=None", "max_pixels=None", "max_decode_bytes=None", "max_edge=None", "max_image_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "definition": ["staticmethod"],
+    "view": ["async def", "path", "*", "timeout_ms=None"]
+  },
+  "roomkit_tools.WebFetch": {
+    "__init__": ["def", "**configuration"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.WebFetchTool": {
+    "__init__": ["def", "*", "allowed_origins=None", "private_origins=None", "max_url_bytes=None", "max_response_bytes=None", "max_converted_bytes=None", "max_output_bytes=None", "max_redirects=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "**configuration"],
+    "definition": ["staticmethod"],
+    "fetch": ["async def", "url", "*", "format='markdown'", "timeout_ms=None"]
+  },
+  "roomkit_tools.WebSearch": {
+    "__init__": ["def", "*", "backend", "**configuration"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.WebSearchTool": {
+    "__init__": ["def", "*", "backend", "max_query_bytes=None", "max_results=None", "max_content_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "**configuration"],
+    "definition": ["staticmethod"],
+    "search": ["async def", "query", "*", "limit=5", "timeout_ms=None"]
+  },
+  "roomkit_tools.Workspace": {
+    "__init__": ["def", "root"]
+  },
+  "roomkit_tools.Write": {
+    "__init__": ["def", "root", "*", "max_file_bytes=None"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.WriteTool": {
+    "__init__": ["def", "native"],
+    "call": ["async def", "arguments"],
+    "create": ["async classmethod", "root", "*", "max_file_bytes=None"],
+    "definition": ["classmethod"],
+    "write": ["async def", "path", "content", "*", "overwrite=False", "expected_revision=None"]
+  },
+  "roomkit_tools.ocr.BoundOcrBackend": {
+    "call": ["async def", "arguments"]
+  },
+  "roomkit_tools.roomkit.ReadToolAdapter": {
+    "__init__": ["def", "tool"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.roomkit_agents.AgentConfig": {
+    "__init__": ["def", "provider_factory", "system_prompt", "tools_factory=<class 'list'>", "max_tool_rounds=12", "tool_timeout_seconds=30", "tool_loop_timeout_seconds=180"]
+  },
+  "roomkit_tools.roomkit_agents.AgentRequest": {
+    "__init__": ["def", "profile", "task", "scope"]
+  },
+  "roomkit_tools.roomkit_agents.RoomKitAgentBackend": {
+    "__init__": ["def", "kit", "*", "scope", "profiles=None", "resolver=None", "allowed_profiles=None", "max_concurrent=2", "max_tasks=8", "resolver_timeout=10", "idle_timeout=300", "max_messages=32"],
+    "aclose": ["async def"],
+    "cancel": ["async def", "scope", "*", "task_id"],
+    "delegate": ["async def", "scope", "*", "profile", "task"],
+    "followup": ["async def", "scope", "*", "agent_id", "task"],
+    "send": ["async def", "scope", "*", "agent_id", "message"],
+    "status": ["async def", "scope", "*", "task_id=None"],
+    "wait": ["async def", "task_id"]
+  },
+  "roomkit_tools.roomkit_owner": {
+    "__call__": ["def", "room_id", "channel_id"]
+  },
+  "roomkit_tools.search.ExaSearch": {
+    "__bases__": ["bases", "roomkit_tools.search.SearchBackend"],
+    "__init__": ["def", "*", "api_key=None", "endpoint=None", "allowed_origins=None", "private_origins=None", "max_response_bytes=524288"],
+    "capabilities": ["property"]
+  },
+  "roomkit_tools.search.OllamaSearch": {
+    "__bases__": ["bases", "roomkit_tools.search.SearchBackend"],
+    "__init__": ["def", "*", "api_key", "endpoint=None", "allowed_origins=None", "private_origins=None", "max_response_bytes=524288"],
+    "capabilities": ["property"]
+  },
+  "roomkit_tools.search.OpenAISearch": {
+    "__bases__": ["bases", "roomkit_tools.search.SearchBackend"],
+    "__init__": ["def", "*", "api_key", "model", "max_output_tokens=2048", "max_tool_calls=1", "endpoint=None", "allowed_origins=None", "private_origins=None", "max_response_bytes=524288"],
+    "capabilities": ["property"]
+  },
+  "roomkit_tools.search.SearchBackend": {
+    "capabilities": ["property"]
+  }
+}
