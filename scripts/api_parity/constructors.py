@@ -142,12 +142,15 @@ def _alternates(comparison: Comparison, item: dict) -> list[str]:
 
 
 def _returns(comparison: Comparison, item: dict, method: dict, pairs: tuple) -> None:
-    """A constructor builds its own type."""
+    """A constructor builds its own type; the finding's key names the type
+    it returns instead."""
     name = item["path"].rpartition("::")[2]
     returns = method.get("returns") or ""
     if not re.search(rf"\b(?:Self|{re.escape(name)})\b", returns):
         detail = f"returns {returns or 'nothing'}, not a {name}"
-        comparison.find("rust", f"{item['path']}::{method['name']}", "result", detail, *pairs)
+        path = f"{item['path']}::{method['name']}"
+        qualifier = returns or "nothing"
+        comparison.find("rust", path, "result", detail, *pairs, qualifier=qualifier)
 
 
 def _wraps(

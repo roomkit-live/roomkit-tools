@@ -148,7 +148,8 @@ what was approved and nothing more. A parameter on one side only names the
 other side's call; one named twice, its Python name; a `required`,
 `defaulted` or `default` finding, the Python parameter with its default and,
 for `default`, Rust's; a `variadic` or `form` finding, the struct and the
-fields or parameters it stands for. A key no finding has, a pairing the
+fields or parameters it stands for; a constructor's `result` finding, the
+type it returns; a call's, its contract and both types. A key no finding has, a pairing the
 rules already make, or an entry naming what is gone, is dead. Every rule and
 every `[[map]]`, `[[exception]]`, `[[missing]]` and `[[hidden]]` entry names in `decision`
 where the maintainer decided it, and the mapping is refused without one; a

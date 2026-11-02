@@ -154,7 +154,7 @@ covers = [
   "rust roomkit_tools_ocr::OcrEngine (unmatched)",
   "rust roomkit_tools_ocr::DecodedImage (unmatched)",  # the image the Rust trait recognizes, kept public for backends
   "rust roomkit_tools_image::DecodedImage (unmatched)",  # the same type, re-exported by roomkit_tools_ocr
-  "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (result)",
+  "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (result) [Result<OcrEngine, ToolError>]",
   "rust roomkit_tools_ocr_rusto::RustoOcr::load (unmatched)",
 ]
 

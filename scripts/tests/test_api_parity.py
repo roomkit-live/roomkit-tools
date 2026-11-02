@@ -663,7 +663,13 @@ class Members(unittest.TestCase):
             )
         ]
         report = run(items, {"pkg.Backend": {"__init__": ["def"]}})
-        self.assertEqual(keys(report), {"rust kit::Backend::new (result)"})
+        built = "rust kit::Backend::new (result) [Result<Engine, Error>]"
+        self.assertEqual(keys(report), {built})
+        # An entry for one built type covers no other.
+        items[0]["methods"][0]["returns"] = "Result<Loader, Error>"
+        report = run(items, {"pkg.Backend": {"__init__": ["def"]}}, mapping=pending(built))
+        self.assertEqual(len(report.uncovered), 1)
+        self.assertEqual(len(report.dead), 1)
 
     LAZY = 'lazy_constructor = { python = "__init__", decision = "ref" }\n'
     UNION = 'union_constructor = { prefix = "from_", types = ["Workspace"], decision = "ref" }\n'
