@@ -108,6 +108,11 @@ part of an existing published preview.
   `WebSearchTool.create(*, backend, max_query_bytes=None, ...)`, the fields
   of Rust's limits and configuration structs, `None` keeping Rust's default.
   A misspelled limit now raises `TypeError` instead of `InvalidInputError`.
+- Rust: `OcrTool::new(root, backend)` names its engine `backend`, as
+  Python's `OcrTool.create(root, backend=...)`. The OCR backend protocol
+  itself still differs for this release (Python's `OcrBackend.bind`, Rust's
+  `OcrBackend::recognize` in an `OcrEngine`); the tool and its contract are
+  the same.
 - Rust RoomKit adapter: each adapter takes the name of its Python RoomKit
   tool, `<X>Toolset` becoming `<X>`: `ReadToolset::new(tool)` is
   `Read::new(tool)`, and likewise `List`, `Glob`, `Grep`, `Diff`, `Edit`,

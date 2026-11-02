@@ -97,6 +97,34 @@ roomkit_tools_agents = ["roomkit_tools", "roomkit_tools.agents"]
 roomkit_tools_roomkit = ["roomkit_tools.roomkit", "roomkit_tools"]
 
 # ---------------------------------------------------------------------------
+# APPROVED: the differences the maintainer approved, with their source.
+# ---------------------------------------------------------------------------
+
+[[map]]
+rust = "roomkit_tools_ocr_rusto::RustoOcr::lazy"
+python = "roomkit_tools_ocr_rusto.RustoOcr.__init__"
+approved = 2026-11-02
+decision = "luge-hitl:76e988fe Q7"
+reason = "the OCR backend protocol differs for this release: Rust builds the lazy engine with RustoOcr::lazy(RustoConfig), Python's RustoOcr(models, ...) is the backend itself; the configuration is the same"
+
+[[exception]]
+approved = 2026-11-02
+decision = "luge-hitl:76e988fe Q7"
+reason = "for this release, the OCR backend protocol differs: Python's OcrBackend.bind(root, limits) returns a BoundOcrBackend whose call(arguments) runs the tool; Rust's OcrBackend has identity() and recognize(&DecodedImage), wrapped in an OcrEngine that RustoOcr::lazy and load build. The OcrTool surface and the tool contract are the same; Python will adopt Rust's recognizer model later"
+covers = [
+  "python roomkit_tools.OcrBackend.bind (unmatched)",
+  "python roomkit_tools.ocr.BoundOcrBackend (unmatched)",
+  "python roomkit_tools_ocr_rusto.RustoOcr.bind (unmatched)",
+  "rust roomkit_tools_ocr::OcrBackend::identity (unmatched)",
+  "rust roomkit_tools_ocr::OcrBackend::recognize (unmatched)",
+  "rust roomkit_tools_ocr::OcrEngine (unmatched)",
+  "rust roomkit_tools_ocr::DecodedImage (unmatched)",  # the image the Rust trait recognizes, kept public for backends
+  "rust roomkit_tools_image::DecodedImage (unmatched)",  # the same type, re-exported by roomkit_tools_ocr
+  "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (result)",
+  "rust roomkit_tools_ocr_rusto::RustoOcr::load (unmatched)",
+]
+
+# ---------------------------------------------------------------------------
 # MISSING: features one side has and the other lacks, recorded for this
 # release rather than ported.
 # ---------------------------------------------------------------------------
@@ -122,21 +150,9 @@ covers = [
 # ---------------------------------------------------------------------------
 
 [[pending]]
-rust = "roomkit_tools_ocr_rusto::RustoOcr::lazy"
-python = "roomkit_tools_ocr_rusto.RustoOcr.__init__"
-reason = "Rust builds the lazy engine with RustoOcr::lazy(RustoConfig); Python with RustoOcr(models, ...)"
-covers = ["rust roomkit_tools_ocr_rusto::RustoOcr::lazy (name)"]
-
-[[pending]]
 reason = "roomkit_tools_core::ToolError / roomkit_tools.ToolError: unmatched"
 covers = [
   "python roomkit_tools.ForkedProcessError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::ToolError
-]
-
-[[pending]]
-reason = "roomkit_tools_image::DecodedImage / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_image::DecodedImage (unmatched)",  # no Python name
 ]
 
 [[pending]]
@@ -149,40 +165,6 @@ covers = [
 reason = "roomkit_tools_image::ImagePayload / no Python name: unmatched"
 covers = [
   "rust roomkit_tools_image::ImagePayload::data_url (unmatched)",  # a contract type's own member: no Python counterpart
-]
-
-[[pending]]
-reason = "roomkit_tools_ocr::DecodedImage / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_ocr::DecodedImage (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_ocr::OcrBackend / roomkit_tools.OcrBackend: unmatched (3)"
-covers = [
-  "python roomkit_tools.OcrBackend.bind (unmatched)",  # no Rust method
-  "rust roomkit_tools_ocr::OcrBackend::identity (unmatched)",  # no Python member
-  "rust roomkit_tools_ocr::OcrBackend::recognize (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_ocr::OcrEngine / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_ocr::OcrEngine (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool: name"
-covers = [
-  "rust roomkit_tools_ocr::OcrTool::new(engine) (name)",  # the one parameter left on each side: named backend in Python
-]
-
-[[pending]]
-reason = "roomkit_tools_ocr_rusto::RustoOcr / roomkit_tools_ocr_rusto.RustoOcr: result, unmatched (2)"
-covers = [
-  "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (result)",  # returns Result<OcrEngine, ToolError>, not a RustoOcr
-  "python roomkit_tools_ocr_rusto.RustoOcr.bind (unmatched)",  # no Rust method
-  "rust roomkit_tools_ocr_rusto::RustoOcr::load (unmatched)",  # no Python member
 ]
 
 [[pending]]
@@ -247,12 +229,6 @@ covers = [
 reason = "no Rust item / roomkit_tools.ViewImage: unmatched"
 covers = [
   "python roomkit_tools.ViewImage (unmatched)",  # no Rust item
-]
-
-[[pending]]
-reason = "no Rust item / roomkit_tools.ocr.BoundOcrBackend: unmatched"
-covers = [
-  "python roomkit_tools.ocr.BoundOcrBackend (unmatched)",  # no Rust item
 ]
 
 [[pending]]

@@ -88,14 +88,15 @@ pub struct OcrTool {
 }
 
 impl OcrTool {
-    /// Resolve a workspace and share a host-created recognition engine.
+    /// Resolve a workspace and share a host-created recognition engine,
+    /// `backend` as in Python's `OcrTool.create(root, backend=...)`.
     ///
     /// # Errors
     /// Returns an error if the workspace is not an accessible directory.
-    pub async fn new(root: impl AsRef<Path>, engine: OcrEngine) -> Result<Self, ToolError> {
+    pub async fn new(root: impl AsRef<Path>, backend: OcrEngine) -> Result<Self, ToolError> {
         Ok(Self {
             workspace: ImageWorkspace::new(root).await?,
-            engine,
+            engine: backend,
             limits: OcrLimits::default(),
         })
     }
