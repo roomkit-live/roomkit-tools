@@ -1,6 +1,6 @@
 use super::{
-    BackendOutput, HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, SearchInput,
-    ToolError, Transport, credential, header, invalid, mime,
+    BackendOutput, HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, ToolError, Transport,
+    WebSearchInput, credential, header, invalid, mime,
 };
 use crate::SearchHit;
 use serde_json::{Value, json};
@@ -54,7 +54,7 @@ impl SearchBackend for ExaSearch {
     }
     fn search<'a>(
         &'a self,
-        input: &'a SearchInput,
+        input: &'a WebSearchInput,
         cancel: &'a CancellationToken,
     ) -> SearchFuture<'a> {
         let requested = input.limit;

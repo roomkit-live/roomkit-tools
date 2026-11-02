@@ -4,7 +4,7 @@ use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_roomkit::WebSearch;
 use roomkit_tools_search::{
-    BackendOutput, SearchBackend, SearchFuture, SearchInput, WebSearchTool,
+    BackendOutput, SearchBackend, SearchFuture, WebSearchInput, WebSearchTool,
 };
 use serde_json::json;
 use std::sync::{Arc, Mutex};
@@ -23,7 +23,7 @@ impl SearchBackend for Backend {
     }
     fn search<'a>(
         &'a self,
-        input: &'a SearchInput,
+        input: &'a WebSearchInput,
         cancel: &'a CancellationToken,
     ) -> SearchFuture<'a> {
         Box::pin(async move {

@@ -2,7 +2,7 @@
 use super::{Cancellation, InvalidInputError, ToolError, tool_error};
 use pyo3::prelude::*;
 use roomkit_tools_search::{
-    ExaSearch, OllamaSearch, OpenAISearch, SearchBackend, SearchHttpConfig, SearchInput,
+    ExaSearch, OllamaSearch, OpenAISearch, SearchBackend, SearchHttpConfig, WebSearchInput,
     WebSearchTool,
 };
 use std::sync::Arc;
@@ -47,7 +47,7 @@ impl PythonWebSearchTool {
         let guard = token.clone().drop_guard();
         crate::runtime::future_into_py(py, async move {
             let _guard = guard;
-            let input: SearchInput = serde_json::from_str(&arguments_json)
+            let input: WebSearchInput = serde_json::from_str(&arguments_json)
                 .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
             let output = tool
                 .search(input, &token)

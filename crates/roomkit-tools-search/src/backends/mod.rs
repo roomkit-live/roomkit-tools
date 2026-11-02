@@ -1,4 +1,4 @@
-use crate::{BackendOutput, SearchBackend, SearchFuture, SearchInput};
+use crate::{BackendOutput, SearchBackend, SearchFuture, WebSearchInput};
 use reqwest::{
     Url,
     header::{self, HeaderMap, HeaderValue},

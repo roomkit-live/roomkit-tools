@@ -2,7 +2,7 @@
 #![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "standalone demonstration output")]
 use roomkit_tools_search::{
-    ExaSearch, OllamaSearch, SearchBackend, SearchHttpConfig, SearchInput, SearchPayload,
+    ExaSearch, OllamaSearch, SearchBackend, SearchHttpConfig, SearchPayload, WebSearchInput,
     WebSearchTool,
 };
 use std::sync::Arc;
@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tool = WebSearchTool::new(backend);
     let output = tool
         .search(
-            SearchInput::new("Serde Rust official documentation"),
+            WebSearchInput::new("Serde Rust official documentation"),
             &CancellationToken::new(),
         )
         .await?;

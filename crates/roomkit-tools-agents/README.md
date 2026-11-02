@@ -15,7 +15,7 @@ None.
 ```rust
 use std::sync::Arc;
 
-use roomkit_tools_agents::{AgentBackend, AgentScope, DelegateInput, DelegateTaskTool};
+use roomkit_tools_agents::{AgentBackend, AgentScope, DelegateTaskInput, DelegateTaskTool};
 use tokio_util::sync::CancellationToken;
 
 /// Start a task on the host's backend; returns its identifier.
@@ -23,7 +23,7 @@ async fn delegate(backend: Arc<dyn AgentBackend>) -> Result<String, Box<dyn std:
     let tool = DelegateTaskTool::new(backend);
     // Trusted host context, never a model argument.
     let scope = AgentScope { room_id: "support".into(), caller_id: "assistant".into() };
-    let input = DelegateInput { profile: "reader".into(), task: "Summarize CHANGELOG.md".into() };
+    let input = DelegateTaskInput { profile: "reader".into(), task: "Summarize CHANGELOG.md".into() };
     let receipt = tool.call(&scope, input, &CancellationToken::new()).await?;
     Ok(receipt.data.task_id)
 }

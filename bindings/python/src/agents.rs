@@ -2,9 +2,9 @@
 
 use pyo3::prelude::*;
 use roomkit_tools_agents::{
-    AgentContract, AgentFollowupTool, AgentSendTool, CancelInput, CancelResult, CancelTaskTool,
-    DelegateInput, DelegateTaskTool, FollowupInput, SendInput, SendResult, StatusInput, TaskInfo,
-    TaskList, TaskStatusTool, decode, render,
+    AgentContract, AgentFollowupInput, AgentFollowupTool, AgentSendInput, AgentSendTool,
+    CancelResult, CancelTaskInput, CancelTaskTool, DelegateTaskInput, DelegateTaskTool, SendResult,
+    TaskInfo, TaskList, TaskStatusInput, TaskStatusTool, decode, render,
 };
 
 #[derive(Debug)]
@@ -41,11 +41,11 @@ impl PythonAgentContract {
     #[staticmethod]
     fn input_json(name: &str, json: &str) -> PyResult<String> {
         match name {
-            "delegate_task" => input::<DelegateInput>(json),
-            "task_status" => input::<StatusInput>(json),
-            "cancel_task" => input::<CancelInput>(json),
-            "agent_followup" => input::<FollowupInput>(json),
-            "agent_send" => input::<SendInput>(json),
+            "delegate_task" => input::<DelegateTaskInput>(json),
+            "task_status" => input::<TaskStatusInput>(json),
+            "cancel_task" => input::<CancelTaskInput>(json),
+            "agent_followup" => input::<AgentFollowupInput>(json),
+            "agent_send" => input::<AgentSendInput>(json),
             _ => Err(unknown()),
         }
     }

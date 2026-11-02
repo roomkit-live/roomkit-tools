@@ -27,7 +27,7 @@ impl AgentBackend for Backend {
     fn delegate<'a>(
         &'a self,
         scope: &'a AgentScope,
-        input: &'a DelegateInput,
+        input: &'a DelegateTaskInput,
         cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, TaskInfo> {
         Box::pin(async move {
@@ -45,7 +45,7 @@ impl AgentBackend for Backend {
     fn status<'a>(
         &'a self,
         _: &'a AgentScope,
-        _: &'a StatusInput,
+        _: &'a TaskStatusInput,
         _: &'a CancellationToken,
     ) -> AgentFuture<'a, TaskList> {
         Box::pin(async {
@@ -58,7 +58,7 @@ impl AgentBackend for Backend {
     fn cancel<'a>(
         &'a self,
         _: &'a AgentScope,
-        _: &'a CancelInput,
+        _: &'a CancelTaskInput,
         _: &'a CancellationToken,
     ) -> AgentFuture<'a, CancelResult> {
         Box::pin(async {
@@ -83,7 +83,7 @@ async fn selected_tools_validate_before_backend_and_share_scope() {
         room_id: "room".into(),
         caller_id: "assistant".into(),
     };
-    let mut input = DelegateInput {
+    let mut input = DelegateTaskInput {
         profile: "reader".into(),
         task: " ".into(),
     };
@@ -105,7 +105,7 @@ async fn selected_tools_validate_before_backend_and_share_scope() {
     assert_eq!(backend.0.lock().unwrap().as_slice(), ["room:reader"]);
     assert_eq!(
         TaskStatusTool::new(Arc::clone(&shared))
-            .call(&scope, StatusInput::default(), &cancel)
+            .call(&scope, TaskStatusInput::default(), &cancel)
             .await
             .unwrap()
             .data
@@ -117,7 +117,7 @@ async fn selected_tools_validate_before_backend_and_share_scope() {
         CancelTaskTool::new(shared)
             .call(
                 &scope,
-                CancelInput {
+                CancelTaskInput {
                     task_id: "t1".into()
                 },
                 &cancel
@@ -139,7 +139,7 @@ async fn a_cancelled_call_refuses_before_reaching_the_backend() {
     };
     let cancel = CancellationToken::new();
     cancel.cancel();
-    let input = DelegateInput {
+    let input = DelegateTaskInput {
         profile: "reader".into(),
         task: "Read the source".into(),
     };
@@ -158,7 +158,7 @@ async fn the_backend_observes_the_callers_cancellation() {
         caller_id: "assistant".into(),
     };
     let cancel = CancellationToken::new();
-    let input = DelegateInput {
+    let input = DelegateTaskInput {
         profile: "waits".into(),
         task: "Read the source".into(),
     };
@@ -176,9 +176,10 @@ async fn the_backend_observes_the_callers_cancellation() {
 #[test]
 fn json_rejects_host_scope_and_limits_utf8_bytes() {
     assert!(
-        decode::<DelegateInput>(r#"{"profile":"reader","task":"read","room_id":"other"}"#).is_err()
+        decode::<DelegateTaskInput>(r#"{"profile":"reader","task":"read","room_id":"other"}"#)
+            .is_err()
     );
-    let input = DelegateInput {
+    let input = DelegateTaskInput {
         profile: "reader".into(),
         task: "é".repeat(8193),
     };
@@ -216,7 +217,7 @@ async fn extensions_fail_explicitly_for_older_backends() {
         AgentFollowupTool::new(Arc::clone(&backend))
             .call(
                 &scope,
-                FollowupInput {
+                AgentFollowupInput {
                     agent_id: "a1".into(),
                     task: "Continue".into()
                 },
@@ -229,7 +230,7 @@ async fn extensions_fail_explicitly_for_older_backends() {
         AgentSendTool::new(backend)
             .call(
                 &scope,
-                SendInput {
+                AgentSendInput {
                     agent_id: "a1".into(),
                     message: "Clarify".into()
                 },
@@ -239,11 +240,11 @@ async fn extensions_fail_explicitly_for_older_backends() {
         Err(ToolError::UnsupportedResource(_))
     ));
     assert!(
-        decode::<FollowupInput>(r#"{"agent_id":"a1","task":"Continue","profile":"other"}"#)
+        decode::<AgentFollowupInput>(r#"{"agent_id":"a1","task":"Continue","profile":"other"}"#)
             .is_err()
     );
     assert!(matches!(
-        SendInput {
+        AgentSendInput {
             agent_id: "a1".into(),
             message: "é".repeat(4097)
         }
@@ -264,4 +265,21 @@ async fn extensions_fail_explicitly_for_older_backends() {
     assert!(sent.validate().is_err());
     sent.message_id = None;
     assert!(sent.validate().is_ok());
+}
+
+#[test]
+fn each_input_is_named_after_its_tool() {
+    for (definition, input) in [
+        (DelegateTaskTool::definition(), "DelegateTaskInput"),
+        (TaskStatusTool::definition(), "TaskStatusInput"),
+        (CancelTaskTool::definition(), "CancelTaskInput"),
+        (AgentFollowupTool::definition(), "AgentFollowupInput"),
+        (AgentSendTool::definition(), "AgentSendInput"),
+    ] {
+        assert_eq!(
+            definition.input_schema["title"], input,
+            "{}",
+            definition.name
+        );
+    }
 }

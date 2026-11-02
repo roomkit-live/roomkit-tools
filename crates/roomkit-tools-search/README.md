@@ -22,7 +22,7 @@ With `features = ["exa"]`:
 ```rust,no_run
 use std::sync::Arc;
 
-use roomkit_tools_search::{ExaSearch, SearchHttpConfig, SearchInput, WebSearchTool};
+use roomkit_tools_search::{ExaSearch, SearchHttpConfig, WebSearchInput, WebSearchTool};
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main(flavor = "current_thread")]
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = ExaSearch::new(SearchHttpConfig::default())?;
     let search = WebSearchTool::new(Arc::new(backend));
     let result = search
-        .search(SearchInput::new("tokio CancellationToken"), &CancellationToken::new())
+        .search(WebSearchInput::new("tokio CancellationToken"), &CancellationToken::new())
         .await?;
     print!("{}", result.text);
     Ok(())

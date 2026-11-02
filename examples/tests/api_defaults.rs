@@ -241,7 +241,7 @@ fn network() -> Vec<(String, Value)> {
             max_response_bytes
         ),
         dump!(
-            roomkit_tools_search::SearchInput::new("a"),
+            roomkit_tools_search::WebSearchInput::new("a"),
             query,
             limit,
             timeout_ms
@@ -370,7 +370,7 @@ fn knowledge() -> Vec<(String, Value)> {
             objective,
             steps
         ),
-        dump!(roomkit_tools_agents::StatusInput::default(), task_id),
+        dump!(roomkit_tools_agents::TaskStatusInput::default(), task_id),
     ]
 }
 

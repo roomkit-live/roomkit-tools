@@ -44,6 +44,11 @@ part of an existing published preview.
   from every named owner: a host passing `"default"` no longer reaches its
   jobs, archives or quota. `close_owner` takes `None` for it (Rust
   `Option<&str>`), and Rust's `ObservedProcess::owner` is an `Option<String>`.
+- The agent and web search inputs are named after their tools, in Rust and in
+  the schemas the model sees: `DelegateTaskInput`, `TaskStatusInput`,
+  `CancelTaskInput`, `AgentFollowupInput`, `AgentSendInput` and
+  `WebSearchInput` (were `DelegateInput`, `StatusInput`, `CancelInput`,
+  `FollowupInput`, `SendInput` and `SearchInput`).
 - Python: the documentation, plan and agent tools split into a tool and its
   RoomKit adapter, as `ReadTool` and `Read`: `DocsList(backend).call(arguments)`
   is `DocsListTool(backend).call(arguments)`, `DocsList(backend)` in RoomKit's

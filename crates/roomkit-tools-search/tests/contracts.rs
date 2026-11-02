@@ -1,8 +1,8 @@
 //! External backend extensibility without any built-in provider feature.
 use roomkit_tools_core::ToolError;
 use roomkit_tools_search::{
-    BackendOutput, SearchBackend, SearchFuture, SearchHit, SearchInput, SearchLimits,
-    SearchPayload, WebSearchTool,
+    BackendOutput, SearchBackend, SearchFuture, SearchHit, SearchLimits, SearchPayload,
+    WebSearchInput, WebSearchTool,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -21,7 +21,7 @@ impl SearchBackend for Custom {
     fn name(&self) -> &'static str {
         "custom"
     }
-    fn search<'a>(&'a self, _: &'a SearchInput, _: &'a CancellationToken) -> SearchFuture<'a> {
+    fn search<'a>(&'a self, _: &'a WebSearchInput, _: &'a CancellationToken) -> SearchFuture<'a> {
         Box::pin(async { Ok(self.0.clone()) })
     }
 }
@@ -41,7 +41,7 @@ async fn cited_answer_and_non_execution_remain_distinct_from_empty_results() {
         json!({"payload":{"kind":"results","results":[]}}),
     ] {
         let result = backend(value.clone())
-            .search(SearchInput::new("question"), &cancel)
+            .search(WebSearchInput::new("question"), &cancel)
             .await
             .unwrap();
         let data = serde_json::to_value(result.data).unwrap();
@@ -64,7 +64,7 @@ async fn invalid_citations_fail_instead_of_fabricating_or_reindexing() {
         value["payload"]["citations"][0][key] = bad;
         assert!(matches!(
             backend(value)
-                .search(SearchInput::new("q"), &CancellationToken::new())
+                .search(WebSearchInput::new("q"), &CancellationToken::new())
                 .await,
             Err(ToolError::UnsupportedResource(_))
         ));
@@ -79,7 +79,7 @@ async fn answer_bounds_do_not_clip_citations() {
         })
         .unwrap();
     assert!(matches!(
-        tool.search(SearchInput::new("q"), &CancellationToken::new())
+        tool.search(WebSearchInput::new("q"), &CancellationToken::new())
             .await,
         Err(ToolError::LimitExceeded(_))
     ));
@@ -98,7 +98,7 @@ async fn utf8_excerpt_clipping_is_accounted_for() {
     })
     .unwrap();
     let out = tool
-        .search(SearchInput::new("q"), &CancellationToken::new())
+        .search(WebSearchInput::new("q"), &CancellationToken::new())
         .await
         .unwrap();
     let SearchPayload::Results { results } = out.data.payload else {
@@ -127,7 +127,7 @@ async fn arguments_and_limits_are_host_controlled() {
         ));
     }
     assert!(
-        serde_json::from_value::<SearchInput>(
+        serde_json::from_value::<WebSearchInput>(
             json!({"query":"q","endpoint":"https://example.com"})
         )
         .is_err()
@@ -150,14 +150,14 @@ impl SearchBackend for Pending {
     fn name(&self) -> &'static str {
         "pending"
     }
-    fn search<'a>(&'a self, _: &'a SearchInput, _: &'a CancellationToken) -> SearchFuture<'a> {
+    fn search<'a>(&'a self, _: &'a WebSearchInput, _: &'a CancellationToken) -> SearchFuture<'a> {
         Box::pin(std::future::pending())
     }
 }
 #[tokio::test]
 async fn generic_deadline_and_parent_cancellation_cover_custom_backends() {
     let tool = WebSearchTool::new(Arc::new(Pending));
-    let mut input = SearchInput::new("q");
+    let mut input = WebSearchInput::new("q");
     input.timeout_ms = Some(10);
     assert!(matches!(
         tool.search(input, &CancellationToken::new()).await,
@@ -169,6 +169,12 @@ async fn generic_deadline_and_parent_cancellation_cover_custom_backends() {
         tokio::task::yield_now().await;
         child.cancel();
     };
-    let (out, ()) = tokio::join!(tool.search(SearchInput::new("q"), &cancel), result);
+    let (out, ()) = tokio::join!(tool.search(WebSearchInput::new("q"), &cancel), result);
     assert!(matches!(out, Err(ToolError::Cancelled)));
+}
+
+#[test]
+fn the_input_is_named_after_its_tool() {
+    let definition = WebSearchTool::definition();
+    assert_eq!(definition.input_schema["title"], "WebSearchInput");
 }

@@ -26,7 +26,7 @@ pub struct AgentScope {
 /// Select a host-defined profile and submit one task.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct DelegateInput {
+pub struct DelegateTaskInput {
     /// Allowed profile name, not an instance or provider name.
     pub profile: String,
     /// Complete instructions for a fresh, isolated worker.
@@ -36,7 +36,7 @@ pub struct DelegateInput {
 /// Inspect one owned task or all retained tasks in this scope.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct StatusInput {
+pub struct TaskStatusInput {
     /// Omit to list retained tasks.
     pub task_id: Option<String>,
 }
@@ -44,7 +44,7 @@ pub struct StatusInput {
 /// Request cancellation of one owned task.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct CancelInput {
+pub struct CancelTaskInput {
     /// Identifier returned by `delegate_task`.
     pub task_id: String,
 }
@@ -52,7 +52,7 @@ pub struct CancelInput {
 /// A new mission in an existing agent conversation.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct FollowupInput {
+pub struct AgentFollowupInput {
     /// Copy exactly from delegation or `task_status`, not a profile or task ID.
     pub agent_id: String,
     /// New instructions, at most 16 KiB. The previous conversation is retained.
@@ -62,7 +62,7 @@ pub struct FollowupInput {
 /// A clarification for the agent's currently running mission.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SendInput {
+pub struct AgentSendInput {
     /// Copy exactly from delegation or `task_status`, not a profile or task ID.
     pub agent_id: String,
     /// Plain message, at most 8 KiB. Does not change tools or permissions.
@@ -181,28 +181,28 @@ pub trait AgentBackend: Debug + Send + Sync {
     fn delegate<'a>(
         &'a self,
         scope: &'a AgentScope,
-        input: &'a DelegateInput,
+        input: &'a DelegateTaskInput,
         cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, TaskInfo>;
     /// Read one or all retained task records in this scope.
     fn status<'a>(
         &'a self,
         scope: &'a AgentScope,
-        input: &'a StatusInput,
+        input: &'a TaskStatusInput,
         cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, TaskList>;
     /// Cancel an owned task, preserving cleanup if the caller goes away.
     fn cancel<'a>(
         &'a self,
         scope: &'a AgentScope,
-        input: &'a CancelInput,
+        input: &'a CancelTaskInput,
         cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, CancelResult>;
     /// Start a new mission in a retained, idle agent conversation.
     fn followup<'a>(
         &'a self,
         _scope: &'a AgentScope,
-        _input: &'a FollowupInput,
+        _input: &'a AgentFollowupInput,
         _cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, TaskInfo> {
         Box::pin(async {
@@ -215,7 +215,7 @@ pub trait AgentBackend: Debug + Send + Sync {
     fn send<'a>(
         &'a self,
         _scope: &'a AgentScope,
-        _input: &'a SendInput,
+        _input: &'a AgentSendInput,
         _cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, SendResult> {
         Box::pin(async {
@@ -258,31 +258,31 @@ impl AgentScope {
     }
 }
 
-impl AgentContract for DelegateInput {
+impl AgentContract for DelegateTaskInput {
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.profile, "profile", 128)?;
         bounded(&self.task, "task", 16_384)
     }
 }
-impl AgentContract for StatusInput {
+impl AgentContract for TaskStatusInput {
     fn validate(&self) -> Result<(), ToolError> {
         self.task_id
             .as_ref()
             .map_or(Ok(()), |id| bounded(id, "task_id", 256))
     }
 }
-impl AgentContract for CancelInput {
+impl AgentContract for CancelTaskInput {
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.task_id, "task_id", 256)
     }
 }
-impl AgentContract for FollowupInput {
+impl AgentContract for AgentFollowupInput {
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.agent_id, "agent_id", 256)?;
         bounded(&self.task, "task", 16_384)
     }
 }
-impl AgentContract for SendInput {
+impl AgentContract for AgentSendInput {
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.agent_id, "agent_id", 256)?;
         bounded(&self.message, "message", 8192)
@@ -417,7 +417,7 @@ macro_rules! tool {
 
 tool!(
     DelegateTaskTool,
-    DelegateInput,
+    DelegateTaskInput,
     TaskInfo,
     delegate,
     "delegate_task",
@@ -425,7 +425,7 @@ tool!(
 );
 tool!(
     TaskStatusTool,
-    StatusInput,
+    TaskStatusInput,
     TaskList,
     status,
     "task_status",
@@ -433,7 +433,7 @@ tool!(
 );
 tool!(
     CancelTaskTool,
-    CancelInput,
+    CancelTaskInput,
     CancelResult,
     cancel,
     "cancel_task",
@@ -441,7 +441,7 @@ tool!(
 );
 tool!(
     AgentFollowupTool,
-    FollowupInput,
+    AgentFollowupInput,
     TaskInfo,
     followup,
     "agent_followup",
@@ -449,7 +449,7 @@ tool!(
 );
 tool!(
     AgentSendTool,
-    SendInput,
+    AgentSendInput,
     SendResult,
     send,
     "agent_send",

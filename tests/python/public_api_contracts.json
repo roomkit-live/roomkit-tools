@@ -2,17 +2,17 @@
  "tools": {
   "agent_followup": {
    "class": "roomkit_tools.AgentFollowupTool",
-   "input": "FollowupInput",
+   "input": "AgentFollowupInput",
    "output": "TaskInfo"
   },
   "agent_send": {
    "class": "roomkit_tools.AgentSendTool",
-   "input": "SendInput",
+   "input": "AgentSendInput",
    "output": "SendResult"
   },
   "cancel_task": {
    "class": "roomkit_tools.CancelTaskTool",
-   "input": "CancelInput",
+   "input": "CancelTaskInput",
    "output": "CancelResult"
   },
   "code_outline": {
@@ -22,7 +22,7 @@
   },
   "delegate_task": {
    "class": "roomkit_tools.DelegateTaskTool",
-   "input": "DelegateInput",
+   "input": "DelegateTaskInput",
    "output": "TaskInfo"
   },
   "diff": {
@@ -147,7 +147,7 @@
   },
   "task_status": {
    "class": "roomkit_tools.TaskStatusTool",
-   "input": "StatusInput",
+   "input": "TaskStatusInput",
    "output": "TaskList"
   },
   "view_image": {
@@ -162,7 +162,7 @@
   },
   "web_search": {
    "class": "roomkit_tools.WebSearchTool",
-   "input": "SearchInput",
+   "input": "WebSearchInput",
    "output": "SearchResult"
   },
   "write": {
@@ -172,18 +172,30 @@
   }
  },
  "types": {
+  "AgentFollowupInput": {
+   "fields": [
+    "agent_id",
+    "task"
+   ]
+  },
+  "AgentSendInput": {
+   "fields": [
+    "agent_id",
+    "message"
+   ]
+  },
   "Array_of_ProcessStatus": {
    "items": "ProcessStatus"
-  },
-  "CancelInput": {
-   "fields": [
-    "task_id"
-   ]
   },
   "CancelResult": {
    "fields": [
     "cancelled",
     "task"
+   ]
+  },
+  "CancelTaskInput": {
+   "fields": [
+    "task_id"
    ]
   },
   "CapturedOutput": {
@@ -235,7 +247,7 @@
     "start_line"
    ]
   },
-  "DelegateInput": {
+  "DelegateTaskInput": {
    "fields": [
     "profile",
     "task"
@@ -394,12 +406,6 @@
     "markdown",
     "text",
     "html"
-   ]
-  },
-  "FollowupInput": {
-   "fields": [
-    "agent_id",
-    "task"
    ]
   },
   "GlobInput": {
@@ -849,13 +855,6 @@
     "url"
    ]
   },
-  "SearchInput": {
-   "fields": [
-    "limit",
-    "query",
-    "timeout_ms"
-   ]
-  },
   "SearchPayload": {
    "tag": "kind",
    "variants": {
@@ -890,12 +889,6 @@
     "search_requests"
    ]
   },
-  "SendInput": {
-   "fields": [
-    "agent_id",
-    "message"
-   ]
-  },
   "SendResult": {
    "fields": [
     "agent_id",
@@ -928,11 +921,6 @@
     "stdout",
     "timed_out",
     "timeout_ms"
-   ]
-  },
-  "StatusInput": {
-   "fields": [
-    "task_id"
    ]
   },
   "StepStatus": {
@@ -983,6 +971,11 @@
     "cancelled"
    ]
   },
+  "TaskStatusInput": {
+   "fields": [
+    "task_id"
+   ]
+  },
   "ViewImageInput": {
    "fields": [
     "path",
@@ -1026,6 +1019,13 @@
     "status",
     "truncated",
     "url"
+   ]
+  },
+  "WebSearchInput": {
+   "fields": [
+    "limit",
+    "query",
+    "timeout_ms"
    ]
   },
   "WriteInput": {

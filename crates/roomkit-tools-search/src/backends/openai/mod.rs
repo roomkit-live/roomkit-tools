@@ -1,5 +1,5 @@
 use super::{
-    HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, SearchInput, ToolError, Transport,
+    HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, ToolError, Transport, WebSearchInput,
     credential, header,
 };
 use crate::{SearchCapabilities, SearchKind};
@@ -93,7 +93,7 @@ impl SearchBackend for OpenAISearch {
     }
     fn search<'a>(
         &'a self,
-        input: &'a SearchInput,
+        input: &'a WebSearchInput,
         cancel: &'a CancellationToken,
     ) -> SearchFuture<'a> {
         let max_calls = self.config.max_tool_calls;

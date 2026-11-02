@@ -1,6 +1,6 @@
 use super::{
-    BackendOutput, HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, SearchInput,
-    ToolError, Transport, credential, header, invalid, mime,
+    BackendOutput, HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, ToolError, Transport,
+    WebSearchInput, credential, header, invalid, mime,
 };
 use crate::SearchHit;
 use serde::Deserialize;
@@ -37,7 +37,7 @@ impl SearchBackend for OllamaSearch {
     }
     fn search<'a>(
         &'a self,
-        input: &'a SearchInput,
+        input: &'a WebSearchInput,
         cancel: &'a CancellationToken,
     ) -> SearchFuture<'a> {
         Box::pin(async move {

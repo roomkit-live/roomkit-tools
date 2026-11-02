@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// Model arguments; provider, credentials and endpoints belong to the host.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SearchInput {
+pub struct WebSearchInput {
     /// Nonempty search query.
     pub query: String,
     /// Maximum retained documents or answer sources, default five. Cited sources must all fit.
@@ -17,7 +17,7 @@ pub struct SearchInput {
 const fn default_limit() -> usize {
     5
 }
-impl SearchInput {
+impl WebSearchInput {
     /// Search with five results and the host's default deadline.
     pub fn new(query: impl Into<String>) -> Self {
         Self {
