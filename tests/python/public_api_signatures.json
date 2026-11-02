@@ -124,7 +124,7 @@
     "edit": ["async def", "path", "old_text", "new_text", "*", "replace_all=False", "expected_revision=None"]
   },
   "roomkit_tools.FileDocs": {
-    "__init__": ["def", "root", "*", "version=None", "**limits"],
+    "__init__": ["def", "root", "*", "version=None", "max_documents=None", "max_document_bytes=None", "max_total_bytes=None", "max_entries=None", "max_depth=None", "max_total_lines=None", "max_read_bytes=None"],
     "list": ["async def", "*", "offset=0", "limit=20", "expected_catalog_revision=None"],
     "read": ["async def", "*", "document_id", "offset=1", "limit=100", "expected_revision=None"],
     "search": ["async def", "*", "query", "offset=0", "limit=10", "expected_catalog_revision=None"]
@@ -193,7 +193,7 @@
   "roomkit_tools.OcrTool": {
     "__init__": ["def", "implementation"],
     "call": ["async def", "arguments"],
-    "create": ["async classmethod", "root", "*", "backend", "**limits"],
+    "create": ["async classmethod", "root", "*", "backend", "max_file_bytes=None", "max_dimension=None", "max_pixels=None", "max_decode_bytes=None", "max_output_bytes=None", "max_blocks=None", "default_timeout_ms=None", "max_timeout_ms=None"],
     "definition": ["staticmethod"],
     "ocr": ["async def", "path", "*", "rotation_degrees=0", "expected_revision=None", "timeout_ms=None"]
   },
@@ -388,7 +388,7 @@
   "roomkit_tools.WebFetchTool": {
     "__init__": ["def", "*", "allowed_origins=None", "private_origins=None", "max_url_bytes=None", "max_response_bytes=None", "max_converted_bytes=None", "max_output_bytes=None", "max_redirects=None", "default_timeout_ms=None", "max_timeout_ms=None"],
     "call": ["async def", "arguments"],
-    "create": ["async classmethod", "**configuration"],
+    "create": ["async classmethod", "*", "allowed_origins=None", "private_origins=None", "max_url_bytes=None", "max_response_bytes=None", "max_converted_bytes=None", "max_output_bytes=None", "max_redirects=None", "default_timeout_ms=None", "max_timeout_ms=None"],
     "definition": ["staticmethod"],
     "fetch": ["async def", "url", "*", "format='markdown'", "timeout_ms=None"]
   },
@@ -400,7 +400,7 @@
   "roomkit_tools.WebSearchTool": {
     "__init__": ["def", "*", "backend", "max_query_bytes=None", "max_results=None", "max_content_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
     "call": ["async def", "arguments"],
-    "create": ["async classmethod", "**configuration"],
+    "create": ["async classmethod", "*", "backend", "max_query_bytes=None", "max_results=None", "max_content_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
     "definition": ["staticmethod"],
     "search": ["async def", "query", "*", "limit=5", "timeout_ms=None"]
   },

@@ -134,12 +134,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_docs::FileDocs / roomkit_tools.FileDocs: variadic"
-covers = [
-  "python roomkit_tools.FileDocs.__init__(limits) (variadic)",  # takes **limits; Rust's FileDocsLimits names max_documents, max_document_bytes, max_total_bytes, max_entries, max_depth, max_total_lines, max_read_bytes
-]
-
-[[pending]]
 reason = "roomkit_tools_image::DecodedImage / no Python name: unmatched"
 covers = [
   "rust roomkit_tools_image::DecodedImage (unmatched)",  # no Python name
@@ -178,9 +172,8 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool: variadic, name"
+reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool: name"
 covers = [
-  "python roomkit_tools.OcrTool.create(limits) (variadic)",  # takes **limits; Rust's OcrLimits names max_file_bytes, max_dimension, max_pixels, max_decode_bytes, max_output_bytes, max_blocks, default_timeout_ms, max_timeout_ms
   "rust roomkit_tools_ocr::OcrTool::new(engine) (name)",  # the one parameter left on each side: named backend in Python
 ]
 
@@ -245,16 +238,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_search::WebSearchTool / roomkit_tools.WebSearchTool: unmatched (2)"
+reason = "roomkit_tools_search::WebSearchTool / roomkit_tools.WebSearchTool: unmatched"
 covers = [
-  "python roomkit_tools.WebSearchTool.create (unmatched)",  # no Rust method
   "rust roomkit_tools_search::WebSearchTool::capabilities (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_web::WebFetchTool / roomkit_tools.WebFetchTool: unmatched"
-covers = [
-  "python roomkit_tools.WebFetchTool.create (unmatched)",  # no Rust method
 ]
 
 [[pending]]
@@ -293,3 +279,15 @@ covers = [
   "rust roomkit_tools_process::ShellTool::has_output_store (unmatched)",  # no Python member: added for hosts with the adapter's move to the Tool protocol
 ]
 
+
+[[pending]]
+reason = "roomkit_tools_web::WebFetchTool / roomkit_tools.WebFetchTool: async"
+covers = [
+  "rust roomkit_tools_web::WebFetchTool::new (async)",  # Python's async create(...), naming its parameters, is the constructor; Rust's new() is sync, needing no I/O
+]
+
+[[pending]]
+reason = "roomkit_tools_search::WebSearchTool / roomkit_tools.WebSearchTool: async"
+covers = [
+  "rust roomkit_tools_search::WebSearchTool::new (async)",  # Python's async create(...), naming its parameters, is the constructor; Rust's new(backend) is sync, needing no I/O
+]

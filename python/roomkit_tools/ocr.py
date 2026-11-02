@@ -34,12 +34,33 @@ class OcrTool:
 
     @classmethod
     async def create(
-        cls, root: str | os.PathLike[str], *, backend: OcrBackend, **limits: int | None
+        cls,
+        root: str | os.PathLike[str],
+        *,
+        backend: OcrBackend,
+        max_file_bytes: int | None = None,
+        max_dimension: int | None = None,
+        max_pixels: int | None = None,
+        max_decode_bytes: int | None = None,
+        max_output_bytes: int | None = None,
+        max_blocks: int | None = None,
+        default_timeout_ms: int | None = None,
+        max_timeout_ms: int | None = None,
     ) -> Self:
         """Bind a workspace to a backend; omitted bounds use Rust defaults."""
         path = os.fspath(root)
         if not path:
             raise _native.InvalidInputError("root must not be empty")
+        limits = {
+            "max_file_bytes": max_file_bytes,
+            "max_dimension": max_dimension,
+            "max_pixels": max_pixels,
+            "max_decode_bytes": max_decode_bytes,
+            "max_output_bytes": max_output_bytes,
+            "max_blocks": max_blocks,
+            "default_timeout_ms": default_timeout_ms,
+            "max_timeout_ms": max_timeout_ms,
+        }
         implementation = await backend.bind(
             await asyncio.to_thread(os.path.abspath, path),
             {key: value for key, value in limits.items() if value is not None},

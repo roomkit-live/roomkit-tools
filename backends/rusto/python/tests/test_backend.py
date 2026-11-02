@@ -39,7 +39,8 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
                 await tool.call({"path": "page.png", "unknown": True})
             with self.assertRaises(InvalidInputError):
                 await OcrTool.create(FIXTURES, backend=backend, max_blocks=0)
-            with self.assertRaises(InvalidInputError):
+            # A misspelled limit is a misspelled keyword: Python refuses it.
+            with self.assertRaises(TypeError):
                 await OcrTool.create(FIXTURES, backend=backend, unknown=1)
             with self.assertRaises(AccessRefusedError):
                 await tool.ocr(ROOT / "Cargo.toml")

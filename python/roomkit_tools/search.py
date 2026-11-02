@@ -165,9 +165,27 @@ class WebSearchTool:
         self._native = _native._WebSearchTool(backend._native, json.dumps(limits, allow_nan=False))
 
     @classmethod
-    async def create(cls, **configuration: Any) -> Self:
-        """Construct without I/O; equivalent to the ordinary constructor."""
-        return cls(**configuration)
+    async def create(
+        cls,
+        *,
+        backend: SearchBackend,
+        max_query_bytes: int | None = None,
+        max_results: int | None = None,
+        max_content_bytes: int | None = None,
+        max_output_bytes: int | None = None,
+        default_timeout_ms: int | None = None,
+        max_timeout_ms: int | None = None,
+    ) -> Self:
+        """Construct without I/O, as the constructor does."""
+        return cls(
+            backend=backend,
+            max_query_bytes=max_query_bytes,
+            max_results=max_results,
+            max_content_bytes=max_content_bytes,
+            max_output_bytes=max_output_bytes,
+            default_timeout_ms=default_timeout_ms,
+            max_timeout_ms=max_timeout_ms,
+        )
 
     @staticmethod
     def definition() -> dict[str, Any]:

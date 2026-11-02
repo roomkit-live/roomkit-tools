@@ -62,9 +62,31 @@ class WebFetchTool:
         )
 
     @classmethod
-    async def create(cls, **configuration: Any) -> Self:
-        """Construct without network access; also available through the constructor."""
-        return cls(**configuration)
+    async def create(
+        cls,
+        *,
+        allowed_origins: list[str] | None = None,
+        private_origins: list[str] | None = None,
+        max_url_bytes: int | None = None,
+        max_response_bytes: int | None = None,
+        max_converted_bytes: int | None = None,
+        max_output_bytes: int | None = None,
+        max_redirects: int | None = None,
+        default_timeout_ms: int | None = None,
+        max_timeout_ms: int | None = None,
+    ) -> Self:
+        """Construct without network access, as the constructor does."""
+        return cls(
+            allowed_origins=allowed_origins,
+            private_origins=private_origins,
+            max_url_bytes=max_url_bytes,
+            max_response_bytes=max_response_bytes,
+            max_converted_bytes=max_converted_bytes,
+            max_output_bytes=max_output_bytes,
+            max_redirects=max_redirects,
+            default_timeout_ms=default_timeout_ms,
+            max_timeout_ms=max_timeout_ms,
+        )
 
     @staticmethod
     def definition() -> dict[str, Any]:

@@ -1,6 +1,7 @@
 """Installed native HTTP transport: parity, policy, cancellation and schemas."""
 
 import asyncio
+import inspect
 import json
 import os
 import unittest
@@ -211,3 +212,22 @@ class SearchLoopTests(unittest.TestCase):
 
         asyncio.run(refused())
         asyncio.run(refused())
+
+
+class NamedParametersTests(unittest.TestCase):
+    """Each limit is a named keyword, the fields of Rust's SearchLimits: a misspelled one
+    fails when it is passed, as any Python keyword."""
+
+    def test_web_search_tool_create_names_every_limit(self):
+        self.assertEqual(
+            list(inspect.signature(WebSearchTool.create).parameters),
+            [
+                "backend",
+                "max_query_bytes",
+                "max_results",
+                "max_content_bytes",
+                "max_output_bytes",
+                "default_timeout_ms",
+                "max_timeout_ms",
+            ],
+        )

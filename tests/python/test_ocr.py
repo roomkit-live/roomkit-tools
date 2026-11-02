@@ -1,6 +1,7 @@
 """OCR selection works without installing any recognition engine."""
 
 import importlib.util
+import inspect
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,3 +42,25 @@ class OcrTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(backend.calls[0]["rotation_degrees"], 90)
         with self.assertRaises(InvalidInputError):
             await OcrTool.create("", backend=backend)
+
+
+class NamedParametersTests(unittest.TestCase):
+    """Each limit is a named keyword, the fields of Rust's OcrLimits: a misspelled one
+    fails when it is passed, as any Python keyword."""
+
+    def test_ocr_tool_create_names_every_limit(self):
+        self.assertEqual(
+            list(inspect.signature(OcrTool.create).parameters),
+            [
+                "root",
+                "backend",
+                "max_file_bytes",
+                "max_dimension",
+                "max_pixels",
+                "max_decode_bytes",
+                "max_output_bytes",
+                "max_blocks",
+                "default_timeout_ms",
+                "max_timeout_ms",
+            ],
+        )

@@ -101,6 +101,13 @@ part of an existing published preview.
   (`WebSearch(WebSearchTool(backend=...))`). A root or limit is checked when
   the tool is built rather than at the first call; `ReadToolAdapter`, which
   took a built `ReadTool`, is `Read`.
+- Python names every limit where it took `**limits` or `**configuration`:
+  `FileDocs(root, *, version=None, max_documents=None, ...)`,
+  `OcrTool.create(root, *, backend, max_file_bytes=None, ...)`,
+  `WebFetchTool.create(*, allowed_origins=None, ...)` and
+  `WebSearchTool.create(*, backend, max_query_bytes=None, ...)`, the fields
+  of Rust's limits and configuration structs, `None` keeping Rust's default.
+  A misspelled limit now raises `TypeError` instead of `InvalidInputError`.
 - Rust RoomKit adapter: each adapter takes the name of its Python RoomKit
   tool, `<X>Toolset` becoming `<X>`: `ReadToolset::new(tool)` is
   `Read::new(tool)`, and likewise `List`, `Glob`, `Grep`, `Diff`, `Edit`,

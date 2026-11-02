@@ -1,6 +1,7 @@
 """Installed native HTTP transport: parity, policy, cancellation and schemas."""
 
 import asyncio
+import inspect
 import json
 import os
 import unittest
@@ -111,3 +112,24 @@ class WebFetchLoopTests(unittest.TestCase):
 
         asyncio.run(refused())
         asyncio.run(refused())
+
+
+class NamedParametersTests(unittest.TestCase):
+    """Each limit is a named keyword, the fields of Rust's WebFetchPolicy and
+    WebFetchLimits: a misspelled one fails when it is passed, as any keyword."""
+
+    def test_web_fetch_tool_create_names_every_limit(self):
+        self.assertEqual(
+            list(inspect.signature(WebFetchTool.create).parameters),
+            [
+                "allowed_origins",
+                "private_origins",
+                "max_url_bytes",
+                "max_response_bytes",
+                "max_converted_bytes",
+                "max_output_bytes",
+                "max_redirects",
+                "default_timeout_ms",
+                "max_timeout_ms",
+            ],
+        )

@@ -39,7 +39,37 @@ class FileDocs:
     Instances own independent snapshots; selected tools share this backend explicitly.
     """
 
-    def __init__(self, root: str | os.PathLike[str], *, version: str | None = None, **limits: int):
+    def __init__(
+        self,
+        root: str | os.PathLike[str],
+        *,
+        version: str | None = None,
+        max_documents: int | None = None,
+        max_document_bytes: int | None = None,
+        max_total_bytes: int | None = None,
+        max_entries: int | None = None,
+        max_depth: int | None = None,
+        max_total_lines: int | None = None,
+        max_read_bytes: int | None = None,
+    ):
+        """Capture the root; omitted bounds use Rust defaults.
+
+        Defaults: 256 documents of at most 256 KiB, 8 MiB in all, 4096 scanned
+        entries, 16 nested directories, 65536 lines and 32 KiB read pages.
+        """
+        limits = {
+            name: value
+            for name, value in {
+                "max_documents": max_documents,
+                "max_document_bytes": max_document_bytes,
+                "max_total_bytes": max_total_bytes,
+                "max_entries": max_entries,
+                "max_depth": max_depth,
+                "max_total_lines": max_total_lines,
+                "max_read_bytes": max_read_bytes,
+            }.items()
+            if value is not None
+        }
         self._native = _FileDocs(
             os.path.abspath(root), version, json.dumps(limits, allow_nan=False)
         )

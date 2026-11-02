@@ -2,6 +2,7 @@
 
 import asyncio
 import copy
+import inspect
 import json
 import os
 import tempfile
@@ -94,8 +95,11 @@ class DocsTests(unittest.IsolatedAsyncioTestCase):
         for arguments in ({"query": " "}, {"query": "x", "limit": 0}, {"query": "x", "root": "/"}):
             with self.assertRaises(InvalidInputError):
                 await DocsSearchTool(self.backend).call(arguments)
-        with self.assertRaises(InvalidInputError):
+        # A misspelled limit is a misspelled keyword; a bad value is Rust's to refuse.
+        with self.assertRaises(TypeError):
             FileDocs(self.root, unknown_limit=3)
+        with self.assertRaises(InvalidInputError):
+            FileDocs(self.root, max_documents=0)
         with self.assertRaises(LimitExceededError):
             await DocsListTool(FileDocs(self.root, max_documents=1)).call({})
         bad = self.root / "bad.md"
@@ -169,3 +173,24 @@ class DocsLoopTests(unittest.TestCase):
             second = asyncio.run(DocsListTool(backend).call({}))
             self.assertEqual(first, second)
             self.assertEqual(first["data"]["documents"][0]["document_id"], "guide.md")
+
+
+class NamedParametersTests(unittest.TestCase):
+    """Each limit is a named keyword, the fields of Rust's FileDocsLimits: a misspelled one
+    fails when it is passed, as any Python keyword."""
+
+    def test_file_docs_names_every_limit(self):
+        self.assertEqual(
+            list(inspect.signature(FileDocs).parameters),
+            [
+                "root",
+                "version",
+                "max_documents",
+                "max_document_bytes",
+                "max_total_bytes",
+                "max_entries",
+                "max_depth",
+                "max_total_lines",
+                "max_read_bytes",
+            ],
+        )
