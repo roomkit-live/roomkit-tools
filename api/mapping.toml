@@ -63,7 +63,6 @@ builtin_errors = { "roomkit_tools_core::ToolError::Cancelled" = "asyncio.Cancell
 roomkit_tools_core = ["roomkit_tools"]
 roomkit_tools_fs = ["roomkit_tools", "roomkit_tools.fs", "roomkit_tools.workspace"]
 roomkit_tools_process = ["roomkit_tools", "roomkit_tools.process", "roomkit_tools.output"]
-roomkit_tools_http = ["roomkit_tools"]
 roomkit_tools_web = ["roomkit_tools", "roomkit_tools.web"]
 roomkit_tools_search = ["roomkit_tools", "roomkit_tools.search"]
 roomkit_tools_code = ["roomkit_tools", "roomkit_tools.code"]
