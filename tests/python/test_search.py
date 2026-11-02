@@ -210,6 +210,18 @@ class WebSearchTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("secret", str(ctx.exception))
 
 
+class CapabilitiesTests(unittest.TestCase):
+    def test_the_tool_reports_its_backends_capabilities(self):
+        """WebSearchTool.capabilities(), as Rust's WebSearchTool::capabilities()."""
+        for backend in (
+            ExaSearch(allowed_origins=[]),
+            OpenAISearch(api_key="fixture-key", model="fixture-model"),
+        ):
+            with self.subTest(backend=type(backend).__name__):
+                tool = WebSearchTool(backend=backend)
+                self.assertEqual(tool.capabilities(), backend.capabilities)
+
+
 class SearchLoopTests(unittest.TestCase):
     def test_backend_and_tool_reuse_across_event_loops(self):
         tool = WebSearchTool(backend=ExaSearch(allowed_origins=[]))

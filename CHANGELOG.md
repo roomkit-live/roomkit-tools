@@ -158,6 +158,8 @@ part of an existing published preview.
 
 ### Added
 
+- Python: `WebSearchTool.capabilities()` reports the selected backend's result
+  kinds and service limits, as Rust's `WebSearchTool::capabilities()`.
 - `web_fetch` uses [`htmlmark`](https://crates.io/crates/htmlmark) 0.1:
   bounded, interruptible HTML to Markdown and text conversion for untrusted
   pages, on html5ever with its own tree. It was written here and is now

@@ -31,6 +31,11 @@ impl PythonWebSearchTool {
             .map_err(|_| ToolError::new_err("Unable to serialize web definition"))
     }
 
+    fn capabilities_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.tool.capabilities())
+            .map_err(|_| ToolError::new_err("Unable to serialize search capabilities"))
+    }
+
     fn call<'py>(
         &self,
         py: Python<'py>,

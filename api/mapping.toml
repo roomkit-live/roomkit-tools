@@ -240,13 +240,6 @@ covers = [
 ]
 
 [[missing]]
-decision = "TODO: maintainer"
-reason = "Rust only: WebSearchTool::capabilities, the capabilities of the tool's backend; Python's WebSearchTool has none"
-covers = [
-  "rust roomkit_tools_search::WebSearchTool::capabilities (unmatched)",
-]
-
-[[missing]]
 approved = 2026-11-02
 decision = "luge-hitl:76e988fe Q9"
 reason = "Python only: the RoomKit agent backend, roomkit_tools.roomkit_agents"

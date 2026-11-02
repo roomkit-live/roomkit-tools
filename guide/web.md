@@ -113,8 +113,9 @@ No search server or second local model needs to be started.
 
 Without RoomKit, use `WebSearchTool(backend=...)` and
 `await tool.search("query", limit=5, timeout_ms=30000)`. It returns the same
-`data`/`text` envelope as Rust. `backend.capabilities` exposes supported result
-kinds and service limits. A new native backend needs a binding factory to be
+`data`/`text` envelope as Rust. `tool.capabilities()`, as Rust's
+`WebSearchTool::capabilities()`, and `backend.capabilities` expose the
+backend's supported result kinds and service limits. A new native backend needs a binding factory to be
 available in Python; there is no Python HTTP fallback.
 
 Input is only `query`, `limit` and `timeout_ms`. The host selects credentials,
