@@ -75,13 +75,18 @@ required by standalone tools or the Python package. The `roomkit-rs` repository
 is not public yet, so building the adapter requires access to it. Consume the
 same source and revision to share RoomKit types.
 
-The adapter implements RoomKit's `Toolset` interface for filesystem, outline,
-command, process, output, web-fetch and search tools. Register them individually
-and supply roots, limits and lifetimes. RoomKit manages argument validation,
-policies, hooks and turn cancellation. Process/archive owners are derived from
-the conversation and agent: `roomkit_owner(room_id, channel_id)` returns that
-key, so the host can pass it to `ProcessManager` and `OutputStore` methods to
-reach the jobs and archives of an agent's calls in a room.
+Each adapter implements RoomKit's `Tool` trait, the Rust form of Python's Tool
+protocol, for filesystem, outline, command, process, output, web-fetch and
+search tools. Declare them individually in an AI channel's
+`AiChannelOptions::tools` as `ToolEntry::Tool(Arc::new(adapter))`, and supply
+roots, limits and lifetimes. An adapter serves only its own tool's name and
+leaves any other call to the channel's next tool. RoomKit manages argument
+validation, policies, hooks and turn cancellation; dropping a call cancels it.
+Process/archive owners are derived from the conversation and agent of the
+current RoomKit tool call, and a call made outside one is refused:
+`roomkit_owner(room_id, channel_id)` returns that key, so the host can pass it
+to `ProcessManager` and `OutputStore` methods to reach the jobs and archives of
+an agent's calls in a room.
 
 | Capability | Native Rust tool | RoomKit Rust adapter |
 | --- | --- | --- |
@@ -100,7 +105,9 @@ See [images](images.md), [plans](plans.md) and [agents](agents.md).
 Pass a `CancellationToken` to operations. A returned cancellation does not undo
 an already-committed mutation or immediately terminate blocking work. Keep the
 Tokio runtime alive while cleanup completes. Use explicit process/store/backend
-shutdown; state is not durable across a host restart.
+shutdown: the adapters close nothing, and the host closes the `ProcessManager`,
+`OutputStore` and backends it shares between them. State is not durable across
+a host restart.
 
 Filesystem roots are access checks for a host-controlled workspace. Shell
 commands execute with host permissions and only the environment the host selects

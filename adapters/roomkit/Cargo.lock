@@ -266,7 +266,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1162,7 +1162,7 @@ dependencies = [
 [[package]]
 name = "roomkit"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=e5ced400061a8558f9b59dbadbf16f9cbac97ba3#e5ced400061a8558f9b59dbadbf16f9cbac97ba3"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=93e757c0e59c85642d32cffd13c4020746ba0047#93e757c0e59c85642d32cffd13c4020746ba0047"
 dependencies = [
  "futures-core",
  "roomkit-core",
@@ -1177,21 +1177,23 @@ dependencies = [
 [[package]]
 name = "roomkit-ai"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=e5ced400061a8558f9b59dbadbf16f9cbac97ba3#e5ced400061a8558f9b59dbadbf16f9cbac97ba3"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=93e757c0e59c85642d32cffd13c4020746ba0047#93e757c0e59c85642d32cffd13c4020746ba0047"
 dependencies = [
  "futures-core",
  "roomkit",
+ "roomkit-core",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
 name = "roomkit-core"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=e5ced400061a8558f9b59dbadbf16f9cbac97ba3#e5ced400061a8558f9b59dbadbf16f9cbac97ba3"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=93e757c0e59c85642d32cffd13c4020746ba0047#93e757c0e59c85642d32cffd13c4020746ba0047"
 dependencies = [
  "jiff",
  "serde",
@@ -1335,6 +1337,7 @@ dependencies = [
  "roomkit-tools-process",
  "roomkit-tools-search",
  "roomkit-tools-web",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
@@ -1389,7 +1392,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1445,7 +1448,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1776,7 +1779,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2157,7 +2160,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

@@ -76,6 +76,9 @@ exposes `OcrToolset` behind its optional `ocr` Cargo feature; it does not depend
 on RustO. All crates in this source tree require Rust 1.94+.
 
 ```rust,ignore
+use std::sync::Arc;
+
+use roomkit_ai::ToolEntry;
 use roomkit_tools_ocr::{OcrTool, OcrInput};
 use roomkit_tools_ocr_rusto::{RustoBackend, RustoConfig};
 use roomkit_tools_roomkit::OcrToolset;
@@ -89,7 +92,8 @@ let engine = RustoBackend::lazy(RustoConfig {
     detection_max_edge: 960,
 })?;
 let tool = OcrTool::new("./documents", engine).await?;
-let toolset = OcrToolset::new(tool); // Register with your RoomKit Rust agent.
+// Declare it in your RoomKit Rust agent's `AiChannelOptions::tools`.
+let ocr = ToolEntry::Tool(Arc::new(OcrToolset::new(tool)));
 ```
 
 A complete standalone Rust example is available:

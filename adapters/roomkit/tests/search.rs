@@ -1,16 +1,19 @@
-//! Generic search adapter preserves provider output and lifecycle cancellation.
+//! Generic search adapter preserves provider output and cancels dropped calls.
 #![expect(clippy::unwrap_used, reason = "test assertions")]
-use roomkit::model::{ChannelId, RoomId, ToolCall};
-use roomkit_ai::{ToolContext, ToolError, ToolOutput, Toolset};
+use roomkit::model::Metadata;
+use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_roomkit::WebSearchToolset;
 use roomkit_tools_search::{
     BackendOutput, SearchBackend, SearchFuture, SearchInput, WebSearchTool,
 };
 use serde_json::json;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
-#[derive(Debug)]
-struct Backend;
+/// A backend whose `wait` query never ends, keeping the token it was given.
+#[derive(Debug, Default)]
+struct Backend {
+    waiting: Arc<Mutex<Option<CancellationToken>>>,
+}
 impl SearchBackend for Backend {
     fn capabilities(&self) -> roomkit_tools_search::SearchCapabilities {
         roomkit_tools_search::SearchCapabilities::direct(10)
@@ -18,59 +21,65 @@ impl SearchBackend for Backend {
     fn name(&self) -> &'static str {
         "custom"
     }
-    fn search<'a>(&'a self, input: &'a SearchInput, _: &'a CancellationToken) -> SearchFuture<'a> {
+    fn search<'a>(
+        &'a self,
+        input: &'a SearchInput,
+        cancel: &'a CancellationToken,
+    ) -> SearchFuture<'a> {
         Box::pin(async move {
             if input.query == "wait" {
+                *self.waiting.lock().unwrap() = Some(cancel.clone());
                 std::future::pending::<()>().await;
             }
             Ok(BackendOutput::results(vec![]))
         })
     }
 }
-fn context() -> ToolContext {
-    ToolContext::new(
-        RoomId::new("search").unwrap(),
-        ChannelId::new("agent").unwrap(),
-    )
-}
-fn call(query: &str) -> ToolCall {
-    ToolCall::new(
-        "search",
-        "web_search",
-        serde_json::from_value(json!({"query":query})).unwrap(),
-    )
+fn query(query: &str) -> Metadata {
+    serde_json::from_value(json!({"query":query})).unwrap()
 }
 #[tokio::test]
-async fn search_is_independently_selectable_and_closing_cancels() {
-    let tools = WebSearchToolset::new(WebSearchTool::new(Arc::new(Backend)));
-    assert_eq!(tools.tools().len(), 1);
+async fn search_is_independently_selectable_and_dropping_a_call_cancels_it() {
+    let backend = Backend::default();
+    let waiting = Arc::clone(&backend.waiting);
+    let tools = WebSearchToolset::new(WebSearchTool::new(Arc::new(backend)));
+    assert_eq!(tools.definition().name, "web_search");
     assert_eq!(
-        tools.tools()[0].parameters,
+        tools.definition().parameters,
         WebSearchTool::definition().input_schema
     );
     assert!(matches!(
-        tools.call(call(""), context()).await,
+        tools.handler("web_search".into(), query("")).await,
         Err(ToolError::Refused(_))
     ));
-    let ToolOutput::Json(result) = tools.call(call("query"), context()).await.unwrap() else {
+    let ToolResult::Json(result) = tools
+        .handler("web_search".into(), query("query"))
+        .await
+        .unwrap()
+    else {
         panic!("expected JSON")
     };
     assert_eq!(result["data"]["provider"], "custom");
     assert_eq!(result["data"]["payload"]["results"], json!([]));
-    let closing = async {
-        tokio::task::yield_now().await;
-        tools.close().await;
-    };
-    let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
-        tokio::join!(tools.call(call("wait"), context()), closing)
+    // RoomKit cancels a call by dropping it: the backend's token is cancelled.
+    let mut pending = tools.handler("web_search".into(), query("wait"));
+    let token = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            if let Some(token) = waiting.lock().unwrap().clone() {
+                return Ok(token);
+            }
+            tokio::select! {
+                answer = &mut pending => return Err(answer),
+                () = tokio::task::yield_now() => {}
+            }
+        }
     })
     .await
+    .unwrap()
     .unwrap();
-    assert!(matches!(result, Err(ToolError::Failed(_))));
-    assert!(matches!(
-        tools.call(call("query"), context()).await,
-        Err(ToolError::Refused(_))
-    ));
+    assert!(!token.is_cancelled());
+    drop(pending);
+    assert!(token.is_cancelled());
 }
 
 #[path = "../../../tests/support/search.rs"]
@@ -89,7 +98,11 @@ async fn native_openai_answer_preserves_citations_and_usage_through_roomkit() {
     )
     .unwrap();
     let tools = WebSearchToolset::new(WebSearchTool::new(Arc::new(backend)));
-    let ToolOutput::Json(result) = tools.call(call("query"), context()).await.unwrap() else {
+    let ToolResult::Json(result) = tools
+        .handler("web_search".into(), query("query"))
+        .await
+        .unwrap()
+    else {
         panic!("expected JSON")
     };
     assert_eq!(result["data"]["payload"]["kind"], "answer");
@@ -102,5 +115,4 @@ async fn native_openai_answer_preserves_citations_and_usage_through_roomkit() {
             .contains("[source 1](<https://example.com/guide>)")
     );
     assert_eq!(server.seen.lock().unwrap().len(), 1);
-    tools.close().await;
 }

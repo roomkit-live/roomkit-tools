@@ -1,7 +1,7 @@
 //! The optional OCR adapter exposes the shared schema and maps failures.
 #![cfg(feature = "ocr")]
-use roomkit::model::{ChannelId, RoomId, ToolCall};
-use roomkit_ai::{ToolContext, ToolError, Toolset};
+use roomkit::model::Metadata;
+use roomkit_ai::{Tool, ToolError};
 use roomkit_tools_core::Error;
 use roomkit_tools_ocr::{DecodedImage, OcrBackend, OcrBlock, OcrEngine, OcrIdentity, OcrTool};
 use roomkit_tools_roomkit::OcrToolset;
@@ -27,33 +27,25 @@ impl OcrBackend for Fixture {
 }
 
 #[tokio::test]
-async fn optional_schema_validation_and_close() {
+async fn optional_schema_validation_and_declined_calls() {
     let root = tempfile::tempdir().unwrap();
     let native = OcrTool::new(root.path(), OcrEngine::new(Fixture).unwrap())
         .await
         .unwrap();
     let tool = OcrToolset::new(native);
-    assert_eq!(tool.tools().len(), 1);
+    assert_eq!(tool.definition().name, "ocr");
     assert_eq!(
-        tool.tools()[0].parameters,
+        tool.definition().parameters,
         OcrTool::definition().input_schema
     );
-    let context = ToolContext::new(
-        RoomId::new("ocr").unwrap(),
-        ChannelId::new("agent").unwrap(),
-    );
-    let call = ToolCall::new(
-        "ocr",
-        "ocr",
-        serde_json::from_value(json!({"path":"page.png", "rotation_degrees":45})).unwrap(),
-    );
+    let arguments: Metadata =
+        serde_json::from_value(json!({"path":"page.png", "rotation_degrees":45})).unwrap();
     assert!(matches!(
-        tool.call(call.clone(), context.clone()).await,
+        tool.handler("ocr".into(), arguments.clone()).await,
         Err(ToolError::Refused(_))
     ));
-    tool.close().await;
     assert!(matches!(
-        tool.call(call, context).await,
-        Err(ToolError::Refused(_))
+        tool.handler("read".into(), arguments).await,
+        Err(ToolError::UnservedToolCall(_))
     ));
 }

@@ -1,13 +1,17 @@
 //! Individually selectable tools for RoomKit Rust.
 //!
-//! Register each of [`ReadToolset`], [`ListToolset`], [`GlobToolset`] and
-//! [`GrepToolset`], [`WriteToolset`], [`EditToolset`] and [`ShellToolset`] independently with `AiAgent::with_tools` or
-//! `OpenAiAgent::with_tools`. RoomKit retains argument validation, policies,
-//! hooks, timeouts and turn cancellation. The filesystem implementation
+//! Each adapter is a RoomKit [`Tool`], the Rust form of
+//! Python's Tool protocol. Declare each of [`ReadToolset`], [`ListToolset`],
+//! [`GlobToolset`] and [`GrepToolset`], [`WriteToolset`], [`EditToolset`] and
+//! [`ShellToolset`] independently in an AI channel's
+//! `AiChannelOptions::tools`, as `ToolEntry::Tool(Arc::new(..))`. RoomKit
+//! retains argument validation, policies, hooks, timeouts and turn
+//! cancellation; dropping a call cancels it. The filesystem implementation
 //! remains usable without RoomKit. [`roomkit_owner`] names the owner under
-//! which the shell, process and output toolsets keep a room and agent's jobs
+//! which the shell, process and output adapters keep a room and agent's jobs
 //! and archives.
 
+mod bridge;
 #[cfg(feature = "plans")]
 mod plans;
 #[cfg(feature = "plans")]
@@ -27,10 +31,11 @@ pub use process::{
     ProcessWriteToolset,
 };
 
-use roomkit::model::ToolCall;
-use roomkit_ai::{ToolContext, ToolDefinition, ToolError, ToolOutput, Toolset};
+use std::sync::Arc;
+
+use roomkit::model::Metadata;
+use roomkit_ai::{AiTool, Tool, ToolFuture};
 use roomkit_tools_code::CodeOutlineTool;
-use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool,
 };
@@ -38,7 +43,8 @@ use roomkit_tools_fs::{
 use roomkit_tools_ocr::OcrTool;
 use roomkit_tools_search::WebSearchTool;
 use roomkit_tools_web::WebFetchTool;
-use tokio_util::sync::CancellationToken;
+
+use bridge::{ai_tool, serve, tool_error};
 
 /// The owner key of the shell, process and output toolsets for the calls of
 /// the agent `channel_id` in the room `room_id`.
@@ -53,45 +59,34 @@ pub fn roomkit_owner(room_id: &str, channel_id: &str) -> String {
     serde_json::Value::from(vec![room_id, channel_id]).to_string()
 }
 
-// Each adapter exposes one capability. Composing toolsets remains the host's
+// Each adapter exposes one capability. Composing tools remains the host's
 // choice; this macro only shares the RoomKit argument/result/lifecycle bridge.
 macro_rules! toolset {
     ($(#[$doc:meta])* $name:ident, $tool:ident, $method:ident, $wire:literal) => {
         $(#[$doc])*
-        #[derive(Debug)]
+        #[derive(Clone, Debug)]
         pub struct $name {
-            tool: $tool,
-            closed: CancellationToken,
+            tool: Arc<$tool>,
         }
 
         impl $name {
             /// Adapt a configured tool without expanding its root or limits.
             pub fn new(tool: $tool) -> Self {
-                Self { tool, closed: CancellationToken::new() }
+                Self { tool: Arc::new(tool) }
             }
         }
 
-        impl Toolset for $name {
-            fn tools(&self) -> Vec<ToolDefinition> {
-                let definition = $tool::definition();
-                vec![ToolDefinition::new(definition.name, definition.description, definition.input_schema)]
+        impl Tool for $name {
+            fn definition(&self) -> AiTool {
+                ai_tool($tool::definition())
             }
 
-            async fn call(&self, call: ToolCall, _context: ToolContext) -> Result<ToolOutput, ToolError> {
-                if call.name != $wire {
-                    return Err(ToolError::refused(concat!("This toolset only serves '", $wire, "'.")));
-                }
-                if self.closed.is_cancelled() {
-                    return Err(ToolError::refused(concat!("The ", $wire, " toolset is closed.")));
-                }
-                let input = roomkit_ai::arguments(&call)?;
-                let cancel = self.closed.child_token();
-                let _cancel_on_drop = cancel.clone().drop_guard();
-                let output = self.tool.$method(input, &cancel).await.map_err(|error| tool_error(&error))?;
-                serde_json::to_value(output).map(ToolOutput::Json).map_err(|error| ToolError::raised(&error))
+            fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {
+                let tool = Arc::clone(&self.tool);
+                serve($wire, name, arguments, move |input, cancel| async move {
+                    tool.$method(input, &cancel).await.map_err(|error| tool_error(&error))
+                })
             }
-
-            async fn close(&self) { self.closed.cancel(); }
         }
     };
 }
@@ -104,45 +99,45 @@ toolset!(
 toolset!(
     /// The `read` tool with its host-selected root and limits.
     ///
-    /// Returns both structured `data` and numbered `text`. Closing cancels
-    /// pending calls and refuses new ones. Dropping a call cancels its token;
-    /// already-issued Tokio file operations may finish in the blocking pool.
+    /// Returns both structured `data` and numbered `text`. Dropping a call
+    /// cancels its token; already-issued Tokio file operations may finish in
+    /// the blocking pool.
     ReadToolset, ReadTool, read, "read"
 );
 toolset!(
     /// The non-recursive `list` tool, independently selectable from `read`.
     ///
     /// Returns entry types, workspace-relative paths and continuation offsets.
-    /// Closing or dropping a call uses the same lifecycle as [`ReadToolset`].
+    /// Dropping a call uses the same lifecycle as [`ReadToolset`].
     ListToolset, ListTool, list, "list"
 );
 toolset!(
     /// The recursive `glob` path search, independently selectable.
     ///
     /// Keeps the tool's scan and output bounds and structured pagination.
-    /// Closing or dropping a call uses the same lifecycle as [`ReadToolset`].
+    /// Dropping a call uses the same lifecycle as [`ReadToolset`].
     GlobToolset, GlobTool, glob, "glob"
 );
 toolset!(
     /// The `grep` text search, independently selectable.
     ///
     /// Keeps matching lines, file paths, skipped-file counts and pagination.
-    /// Closing or dropping a call uses the same lifecycle as [`ReadToolset`].
+    /// Dropping a call uses the same lifecycle as [`ReadToolset`].
     GrepToolset, GrepTool, grep, "grep"
 );
 
 toolset!(
     /// Create or explicitly replace text files using a host-configured `write` tool.
     ///
-    /// Share a `MutationWorkspace` with `edit` to serialize mutations. Closing
-    /// cancels calls before commit; an already-started commit may finish.
+    /// Share a `MutationWorkspace` with `edit` to serialize mutations. Dropping
+    /// a call cancels it before commit; an already-started commit may finish.
     WriteToolset, WriteTool, write, "write"
 );
 toolset!(
     /// Replace exact text using an independently selected `edit` tool.
     ///
     /// Preserves the tool's ambiguity checks, limits and mutation workspace.
-    /// Closing cancels calls before commit; an already-started commit may finish.
+    /// Dropping a call cancels it before commit; an already-started commit may finish.
     EditToolset, EditTool, edit, "edit"
 );
 
@@ -155,13 +150,13 @@ toolset!(
     ///
     /// A partial application returns structured completed/applied/failure fields.
     /// The host and model must inspect these; a served call is not proof that
-    /// every requested change was applied. Closing cancels between effects.
+    /// every requested change was applied. Dropping a call cancels between effects.
     PatchToolset, PatchTool, patch, "patch"
 );
 
 toolset!(
     /// Fetch textual HTTP content under host origin rules and resource bounds.
-    /// Closing cancels calls; issued blocking conversion may finish later.
+    /// Dropping a call cancels it; issued blocking conversion may finish later.
     WebFetchToolset, WebFetchTool, fetch, "web_fetch"
 );
 
@@ -175,14 +170,3 @@ toolset!(
     /// Transcribe local images using a separately configured recognition backend.
     OcrToolset, OcrTool, ocr, "ocr"
 );
-
-fn tool_error(error: &Error) -> ToolError {
-    match error {
-        Error::InvalidInput(_) | Error::Refused(_) => ToolError::refused(error.to_string()),
-        Error::LimitExceeded(_) | Error::Unsupported(_) | Error::Cancelled => {
-            ToolError::failed(error.to_string())
-        }
-        // Diagnostic causes reach RoomKit's observers, never the model.
-        _ => ToolError::raised(error),
-    }
-}

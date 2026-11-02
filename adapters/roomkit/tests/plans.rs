@@ -1,7 +1,10 @@
-//! Independently selected plan toolsets derive ownership from RoomKit context.
+//! Independently selected plan adapters derive ownership from RoomKit context.
 #![cfg(feature = "plans")]
-use roomkit::model::{ChannelId, RoomId, ToolCall};
-use roomkit_ai::{ToolContext, ToolError, ToolOutput, Toolset};
+
+mod call;
+
+use roomkit::model::Metadata;
+use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_plans::{
     MemoryPlanBackend, PlanCreateTool, PlanDeleteTool, PlanListTool, PlanReadTool, PlanUpdateTool,
 };
@@ -11,26 +14,15 @@ use roomkit_tools_roomkit::{
 use serde_json::{Value, json};
 use std::sync::Arc;
 
-#[expect(
-    clippy::unwrap_used,
-    reason = "test context uses valid fixture identifiers"
-)]
-fn context(room: &str, agent: &str) -> ToolContext {
-    ToolContext::new(RoomId::new(room).unwrap(), ChannelId::new(agent).unwrap())
-}
-#[expect(clippy::unwrap_used, reason = "test arguments are fixture objects")]
-fn call(name: &str, arguments: Value) -> ToolCall {
-    ToolCall::new("id", name, serde_json::from_value(arguments).unwrap())
-}
 #[expect(clippy::panic, reason = "unexpected test output must fail the test")]
-fn data(output: ToolOutput) -> Value {
-    let ToolOutput::Json(value) = output else {
-        panic!("expected JSON");
+fn data(output: Result<ToolResult, ToolError>) -> Value {
+    let Ok(ToolResult::Json(value)) = output else {
+        panic!("expected JSON, got {output:?}");
     };
     value["data"].clone()
 }
 #[tokio::test]
-async fn scoped_crud_adapters_preserve_store_after_close() {
+async fn scoped_crud_adapters_share_the_host_store_by_room_and_agent() {
     let store = Arc::new(MemoryPlanBackend::default());
     let creator = PlanCreateToolset::new(PlanCreateTool::new(store.clone()));
     let reader = PlanReadToolset::new(PlanReadTool::new(store.clone()));
@@ -38,67 +30,65 @@ async fn scoped_crud_adapters_preserve_store_after_close() {
     let lister = PlanListToolset::new(PlanListTool::new(store.clone()));
     let deleter = PlanDeleteToolset::new(PlanDeleteTool::new(store));
     assert_eq!(
-        creator.tools()[0].parameters,
+        creator.definition().parameters,
         PlanCreateTool::definition().input_schema
     );
-    let owner = context("plans", "assistant");
-    let request = call(
-        "plan_create",
-        json!({"title":"Inspect","objective":"Check boundary","steps":[]}),
-    );
-    let plan = data(creator.call(request.clone(), owner.clone()).await.unwrap());
-    creator.close().await;
-    assert!(matches!(
-        creator.call(request, owner.clone()).await,
-        Err(ToolError::Refused(_))
-    ));
-    let request = call("plan_read", json!({"plan_id":plan["plan_id"]}));
+    let (room, agent) = ("plans", "assistant");
+    let request = json!({"title":"Inspect","objective":"Check boundary","steps":[]});
+    let plan = data(call::run(&creator, room, agent, "plan_create", request).await);
+    let request = json!({"plan_id":plan["plan_id"]});
     assert_eq!(
-        data(reader.call(request.clone(), owner.clone()).await.unwrap()),
+        data(call::run(&reader, room, agent, "plan_read", request.clone()).await),
         plan
     );
-    for other in [context("other", "assistant"), context("plans", "other")] {
+    for (other_room, other_agent) in [("other", "assistant"), ("plans", "other")] {
         assert!(matches!(
-            reader.call(request.clone(), other.clone()).await,
+            call::run(
+                &reader,
+                other_room,
+                other_agent,
+                "plan_read",
+                request.clone()
+            )
+            .await,
             Err(ToolError::Refused(_))
         ));
         assert_eq!(
-            data(
-                lister
-                    .call(call("plan_list", json!({})), other)
-                    .await
-                    .unwrap()
-            )["plans"],
+            data(call::run(&lister, other_room, other_agent, "plan_list", json!({})).await)["plans"],
             json!([])
         );
     }
-    let update = call(
-        "plan_update",
-        json!({"plan_id":plan["plan_id"],"expected_revision":1,"title":"Changed"}),
-    );
+    let update = json!({"plan_id":plan["plan_id"],"expected_revision":1,"title":"Changed"});
     assert_eq!(
-        data(updater.call(update.clone(), owner.clone()).await.unwrap())["revision"],
+        data(call::run(&updater, room, agent, "plan_update", update.clone()).await)["revision"],
         2
     );
     assert!(matches!(
-        updater.call(update, owner.clone()).await,
+        call::run(&updater, room, agent, "plan_update", update).await,
         Err(ToolError::Refused(_))
     ));
-    let deletion = call(
-        "plan_delete",
-        json!({"plan_id":plan["plan_id"],"expected_revision":2}),
-    );
+    let deletion = json!({"plan_id":plan["plan_id"],"expected_revision":2});
     assert_eq!(
-        data(deleter.call(deletion, owner.clone()).await.unwrap())["deleted"],
+        data(call::run(&deleter, room, agent, "plan_delete", deletion).await)["deleted"],
         true
     );
     assert_eq!(
-        data(
-            lister
-                .call(call("plan_list", json!({})), owner)
-                .await
-                .unwrap()
-        )["plans"],
+        data(call::run(&lister, room, agent, "plan_list", json!({})).await)["plans"],
         json!([])
+    );
+}
+
+#[tokio::test]
+async fn plan_adapters_refuse_calls_outside_a_roomkit_tool_call() {
+    let store = Arc::new(MemoryPlanBackend::default());
+    let creator = PlanCreateToolset::new(PlanCreateTool::new(store));
+    let arguments: Metadata =
+        serde_json::from_value(json!({"title":"Inspect","objective":"Check boundary","steps":[]}))
+            .unwrap();
+    assert_eq!(
+        creator.handler("plan_create".into(), arguments).await,
+        Err(ToolError::refused(
+            "plan tools require a conversation and an acting agent"
+        ))
     );
 }

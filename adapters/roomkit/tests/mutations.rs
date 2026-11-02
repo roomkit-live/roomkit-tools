@@ -4,14 +4,16 @@
 
 mod common;
 
+use std::sync::Arc;
+
+use roomkit::RoomKit;
 use roomkit::model::{
-    ChannelId, ChannelType, EventContent, EventType, InboundMessage, RoomId, TextContent, ToolCall,
+    ChannelId, ChannelType, EventContent, EventType, InboundMessage, Metadata, RoomId, TextContent,
     ToolCallOutcome,
 };
-use roomkit::testing::RecordingTransport;
-use roomkit::{RoomKit, ToolUse};
+use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
-use roomkit_ai::{AiAgent, ToolContext, ToolError, ToolOutput, Toolset};
+use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
 use roomkit_tools_fs::{EditTool, MutationWorkspace, ReadTool, WriteTool};
 use roomkit_tools_roomkit::{EditToolset, ReadToolset, WriteToolset};
 use serde_json::{Value, json};
@@ -60,37 +62,37 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
     let workspace = MutationWorkspace::new(root.path()).await.unwrap();
     let model = ScriptedProvider::new(script());
     let id = ChannelId::new("assistant").unwrap();
-    let agent = AiAgent::new(id.clone(), model.clone())
-        .with_tools(WriteToolset::new(WriteTool::from_workspace(
+    let tools: Vec<ToolEntry> = vec![
+        ToolEntry::Tool(Arc::new(WriteToolset::new(WriteTool::from_workspace(
             workspace.clone(),
-        )))
-        .unwrap()
-        .with_tools(EditToolset::new(EditTool::from_workspace(workspace)))
-        .unwrap()
-        .with_tools(ReadToolset::new(ReadTool::new(root.path()).await.unwrap()))
-        .unwrap();
+        )))),
+        ToolEntry::Tool(Arc::new(EditToolset::new(EditTool::from_workspace(
+            workspace,
+        )))),
+        ToolEntry::Tool(Arc::new(ReadToolset::new(
+            ReadTool::new(root.path()).await.unwrap(),
+        ))),
+    ];
+    let agent = common::agent(&id, &model, tools).unwrap();
     let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     if block_mutations {
-        kit.before_tool_use("deny_mutation", |event, _| async move {
-            Ok(if matches!(event.call.name.as_str(), "write" | "edit") {
-                ToolUse::block("File mutations are disabled")
-            } else {
-                ToolUse::Allow
-            })
-        })
-        .unwrap();
+        common::refuse(&kit, &["write", "edit"], "File mutations are disabled").unwrap();
     }
-    let chat = RecordingTransport::new(ChannelId::new("chat").unwrap(), ChannelType::WEBSOCKET);
+    let chat = RecordingTransport::new(
+        ChannelId::new("chat").unwrap(),
+        ChannelType::WEBSOCKET,
+        RecordingTransportOptions::default(),
+    );
     kit.register_channel(chat.clone()).unwrap();
     kit.register_channel(agent).unwrap();
     let conversation = RoomId::new("example").unwrap();
-    common::attach(&kit, &conversation, [chat.id(), &id])
+    common::attach(&kit, &conversation, [chat.channel_id(), &id])
         .await
         .unwrap();
     let result = kit
         .process_inbound(
             InboundMessage::new(
-                chat.id().clone(),
+                chat.channel_id().clone(),
                 "alice",
                 TextContent::new(
                     "Create, add, update and remove sample customer orders, then read the file.",
@@ -118,10 +120,10 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
     let results = requests[5]
         .messages
         .iter()
-        .filter(|message| message.tool_call_id.is_some())
+        .filter(|message| message.tool_result().is_some())
         .map(|message| {
-            serde_json::from_str(&message.text)
-                .unwrap_or_else(|_| Value::String(message.text.clone()))
+            let text = message.text();
+            serde_json::from_str(&text).unwrap_or(Value::String(text))
         })
         .collect();
     let outcomes = chat
@@ -174,15 +176,8 @@ async fn roomkit_can_refuse_mutations_before_any_file_is_created() {
     }
 }
 
-fn context() -> ToolContext {
-    ToolContext::new(
-        RoomId::new("example").unwrap(),
-        ChannelId::new("assistant").unwrap(),
-    )
-}
-
-fn call(name: &str, input: Value) -> ToolCall {
-    ToolCall::new("call", name, serde_json::from_value(input).unwrap())
+fn arguments(input: Value) -> Metadata {
+    serde_json::from_value(input).unwrap()
 }
 
 #[tokio::test]
@@ -194,8 +189,8 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
     let workspace = MutationWorkspace::new(root.path()).await.unwrap();
     let edit = EditToolset::new(EditTool::from_workspace(workspace.clone()));
     let write = WriteToolset::new(WriteTool::from_workspace(workspace));
-    let ToolOutput::Json(original) = read
-        .call(call("read", json!({"path":"notes", "limit":1})), context())
+    let ToolResult::Json(original) = read
+        .handler("read".into(), arguments(json!({"path":"notes", "limit":1})))
         .await
         .unwrap()
     else {
@@ -204,23 +199,28 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
     let revision = &original["data"]["revision"];
     assert!(revision.as_str().unwrap().starts_with("sha256:"));
     assert!(
-        edit.tools()[0].parameters["properties"]
+        edit.definition().parameters["properties"]
             .get("expected_revision")
             .is_some()
     );
     std::fs::write(&path, "count=1\nowner=Drew\n").unwrap();
     let stale_edit = json!({"path":"notes", "old_text":"count=1", "new_text":"count=2", "expected_revision":revision});
     assert!(matches!(
-        edit.call(call("edit", stale_edit.clone()), context()).await,
+        edit.handler("edit".into(), arguments(stale_edit.clone()))
+            .await,
         Err(ToolError::Refused(_))
     ));
-    assert!(matches!(write.call(call("write", json!({"path":"notes", "content":"replaced", "overwrite":true, "expected_revision":revision})), context()).await, Err(ToolError::Refused(_))));
+    let stale_write = json!({"path":"notes", "content":"replaced", "overwrite":true, "expected_revision":revision});
+    assert!(matches!(
+        write.handler("write".into(), arguments(stale_write)).await,
+        Err(ToolError::Refused(_))
+    ));
     assert_eq!(
         std::fs::read_to_string(&path).unwrap(),
         "count=1\nowner=Drew\n"
     );
-    let ToolOutput::Json(current) = read
-        .call(call("read", json!({"path":"notes"})), context())
+    let ToolResult::Json(current) = read
+        .handler("read".into(), arguments(json!({"path":"notes"})))
         .await
         .unwrap()
     else {
@@ -228,7 +228,8 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
     };
     let mut fresh = stale_edit;
     fresh["expected_revision"] = current["data"]["revision"].clone();
-    let ToolOutput::Json(changed) = edit.call(call("edit", fresh), context()).await.unwrap() else {
+    let ToolResult::Json(changed) = edit.handler("edit".into(), arguments(fresh)).await.unwrap()
+    else {
         panic!("expected JSON")
     };
     assert_eq!(changed["data"]["changed"], true);
@@ -240,44 +241,33 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
 }
 
 #[tokio::test]
-async fn adapters_keep_overwrite_and_ambiguity_refusals_and_close_independently() {
+async fn adapters_keep_overwrite_and_ambiguity_refusals_and_decline_other_tools() {
     let root = tempfile::tempdir().unwrap();
     let workspace = MutationWorkspace::new(root.path()).await.unwrap();
     let write = WriteToolset::new(WriteTool::from_workspace(workspace.clone()));
     let edit = EditToolset::new(EditTool::from_workspace(workspace));
-    assert_eq!(write.tools()[0].name, "write");
-    assert_eq!(edit.tools()[0].name, "edit");
-    let make_write = || call("write", json!({"path":"orders", "content":"a a"}));
+    assert_eq!(write.definition().name, "write");
+    assert_eq!(edit.definition().name, "edit");
+    let make_write = || arguments(json!({"path":"orders", "content":"a a"}));
     assert!(matches!(
-        write.call(make_write(), context()).await.unwrap(),
-        ToolOutput::Json(_)
+        write.handler("write".into(), make_write()).await,
+        Ok(ToolResult::Json(_))
     ));
     assert!(matches!(
-        write.call(make_write(), context()).await,
+        write.handler("write".into(), make_write()).await,
         Err(ToolError::Refused(_))
     ));
     assert!(matches!(
-        edit.call(
-            call(
-                "edit",
-                json!({"path":"orders", "old_text":"a", "new_text":"b"})
-            ),
-            context()
+        edit.handler(
+            "edit".into(),
+            arguments(json!({"path":"orders", "old_text":"a", "new_text":"b"}))
         )
         .await,
         Err(ToolError::Refused(_))
     ));
-    write.close().await;
-    assert!(matches!(
-        write.call(make_write(), context()).await,
-        Err(ToolError::Refused(_))
-    ));
-    edit.call(
-        call(
-            "edit",
-            json!({"path":"orders", "old_text":"a", "new_text":"b", "replace_all":true}),
-        ),
-        context(),
+    edit.handler(
+        "edit".into(),
+        arguments(json!({"path":"orders", "old_text":"a", "new_text":"b", "replace_all":true})),
     )
     .await
     .unwrap();
@@ -286,19 +276,20 @@ async fn adapters_keep_overwrite_and_ambiguity_refusals_and_close_independently(
         "b b"
     );
     assert!(matches!(
-        edit.call(make_write(), context()).await,
-        Err(ToolError::Refused(_))
+        edit.handler("write".into(), make_write()).await,
+        Err(ToolError::UnservedToolCall(_))
     ));
-    edit.close().await;
     assert!(matches!(
-        edit.call(
-            call(
-                "edit",
-                json!({"path":"orders", "old_text":"b b", "new_text":""})
-            ),
-            context()
-        )
-        .await,
-        Err(ToolError::Refused(_))
+        write
+            .handler(
+                "edit".into(),
+                arguments(json!({"path":"orders", "old_text":"b b", "new_text":""}))
+            )
+            .await,
+        Err(ToolError::UnservedToolCall(_))
     ));
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("orders")).unwrap(),
+        "b b"
+    );
 }

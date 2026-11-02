@@ -129,8 +129,8 @@ implementation dependency. Supply `Arc<dyn DocsBackend>` to `DocsListTool`,
 
 The separate RoomKit Rust adapter's optional `docs` feature exposes
 `DocsListToolset`, `DocsSearchToolset` and `DocsReadToolset`. Construct each from its
-native facade. Closing one adapter cancels/refuses its calls without invalidating
-the host-owned backend shared by other tools.
+native facade. Dropping a call cancels it without invalidating the host-owned
+backend shared by other tools.
 
 Python `DocsBackend` is a protocol with asynchronous `list`, `search` and `read`
 methods returning data dictionaries, not envelopes. The selected facade validates

@@ -4,53 +4,38 @@
 
 mod common;
 
+use std::sync::Arc;
+
+use roomkit::RoomKit;
 use roomkit::model::{
-    ChannelId, ChannelType, EventContent, EventType, InboundMessage, RoomId, TextContent, ToolCall,
+    ChannelId, ChannelType, EventContent, EventType, InboundMessage, Metadata, RoomId, TextContent,
     ToolCallOutcome,
 };
-use roomkit::testing::RecordingTransport;
-use roomkit::{RoomKit, ToolUse};
+use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
-use roomkit_ai::{AiAgent, ToolContext, ToolError, ToolOutput, Toolset};
+use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
 use roomkit_tools_fs::{GlobTool, GrepTool, ListTool, ReadTool};
 use roomkit_tools_roomkit::{GlobToolset, GrepToolset, ListToolset, ReadToolset};
 use serde_json::{Value, json};
 
-fn context() -> ToolContext {
-    ToolContext::new(
-        RoomId::new("example").unwrap(),
-        ChannelId::new("assistant").unwrap(),
-    )
+fn arguments(input: &Value) -> Metadata {
+    serde_json::from_value(input.clone()).unwrap()
 }
 
-async fn only_this_tool<T: Toolset>(tool: T, name: &str, input: Value) {
-    assert_eq!(
-        tool.tools()
-            .iter()
-            .map(|tool| tool.name.as_str())
-            .collect::<Vec<_>>(),
-        [name]
-    );
-    let make_call = |called| {
-        ToolCall::new(
-            "call",
-            called,
-            serde_json::from_value(input.clone()).unwrap(),
-        )
-    };
+async fn only_this_tool<T: Tool>(tool: T, name: &str, input: Value) {
+    assert_eq!(tool.definition().name, name);
     assert!(matches!(
-        tool.call(make_call("write"), context()).await,
-        Err(ToolError::Refused(_))
+        tool.handler("write".into(), arguments(&input)).await,
+        Err(ToolError::UnservedToolCall(_))
     ));
-    tool.close().await;
     assert!(matches!(
-        tool.call(make_call(name), context()).await,
-        Err(ToolError::Refused(_))
+        tool.handler(name.into(), arguments(&input)).await,
+        Ok(ToolResult::Json(_))
     ));
 }
 
 #[tokio::test]
-async fn each_toolset_exposes_only_its_own_capability_and_closes_independently() {
+async fn each_adapter_exposes_only_its_own_capability_and_declines_other_calls() {
     let root = tempfile::tempdir().unwrap();
     only_this_tool(
         ListToolset::new(ListTool::new(root.path()).await.unwrap()),
@@ -78,12 +63,15 @@ async fn grep_context_reaches_roomkit_without_changing_match_pagination() {
     std::fs::write(root.path().join("notes"), "first\nhit\nlast\n").unwrap();
     let grep = GrepToolset::new(GrepTool::new(root.path()).await.unwrap());
     assert_eq!(
-        grep.tools()[0].parameters,
+        grep.definition().parameters,
         GrepTool::definition().input_schema
     );
     let input = json!({"pattern":"hit", "context_before":1, "context_after":1, "limit":1});
-    let call = ToolCall::new("grep", "grep", serde_json::from_value(input).unwrap());
-    let ToolOutput::Json(result) = grep.call(call, context()).await.unwrap() else {
+    let ToolResult::Json(result) = grep
+        .handler("grep".into(), arguments(&input))
+        .await
+        .unwrap()
+    else {
         panic!("expected JSON")
     };
     let found = &result["data"]["matches"][0];
@@ -123,37 +111,40 @@ async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>) {
         ScriptedRound::answering("On Saturday we open from 08:30 to 16:00."),
     ]);
     let id = ChannelId::new("assistant").unwrap();
-    let agent = AiAgent::new(id.clone(), model.clone())
-        .with_tools(ListToolset::new(ListTool::new(root.path()).await.unwrap()))
-        .unwrap()
-        .with_tools(GlobToolset::new(GlobTool::new(root.path()).await.unwrap()))
-        .unwrap()
-        .with_tools(GrepToolset::new(GrepTool::new(root.path()).await.unwrap()))
-        .unwrap()
-        .with_tools(ReadToolset::new(ReadTool::new(root.path()).await.unwrap()))
-        .unwrap();
+    let tools: Vec<ToolEntry> = vec![
+        ToolEntry::Tool(Arc::new(ListToolset::new(
+            ListTool::new(root.path()).await.unwrap(),
+        ))),
+        ToolEntry::Tool(Arc::new(GlobToolset::new(
+            GlobTool::new(root.path()).await.unwrap(),
+        ))),
+        ToolEntry::Tool(Arc::new(GrepToolset::new(
+            GrepTool::new(root.path()).await.unwrap(),
+        ))),
+        ToolEntry::Tool(Arc::new(ReadToolset::new(
+            ReadTool::new(root.path()).await.unwrap(),
+        ))),
+    ];
+    let agent = common::agent(&id, &model, tools).unwrap();
     let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     if block_list {
-        kit.before_tool_use("deny_list", |event, _| async move {
-            Ok(if event.call.name == "list" {
-                ToolUse::block("Listing is disabled")
-            } else {
-                ToolUse::Allow
-            })
-        })
-        .unwrap();
+        common::refuse(&kit, &["list"], "Listing is disabled").unwrap();
     }
-    let chat = RecordingTransport::new(ChannelId::new("chat").unwrap(), ChannelType::WEBSOCKET);
+    let chat = RecordingTransport::new(
+        ChannelId::new("chat").unwrap(),
+        ChannelType::WEBSOCKET,
+        RecordingTransportOptions::default(),
+    );
     kit.register_channel(chat.clone()).unwrap();
     kit.register_channel(agent).unwrap();
     let conversation = RoomId::new("example").unwrap();
-    common::attach(&kit, &conversation, [chat.id(), &id])
+    common::attach(&kit, &conversation, [chat.channel_id(), &id])
         .await
         .unwrap();
     let result = kit
         .process_inbound(
             InboundMessage::new(
-                chat.id().clone(),
+                chat.channel_id().clone(),
                 "alice",
                 TextContent::new("Find the hours file and read Saturday's hours."),
             ),
@@ -179,8 +170,8 @@ async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>) {
     let results = requests[4]
         .messages
         .iter()
-        .filter(|message| message.tool_call_id.is_some())
-        .map(|message| message.text.clone())
+        .filter(|message| message.tool_result().is_some())
+        .map(roomkit_ai::AiMessage::text)
         .collect();
     let outcomes = chat
         .deliveries()

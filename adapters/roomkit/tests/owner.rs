@@ -2,13 +2,18 @@
 #![cfg(unix)]
 #![expect(clippy::unwrap_used, reason = "fixture errors must fail tests")]
 
-use roomkit::model::{ChannelId, RoomId, ToolCall};
-use roomkit_ai::{ToolContext, ToolOutput, Toolset};
+mod call;
+
+use roomkit::model::Metadata;
+use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_process::{
     OutputForgetInput, OutputLimits, OutputStore, ProcessManager, ProcessReadInput, ProcessState,
-    ProcessStatusInput, ProcessStopInput,
+    ProcessStatusInput, ProcessStopInput, ShellTool,
 };
-use roomkit_tools_roomkit::{ProcessStartToolset, roomkit_owner};
+use roomkit_tools_roomkit::{
+    OutputForgetToolset, OutputReadToolset, ProcessReadToolset, ProcessStartToolset,
+    ProcessStatusToolset, ProcessStopToolset, ProcessWriteToolset, ShellToolset, roomkit_owner,
+};
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
@@ -34,14 +39,16 @@ fn roomkit_owner_returns_the_shared_fixture_keys() {
 
 #[expect(clippy::panic, reason = "a result other than JSON must fail the test")]
 async fn start(toolset: &ProcessStartToolset, room: &str, agent: &str, command: &str) -> Value {
-    let context = ToolContext::new(RoomId::new(room).unwrap(), ChannelId::new(agent).unwrap());
-    let call = ToolCall::new(
-        "call",
+    let started = call::run(
+        toolset,
+        room,
+        agent,
         "process_start",
-        serde_json::from_value(json!({ "command": command })).unwrap(),
-    );
-    let ToolOutput::Json(started) = toolset.call(call, context).await.unwrap() else {
-        panic!("expected JSON");
+        json!({ "command": command }),
+    )
+    .await;
+    let Ok(ToolResult::Json(started)) = started else {
+        panic!("expected JSON, got {started:?}");
     };
     started["data"].clone()
 }
@@ -97,6 +104,78 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
             .unwrap();
     }
     assert_eq!(store.list(&owner, &cancel).unwrap().len(), 0);
+    assert!(manager.close().await);
+    assert!(store.close().await);
+}
+
+/// The refusal `tool` answers a call of `name` with `arguments` made
+/// outside any RoomKit tool call.
+#[expect(
+    clippy::panic,
+    reason = "an answer other than a refusal must fail the test"
+)]
+async fn refusal_outside_roomkit(tool: &impl Tool, name: &str, arguments: Value) -> String {
+    let arguments: Metadata = serde_json::from_value(arguments).unwrap();
+    match tool.handler(name.into(), arguments).await {
+        Err(ToolError::Refused(refusal)) => refusal,
+        other => panic!("{name}: expected a refusal, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
+    let root = tempfile::tempdir().unwrap();
+    let store = OutputStore::new(root.path(), OutputLimits::default())
+        .await
+        .unwrap();
+    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let shell = ShellToolset::new(ShellTool::new(root.path()).await.unwrap());
+    let shell_refusal = "shell tools require a conversation and an acting agent";
+    assert_eq!(
+        refusal_outside_roomkit(&shell, "shell", json!({"command":"touch shell-ran"})).await,
+        shell_refusal
+    );
+    let output_refusal = "output tools require a conversation and an acting agent";
+    let archive = json!({"archive_id":"a1"});
+    let read = OutputReadToolset::new(store.clone());
+    let forget = OutputForgetToolset::new(store.clone());
+    assert_eq!(
+        refusal_outside_roomkit(&read, "output_read", archive.clone()).await,
+        output_refusal
+    );
+    assert_eq!(
+        refusal_outside_roomkit(&forget, "output_forget", archive).await,
+        output_refusal
+    );
+    let process_refusal = "process tools require a conversation and an acting agent";
+    let process = json!({"process_id":"p1"});
+    let start = ProcessStartToolset::new(manager.clone());
+    let status = ProcessStatusToolset::new(manager.clone());
+    let read = ProcessReadToolset::new(manager.clone());
+    let write = ProcessWriteToolset::new(manager.clone());
+    let stop = ProcessStopToolset::new(manager.clone());
+    for refusal in [
+        refusal_outside_roomkit(
+            &start,
+            "process_start",
+            json!({"command":"touch process-ran"}),
+        )
+        .await,
+        refusal_outside_roomkit(&status, "process_status", json!({})).await,
+        refusal_outside_roomkit(&read, "process_read", process.clone()).await,
+        refusal_outside_roomkit(
+            &write,
+            "process_write",
+            json!({"process_id":"p1","text":"order 43\n"}),
+        )
+        .await,
+        refusal_outside_roomkit(&stop, "process_stop", process).await,
+    ] {
+        assert_eq!(refusal, process_refusal);
+    }
+    // Nothing ran: the refusal comes before any effect.
+    assert!(!root.path().join("shell-ran").exists());
+    assert!(!root.path().join("process-ran").exists());
     assert!(manager.close().await);
     assert!(store.close().await);
 }

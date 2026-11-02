@@ -120,8 +120,9 @@ filesystem dependency and does not require a particular async runtime.
 enable the optional adapter's `plans` feature and select `PlanCreateToolset`,
 `PlanReadToolset`, `PlanListToolset`, `PlanUpdateToolset` or `PlanDeleteToolset`.
 Each wraps its corresponding configured native tool and derives the scope from
-`ToolContext`. Closing an adapter cancels its pending calls and refuses future
-calls; it does not erase the host-owned backend.
+the room and agent of the current RoomKit tool call; a call made outside one is
+refused. Dropping a call cancels it; the host-owned backend is never erased by
+an adapter.
 
 ## Bounds
 

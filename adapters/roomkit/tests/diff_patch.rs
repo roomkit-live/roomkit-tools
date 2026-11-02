@@ -3,11 +3,13 @@
 
 mod common;
 
-use roomkit::model::{ChannelId, ChannelType, InboundMessage, RoomId, TextContent, ToolCall};
-use roomkit::testing::RecordingTransport;
-use roomkit::{RoomKit, ToolUse};
+use std::sync::Arc;
+
+use roomkit::RoomKit;
+use roomkit::model::{ChannelId, ChannelType, InboundMessage, Metadata, RoomId, TextContent};
+use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
-use roomkit_ai::{AiAgent, ToolContext, ToolError, Toolset};
+use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
 use roomkit_tools_fs::{DiffTool, MutationWorkspace, PatchTool};
 use roomkit_tools_roomkit::{DiffToolset, PatchToolset};
 use serde_json::{Value, json};
@@ -61,35 +63,34 @@ async fn scenario(refused: bool) -> Vec<Value> {
     }
     let model = ScriptedProvider::new(script());
     let id = ChannelId::new("assistant").unwrap();
-    let agent = AiAgent::new(id.clone(), model.clone())
-        .with_tools(DiffToolset::new(DiffTool::new(root.path()).await.unwrap()))
-        .unwrap()
-        .with_tools(PatchToolset::new(PatchTool::from_workspace(
+    let tools: Vec<ToolEntry> = vec![
+        ToolEntry::Tool(Arc::new(DiffToolset::new(
+            DiffTool::new(root.path()).await.unwrap(),
+        ))),
+        ToolEntry::Tool(Arc::new(PatchToolset::new(PatchTool::from_workspace(
             MutationWorkspace::new(root.path()).await.unwrap(),
-        )))
-        .unwrap();
+        )))),
+    ];
+    let agent = common::agent(&id, &model, tools).unwrap();
     let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     if refused {
-        kit.before_tool_use("deny_patch", |event, _| async move {
-            Ok(if event.call.name == "patch" {
-                ToolUse::block("Patch disabled")
-            } else {
-                ToolUse::Allow
-            })
-        })
-        .unwrap();
+        common::refuse(&kit, &["patch"], "Patch disabled").unwrap();
     }
-    let chat = RecordingTransport::new(ChannelId::new("chat").unwrap(), ChannelType::WEBSOCKET);
+    let chat = RecordingTransport::new(
+        ChannelId::new("chat").unwrap(),
+        ChannelType::WEBSOCKET,
+        RecordingTransportOptions::default(),
+    );
     kit.register_channel(chat.clone()).unwrap();
     kit.register_channel(agent).unwrap();
     let conversation = RoomId::new("example").unwrap();
-    common::attach(&kit, &conversation, [chat.id(), &id])
+    common::attach(&kit, &conversation, [chat.channel_id(), &id])
         .await
         .unwrap();
     let result = kit
         .process_inbound(
             InboundMessage::new(
-                chat.id().clone(),
+                chat.channel_id().clone(),
                 "test-user",
                 TextContent::new("Compare, preview, apply and verify the hours."),
             ),
@@ -123,10 +124,10 @@ async fn scenario(refused: bool) -> Vec<Value> {
     let outputs = requests[4]
         .messages
         .iter()
-        .filter(|message| message.tool_call_id.is_some())
+        .filter(|message| message.tool_result().is_some())
         .map(|message| {
-            serde_json::from_str(&message.text)
-                .unwrap_or_else(|_| Value::String(message.text.clone()))
+            let text = message.text();
+            serde_json::from_str(&text).unwrap_or(Value::String(text))
         })
         .collect();
     assert_eq!(
@@ -164,35 +165,30 @@ async fn roomkit_can_refuse_patch_while_allowing_diff() {
     assert_eq!(outputs[3]["data"]["changed"], true);
 }
 
+fn arguments(input: Value) -> Metadata {
+    serde_json::from_value(input).unwrap()
+}
+
 #[tokio::test]
-async fn closed_adapters_refuse_calls_independently() {
+async fn each_adapter_serves_only_its_own_tool() {
     let root = tempfile::tempdir().unwrap();
-    let patch = PatchToolset::new(PatchTool::new(root.path()).await.unwrap());
-    patch.close().await;
-    let call = ToolCall::new("p", "patch", serde_json::from_value(changes()).unwrap());
-    let context = ToolContext::new(
-        RoomId::new("example").unwrap(),
-        ChannelId::new("assistant").unwrap(),
-    );
-    assert!(matches!(
-        patch.call(call, context).await,
-        Err(ToolError::Refused(_))
-    ));
     std::fs::write(root.path().join("same"), "x").unwrap();
+    let patch = PatchToolset::new(PatchTool::new(root.path()).await.unwrap());
     let diff = DiffToolset::new(DiffTool::new(root.path()).await.unwrap());
-    let call = ToolCall::new(
-        "d",
-        "diff",
-        serde_json::from_value(json!({"old_path":"same","new_path":"same"})).unwrap(),
-    );
-    let context = ToolContext::new(
-        RoomId::new("example").unwrap(),
-        ChannelId::new("assistant").unwrap(),
-    );
-    assert!(diff.call(call.clone(), context.clone()).await.is_ok());
-    diff.close().await;
+    let compare = json!({"old_path":"same","new_path":"same"});
     assert!(matches!(
-        diff.call(call, context).await,
-        Err(ToolError::Refused(_))
+        patch
+            .handler("diff".into(), arguments(compare.clone()))
+            .await,
+        Err(ToolError::UnservedToolCall(_))
     ));
+    assert!(matches!(
+        diff.handler("patch".into(), arguments(changes())).await,
+        Err(ToolError::UnservedToolCall(_))
+    ));
+    let Ok(ToolResult::Json(compared)) = diff.handler("diff".into(), arguments(compare)).await
+    else {
+        panic!("expected JSON")
+    };
+    assert_eq!(compared["data"]["changed"], false);
 }

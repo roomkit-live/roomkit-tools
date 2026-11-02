@@ -1,50 +1,41 @@
 //! Persistent processes scoped by trusted RoomKit conversation and agent IDs.
 
-use roomkit::model::ToolCall;
-use roomkit_ai::{ToolContext, ToolDefinition, ToolError, ToolOutput, Toolset};
+use roomkit::model::Metadata;
+use roomkit_ai::{AiTool, Tool, ToolFuture};
 use roomkit_tools_process::ProcessManager;
-use tokio_util::sync::CancellationToken;
+
+use crate::bridge::{ai_tool, current_owner, serve, tool_error};
 
 macro_rules! process_toolset {
     ($(#[$doc:meta])* $name:ident, $definition:ident, $method:ident, $wire:literal) => {
         $(#[$doc])*
-        #[derive(Debug)]
-        pub struct $name { manager: ProcessManager, closed: CancellationToken }
+        #[derive(Clone, Debug)]
+        pub struct $name {
+            manager: ProcessManager,
+        }
 
         impl $name {
             /// Register one capability over a shared process manager.
             ///
-            /// Pass clones of the same manager to the selected process adapters.
-            /// Closing any of these adapters shuts down their shared manager.
+            /// Pass clones of the same manager to the selected process
+            /// adapters. The host closes that manager once its agents are done.
             pub fn new(manager: ProcessManager) -> Self {
-                Self { manager, closed: CancellationToken::new() }
+                Self { manager }
             }
         }
 
-        impl Toolset for $name {
-            fn tools(&self) -> Vec<ToolDefinition> {
-                let definition = ProcessManager::$definition();
-                vec![ToolDefinition::new(definition.name, definition.description, definition.input_schema)]
+        impl Tool for $name {
+            fn definition(&self) -> AiTool {
+                ai_tool(ProcessManager::$definition())
             }
 
-            async fn call(&self, call: ToolCall, context: ToolContext) -> Result<ToolOutput, ToolError> {
-                if call.name != $wire || self.closed.is_cancelled() {
-                    return Err(ToolError::refused(concat!("Unavailable tool: ", $wire)));
-                }
-                // Neither owner nor room identity is accepted from model arguments.
-                let owner =
-                    super::roomkit_owner(context.room_id.as_str(), context.channel_id.as_str());
-                let input = roomkit_ai::arguments(&call)?;
-                let cancel = self.closed.child_token();
-                let _cancel_on_drop = cancel.clone().drop_guard();
-                let result = self.manager.$method(&owner, input, &cancel).await
-                    .map_err(|error| super::tool_error(&error))?;
-                serde_json::to_value(result).map(ToolOutput::Json).map_err(|error| ToolError::raised(&error))
-            }
-
-            async fn close(&self) {
-                self.closed.cancel();
-                let _finished = self.manager.close().await;
+            fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {
+                let manager = self.manager.clone();
+                serve($wire, name, arguments, move |input, cancel| async move {
+                    // Neither owner nor room identity is accepted from model arguments.
+                    let owner = current_owner("process")?;
+                    manager.$method(&owner, input, &cancel).await.map_err(|error| tool_error(&error))
+                })
             }
         }
     };
