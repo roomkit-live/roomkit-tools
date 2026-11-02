@@ -146,7 +146,9 @@ impl ShellTool {
     }
 
     /// Whether output storage is attached: only then does a call keep
-    /// archives, under the trusted owner a multi-owner host passes.
+    /// archives, under the trusted owner a multi-owner host passes. The
+    /// RoomKit adapter reads it; it is no part of the public API.
+    #[doc(hidden)]
     #[must_use]
     pub fn has_output_store(&self) -> bool {
         self.outputs.is_some()

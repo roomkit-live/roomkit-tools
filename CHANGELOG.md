@@ -139,8 +139,6 @@ part of an existing published preview.
 
 ### Added
 
-- Rust `ShellTool::has_output_store` says whether a shell keeps archives, so a
-  host knows whether its calls need a trusted owner.
 - `web_fetch` uses [`htmlmark`](https://crates.io/crates/htmlmark) 0.1:
   bounded, interruptible HTML to Markdown and text conversion for untrusted
   pages, on html5ever with its own tree. It was written here and is now

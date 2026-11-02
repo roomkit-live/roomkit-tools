@@ -213,12 +213,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool: unmatched"
-covers = [
-  "rust roomkit_tools_process::ShellTool::has_output_store (unmatched)",  # no Python member: added for hosts with the adapter's move to the Tool protocol
-]
-
-[[pending]]
 reason = "roomkit_tools_web::WebFetchTool / roomkit_tools.WebFetchTool: async"
 covers = [
   "rust roomkit_tools_web::WebFetchTool::new (async)",  # Python's async create(...), naming its parameters, is the constructor; Rust's new() is sync, needing no I/O
