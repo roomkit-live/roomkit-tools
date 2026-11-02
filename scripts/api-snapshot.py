@@ -12,6 +12,7 @@ scripts/api-parity.py compares the Rust crates with these files.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import tempfile
@@ -24,11 +25,18 @@ SNAPSHOTS = (
 )
 
 
-def run(*arguments: str, cwd: Path) -> None:
-    subprocess.run(arguments, cwd=cwd, check=True)
+def run(*arguments: str, cwd: Path, env: dict[str, str] | None = None) -> None:
+    subprocess.run(arguments, cwd=cwd, env=env, check=True)
 
 
-def build(directory: Path, out: Path) -> Path:
+def build(directory: Path, out: Path, target: str | None = None) -> Path:
+    """Build a wheel of the project in ``directory``, its Cargo artifacts in
+    the subdirectory ``target`` of a shared CARGO_TARGET_DIR: both native
+    libraries are named _native, and one shared output would package the
+    other's."""
+    env = dict(os.environ)
+    if target and env.get("CARGO_TARGET_DIR"):
+        env["CARGO_TARGET_DIR"] = str(Path(env["CARGO_TARGET_DIR"]) / target)
     run(
         *MATURIN,
         "build",
@@ -38,6 +46,7 @@ def build(directory: Path, out: Path) -> Path:
         "--out",
         str(out),
         cwd=directory,
+        env=env,
     )
     (wheel,) = out.glob("*.whl")
     return wheel
@@ -55,7 +64,7 @@ def main() -> None:
         ocr = (
             options.ocr_wheel.resolve()
             if options.ocr_wheel
-            else build(root / "backends/rusto/python", work / "ocr")
+            else build(root / "backends/rusto/python", work / "ocr", "rusto-python")
         )
         environment = work / "venv"
         run("uv", "venv", "--python", sys.executable, str(environment), cwd=work)
