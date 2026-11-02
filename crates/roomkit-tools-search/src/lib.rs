@@ -256,7 +256,8 @@ fn is_source_url(value: &str) -> bool {
         })
 }
 
-// The README's example is compiled and run as a doctest when its feature is on.
+// The README's example is compiled as a doctest when its feature is on, not
+// run: it calls a search service.
 #[cfg(all(doctest, feature = "exa"))]
 #[doc = include_str!("../README.md")]
 struct ReadmeDoctests;

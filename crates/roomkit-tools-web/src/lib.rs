@@ -273,7 +273,7 @@ fn render(data: WebFetchResult) -> Output<WebFetchResult> {
     Output::new(data, text)
 }
 
-// The README's example is compiled and run as a doctest.
+// The README's example is compiled as a doctest, not run: it fetches a page.
 #[cfg(doctest)]
 #[doc = include_str!("../README.md")]
 struct ReadmeDoctests;

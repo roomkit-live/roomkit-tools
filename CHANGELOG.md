@@ -12,7 +12,7 @@ part of an existing published preview.
   environment. They receive only the variables named in `inherit_env` (by
   default `DEFAULT_INHERITED_ENV`: `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`,
   `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `TMPDIR`) plus the explicit values in
-  `env`. Python takes both as keywords on `ShellTool.create`, `Shell` and
+  `env`. Python takes both as keywords on `ShellTool.create` and
   `ProcessSession`; Rust takes a `CommandEnv` through `with_env`.
 - Each command now runs in its own session, detached from the host's terminal:
   a command that prompts on `/dev/tty` fails at once instead of printing into
@@ -33,13 +33,51 @@ part of an existing published preview.
   declared as `ToolEntry::Tool(Arc::new(..))` in `AiChannelOptions::tools`. A
   call under another tool's name is left to the next tool instead of refused.
   The adapters have no `close()` any more: dropping a call cancels it, and the
-  host closes the `ProcessManager`, `OutputStore` and backends it shares.
+  host closes the `ProcessSession`, `OutputStore` and backends it shares.
   Owner-scoped adapters (process, output, plans, and the shell with an output
   store) refuse a call made outside a RoomKit tool call, as Python's do.
 - Rust: the agent tools' `call` takes its input by value and a
   `&CancellationToken`, as every other tool's, and each `AgentBackend` method
   receives that token. A call cancelled before it reaches the backend returns
   `ToolError::Cancelled`.
+- Python: the documentation, plan and agent tools split into a tool and its
+  RoomKit adapter, as `ReadTool` and `Read`: `DocsList(backend).call(arguments)`
+  is `DocsListTool(backend).call(arguments)`, `DocsList(backend)` in RoomKit's
+  tools is `DocsList(DocsListTool(backend))`, and `DocsList.contract()` is
+  `DocsListTool.definition()`; likewise `DocsSearch`, `DocsRead`, `PlanCreate`,
+  `PlanRead`, `PlanList`, `PlanUpdate`, `PlanDelete`, `DelegateTask`,
+  `TaskStatus`, `CancelTask`, `AgentFollowup` and `AgentSend`.
+  The adapters now live in `roomkit_tools.roomkit`: `roomkit_tools.docs`,
+  `roomkit_tools.plans` and `roomkit_tools.agents` hold the tools only, so
+  `from roomkit_tools.docs import DocsList` raises `ImportError`; import
+  `roomkit_tools.roomkit.docs.DocsList` (likewise
+  `roomkit_tools.roomkit.plans.PlanCreate` and
+  `roomkit_tools.roomkit.agents.DelegateTask`), or `roomkit_tools.DocsList`
+  as before.
+- Python: the RoomKit adapters take a built tool, as Rust's do:
+  `Read(root, max_lines=200)` is `Read(await ReadTool.create(root,
+  max_lines=200))`, and likewise `List`, `Glob`, `Grep`, `Diff`, `Edit`,
+  `Write`, `Patch`, `CodeOutline`, `Shell`, `ViewImage`, `Ocr`
+  (`Ocr(await OcrTool.create(root, backend=backend))`), `WebFetch`
+  (`WebFetch(WebFetchTool(...))`) and `WebSearch`
+  (`WebSearch(WebSearchTool(backend=...))`). A root or limit is checked when
+  the tool is built rather than at the first call; `ReadToolAdapter`, which
+  took a built `ReadTool`, is `Read`.
+  Building an adapter therefore makes a native call, awaited for most tools
+  (`await ReadTool.create(...)`), which needs a running event loop. A host
+  that forks after building its tools (gunicorn `--preload`, a
+  `multiprocessing` pool with the `fork` start method) gets
+  `ForkedProcessError` in its workers: build the tools after forking, or use
+  the `spawn` start method.
+- Python names every limit where it took `**limits` or `**configuration`:
+  `FileDocs(root, *, version=None, max_documents=None, ...)`,
+  `OcrTool.create(root, *, backend, max_file_bytes=None, ...)`,
+  `WebFetchTool.create(*, allowed_origins=None, ...)` and
+  `WebSearchTool.create(*, backend, max_query_bytes=None, ...)`, the fields
+  of Rust's limits and configuration structs, `None` keeping Rust's default.
+  A misspelled limit given to `FileDocs` or `OcrTool.create` now raises
+  `TypeError` instead of `InvalidInputError`, as the web and search tools'
+  already did.
 
 ### Changed
 
@@ -89,29 +127,6 @@ part of an existing published preview.
   `rec.onnx` and `dict.txt`, as Python's `RustoOcr(models)`, instead of the
   three paths; `RustoConfig::new(models)` defaults `model_name`
   (`ppocrv6`), `threads` (2) and `detection_max_edge` (960).
-- Python: the documentation, plan and agent tools split into a tool and its
-  RoomKit adapter, as `ReadTool` and `Read`: `DocsList(backend).call(arguments)`
-  is `DocsListTool(backend).call(arguments)`, `DocsList(backend)` in RoomKit's
-  tools is `DocsList(DocsListTool(backend))`, and `DocsList.contract()` is
-  `DocsListTool.definition()`; likewise `DocsSearch`, `DocsRead`, `PlanCreate`,
-  `PlanRead`, `PlanList`, `PlanUpdate`, `PlanDelete`, `DelegateTask`,
-  `TaskStatus`, `CancelTask`, `AgentFollowup` and `AgentSend`.
-- Python: the RoomKit adapters take a built tool, as Rust's do:
-  `Read(root, max_lines=200)` is `Read(await ReadTool.create(root,
-  max_lines=200))`, and likewise `List`, `Glob`, `Grep`, `Diff`, `Edit`,
-  `Write`, `Patch`, `CodeOutline`, `Shell`, `ViewImage`, `Ocr`
-  (`Ocr(await OcrTool.create(root, backend=backend))`), `WebFetch`
-  (`WebFetch(WebFetchTool(...))`) and `WebSearch`
-  (`WebSearch(WebSearchTool(backend=...))`). A root or limit is checked when
-  the tool is built rather than at the first call; `ReadToolAdapter`, which
-  took a built `ReadTool`, is `Read`.
-- Python names every limit where it took `**limits` or `**configuration`:
-  `FileDocs(root, *, version=None, max_documents=None, ...)`,
-  `OcrTool.create(root, *, backend, max_file_bytes=None, ...)`,
-  `WebFetchTool.create(*, allowed_origins=None, ...)` and
-  `WebSearchTool.create(*, backend, max_query_bytes=None, ...)`, the fields
-  of Rust's limits and configuration structs, `None` keeping Rust's default.
-  A misspelled limit now raises `TypeError` instead of `InvalidInputError`.
 - Rust: `OcrTool::new(root, backend)` names its engine `backend`, as
   Python's `OcrTool.create(root, backend=...)`. The OCR backend protocol
   itself still differs for this release (Python's `OcrBackend.bind`, Rust's
@@ -214,10 +229,11 @@ part of an existing published preview.
   `spawn` start method. The optional OCR engine package behaves
   the same way and raises the base package's `ForkedProcessError`; it now
   requires the matching base version.
-- `Shell` keeps its environment options as validated at construction, and the
-  RoomKit tools refuse room or channel ids that are not Unicode text.
-- `ViewImage`, `CodeOutline` and `Ocr` take their limits as explicit keywords,
-  so a misspelled option fails at construction.
+- A `ShellTool` keeps the environment options `ShellTool.create` validated,
+  and the RoomKit tools refuse room or channel ids that are not Unicode text.
+- `ViewImageTool.create`, `CodeOutlineTool.create` and `OcrTool.create` take
+  their limits as explicit keywords, so a misspelled option fails when the
+  tool is built.
 - Documentation tools let I/O errors propagate in RoomKit like the other tools.
 - Tool exceptions report `roomkit_tools` as their module and can be pickled;
   native contract classes report `roomkit_tools._native`.
@@ -238,10 +254,13 @@ part of an existing published preview.
   `code_outline` and `view_image`.
 - Align the optional Rust adapter with the current RoomKit engine revision,
   retaining individually selected tools and host-owned lifecycles.
-- The Rust library crates are ready for crates.io: each has a README whose
-  example runs as a doctest, its license text, keywords and categories, and
-  `cargo package --workspace` builds them. The examples, the Python native
-  modules and the RoomKit adapter stay unpublished.
+- The Rust library crates are ready for crates.io: each has a README, its
+  license text, keywords and categories, and `cargo publish --workspace
+  --dry-run` packages and builds them. Each README but the internal HTTP
+  crate's has an example compiled as a doctest; it also runs, except the web,
+  search and RustO ones, which need the network or local models. The
+  examples, the Python native modules and the RoomKit adapter stay
+  unpublished.
 
 
 ## 0.1.0a15

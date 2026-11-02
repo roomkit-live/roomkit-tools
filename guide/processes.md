@@ -44,8 +44,8 @@ shell = await ShellTool.create(
 
 `DEFAULT_INHERITED_ENV` is `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`,
 `LC_ALL`, `LC_CTYPE`, `TZ` and `TMPDIR`; credentials such as API keys in the
-host's environment do not reach commands unless listed. `Shell`, `ShellTool.create`
-and `ProcessSession` take the same two options and check them when constructed:
+host's environment do not reach commands unless listed. `ShellTool.create` and
+`ProcessSession` take the same two options and check them when constructed:
 a name must be nonempty without `=` or NUL and a value must not contain NUL,
 otherwise `InvalidInputError`. Rust hosts pass a `CommandEnv` with the same
 `inherit_env` and `env` fields to `ShellTool::with_env` or `ProcessSession::with_env`.

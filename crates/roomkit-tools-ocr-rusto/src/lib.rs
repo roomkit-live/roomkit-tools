@@ -429,7 +429,7 @@ mod tests {
     }
 }
 
-// The README's example is compiled and run as a doctest.
+// The README's example is compiled as a doctest, not run: it loads models.
 #[cfg(doctest)]
 #[doc = include_str!("../README.md")]
 struct ReadmeDoctests;
