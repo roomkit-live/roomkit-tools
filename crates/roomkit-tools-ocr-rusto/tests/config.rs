@@ -12,6 +12,14 @@ fn a_models_directory_takes_python_defaults() {
 }
 
 #[test]
+fn json_with_the_models_alone_takes_the_same_defaults() {
+    let config: RustoConfig = serde_json::from_str(r#"{"models": "models"}"#).unwrap();
+    assert_eq!(config.model_name, "ppocrv6");
+    assert_eq!(config.threads, 2);
+    assert_eq!(config.detection_max_edge, 960);
+}
+
+#[test]
 fn models_are_read_from_their_names_in_the_directory() {
     let models = tempfile::tempdir().unwrap();
     assert!(matches!(

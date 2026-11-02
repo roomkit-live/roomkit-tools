@@ -30,6 +30,7 @@ pub struct RustoConfig {
     /// the recognizer model `rec.onnx` and its UTF-8 vocabulary `dict.txt`.
     pub models: PathBuf,
     /// Host label, for example `ppocrv6-tiny`. Default: `ppocrv6`.
+    #[serde(default = "default_model_name")]
     pub model_name: String,
     /// Threads per dedicated inference/preprocessing pool, 1..=16. Default: 2.
     #[serde(default = "default_threads")]
@@ -45,7 +46,7 @@ impl RustoConfig {
     pub fn new(models: impl Into<PathBuf>) -> Self {
         Self {
             models: models.into(),
-            model_name: "ppocrv6".into(),
+            model_name: default_model_name(),
             threads: default_threads(),
             detection_max_edge: default_edge(),
         }
@@ -64,6 +65,9 @@ impl RustoConfig {
     }
 }
 
+fn default_model_name() -> String {
+    "ppocrv6".into()
+}
 const fn default_threads() -> usize {
     2
 }
