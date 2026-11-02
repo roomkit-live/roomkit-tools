@@ -15,8 +15,7 @@ async fn shared_crud_scenario() {
         caller_id: "assistant".into(),
     };
     let cancel = CancellationToken::new();
-    let cases: Vec<Value> =
-        serde_json::from_str(include_str!("../../../tests/fixtures/plans.json")).unwrap();
+    let cases: Vec<Value> = serde_json::from_str(include_str!("fixtures/plans.json")).unwrap();
     let mut outputs = Vec::new();
     for case in cases {
         let input = case["arguments"].to_string();

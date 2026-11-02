@@ -4,7 +4,11 @@ import asyncio
 import json
 from pathlib import Path
 
-FIXTURE = json.loads((Path(__file__).resolve().parents[1] / "fixtures/web.json").read_text())
+FIXTURE = json.loads(
+    (
+        Path(__file__).resolve().parents[2] / "crates/roomkit-tools-web/tests/fixtures/web.json"
+    ).read_text()
+)
 
 
 class WebServer:

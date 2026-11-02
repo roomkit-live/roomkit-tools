@@ -20,7 +20,10 @@ from roomkit_tools import (
     UnsupportedResourceError,
 )
 
-FIXTURE = Path(__file__).resolve().parents[1] / "fixtures/documentation.json"
+FIXTURE = (
+    Path(__file__).resolve().parents[2]
+    / "crates/roomkit-tools-docs/tests/fixtures/documentation.json"
+)
 
 
 class DocsTests(unittest.IsolatedAsyncioTestCase):

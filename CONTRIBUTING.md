@@ -61,13 +61,17 @@ validation and do not replace deterministic tests.
 | Shared fixture | Coverage |
 | --- | --- |
 | `tests/fixtures/contracts.json` | Filesystem, commands, persistent processes and output archives |
-| `tests/fixtures/web.json` | HTTP fetching through local servers |
+| `crates/roomkit-tools-web/tests/fixtures/web.json` | HTTP fetching through local servers |
 | `tests/fixtures/search.json` | Search backends through local JSON/SSE fixtures |
 | `tests/fixtures/outline.json` | Source symbols, ranges, revisions, errors and bounds |
-| `tests/fixtures/documentation.json` | Documentation snapshots, search, provenance, pagination and complete Rust/Python envelopes |
-| `tests/fixtures/plans.json` | Plan CRUD envelopes, stable step IDs, revisions and list/delete state |
+| `crates/roomkit-tools-docs/tests/fixtures/documentation.json` | Documentation snapshots, search, provenance, pagination and complete Rust/Python envelopes |
+| `crates/roomkit-tools-plans/tests/fixtures/plans.json` | Plan CRUD envelopes, stable step IDs, revisions and list/delete state |
 | `tests/fixtures/image.json` | Complete image payloads, metadata and refusals |
 | `tests/fixtures/roomkit_owner.json` | RoomKit owner keys, identical in the Rust adapter and in Python |
+
+A fixture that a crate's own tests read lives in that crate's `tests/`
+directory, since a published crate ships only its own directory; the Python
+tests and the examples read it there.
 
 `scripts/check-python.py` generates fresh Rust results, then compares installed
 Python packages with complete envelopes and file contents. It normalizes only

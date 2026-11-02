@@ -1,7 +1,7 @@
 //! Compare complete Rust/Python fetch results against the same HTTP responses.
 #![forbid(unsafe_code)]
 
-#[path = "../../tests/support/web.rs"]
+#[path = "../../crates/roomkit-tools-web/tests/support/web.rs"]
 mod web;
 use roomkit_tools_core::ToolError;
 use roomkit_tools_web::{WebFetchPolicy, WebFetchTool};
@@ -19,8 +19,10 @@ fn replace(value: &mut Value, from: &str, to: &str) {
 
 #[tokio::test]
 async fn shared_web_contracts() {
-    let fixture: Value =
-        serde_json::from_str(include_str!("../../tests/fixtures/web.json")).unwrap();
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../crates/roomkit-tools-web/tests/fixtures/web.json"
+    ))
+    .unwrap();
     let server = web::Server::start().await;
     let mut reports = serde_json::Map::new();
     for case in fixture["cases"].as_array().unwrap() {

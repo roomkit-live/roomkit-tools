@@ -1,6 +1,6 @@
 //! Independently selectable network tool, results and dropped calls.
 #![expect(clippy::unwrap_used, reason = "test fixture failures must fail tests")]
-#[path = "../../../tests/support/web.rs"]
+#[path = "../../../crates/roomkit-tools-web/tests/support/web.rs"]
 mod web;
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};

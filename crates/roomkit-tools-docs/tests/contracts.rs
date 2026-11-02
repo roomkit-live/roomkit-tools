@@ -8,8 +8,7 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 #[tokio::test]
 async fn shared_documentation_contracts() {
-    let fixture: Value =
-        serde_json::from_str(include_str!("../../../tests/fixtures/documentation.json")).unwrap();
+    let fixture: Value = serde_json::from_str(include_str!("fixtures/documentation.json")).unwrap();
     let root = tempfile::tempdir().unwrap();
     for (path, text) in fixture["files"].as_object().unwrap() {
         std::fs::write(root.path().join(path), text.as_str().unwrap()).unwrap();

@@ -1,5 +1,5 @@
 //! Real network requests verify bounds, access scope and cancellation.
-#[path = "../../../tests/support/web.rs"]
+#[path = "support/web.rs"]
 mod web;
 use roomkit_tools_core::ToolError;
 use roomkit_tools_web::{WebFetchInput, WebFetchLimits, WebFetchPolicy, WebFetchTool};

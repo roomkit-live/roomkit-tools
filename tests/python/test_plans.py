@@ -20,7 +20,11 @@ from roomkit_tools import (
     UnsupportedResourceError,
 )
 
-FIXTURE = json.loads((Path(__file__).resolve().parents[1] / "fixtures/plans.json").read_text())
+FIXTURE = json.loads(
+    (
+        Path(__file__).resolve().parents[2] / "crates/roomkit-tools-plans/tests/fixtures/plans.json"
+    ).read_text()
+)
 CLASSES = (PlanCreateTool, PlanReadTool, PlanListTool, PlanUpdateTool, PlanDeleteTool)
 CREATE = {"title": "Review shipping", "objective": "Check the threshold", "steps": []}
 OWNER = PlanScope("plans", "assistant")
