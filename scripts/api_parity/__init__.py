@@ -9,6 +9,8 @@
   for it, and a class's members against theirs;
 - `constructors`, `params`, `errors`: a constructor, a call's parameters and
   an error enum against Python's;
+- `calls`: Python's `call` and `definition` against the typed methods they
+  stand for;
 - `wire`: the contract types against the JSON the Python calls exchange;
 - `leftovers`: what no Python name stands for, and back;
 - `cover`: what the entries cover, and the dead ones;

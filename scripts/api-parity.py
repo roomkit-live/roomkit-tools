@@ -45,6 +45,11 @@ The rules, which apply with no entry, each forced by the language:
   Python's `=None` (`[rules] optional`), and for no other default;
 - a dict for a struct: Python's `arguments` (`[rules] arguments`), the
   schema-shaped dict a call takes, is the Rust `<X>Input` parameter whole;
+- calls: on a tool with a typed method (one taking an `<X>Input` and
+  returning an `Output<T>`), Python's `call(arguments)` is that method's
+  JSON form (`[rules] typed_call`); a name-keyed `call(name, arguments,
+  ...)` stands for every typed method and a static `definition(name)` for
+  every `<x>_definition()` (`[rules] named_calls`; see `api_parity/calls.py`);
 - contract types: a Rust type deriving `JsonSchema` is the JSON a Python call
   passes or returns as a dict, and has no Python class. Its fields are the
   properties of the JSON type of its name in the Python snapshot's tool

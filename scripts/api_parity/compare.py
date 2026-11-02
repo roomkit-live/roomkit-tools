@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from api_parity import constructors, errors, leftovers, wire
+from api_parity import calls, constructors, errors, leftovers, wire
 from api_parity import params as parameters
 from api_parity.mapping import Entry, Mapping
 from api_parity.rust import RustSide
@@ -198,6 +198,8 @@ class Comparison:
                 self._toolset_member(python, member, items)
             elif member == constructor:
                 constructors.compare(self, python, member, member_spec, items, used)
+            elif calls.compare(self, python, member, spec, pool, used):
+                continue
             else:
                 self._member(python, member, member_spec, pool, used, interface, primary)
         wire.call_types(self, python, items)
@@ -275,9 +277,27 @@ class Comparison:
             return
         static = _static(spec)
         found = next((m for m in methods if (m.data["receiver"] is None) == static), methods[0])
+        renames = entry.params if entry is not None and entry.table == "map" else {}
+        self.method(python, member, spec, found, used, renames=renames, concrete=not interface)
+
+    def method(
+        self,
+        python: str,
+        member: str,
+        spec: list,
+        found: Member,
+        used: set,
+        *,
+        renames: dict[str, str] | None = None,
+        concrete: bool = True,
+        python_side: list | None = None,
+    ) -> None:
+        """A Python method against the Rust one standing for it: its form,
+        async, and parameters (`python_side`, or the spec's)."""
         used.add((found.owner, found.data["name"]))
         rust_path = f"{found.owner}::{found.data['name']}"
         pairs = (found.owner, python)
+        static = _static(spec)
         if (found.data["receiver"] is None) != static:
             rust_form = (
                 "an associated function" if found.data["receiver"] is None else "a method of self"
@@ -290,12 +310,13 @@ class Comparison:
                 *pairs,
             )
         self.check_async(found.data, found.owner, spec, pairs, where=rust_path)
-        python_side = python_params(spec)
+        if python_side is None:
+            python_side = python_params(spec)
         arguments = any(param.name == self.rules.arguments for param in python_side)
         rust_side = self.rust.params(found.data, found.owner, arguments=arguments)
-        if entry is not None and entry.table == "map":
-            rust_side = parameters.renamed(rust_side, entry.params)
-        parameters.compare(self, where, python_side, rust_side, pairs, concrete=not interface)
+        rust_side = parameters.renamed(rust_side, renames or {})
+        where = f"{python}.{member}"
+        parameters.compare(self, where, python_side, rust_side, pairs, concrete=concrete)
 
     def _property(
         self, where: str, candidates: list[Member], used: set, python: str, primary: str

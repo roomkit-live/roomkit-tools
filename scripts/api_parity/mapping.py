@@ -52,6 +52,8 @@ _RULES_REQUIRED = {
 # The rules a mapping may add as tables, each with its settings.
 _TABLE_RULES = {
     "optional": {"type", "default"},
+    "typed_call": {"method"},
+    "named_calls": {"method", "key", "definition", "suffix"},
 }
 _RULES = _RULES_REQUIRED | {"builtins", "builtin_errors"} | set(_TABLE_RULES)
 

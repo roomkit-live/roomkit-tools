@@ -268,6 +268,106 @@ class Tools(unittest.TestCase):
         report = run(read_tool(), READ_SPEC, contracts=READ_CONTRACTS)
         self.assertNotIn("rust kit::ReadTool::read(cancel) (unmatched)", keys(report))
 
+    def test_python_call_is_the_json_form_of_the_typed_method(self):
+        """`[rules] typed_call`: `call(arguments)` stands for the typed
+        method taking the `<X>Input`, the one Python also names."""
+        spec = {"pkg.ReadTool": {**READ_SPEC["pkg.ReadTool"], "call": ["async def", "arguments"]}}
+        owned = method(
+            "read_owned",
+            ("owner", "&str"),
+            ("input", "ReadInput"),
+            CANCEL,
+            returns="Result<Output<ReadPage>, Error>",
+            is_async=True,
+        )
+        items = read_tool(extra_methods=[owned])
+        rule = 'typed_call = { method = "call", decision = "ref" }'
+        report = run(items, spec, contracts=READ_CONTRACTS, rules=rule)
+        self.assertEqual(keys(report), {"rust kit::ReadTool::read_owned (unmatched)"})
+        self.assertIn(
+            "python pkg.ReadTool.call (unmatched)",
+            keys(run(items, spec, contracts=READ_CONTRACTS)),
+        )
+
+
+SESSION_ITEMS = [
+    struct(
+        "kit::Session",
+        methods=[
+            method("new", receiver=None, returns="Self"),
+            method("start_definition", receiver=None, returns="Definition"),
+            method("stop_definition", receiver=None, returns="Definition"),
+            *(
+                method(
+                    name,
+                    ("owner", "Option<&str>"),
+                    ("input", f"{name.title()}Input"),
+                    CANCEL,
+                    returns="Result<Output<Job>, Error>",
+                    is_async=True,
+                )
+                for name in ("start", "stop")
+            ),
+        ],
+    ),
+    *(
+        struct(
+            f"kit::{name}Input",
+            fields=[(field, "String")],
+            methods=[method("new", (field, "String"), receiver=None, returns="Self")],
+            impls=["JsonSchema"],
+        )
+        for name, field in (("Start", "command"), ("Stop", "id"))
+    ),
+    struct("kit::Job", fields=[("id", "String")], impls=["JsonSchema"]),
+]
+SESSION_SPECS = {
+    "pkg.Session": {
+        "__init__": ["def"],
+        "call": ["async def", "name", "arguments", "*", "owner=None"],
+        "definition": ["staticmethod", "name"],
+        "start": ["async def", "command", "*", "owner=None"],
+        "stop": ["async def", "id", "*", "owner=None"],
+    }
+}
+SESSION_CONTRACTS = {
+    "tools": {
+        tool: {"class": "pkg.Session", "input": f"{tool.title()}Input", "output": "Job"}
+        for tool in ("start", "stop")
+    },
+    "types": {
+        "StartInput": {"fields": ["command"]},
+        "StopInput": {"fields": ["id"]},
+        "Job": {"fields": ["id"]},
+    },
+}
+OPTIONAL = 'optional = { type = "Option", default = "None", decision = "ref" }\n'
+
+
+class NamedCalls(unittest.TestCase):
+    def test_a_name_keyed_call_and_definition_stand_for_each_typed_method(self):
+        """`[rules] named_calls`: `call(name, arguments, ...)` stands for
+        each typed method, and the static `definition(name)` for each
+        `<x>_definition()`."""
+        rule = (
+            'named_calls = { method = "call", key = "name", definition = "definition", '
+            'suffix = "_definition", decision = "ref" }'
+        )
+        report = run(
+            SESSION_ITEMS, SESSION_SPECS, contracts=SESSION_CONTRACTS, rules=OPTIONAL + rule
+        )
+        self.assertEqual(keys(report), set())
+        without = run(SESSION_ITEMS, SESSION_SPECS, contracts=SESSION_CONTRACTS, rules=OPTIONAL)
+        self.assertEqual(
+            keys(without),
+            {
+                "python pkg.Session.call (unmatched)",
+                "python pkg.Session.definition (unmatched)",
+                "rust kit::Session::start_definition (unmatched)",
+                "rust kit::Session::stop_definition (unmatched)",
+            },
+        )
+
 
 class Parameters(unittest.TestCase):
     def test_arguments_stand_for_the_input_struct_whole(self):

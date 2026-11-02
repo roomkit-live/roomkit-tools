@@ -45,6 +45,14 @@ input_suffix = "Input"
 optional = { type = "Option", default = "None", decision = "roomkit-rs names table: SkillRegistry::copy(names: Option<&[String]>), Rust has no optional call arguments (approved 2026-10-30)" }
 # Python's schema-shaped dict of a call's arguments, the Input struct whole.
 arguments = "arguments"
+# On a tool with a typed method (`ReadTool::read(input)`), Python's
+# `call(arguments)` is the JSON form of that method's Input; Rust adds no
+# `call` there.
+typed_call = { method = "call", decision = "luge-hitl:76e988fe Q4" }
+# Python's name-keyed `ProcessSession.call(name, arguments, *, owner)` and
+# `definition(name)`, and OutputStore's, stand for Rust's per-tool methods
+# and their `<x>_definition()` functions.
+named_calls = { method = "call", key = "name", definition = "definition", suffix = "_definition", decision = "luge-hitl:76e988fe Q5" }
 # The cancellation token a Rust call takes; Python cancels the awaiting task.
 cancellation = "CancellationToken"
 # Python's async factory, the constructor of a class that resolves its
@@ -333,12 +341,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_code::CodeOutlineTool / roomkit_tools.CodeOutlineTool: unmatched"
-covers = [
-  "python roomkit_tools.CodeOutlineTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
 reason = "roomkit_tools_core::ToolError / roomkit_tools.ToolError: unmatched"
 covers = [
   "python roomkit_tools.ForkedProcessError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::ToolError
@@ -351,34 +353,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::DiffTool / roomkit_tools.DiffTool: unmatched"
+reason = "roomkit_tools_fs::EditTool / roomkit_tools.EditTool: unmatched"
 covers = [
-  "python roomkit_tools.DiffTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::EditTool / roomkit_tools.EditTool: unmatched (2)"
-covers = [
-  "python roomkit_tools.EditTool.call (unmatched)",  # no Rust method
   "rust roomkit_tools_fs::EditTool::from_workspace (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::GlobTool / roomkit_tools.GlobTool: unmatched"
-covers = [
-  "python roomkit_tools.GlobTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::GrepTool / roomkit_tools.GrepTool: unmatched"
-covers = [
-  "python roomkit_tools.GrepTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::ListTool / roomkit_tools.ListTool: unmatched"
-covers = [
-  "python roomkit_tools.ListTool.call (unmatched)",  # no Rust method
 ]
 
 [[pending]]
@@ -388,22 +365,14 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::PatchTool / roomkit_tools.PatchTool: unmatched (2)"
+reason = "roomkit_tools_fs::PatchTool / roomkit_tools.PatchTool: unmatched"
 covers = [
-  "python roomkit_tools.PatchTool.call (unmatched)",  # no Rust method
   "rust roomkit_tools_fs::PatchTool::from_workspace (unmatched)",  # no Python member
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::ReadTool / roomkit_tools.ReadTool: unmatched"
+reason = "roomkit_tools_fs::WriteTool / roomkit_tools.WriteTool: unmatched"
 covers = [
-  "python roomkit_tools.ReadTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::WriteTool / roomkit_tools.WriteTool: unmatched (2)"
-covers = [
-  "python roomkit_tools.WriteTool.call (unmatched)",  # no Rust method
   "rust roomkit_tools_fs::WriteTool::from_workspace (unmatched)",  # no Python member
 ]
 
@@ -423,12 +392,6 @@ covers = [
 reason = "roomkit_tools_image::ImagePayload / no Python name: unmatched"
 covers = [
   "rust roomkit_tools_image::ImagePayload::data_url (unmatched)",  # a contract type's own member: no Python counterpart
-]
-
-[[pending]]
-reason = "roomkit_tools_image::ViewImageTool / roomkit_tools.ViewImageTool: unmatched"
-covers = [
-  "python roomkit_tools.ViewImageTool.call (unmatched)",  # no Rust method
 ]
 
 [[pending]]
@@ -452,9 +415,8 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool: unmatched, variadic, name"
+reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool: variadic, name"
 covers = [
-  "python roomkit_tools.OcrTool.call (unmatched)",  # no Rust method
   "python roomkit_tools.OcrTool.create(limits) (variadic)",  # takes **limits; Rust's OcrLimits names max_file_bytes, max_dimension, max_pixels, max_decode_bytes, max_output_bytes, max_blocks, default_timeout_ms, max_timeout_ms
   "rust roomkit_tools_ocr::OcrTool::new(engine) (name)",  # the one parameter left on each side: named backend in Python
 ]
@@ -474,26 +436,15 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async, unmatched (4)"
+reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async"
 covers = [
   "rust roomkit_tools_process::OutputStore::new (async)",  # async in Rust, not in Python
-  "python roomkit_tools.OutputStore.call (unmatched)",  # no Rust method
-  "python roomkit_tools.OutputStore.definition (unmatched)",  # no Rust method
-  "rust roomkit_tools_process::OutputStore::read_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::OutputStore::forget_definition (unmatched)",  # no Python member
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: async, unmatched (9)"
+reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: async, unmatched (2)"
 covers = [
   "rust roomkit_tools_process::ProcessSession::new (async)",  # async in Rust, not in Python
-  "python roomkit_tools.ProcessSession.call (unmatched)",  # no Rust method
-  "python roomkit_tools.ProcessSession.definition (unmatched)",  # no Rust method
-  "rust roomkit_tools_process::ProcessSession::start_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessSession::status_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessSession::read_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessSession::write_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessSession::stop_definition (unmatched)",  # no Python member
   "rust roomkit_tools_process::ProcessSession::subscribe (unmatched)",  # no Python member
   "rust roomkit_tools_process::ProcessSession::observe (unmatched)",  # no Python member
 ]
@@ -505,9 +456,8 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool: unmatched (2)"
+reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool: unmatched"
 covers = [
-  "python roomkit_tools.ShellTool.call (unmatched)",  # no Rust method
   "rust roomkit_tools_process::ShellTool::shell_owned (unmatched)",  # no Python member
 ]
 
@@ -728,17 +678,15 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_search::WebSearchTool / roomkit_tools.WebSearchTool: unmatched (3)"
+reason = "roomkit_tools_search::WebSearchTool / roomkit_tools.WebSearchTool: unmatched (2)"
 covers = [
-  "python roomkit_tools.WebSearchTool.call (unmatched)",  # no Rust method
   "python roomkit_tools.WebSearchTool.create (unmatched)",  # no Rust method
   "rust roomkit_tools_search::WebSearchTool::capabilities (unmatched)",  # no Python member
 ]
 
 [[pending]]
-reason = "roomkit_tools_web::WebFetchTool / roomkit_tools.WebFetchTool: unmatched (2)"
+reason = "roomkit_tools_web::WebFetchTool / roomkit_tools.WebFetchTool: unmatched"
 covers = [
-  "python roomkit_tools.WebFetchTool.call (unmatched)",  # no Rust method
   "python roomkit_tools.WebFetchTool.create (unmatched)",  # no Rust method
 ]
 
