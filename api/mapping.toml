@@ -290,22 +290,10 @@ reason = "Rust builds the lazy engine with RustoOcr::lazy(RustoConfig); Python w
 covers = ["rust roomkit_tools_ocr_rusto::RustoOcr::lazy (name)"]
 
 [[pending]]
-reason = "roomkit_tools_agents::AgentContract / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_agents::AgentContract (unmatched)",  # no Python name
-]
-
-[[pending]]
 reason = "roomkit_tools_agents::AgentFollowupTool / roomkit_tools.AgentFollowup: unmatched (2)"
 covers = [
   "python roomkit_tools.AgentFollowup.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
   "python roomkit_tools.AgentFollowup.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
-]
-
-[[pending]]
-reason = "roomkit_tools_agents::AgentScope / roomkit_tools.AgentScope: unmatched"
-covers = [
-  "rust roomkit_tools_agents::AgentScope::validate (unmatched)",  # no Python member
 ]
 
 [[pending]]
@@ -337,27 +325,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_agents::decode / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_agents::decode (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_agents::render / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_agents::render (unmatched)",  # no Python name
-]
-
-[[pending]]
 reason = "roomkit_tools_code::CodeOutlineTool / roomkit_tools.CodeOutlineTool: unmatched"
 covers = [
   "python roomkit_tools.CodeOutlineTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
-reason = "roomkit_tools_core::Definition / dict: unmatched"
-covers = [
-  "rust roomkit_tools_core::Definition::new (unmatched)",  # a member of a type standing for Python's dict: no Python counterpart
 ]
 
 [[pending]]
@@ -367,57 +337,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_core::Output / dict: unmatched"
-covers = [
-  "rust roomkit_tools_core::Output::new (unmatched)",  # a member of a type standing for Python's dict: no Python counterpart
-]
-
-[[pending]]
-reason = "roomkit_tools_core::WorkspaceRoot / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_core::WorkspaceRoot (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_core::identifiers::creation_order / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_core::identifiers::creation_order (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_core::revision::sha256 / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_core::revision::sha256 (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_docs::DocsContract / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_docs::DocsContract (unmatched)",  # no Python name
-]
-
-[[pending]]
 reason = "roomkit_tools_docs::FileDocs / roomkit_tools.FileDocs: variadic"
 covers = [
   "python roomkit_tools.FileDocs.__init__(limits) (variadic)",  # takes **limits; Rust's FileDocsLimits names max_documents, max_document_bytes, max_total_bytes, max_entries, max_depth, max_total_lines, max_read_bytes
-]
-
-[[pending]]
-reason = "roomkit_tools_docs::FileDocsLimits / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_docs::FileDocsLimits::validate (unmatched)",  # an options struct's own member: no Python counterpart
-]
-
-[[pending]]
-reason = "roomkit_tools_docs::decode / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_docs::decode (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_docs::render / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_docs::render (unmatched)",  # no Python name
 ]
 
 [[pending]]
@@ -478,42 +400,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_http::NetworkPolicy / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_http::NetworkPolicy (unmatched)",  # no Python name: no compared call takes it
-]
-
-[[pending]]
-reason = "roomkit_tools_http::checked_client / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_http::checked_client (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_http::io_error / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_http::io_error (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_http::normalize_policy / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_http::normalize_policy (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_http::parse_url / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_http::parse_url (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_http::read_body / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_http::read_body (unmatched)",  # no Python name
-]
-
-[[pending]]
 reason = "roomkit_tools_image::DecodedImage / no Python name: unmatched"
 covers = [
   "rust roomkit_tools_image::DecodedImage (unmatched)",  # no Python name
@@ -532,21 +418,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_image::ImageWorkspace / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_image::ImageWorkspace (unmatched)",  # no Python name
-]
-
-[[pending]]
 reason = "roomkit_tools_image::ViewImageTool / roomkit_tools.ViewImageTool: unmatched"
 covers = [
   "python roomkit_tools.ViewImageTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
-reason = "roomkit_tools_image::decode_rgb / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_image::decode_rgb (unmatched)",  # no Python name
 ]
 
 [[pending]]
@@ -583,36 +457,6 @@ covers = [
   "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (result)",  # returns Result<OcrEngine, ToolError>, not a RustoOcr
   "python roomkit_tools_ocr_rusto.RustoOcr.bind (unmatched)",  # no Rust method
   "rust roomkit_tools_ocr_rusto::RustoOcr::load (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_plans::PlanContract / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_plans::PlanContract (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_plans::PlanScope / roomkit_tools.PlanScope: unmatched"
-covers = [
-  "rust roomkit_tools_plans::PlanScope::validate (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_plans::decode / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_plans::decode (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_plans::render / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_plans::render (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_process::CommandEnv / no Python name: unmatched"
-covers = [
-  "rust roomkit_tools_process::CommandEnv::validate (unmatched)",  # an options struct's own member: no Python counterpart
 ]
 
 [[pending]]

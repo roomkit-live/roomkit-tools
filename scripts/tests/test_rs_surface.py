@@ -367,10 +367,12 @@ class ParsesSignatures(unittest.TestCase):
 
 class ReadsEveryCrateInScope(unittest.TestCase):
     def test_every_workspace_crate_is_read(self) -> None:
-        """A crate added to crates/ enters the parity gate."""
+        """A crate added to crates/ enters the parity gate, unless it is
+        listed as internal."""
         root = HERE.parents[1]
         crates = sorted(path.name.replace("-", "_") for path in (root / "crates").iterdir() if path.is_dir())
-        self.assertEqual(sorted(surface.CRATES), crates)
+        self.assertEqual(sorted(surface.CRATES + surface.INTERNAL), crates)
+        self.assertFalse(set(surface.CRATES) & set(surface.INTERNAL))
 
 if __name__ == "__main__":
     unittest.main()

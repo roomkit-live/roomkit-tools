@@ -22,7 +22,7 @@ use tokio_util::sync::CancellationToken;
 #[derive(Clone, Debug)]
 pub struct WebFetchTool {
     limits: WebFetchLimits,
-    policy: WebFetchPolicy,
+    policy: network::NetworkPolicy,
     conversions: Arc<Semaphore>,
 }
 
@@ -37,7 +37,7 @@ impl WebFetchTool {
     pub fn new() -> Self {
         Self {
             limits: WebFetchLimits::default(),
-            policy: WebFetchPolicy::default(),
+            policy: network::NetworkPolicy::default(),
             conversions: Arc::new(Semaphore::new(2)),
         }
     }
@@ -68,7 +68,7 @@ impl WebFetchTool {
     /// # Errors
     /// Refuses credentials, non-HTTP schemes and entries containing paths/queries.
     pub fn with_policy(mut self, policy: WebFetchPolicy) -> Result<Self, ToolError> {
-        self.policy = network::normalize(policy, self.limits.max_url_bytes)?;
+        self.policy = network::normalize(network::policy(policy), self.limits.max_url_bytes)?;
         Ok(self)
     }
 

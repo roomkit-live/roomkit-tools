@@ -40,6 +40,7 @@ pub trait DocsBackend: Debug + Send + Sync {
     ) -> DocsFuture<'a, DocsReadResult>;
 }
 /// Common validation used by native tools and foreign host backends.
+#[doc(hidden)]
 pub trait DocsContract: Serialize + DeserializeOwned + JsonSchema {
     /// Check bounds and structural consistency.
     /// # Errors
@@ -49,6 +50,7 @@ pub trait DocsContract: Serialize + DeserializeOwned + JsonSchema {
 /// Decode a Rust input or result and validate its contract.
 /// # Errors
 /// Rejects malformed/unknown fields and invalid or oversized values.
+#[doc(hidden)]
 pub fn decode<T: DocsContract>(json: &str) -> Result<T, ToolError> {
     if json.len() > 256 * 1024 {
         return Err(ToolError::LimitExceeded(
@@ -63,6 +65,7 @@ pub fn decode<T: DocsContract>(json: &str) -> Result<T, ToolError> {
 /// Produce the common envelope without inventing a summary.
 /// # Errors
 /// Rejects invalid results or more than 128 KiB of serialized data.
+#[doc(hidden)]
 pub fn render<T: DocsContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
     let text = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;

@@ -217,6 +217,7 @@ pub trait AgentBackend: Debug + Send + Sync {
 }
 
 /// Validate and render the same typed contract in native and foreign hosts.
+#[doc(hidden)]
 pub trait AgentContract: Serialize + for<'de> Deserialize<'de> + JsonSchema {
     /// Check semantic limits, in addition to Serde's structural validation.
     /// # Errors
@@ -240,6 +241,7 @@ impl AgentScope {
     /// Validate trusted identifiers before contacting the backend.
     /// # Errors
     /// Rejects empty or oversized identities.
+    #[doc(hidden)]
     pub fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.room_id, "room_id", 256)?;
         bounded(&self.caller_id, "caller_id", 256)
@@ -345,6 +347,7 @@ impl AgentContract for CancelResult {
 /// Decode bounded JSON into the actual implementation type and validate it.
 /// # Errors
 /// Rejects malformed, oversized or semantically invalid input.
+#[doc(hidden)]
 pub fn decode<T: AgentContract>(json: &str) -> Result<T, ToolError> {
     if json.len() > 1_048_576 {
         return Err(ToolError::LimitExceeded("agent JSON exceeds 1 MiB".into()));
@@ -358,6 +361,7 @@ pub fn decode<T: AgentContract>(json: &str) -> Result<T, ToolError> {
 /// Render normalized bounded data without a second, divergent text contract.
 /// # Errors
 /// Rejects malformed backend results or serialization failures.
+#[doc(hidden)]
 pub fn render<T: AgentContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
     let text = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;

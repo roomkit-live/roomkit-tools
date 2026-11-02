@@ -2,15 +2,21 @@
 //!
 //! Tool implementations own their I/O. Hosts own their registry, permissions
 //! and conversations. Input and output schemas are derived from the same
-//! Rust types an implementation uses. [`WorkspaceRoot`] holds the lexical
-//! path rules that root-configured tools share; it performs no I/O.
+//! Rust types an implementation uses.
+//!
+//! The hidden items (workspace path rules, identifier ordering, revision
+//! spelling and the envelope and definition constructors) are shared by the
+//! tool crates of this repository; they are not part of the public API.
 
 #![forbid(unsafe_code)]
 
+#[doc(hidden)]
 pub mod identifiers;
+#[doc(hidden)]
 pub mod revision;
 mod workspace;
 
+#[doc(hidden)]
 pub use workspace::WorkspaceRoot;
 
 use schemars::JsonSchema;
@@ -33,6 +39,7 @@ pub struct Definition {
 
 impl Definition {
     /// Describe a tool using its implementation's `Input` and `Output` types.
+    #[doc(hidden)]
     pub fn new<Input: JsonSchema, Output: JsonSchema>(
         name: impl Into<String>,
         description: impl Into<String>,
@@ -61,6 +68,7 @@ pub struct Output<T> {
 
 impl<T> Output<T> {
     /// Keep the structured `data` and its model-facing `text` together.
+    #[doc(hidden)]
     pub fn new(data: T, text: impl Into<String>) -> Self {
         Self {
             data,

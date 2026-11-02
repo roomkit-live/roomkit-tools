@@ -10,7 +10,9 @@ mod decoded;
 mod prepare;
 mod source;
 mod types;
-pub use decoded::{DecodedImage, ImageWorkspace, decode_rgb};
+pub use decoded::DecodedImage;
+#[doc(hidden)]
+pub use decoded::{ImageWorkspace, decode_rgb};
 
 pub use types::{ImageMime, ImagePayload, ViewImageInput, ViewImageLimits, ViewImageResult};
 

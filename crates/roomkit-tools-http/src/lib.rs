@@ -1,6 +1,11 @@
 //! HTTP building blocks shared by tools, with explicit destination policy.
 //! Clients disable automatic redirects and proxies. Callers must validate every
 //! redirect separately, bound response bodies and supply cancellation/deadlines.
+//!
+//! Internal to this repository's tool crates: its items are hidden from the
+//! documentation and are not part of the public API, which has no Python
+//! counterpart for them. Hosts configure origins through the tools, as
+//! `roomkit_tools_web::WebFetchPolicy` and `roomkit_tools_search::SearchHttpConfig`.
 
 #![forbid(unsafe_code)]
 
@@ -9,6 +14,7 @@ use serde::Deserialize;
 /// Exact HTTP(S) origins configured by the host, never by a model.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[doc(hidden)]
 pub struct NetworkPolicy {
     /// None allows public origins; Some(empty) refuses all destinations.
     pub allowed_origins: Option<Vec<String>>,
@@ -26,6 +32,7 @@ use roomkit_tools_core::ToolError;
 ///
 /// # Errors
 /// Rejects invalid URLs, credentials and oversized input.
+#[doc(hidden)]
 pub fn parse_url(value: &str, max_bytes: usize) -> Result<Url, ToolError> {
     if value.len() > max_bytes {
         return Err(ToolError::LimitExceeded("URL is too large".into()));
@@ -53,6 +60,7 @@ pub fn parse_url(value: &str, max_bytes: usize) -> Result<Url, ToolError> {
 ///
 /// # Errors
 /// Returns a URL or origin validation failure.
+#[doc(hidden)]
 pub fn normalize_policy(
     policy: NetworkPolicy,
     max_bytes: usize,
@@ -128,6 +136,7 @@ fn check_addresses(addresses: &[SocketAddr], private: bool) -> Result<(), ToolEr
 ///
 /// # Errors
 /// Returns refused destinations, resolution or client construction failures.
+#[doc(hidden)]
 pub async fn checked_client(
     url: &Url,
     policy: &NetworkPolicy,
@@ -185,6 +194,7 @@ fn tls_config() -> Result<rustls::ClientConfig, ToolError> {
 }
 
 /// Wrap a diagnostic source with a safe public operation name.
+#[doc(hidden)]
 pub fn io_error(
     operation: &'static str,
     source: impl Into<Box<dyn std::error::Error + Send + Sync>>,
@@ -199,6 +209,7 @@ pub fn io_error(
 ///
 /// # Errors
 /// Returns size limits, unsupported content encoding or transport failures.
+#[doc(hidden)]
 pub async fn read_body(
     response: &mut reqwest::Response,
     max_bytes: usize,

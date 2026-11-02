@@ -54,7 +54,7 @@ impl FileDocsLimits {
     /// Check host budgets before any I/O.
     /// # Errors
     /// Rejects zero or unsupported sizes.
-    pub fn validate(&self) -> Result<(), ToolError> {
+    pub(crate) fn validate(&self) -> Result<(), ToolError> {
         if !(1..=1024).contains(&self.max_documents)
             || !(1..=1024 * 1024).contains(&self.max_document_bytes)
             || !(1..=64 * 1024 * 1024).contains(&self.max_total_bytes)

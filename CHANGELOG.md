@@ -85,6 +85,14 @@ part of an existing published preview.
   `rec.onnx` and `dict.txt`, as Python's `RustoOcr(models)`, instead of the
   three paths; `RustoConfig::new(models)` defaults `model_name`
   (`ppocrv6`), `threads` (2) and `detection_max_edge` (960).
+- Rust: the plumbing the tool crates share leaves the public API, hidden from
+  the documentation: `roomkit-tools-http` is internal, as are core's
+  `WorkspaceRoot`, `identifiers`, `revision`, `Output::new` and
+  `Definition::new`, the documentation, plan and agent crates' `decode`,
+  `render` and contract traits, the scopes' and `CommandEnv`'s `validate`,
+  and the image crate's `ImageWorkspace` and `decode_rgb`.
+  `FileDocsLimits::validate` is private. `WebFetchPolicy` is now the web
+  crate's own type, with the same fields.
 
 ### Added
 
@@ -112,11 +120,6 @@ part of an existing published preview.
   standalone owner), `ProcessSession.close_owner(owner)` stops and releases one
   owner's jobs, and `roomkit_owner(room_id, channel_id)` returns the key the
   RoomKit tools use, in Python and in the Rust adapter.
-- `roomkit_tools_core::WorkspaceRoot` holds the path rules shared by the
-  root-configured tools; `resolve(path, operation, canonicalize)` applies them
-  with the filesystem access the caller supplies.
-- `roomkit_tools_core::identifiers::creation_order` orders sequential
-  identifiers as they were created.
 
 ### Fixed
 
@@ -181,7 +184,6 @@ part of an existing published preview.
 - Update to sha2 0.11, base64 0.23 and reqwest 0.13. HTTPS keeps the ring
   provider and the bundled Mozilla roots, now configured explicitly, so
   certificate trust does not depend on the host's certificate store.
-  `roomkit_tools_core::revision::sha256` spells every content revision.
 - The wheel ships the license notices of every native dependency
   (`licenses/native_dependencies.txt`), checked against the lock file.
 - Distribution checks admit only tracked files in source archives and expected

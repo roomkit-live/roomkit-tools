@@ -42,6 +42,7 @@ impl CommandEnv {
     /// # Errors
     /// Rejects an empty name, a name containing `=` or NUL, and a value
     /// containing NUL.
+    #[doc(hidden)]
     pub fn validate(&self) -> Result<(), ToolError> {
         let mut names = self.inherit_env.iter().chain(self.env.keys());
         if names.any(|name| name.is_empty() || name.contains(['=', '\0'])) {

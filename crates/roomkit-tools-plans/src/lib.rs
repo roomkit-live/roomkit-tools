@@ -62,6 +62,7 @@ pub trait PlanBackend: Debug + Send + Sync {
 }
 
 /// Shared semantic validation for native and foreign hosts.
+#[doc(hidden)]
 pub trait PlanContract: Serialize + DeserializeOwned + JsonSchema {
     /// Validate fields and bounded payloads.
     /// # Errors
@@ -72,6 +73,7 @@ pub trait PlanContract: Serialize + DeserializeOwned + JsonSchema {
 /// Decode and validate the implementation's actual input/output types.
 /// # Errors
 /// Rejects malformed, unknown or oversized fields.
+#[doc(hidden)]
 pub fn decode<T: PlanContract>(json: &str) -> Result<T, ToolError> {
     if json.len() > 256 * 1024 {
         return Err(ToolError::LimitExceeded(
@@ -87,6 +89,7 @@ pub fn decode<T: PlanContract>(json: &str) -> Result<T, ToolError> {
 /// Render a validated record; structured data carries the full plan.
 /// # Errors
 /// Rejects a backend result that violates the common contract.
+#[doc(hidden)]
 pub fn render<T: PlanContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
     let text = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;

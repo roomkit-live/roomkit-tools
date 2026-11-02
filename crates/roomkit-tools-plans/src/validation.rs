@@ -66,6 +66,7 @@ impl PlanScope {
     /// Validate the trusted host identity.
     /// # Errors
     /// Rejects empty or oversized scope identifiers.
+    #[doc(hidden)]
     pub fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.room_id, "room_id", 256)?;
         bounded(&self.caller_id, "caller_id", 256)

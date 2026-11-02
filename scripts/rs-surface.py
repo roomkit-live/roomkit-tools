@@ -8,8 +8,9 @@ provided methods, with their signatures, and the traits an item implements.
 `scripts/api-parity.py` compares the result with the Python package's
 snapshot through `api/mapping.toml`.
 
-The scope is every `roomkit-tools-*` crate of the workspace, and the RoomKit
-adapter `roomkit-tools-roomkit`, read from its own workspace's documentation
+The scope is every `roomkit-tools-*` crate of the workspace but the internal
+`roomkit-tools-http`, whose items are all hidden, and the RoomKit adapter
+`roomkit-tools-roomkit`, read from its own workspace's documentation
 (`make api-adapter-surface`). An item or member hidden by `#[doc(hidden)]` is
 on no page, and so not in the surface.
 
@@ -40,7 +41,6 @@ CRATES = (
     "roomkit_tools_core",
     "roomkit_tools_fs",
     "roomkit_tools_process",
-    "roomkit_tools_http",
     "roomkit_tools_web",
     "roomkit_tools_search",
     "roomkit_tools_code",
@@ -51,6 +51,10 @@ CRATES = (
     "roomkit_tools_plans",
     "roomkit_tools_agents",
 )
+
+# Workspace crates with no public item: every item is `#[doc(hidden)]`,
+# shared by the crates above only, so none is read.
+INTERNAL = ("roomkit_tools_http",)
 
 # The sections of all.html, and the heading each kind's page opens with.
 KINDS = {
