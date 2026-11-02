@@ -111,7 +111,7 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
         .await
         .unwrap();
     assert_eq!(page.data.stdout.text, "saved");
-    assert!(session.close_owner(&owner).await);
+    assert!(session.close_owner(Some(&owner)).await);
     let listed = session
         .status(Some(&owner), ProcessStatusInput::default(), &cancel)
         .await
