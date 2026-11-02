@@ -41,7 +41,7 @@ exclude = ["docs/**", "AGENTS.md"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-include = ["python/**/*.py", "tests/python/**/*.py", "examples/*.py", "scripts/check-python.py", "scripts/check-ocr-python.py", "scripts/native-notices.py", "scripts/artifact_files.py", "scripts/api-snapshot.py"]
+include = ["python/**/*.py", "tests/python/**/*.py", "examples/*.py", "scripts/check-python.py", "scripts/check-ocr-python.py", "scripts/native-notices.py", "scripts/artifact_files.py", "scripts/api-parity.py", "scripts/api-snapshot.py", "scripts/api_parity/*.py", "scripts/tests/test_api_parity.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]

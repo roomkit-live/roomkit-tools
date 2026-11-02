@@ -9,8 +9,9 @@ TARGET_DIR := $(or $(CARGO_TARGET_DIR),target)
 ADAPTER_TARGET_DIR := $(or $(CARGO_TARGET_DIR),adapters/roomkit/target)
 API_REPORT := $(TARGET_DIR)/api-parity
 ADAPTER_SURFACE := api/roomkit-adapter-surface.json
+API_PARITY_FLAGS ?=
 
-.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-adapter-surface api-adapter-check
+.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-parity api-adapter-surface api-adapter-check
 
 all: fmt-check clippy test doc deny check-core-deps examples
 
@@ -74,6 +75,17 @@ api-snapshot:
 api-test:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts/tests
 
+# The parity gate: the crates' public surface read from rustdoc's HTML, with the
+# RoomKit adapter's committed surface, against the Python snapshots through
+# api/mapping.toml. It fails on a difference no entry covers; pass
+# API_PARITY_FLAGS=--strict to fail on a pending one too. The report, the
+# surface and the findings as JSON stay in $(API_REPORT).
+api-parity: doc
+	@mkdir -p $(API_REPORT)
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(TARGET_DIR)/doc > $(API_REPORT)/rs-surface.json
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/api-parity.py $(API_REPORT)/rs-surface.json $(ADAPTER_SURFACE) \
+		$(API_PARITY_FLAGS) --json $(API_REPORT)/report.json
+
 # The RoomKit adapter's surface is committed: its engine source is not public.
 # Rewrite it after changing the adapter; roomkit-check checks it is current.
 api-adapter-surface:
@@ -95,8 +107,8 @@ python-check:
 	$(CARGO) clippy --manifest-path $(PYTHON_MANIFEST) --all-targets --locked -- -D warnings
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(PYTHON_MANIFEST) --no-deps --locked
 	$(CARGO) deny --manifest-path $(PYTHON_MANIFEST) --config deny.toml check
-	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-snapshot.py
-	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-snapshot.py
+	uv tool run --from 'ruff>=0.14,<1' ruff check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-parity.py scripts/api-snapshot.py scripts/api_parity scripts/tests/test_api_parity.py
+	uv tool run --from 'ruff>=0.14,<1' ruff format --check python tests/python examples scripts/check-python.py scripts/native-notices.py scripts/artifact_files.py scripts/api-parity.py scripts/api-snapshot.py scripts/api_parity scripts/tests/test_api_parity.py
 	$(PYTHON) scripts/check-python.py
 
 python-msrv:

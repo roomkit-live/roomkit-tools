@@ -1,0 +1,72 @@
+# How the Rust crates' public API maps to the Python packages', read by
+# scripts/api-parity.py (`make api-parity`) against the Python snapshot in
+# tests/python/ and backends/rusto/python/tests/.
+#
+# Python is the reference: one public API, the same names, parameters,
+# defaults and behaviour (CONTRIBUTING.md, "One public API"). Only what the
+# language forces may differ, and each such mapping is written here:
+# - [rules]: the mappings that apply with no entry; scripts/api-parity.py's
+#   docstring says what each one does;
+# - [[map]]: the Python counterpart of a Rust item or member a rule does not
+#   give, approved by the maintainer as forced by the language (`approved`,
+#   a date, and `reason`; `params` renames parameters, Rust to Python).
+# Any other difference needs the maintainer's decision before it is
+# written. Until it is taken, it is a finding the gate fails on, unless an
+# entry covers it:
+# - [[exception]]: findings the maintainer approved (`approved`, `reason`);
+# - [[pending]]: findings awaiting the decision (`reason`), in the separate
+#   list at the end of this file. A pending entry naming both counterparts
+#   (`rust` and `python`) also pairs them, so their members are compared
+#   while the name difference waits. Each decision removes its findings
+#   from the list: the code changes, or an approved [[map]], [[exception]]
+#   or rule replaces the entry. `make api-parity API_PARITY_FLAGS=--strict`
+#   fails while one is left.
+# An entry covers findings by key, `<rust|python> <path> (<kind>)`; the JSON
+# a Python call exchanges is written `json:<Type>.<property>`. A key no
+# finding has, or an entry naming what is gone, is dead and fails the gate.
+
+[rules]
+# Rust's casing of an acronym in a type's name (rust-lang RFC 430), and
+# Python's.
+acronyms = { Io = "IO" }
+# A struct whose name ends with one of these stands for keyword arguments:
+# a struct of named fields, the Rust form of Python's keywords.
+options_suffixes = ["Limits", "Config", "Policy", "Env"]
+# A struct whose name ends with this stands for a call's arguments: its
+# fields are the Python method's parameters.
+input_suffix = "Input"
+# Python's schema-shaped dict of a call's arguments, the Input struct whole.
+arguments = "arguments"
+# The cancellation token a Rust call takes; Python cancels the awaiting task.
+cancellation = "CancellationToken"
+# Python's async factory, the constructor of a class that resolves its
+# root: Python cannot await in __init__.
+factory = "create"
+# A builder, `with_<x>(self, value)`: one of a constructor's keywords.
+builder_prefix = "with_"
+# The RoomKit engine's tool protocol: Python's `definition` property and
+# `handler` are the Rust adapter's `Toolset` implementation, a struct named
+# with the suffix standing for the Python RoomKit tool named without it.
+toolset = { trait = "Toolset", suffix = "Toolset", members = ["definition", "handler"] }
+# The Rust types a Python builtin stands for: the envelope a call returns
+# and a tool definition, which Python returns as dicts.
+builtins = { "roomkit_tools_core::Output" = "dict", "roomkit_tools_core::Definition" = "dict" }
+# The error variants a Python builtin exception stands for, by path.
+builtin_errors = { "roomkit_tools_core::Error::Cancelled" = "asyncio.CancelledError" }
+
+# The Python modules a Rust crate's items are looked for in, in order.
+[rules.packages]
+roomkit_tools_core = ["roomkit_tools"]
+roomkit_tools_fs = ["roomkit_tools", "roomkit_tools.fs", "roomkit_tools.workspace"]
+roomkit_tools_process = ["roomkit_tools", "roomkit_tools.process", "roomkit_tools.output"]
+roomkit_tools_http = ["roomkit_tools"]
+roomkit_tools_web = ["roomkit_tools", "roomkit_tools.web"]
+roomkit_tools_search = ["roomkit_tools", "roomkit_tools.search"]
+roomkit_tools_code = ["roomkit_tools", "roomkit_tools.code"]
+roomkit_tools_image = ["roomkit_tools", "roomkit_tools.image"]
+roomkit_tools_ocr = ["roomkit_tools", "roomkit_tools.ocr"]
+roomkit_tools_ocr_rusto = ["roomkit_tools_ocr_rusto"]
+roomkit_tools_docs = ["roomkit_tools", "roomkit_tools.docs"]
+roomkit_tools_plans = ["roomkit_tools", "roomkit_tools.plans"]
+roomkit_tools_agents = ["roomkit_tools", "roomkit_tools.agents"]
+roomkit_tools_roomkit = ["roomkit_tools.roomkit", "roomkit_tools"]
