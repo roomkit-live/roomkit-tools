@@ -99,10 +99,11 @@ impl WebFetchTool {
         let timeout = input
             .timeout_ms
             .map_or(self.limits.default_timeout_ms, NonZeroU64::get);
-        if timeout == 0 || timeout > self.limits.max_timeout_ms {
-            return Err(ToolError::InvalidInput(
-                "timeout_ms must be positive and within the host maximum".into(),
-            ));
+        let max = self.limits.max_timeout_ms;
+        if timeout > max {
+            return Err(ToolError::InvalidInput(format!(
+                "timeout_ms exceeds the host maximum of {max} ms"
+            )));
         }
         let url = network::parse(&input.url, self.limits.max_url_bytes)?;
         let token = cancel.child_token();

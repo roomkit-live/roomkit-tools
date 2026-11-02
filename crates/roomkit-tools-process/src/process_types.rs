@@ -12,7 +12,8 @@ pub struct ProcessStartInput {
     /// Initial directory relative to the configured root.
     #[serde(default)]
     pub cwd: Option<String>,
-    /// Maximum lifetime, capped by the host. Default: five minutes.
+    /// Maximum lifetime; a value above the host maximum is refused.
+    /// Default: five minutes.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }

@@ -285,15 +285,16 @@ impl ProcessSession {
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessStatus>, ToolError> {
         self.check(owner, cancel)?;
+        let limits = self.inner.limits;
+        let timeout_ms = crate::requested_timeout(
+            input.timeout_ms,
+            limits.default_timeout_ms,
+            limits.max_timeout_ms,
+        )?;
         let cwd = self.start_directory(&input, cancel).await?;
         let mut registry = self.inner.registry.lock().await;
         self.check(owner, cancel)?;
-        let limits = self.inner.limits;
         let next = registry.next_for(owner, limits)?;
-        let timeout_ms = input
-            .timeout_ms
-            .map_or(limits.default_timeout_ms, std::num::NonZeroU64::get)
-            .min(limits.max_timeout_ms);
         let shown = crate::relative_cwd(&self.inner.root, &cwd)?;
         let status = initial_status(format!("p{next}"), shown, timeout_ms);
         #[cfg(unix)]

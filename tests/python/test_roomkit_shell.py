@@ -63,8 +63,12 @@ class RoomKitShellTests(unittest.IsolatedAsyncioTestCase):
                 self.root, max_output_bytes=2, default_timeout_ms=50, max_timeout_ms=100
             )
         )
-        result = json.loads(
+        with self.assertRaisesRegex(
+            ToolRefusedError, "timeout_ms exceeds the host maximum of 100 ms"
+        ):
             await bounded.handler("shell", {"command": "printf abcd", "timeout_ms": 200})
+        result = json.loads(
+            await bounded.handler("shell", {"command": "printf abcd", "timeout_ms": 100})
         )
         self.assertEqual(result["data"]["timeout_ms"], 100)
         self.assertEqual(result["data"]["stdout"]["omitted_bytes"], 2)

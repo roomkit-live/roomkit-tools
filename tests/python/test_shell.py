@@ -124,6 +124,16 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
             await limited.shell("touch unexpected")
         self.assertFalse((self.root / "unexpected").exists())
 
+    async def test_a_timeout_above_the_host_maximum_is_refused_with_it(self) -> None:
+        limited = await ShellTool.create(self.root, default_timeout_ms=1000, max_timeout_ms=1000)
+        with self.assertRaisesRegex(
+            InvalidInputError, "timeout_ms exceeds the host maximum of 1000 ms"
+        ):
+            await limited.shell("touch unexpected", timeout_ms=1001)
+        self.assertFalse((self.root / "unexpected").exists())
+        result = await limited.shell("true", timeout_ms=1000)
+        self.assertEqual(result["data"]["timeout_ms"], 1000)
+
     async def test_output_bounds_keep_head_tail_and_drain_both_pipes(self) -> None:
         tool = await ShellTool.create(self.root, max_output_bytes=100)
         result = await tool.shell(
@@ -158,9 +168,9 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(signal["exit_code"])
         self.assertFalse(signal["timed_out"])
 
-    async def test_timeout_defaults_capping_partial_output_and_closed_pipes(self) -> None:
+    async def test_timeout_default_maximum_partial_output_and_closed_pipes(self) -> None:
         tool = await ShellTool.create(self.root, default_timeout_ms=50, max_timeout_ms=100)
-        for timeout, expected in [(None, 50), (2000, 100)]:
+        for timeout, expected in [(None, 50), (100, 100)]:
             data = (await tool.shell("printf started; sleep 60", timeout_ms=timeout))["data"]
             self.assertTrue(data["timed_out"])
             self.assertEqual(data["timeout_ms"], expected)

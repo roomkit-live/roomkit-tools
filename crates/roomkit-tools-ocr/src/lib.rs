@@ -167,10 +167,11 @@ impl OcrTool {
         let timeout = input
             .timeout_ms
             .map_or(self.limits.default_timeout_ms as u64, NonZeroU64::get);
-        if timeout == 0 || timeout > self.limits.max_timeout_ms as u64 {
-            return Err(ToolError::InvalidInput(
-                "timeout_ms is outside the host bounds".into(),
-            ));
+        let max = self.limits.max_timeout_ms as u64;
+        if timeout > max {
+            return Err(ToolError::InvalidInput(format!(
+                "timeout_ms exceeds the host maximum of {max} ms"
+            )));
         }
         let token = cancel.child_token();
         let _guard = token.clone().drop_guard();

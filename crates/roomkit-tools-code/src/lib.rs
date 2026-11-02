@@ -102,10 +102,11 @@ impl CodeOutlineTool {
         let timeout = input
             .timeout_ms
             .map_or(self.limits.default_timeout_ms as u64, NonZeroU64::get);
-        if timeout == 0 || timeout > self.limits.max_timeout_ms as u64 {
-            return Err(ToolError::InvalidInput(
-                "timeout_ms must be positive and within the host maximum".into(),
-            ));
+        let max = self.limits.max_timeout_ms as u64;
+        if timeout > max {
+            return Err(ToolError::InvalidInput(format!(
+                "timeout_ms exceeds the host maximum of {max} ms"
+            )));
         }
         let duration = Duration::from_millis(timeout);
         extract::validate_revision(input.expected_revision.as_deref())?;

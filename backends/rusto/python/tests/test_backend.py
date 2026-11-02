@@ -62,6 +62,17 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(InvalidInputError):
             RustoOcr(".", threads=0)
 
+    async def test_a_timeout_above_the_maximum_is_refused_with_it(self):
+        with tempfile.TemporaryDirectory() as models:
+            tool = await OcrTool.create(
+                FIXTURES, backend=RustoOcr(models), default_timeout_ms=1000, max_timeout_ms=1000
+            )
+            # The refusal precedes loading, even with an empty models directory.
+            with self.assertRaisesRegex(
+                InvalidInputError, "timeout_ms exceeds the host maximum of 1000 ms"
+            ):
+                await tool.ocr("page.png", timeout_ms=1001)
+
     @unittest.skipUnless(MODELS, "set ROOMKIT_OCR_MODELS for trusted local PP-OCRv6 models")
     async def test_real_models_rust_parity_shared_engine_and_roomkit(self):
         backend = RustoOcr(MODELS)

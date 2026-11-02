@@ -13,7 +13,8 @@ pub struct OcrInput {
     pub rotation_degrees: u16,
     /// Optional raw-byte SHA-256 revision to reject a changed image.
     pub expected_revision: Option<String>,
-    /// Positive timeout capped by the host. Native stages may finish after return.
+    /// Positive timeout; a value above the host maximum is refused. Native
+    /// stages may finish after return.
     pub timeout_ms: Option<NonZeroU64>,
 }
 

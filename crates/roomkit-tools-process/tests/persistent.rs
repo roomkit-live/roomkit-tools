@@ -554,7 +554,7 @@ async fn bounded_retention_exposes_every_gap_and_keeps_draining() {
 }
 
 #[tokio::test]
-async fn lifetime_timeout_caps_requests_and_retains_output() {
+async fn lifetime_timeout_refuses_requests_above_the_maximum_and_retains_output() {
     let root = tempfile::tempdir().unwrap();
     let limits = ProcessLimits {
         default_timeout_ms: 200,
@@ -566,9 +566,17 @@ async fn lifetime_timeout_caps_requests_and_retains_output() {
         .unwrap()
         .with_limits(limits)
         .unwrap();
+    let token = CancellationToken::new();
     let mut input = ProcessStartInput::new("printf ready; sleep 60");
     input.timeout_ms = std::num::NonZeroU64::new(60_000);
-    let token = CancellationToken::new();
+    match manager.start(Some("a"), input, &token).await {
+        Err(ToolError::InvalidInput(message)) => {
+            assert_eq!(message, "timeout_ms exceeds the host maximum of 200 ms");
+        }
+        other => panic!("{other:?}"),
+    }
+    let mut input = ProcessStartInput::new("printf ready; sleep 60");
+    input.timeout_ms = std::num::NonZeroU64::new(200);
     let id = manager
         .start(Some("a"), input, &token)
         .await

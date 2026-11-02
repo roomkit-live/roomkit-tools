@@ -323,9 +323,14 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ToolIOError):
             await self.session.start("true", cwd="missing")
 
-    async def test_lifetime_cap_and_signal_are_preserved(self) -> None:
+    async def test_lifetime_above_the_maximum_is_refused_and_signal_preserved(self) -> None:
         async with ProcessSession(self.root, default_timeout_ms=100, max_timeout_ms=200) as session:
-            started = (await session.start("printf started; sleep 60", timeout_ms=10000))["data"]
+            with self.assertRaisesRegex(
+                InvalidInputError, "timeout_ms exceeds the host maximum of 200 ms"
+            ):
+                await session.start("touch unexpected", timeout_ms=10000)
+            self.assertFalse((self.root / "unexpected").exists())
+            started = (await session.start("printf started; sleep 60", timeout_ms=200))["data"]
             self.assertEqual(started["timeout_ms"], 200)
             final = await wait_status(session, started["process_id"], state="finished")
             self.assertEqual(final["end"], "timed_out")

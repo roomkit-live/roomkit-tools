@@ -55,9 +55,10 @@ otherwise `InvalidInputError`. Rust hosts pass a `CommandEnv` with the same
 Host constructor bounds are `max_command_bytes` (16 KiB), `max_output_bytes`
 (32 KiB raw bytes per stream), `default_timeout_ms` (10,000) and `max_timeout_ms`
 (120,000). All must be positive; default timeout cannot exceed the maximum,
-and the maximum cannot exceed 24 hours. A requested runtime is capped by the
-host. It starts after spawn, excluding path resolution; termination/reaping
-may extend total elapsed time.
+and the maximum cannot exceed 24 hours. A requested runtime above the maximum
+is refused with `InvalidInputError`, whose message gives the maximum, before
+anything runs. The runtime starts after spawn, excluding path resolution;
+termination/reaping may extend total elapsed time.
 
 The result preserves separate stdout/stderr, exit code or signal, effective
 timeout and `timed_out`. Each stream retains head/tail output while continuing
@@ -166,7 +167,8 @@ child consumed them. Send EOF explicitly with `close_stdin=True` when requested.
 
 All bounds must be positive. Per-owner quota cannot exceed total quota, the
 write deadline cannot exceed 60 seconds, and default lifetime cannot exceed
-the maximum (at most 24 hours). A requested lifetime is capped by the host.
+the maximum (at most 24 hours). A requested lifetime above the maximum is
+refused with `InvalidInputError`, whose message gives the maximum.
 Completed jobs retain output and consume quota until `stop(..., forget=True)`
 or session shutdown. `stop` sends SIGKILL to the Unix process group at once,
 without a graceful phase, waits up to two seconds and reports `forgotten=False`

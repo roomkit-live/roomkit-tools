@@ -70,6 +70,18 @@ class ImageTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(data["image"]["base64"], result["text"])
             self.assertEqual(ViewImageTool.definition()["name"], "view_image")
 
+    async def test_a_timeout_above_the_maximum_is_refused_with_it(self):
+        with tempfile.TemporaryDirectory() as root:
+            pixels = base64.b64decode(FIXTURE["files"]["colors.png"])
+            await asyncio.to_thread(Path(root, "colors.png").write_bytes, pixels)
+            tool = await ViewImageTool.create(root, default_timeout_ms=1000, max_timeout_ms=1000)
+            with self.assertRaisesRegex(
+                InvalidInputError, "timeout_ms exceeds the host maximum of 1000 ms"
+            ):
+                await tool.view("colors.png", timeout_ms=1001)
+            result = await tool.view("colors.png", timeout_ms=1000)
+            self.assertEqual(result["data"]["width"], 2)
+
     async def test_invalid_limits_root_and_cancellation_are_explicit(self):
         with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as outside:
             path = Path(outside, "image.png")

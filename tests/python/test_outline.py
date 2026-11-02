@@ -79,6 +79,17 @@ class OutlineTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(AccessRefusedError):
                 await tool.outline(__file__, language="python")
 
+    async def test_a_timeout_above_the_maximum_is_refused_with_it(self):
+        with tempfile.TemporaryDirectory() as root:
+            await asyncio.to_thread(Path(root, "a.py").write_text, "def f():\n    pass\n")
+            tool = await CodeOutlineTool.create(root, default_timeout_ms=1000, max_timeout_ms=1000)
+            with self.assertRaisesRegex(
+                InvalidInputError, "timeout_ms exceeds the host maximum of 1000 ms"
+            ):
+                await tool.outline("a.py", timeout_ms=1001)
+            result = await tool.outline("a.py", timeout_ms=1000)
+            self.assertEqual(result["data"]["language"], "python")
+
 
 class OutlineLoopTests(unittest.TestCase):
     def test_outline_is_reusable_across_event_loops(self):

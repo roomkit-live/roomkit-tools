@@ -54,7 +54,8 @@ Limits default to 512 KiB input, 64 KiB of complete JSON data-plus-text output,
 depth 256 and 1,024 bytes per signature. Oversized names or scan budgets fail;
 signatures clip at UTF-8 boundaries. All bounds are host-configurable.
 
-The default deadline is 10 seconds, capped at 120 seconds by default. Queuing,
+The default deadline is 10 seconds; a requested deadline above the maximum,
+120 seconds by default, is refused with a message that gives it. Queuing,
 I/O, parsing and rendering share that deadline. Two worker slots are shared by
 native tool clones; blocking workers retain their slot until cooperative
 cancellation finishes. Whole-file parsing retains source bytes and a syntax

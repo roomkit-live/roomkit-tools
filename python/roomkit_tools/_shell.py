@@ -107,7 +107,7 @@ class ShellTool:
         cwd: str | os.PathLike[str] | None = None,
         timeout_ms: int | None = None,
     ) -> dict[str, Any]:
-        """Run with a per-call cwd and runtime capped by the host maximum.
+        """Run with a per-call cwd and a runtime within the host maximum.
 
         Nonzero exits and timeouts are results, not tool exceptions. Streams
         retain head/tail bytes, with omission metadata and lossy UTF-8 text.

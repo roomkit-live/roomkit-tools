@@ -286,3 +286,20 @@ class NamedParametersTests(unittest.TestCase):
                 await tool.search("q", timeout_ms=1)
 
         asyncio.run(search())
+
+    def test_a_timeout_above_the_maximum_is_refused_with_it(self):
+        async def search():
+            tool = await WebSearchTool.create(
+                backend=ExaSearch(allowed_origins=[]),
+                default_timeout_ms=1000,
+                max_timeout_ms=1000,
+            )
+            with self.assertRaisesRegex(
+                InvalidInputError, "timeout_ms exceeds the host maximum of 1000 ms"
+            ):
+                await tool.search("q", timeout_ms=1001)
+            # The maximum is a valid deadline: the call reaches the origin policy.
+            with self.assertRaises(AccessRefusedError):
+                await tool.search("q", timeout_ms=1000)
+
+        asyncio.run(search())

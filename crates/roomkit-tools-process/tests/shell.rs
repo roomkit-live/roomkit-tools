@@ -186,7 +186,7 @@ async fn stdin_is_eof_and_signal_exit_is_distinct_from_an_exit_code() {
 }
 
 #[tokio::test]
-async fn timeout_keeps_partial_output_and_clamps_the_requested_duration() {
+async fn timeout_keeps_partial_output_and_refuses_a_duration_above_the_maximum() {
     let root = tempfile::tempdir().unwrap();
     let limits = ShellLimits {
         default_timeout_ms: 300,
@@ -198,8 +198,18 @@ async fn timeout_keeps_partial_output_and_clamps_the_requested_duration() {
         .unwrap()
         .with_limits(limits)
         .unwrap();
-    let mut input = ShellInput::new("printf started; sleep 60 & printf '%s %s' $$ $! > pids; wait");
+    let command = "printf started; sleep 60 & printf '%s %s' $$ $! > pids; wait";
+    let mut input = ShellInput::new(command);
     input.timeout_ms = std::num::NonZeroU64::new(60_000);
+    match tool.shell(input, &CancellationToken::new()).await {
+        Err(ToolError::InvalidInput(message)) => {
+            assert_eq!(message, "timeout_ms exceeds the host maximum of 300 ms");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(!root.path().join("pids").exists(), "nothing ran");
+    let mut input = ShellInput::new(command);
+    input.timeout_ms = std::num::NonZeroU64::new(300);
     let result = tool
         .shell(input, &CancellationToken::new())
         .await

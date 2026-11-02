@@ -56,8 +56,13 @@ part of an existing published preview.
   `web_fetch` has the process tools' type and minimum: Rust's inputs hold an
   `Option<NonZeroU64>` (were `Option<usize>` or `Option<u64>`), the schemas
   tell the model 0 is invalid, and a 0 is refused when the input is read.
-  Above the host maximum these five tools still refuse the call, where
-  `shell` and `process_start` cap it.
+  Above the host maximum they refuse the call, as `shell` and
+  `process_start` now do.
+- `shell` and `process_start` refuse a `timeout_ms` above the host maximum
+  with `InvalidInput` instead of capping it. The seven tools that take a
+  `timeout_ms` refuse such a value with one message that gives the maximum,
+  such as `timeout_ms exceeds the host maximum of 120000 ms`, so the model
+  can correct its value.
 - `shell` results and process statuses name their `cwd` relative to the
   workspace, `.` for its root, instead of the host's absolute path.
 - `docs_list` and `docs_search` page as `list`, `glob` and `grep` do: `offset`

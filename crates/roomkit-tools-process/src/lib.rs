@@ -59,6 +59,22 @@ fn relative_cwd(
     })
 }
 
+/// The runtime a call asks for, or the host default. A request above the
+/// host maximum is refused with that maximum, so the model can correct it.
+fn requested_timeout(
+    requested: Option<std::num::NonZeroU64>,
+    default_ms: u64,
+    max_ms: u64,
+) -> Result<u64, roomkit_tools_core::ToolError> {
+    let timeout_ms = requested.map_or(default_ms, std::num::NonZeroU64::get);
+    if timeout_ms > max_ms {
+        return Err(roomkit_tools_core::ToolError::InvalidInput(format!(
+            "timeout_ms exceeds the host maximum of {max_ms} ms"
+        )));
+    }
+    Ok(timeout_ms)
+}
+
 #[cfg(test)]
 mod relative_cwd_tests {
     use std::path::Path;

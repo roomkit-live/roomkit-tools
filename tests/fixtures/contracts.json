@@ -84,7 +84,9 @@
       "files": {},
       "steps": [
         {"tool": "shell", "input": {"command": "printf 0123456789abcdef; printf warning >&2; exit 7"}, "expect": {"/data/exit_code": 7, "/data/stdout/text": "0123\n[... 8 bytes omitted ...]\ncdef", "/data/stdout/total_bytes": 16, "/data/stdout/omitted_bytes": 8, "/data/stderr/text": "warning", "/data/output_complete": true}},
-        {"tool": "shell", "input": {"command": "printf forbidden > unexpected.txt"}, "cancelled": true, "expect": {"/error": "cancelled"}}
+        {"tool": "shell", "input": {"command": "printf forbidden > unexpected.txt"}, "cancelled": true, "expect": {"/error": "cancelled"}},
+        {"tool": "shell", "input": {"command": "printf late > unexpected.txt", "timeout_ms": 120001}, "expect": {"/error": "invalid_input"}},
+        {"tool": "shell", "input": {"command": "true", "timeout_ms": 120000}, "expect": {"/data/exit_code": 0, "/data/timeout_ms": 120000}}
       ]
     },
     {
@@ -102,7 +104,9 @@
         {"tool": "process_read", "input": {"process_id": "p1", "stdout_offset": 12}, "expect": {"/error": "invalid_input"}},
         {"tool": "process_stop", "input": {"process_id": "p1", "forget": true}, "expect": {"/data/forgotten": true}},
         {"tool": "process_status", "input": {}, "expect": {"/data": {"processes": []}}},
-        {"tool": "process_read", "input": {"process_id": "p1"}, "expect": {"/error": "refused"}}
+        {"tool": "process_read", "input": {"process_id": "p1"}, "expect": {"/error": "refused"}},
+        {"tool": "process_start", "input": {"command": "true", "timeout_ms": 3600001}, "expect": {"/error": "invalid_input"}},
+        {"tool": "process_start", "input": {"command": "true", "timeout_ms": 3600000}, "expect": {"/data/process_id": "p2", "/data/timeout_ms": 3600000}}
       ]
     }
   ]

@@ -106,12 +106,16 @@ impl WebSearchTool {
             || input.query.len() > self.limits.max_query_bytes
             || input.limit == 0
             || input.limit > self.limits.max_results
-            || timeout == 0
-            || timeout > self.limits.max_timeout_ms
         {
             return Err(ToolError::InvalidInput(
-                "query, limit or timeout_ms exceeds search constraints".into(),
+                "query or limit exceeds search constraints".into(),
             ));
+        }
+        let max = self.limits.max_timeout_ms;
+        if timeout > max {
+            return Err(ToolError::InvalidInput(format!(
+                "timeout_ms exceeds the host maximum of {max} ms"
+            )));
         }
         if self
             .capabilities()

@@ -36,6 +36,8 @@
     {"name": "clipped_header", "limits": {"max_signature_bytes": 24}, "input": {"path": "unicode.py"}, "expect": {"/data/symbols/1/signature_truncated": true, "/data/symbols/1/end_line": 3}},
     {"name": "host_page_limit", "limits": {"max_symbols": 1}, "input": {"path": "service.py", "limit": 50}, "expect": {"/data/next_offset": 2, "/data/truncated": true}},
     {"name": "bad_deadline", "input": {"path": "service.py", "timeout_ms": 0}, "expect": {"/error": "invalid_input"}},
+    {"name": "deadline_above_maximum", "limits": {"default_timeout_ms": 1000, "max_timeout_ms": 1000}, "input": {"path": "service.py", "timeout_ms": 1001}, "expect": {"/error": "invalid_input"}},
+    {"name": "deadline_at_maximum", "limits": {"default_timeout_ms": 1000, "max_timeout_ms": 1000}, "input": {"path": "service.py", "timeout_ms": 1000}, "expect": {"/data/language": "python", "/data/total_symbols": 5}},
     {"name": "cancelled", "cancelled": true, "input": {"path": "service.py"}, "expect": {"/error": "cancelled"}}
   ]
 }

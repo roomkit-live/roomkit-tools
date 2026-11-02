@@ -619,6 +619,39 @@
       "deny": true
     },
     {
+      "name": "timeout_above_maximum",
+      "path": "/ollama",
+      "backend": "ollama",
+      "limits": {
+        "default_timeout_ms": 1000,
+        "max_timeout_ms": 1000
+      },
+      "input": {
+        "query": "shipping policy",
+        "timeout_ms": 1001
+      },
+      "expect": {
+        "/error": "invalid_input"
+      }
+    },
+    {
+      "name": "timeout_at_maximum",
+      "path": "/ollama",
+      "backend": "ollama",
+      "limits": {
+        "default_timeout_ms": 1000,
+        "max_timeout_ms": 1000
+      },
+      "input": {
+        "query": "shipping policy",
+        "timeout_ms": 1000
+      },
+      "expect": {
+        "/error": "refused"
+      },
+      "deny": true
+    },
+    {
       "name": "cancelled",
       "path": "/ollama",
       "backend": "ollama",

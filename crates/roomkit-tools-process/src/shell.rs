@@ -19,7 +19,8 @@ pub struct ShellInput {
     /// Absolute paths within the root are also accepted. This is not confinement.
     #[serde(default)]
     pub cwd: Option<String>,
-    /// Requested process runtime in milliseconds, capped by the host maximum.
+    /// Requested process runtime in milliseconds. A value above the host
+    /// maximum is refused.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }
@@ -242,6 +243,11 @@ impl ShellTool {
                 "shell command exceeds the host limit".into(),
             ));
         }
+        let timeout_ms = crate::requested_timeout(
+            input.timeout_ms,
+            self.limits.default_timeout_ms,
+            self.limits.max_timeout_ms,
+        )?;
         let path = self.root.join(input.cwd.as_deref().unwrap_or("."));
         let cwd = tokio::select! {
             biased;
@@ -253,10 +259,6 @@ impl ShellTool {
                 "shell working directory is outside the root".into(),
             ));
         }
-        let timeout_ms = input
-            .timeout_ms
-            .map_or(self.limits.default_timeout_ms, NonZeroU64::get)
-            .min(self.limits.max_timeout_ms);
         let child_cancel = cancel.child_token();
         let _cancel_on_drop = child_cancel.clone().drop_guard();
         #[cfg(unix)]

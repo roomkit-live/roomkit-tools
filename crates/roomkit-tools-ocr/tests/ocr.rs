@@ -258,3 +258,28 @@ async fn results_name_the_image_relative_to_the_workspace() {
         assert!(result.text.starts_with(&format!("OCR {expected:?}")));
     }
 }
+
+#[tokio::test]
+async fn a_timeout_above_the_host_maximum_is_refused_with_it() {
+    let root = fixture_root();
+    let tool = OcrTool::new(root.path(), OcrEngine::new(fixture()).unwrap())
+        .await
+        .unwrap()
+        .with_limits(OcrLimits {
+            default_timeout_ms: 1_000,
+            max_timeout_ms: 1_000,
+            ..OcrLimits::default()
+        })
+        .unwrap();
+    let mut above = input("image.png");
+    above.timeout_ms = std::num::NonZeroU64::new(1_001);
+    match tool.ocr(above, &CancellationToken::new()).await {
+        Err(ToolError::InvalidInput(message)) => {
+            assert_eq!(message, "timeout_ms exceeds the host maximum of 1000 ms");
+        }
+        other => panic!("{other:?}"),
+    }
+    let mut at = input("image.png");
+    at.timeout_ms = std::num::NonZeroU64::new(1_000);
+    assert!(tool.ocr(at, &CancellationToken::new()).await.is_ok());
+}

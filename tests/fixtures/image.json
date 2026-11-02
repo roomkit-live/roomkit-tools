@@ -193,6 +193,34 @@
       "expect": {
         "/error": "invalid_input"
       }
+    },
+    {
+      "name": "timeout_above_maximum",
+      "limits": {
+        "default_timeout_ms": 1000,
+        "max_timeout_ms": 1000
+      },
+      "input": {
+        "path": "colors.png",
+        "timeout_ms": 1001
+      },
+      "expect": {
+        "/error": "invalid_input"
+      }
+    },
+    {
+      "name": "timeout_at_maximum",
+      "limits": {
+        "default_timeout_ms": 1000,
+        "max_timeout_ms": 1000
+      },
+      "input": {
+        "path": "colors.png",
+        "timeout_ms": 1000
+      },
+      "expect": {
+        "/data/width": 2
+      }
     }
   ]
 }
