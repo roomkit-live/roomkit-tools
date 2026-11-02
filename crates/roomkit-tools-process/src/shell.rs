@@ -263,7 +263,7 @@ impl ShellTool {
         {
             let foreground = crate::unix::Foreground {
                 command: input.command,
-                shown_cwd: crate::relative_cwd(&self.root, &cwd),
+                shown_cwd: crate::relative_cwd(&self.root, &cwd)?,
                 cwd,
                 env: Arc::clone(&self.env),
                 limits: self.limits,

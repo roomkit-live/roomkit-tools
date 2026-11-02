@@ -294,7 +294,7 @@ impl ProcessSession {
             .timeout_ms
             .map_or(limits.default_timeout_ms, std::num::NonZeroU64::get)
             .min(limits.max_timeout_ms);
-        let shown = crate::relative_cwd(&self.inner.root, &cwd);
+        let shown = crate::relative_cwd(&self.inner.root, &cwd)?;
         let status = initial_status(format!("p{next}"), shown, timeout_ms);
         #[cfg(unix)]
         {
