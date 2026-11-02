@@ -121,8 +121,14 @@ and the other lacks, recorded rather than ported (`unmatched` and
 `uncompared` findings only); `[[pending]]` covers the findings awaiting a
 decision, and, naming both counterparts, pairs two items or members whose
 name difference awaits it. An entry covers findings by key,
-`<rust|python> <path> (<kind>)`; a key no finding has, a pairing the rules
-already make, or an entry naming what is gone, is dead. Every rule and
+`<rust|python> <path> (<kind>) [<with>]`: `<with>` names what the finding
+was compared with when the path alone does not say, so that an entry covers
+what was approved and nothing more. A parameter on one side only names the
+other side's call; one named twice, its Python name; a `required`,
+`defaulted` or `default` finding, the Python parameter with its default and,
+for `default`, Rust's; a `variadic` or `form` finding, the struct and the
+fields or parameters it stands for. A key no finding has, a pairing the
+rules already make, or an entry naming what is gone, is dead. Every rule and
 every `[[map]]`, `[[exception]]` and `[[missing]]` entry names in `decision`
 where the maintainer decided it, and the mapping is refused without one; a
 decision that reads `TODO: maintainer` awaits the maintainer.

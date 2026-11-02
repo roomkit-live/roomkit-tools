@@ -52,13 +52,16 @@ def load_defaults(path: Path) -> Defaults:
     return Defaults(structs)
 
 
-def compare(comparison: Comparison, param: PythonParam, found: RustParam, pairs: tuple) -> None:
+def compare(
+    comparison: Comparison, param: PythonParam, found: RustParam, pairs: tuple, where: str
+) -> None:
     """A parameter both sides default: Python's value against the Rust
-    default of the field, or the builder, it stands for."""
+    default of the field, or the builder, it stands for. The finding's key
+    names both values (`where` is the Python parameter with its default)."""
     if comparison.defaults is None or param.variadic:
         return
     if found.via is None:
-        _builder(comparison, param, found, pairs)
+        _builder(comparison, param, found, pairs, where)
         return
     rust = _dumped(comparison, found, pairs)
     if rust is _UNREAD:
@@ -68,7 +71,9 @@ def compare(comparison: Comparison, param: PythonParam, found: RustParam, pairs:
         return
     if python is None and _deferred(comparison, param, found):
         return
-    comparison.find("rust", found.path, "default", _detail(param, found, rust, python), *pairs)
+    detail = _detail(param, found, rust, python)
+    qualifier = f"{where}, Rust {json.dumps(rust, sort_keys=True)}"
+    comparison.find("rust", found.path, "default", detail, *pairs, qualifier=qualifier)
 
 
 def _dumped(comparison: Comparison, found: RustParam, pairs: tuple) -> Any:
@@ -86,14 +91,16 @@ def _dumped(comparison: Comparison, found: RustParam, pairs: tuple) -> Any:
     return struct[field]
 
 
-def _builder(comparison: Comparison, param: PythonParam, found: RustParam, pairs: tuple) -> None:
+def _builder(
+    comparison: Comparison, param: PythonParam, found: RustParam, pairs: tuple, where: str
+) -> None:
     """A builder Rust does not call by default stands for Python's `None`."""
     if param.default != "None":
         detail = (
             f"Python defaults it to {param.default}; Rust's builder is not called by "
             "default, its value unread"
         )
-        comparison.find("rust", found.path, "default", detail, *pairs)
+        comparison.find("rust", found.path, "default", detail, *pairs, qualifier=where)
 
 
 def _deferred(comparison: Comparison, param: PythonParam, found: RustParam) -> bool:

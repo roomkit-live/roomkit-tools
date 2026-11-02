@@ -5,11 +5,16 @@ before it is reported one by one: a Python `**keywords` standing for the
 fields of the Rust struct a parameter or a builder of that name brings; a
 Rust field holding an options struct whose fields Python takes flat; and a
 single parameter left on each side, which is one parameter named twice.
+
+A finding's key names what it was compared with (`Finding.qualifier`): a
+parameter on one side only, the other side's call; a parameter named twice,
+its Python name; a `variadic` or nested `form` finding, the struct and the
+fields it stands for. An entry covering it is dead once that changes.
 """
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from api_parity import defaults
@@ -20,12 +25,26 @@ if TYPE_CHECKING:
     from api_parity.compare import Comparison
 
 
+@dataclass(frozen=True)
+class Sides:
+    """The two calls compared: Python's path, Rust's path, and the pair of
+    items a finding names."""
+
+    python: str
+    rust: str
+    pairs: tuple[str | None, str | None]
+
+    def param(self, param: PythonParam) -> str:
+        """A Python parameter as a key names it, with its default."""
+        default = f"={param.default}" if param.default is not None else ""
+        return f"{self.python}({param.name}{default})"
+
+
 def compare(
     comparison: Comparison,
-    where: str,
+    sides: Sides,
     python_side: list[PythonParam],
     rust_side: list[RustParam],
-    pairs: tuple,
     *,
     concrete: bool,
 ) -> None:
@@ -46,23 +65,49 @@ def compare(
             continue
         taken.add(found.path)
         if concrete:
-            _requiredness(comparison, param, found, pairs)
+            _requiredness(comparison, sides, param, found)
     rust_left = [r for r in rust_side if r.path not in taken]
-    left, rust_left = _variadic(comparison, where, left, rust_left, pairs)
-    left, rust_left = _nested(comparison, left, rust_left, pairs)
+    left, rust_left = _variadic(comparison, sides, left, rust_left)
+    left, rust_left = _nested(comparison, sides, left, rust_left)
+    _left(comparison, sides, left, rust_left, concrete=concrete)
+
+
+def _left(
+    comparison: Comparison,
+    sides: Sides,
+    left: list[PythonParam],
+    rust_left: list[RustParam],
+    *,
+    concrete: bool,
+) -> None:
+    """What no name matched: one parameter named twice, or each on one side."""
     plain = [param for param in left if not param.variadic]
     if len(plain) == 1 and len(rust_left) == 1 and len(left) == 1:
         detail = f"the one parameter left on each side: named {plain[0].name} in Python"
-        comparison.find("rust", rust_left[0].path, "name", detail, *pairs)
+        comparison.find(
+            "rust", rust_left[0].path, "name", detail, *sides.pairs, qualifier=sides.param(plain[0])
+        )
         if concrete:
-            _requiredness(comparison, plain[0], rust_left[0], pairs)
+            _requiredness(comparison, sides, plain[0], rust_left[0])
         return
     for param in left:
         comparison.find(
-            "python", f"{where}({param.name})", "unmatched", "no Rust parameter", *pairs
+            "python",
+            f"{sides.python}({param.name})",
+            "unmatched",
+            "no Rust parameter",
+            *sides.pairs,
+            qualifier=sides.rust,
         )
     for param in rust_left:
-        comparison.find("rust", param.path, "unmatched", "no Python parameter", *pairs)
+        comparison.find(
+            "rust",
+            param.path,
+            "unmatched",
+            "no Python parameter",
+            *sides.pairs,
+            qualifier=sides.python,
+        )
 
 
 def renamed(rust_side: list[RustParam], renames: dict[str, str]) -> list[RustParam]:
@@ -72,17 +117,23 @@ def renamed(rust_side: list[RustParam], renames: dict[str, str]) -> list[RustPar
 
 
 def _requiredness(
-    comparison: Comparison, param: PythonParam, found: RustParam, pairs: tuple
+    comparison: Comparison, sides: Sides, param: PythonParam, found: RustParam
 ) -> None:
+    where = sides.param(param)
     if param.required and not found.required:
         comparison.find(
-            "rust", found.path, "required", "Python requires it; Rust defaults it", *pairs
+            "rust",
+            found.path,
+            "required",
+            "Python requires it; Rust defaults it",
+            *sides.pairs,
+            qualifier=where,
         )
     elif not param.required and found.required and not _optional(comparison, param, found):
         detail = f"Python defaults it ({param.name}={param.default}); Rust requires it"
-        comparison.find("rust", found.path, "defaulted", detail, *pairs)
+        comparison.find("rust", found.path, "defaulted", detail, *sides.pairs, qualifier=where)
     elif not param.required and not found.required:
-        defaults.compare(comparison, param, found, pairs)
+        defaults.compare(comparison, param, found, sides.pairs, where)
 
 
 def _optional(comparison: Comparison, param: PythonParam, found: RustParam) -> bool:
@@ -96,10 +147,9 @@ def _optional(comparison: Comparison, param: PythonParam, found: RustParam) -> b
 
 def _variadic(
     comparison: Comparison,
-    where: str,
+    sides: Sides,
     left: list[PythonParam],
     rust_left: list[RustParam],
-    pairs: tuple,
 ) -> tuple[list[PythonParam], list[RustParam]]:
     """A Python `**name` against the fields of the Rust struct `name` brings:
     one finding naming them."""
@@ -116,13 +166,23 @@ def _variadic(
         fields = ", ".join(r.name for r in group)
         via = group[0].via.rpartition("::")[2]
         detail = f"takes **{param.name}; Rust's {via} names {fields}"
-        comparison.find("python", f"{where}({param.name})", "variadic", detail, *pairs)
+        comparison.find(
+            "python",
+            f"{sides.python}({param.name})",
+            "variadic",
+            detail,
+            *sides.pairs,
+            qualifier=f"{sides.rust}: {via}({fields})",
+        )
         rust_left = [r for r in rust_left if r not in group]
     return still, rust_left
 
 
 def _nested(
-    comparison: Comparison, left: list[PythonParam], rust_left: list[RustParam], pairs: tuple
+    comparison: Comparison,
+    sides: Sides,
+    left: list[PythonParam],
+    rust_left: list[RustParam],
 ) -> tuple[list[PythonParam], list[RustParam]]:
     """A Rust field holding an options struct whose fields Python takes
     flat: one finding naming them."""
@@ -139,8 +199,16 @@ def _nested(
             continue
         comparison.rust.expanded.add(nested["path"])
         short = nested["path"].rpartition("::")[2]
-        detail = f"nests {', '.join(names)} in a {short}; Python takes them flat"
-        comparison.find("rust", param.path, "form", detail, *pairs)
+        fields = ", ".join(names)
+        detail = f"nests {fields} in a {short}; Python takes them flat"
+        comparison.find(
+            "rust",
+            param.path,
+            "form",
+            detail,
+            *sides.pairs,
+            qualifier=f"{sides.python}: {short}({fields})",
+        )
         left = [p for p in left if p not in flat]
         still.remove(param)
     return left, still

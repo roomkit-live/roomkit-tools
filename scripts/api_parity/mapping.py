@@ -11,8 +11,9 @@ from api_parity import ParityError
 
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _TOKEN = re.compile(r"[A-Z][a-z0-9]*|[a-z0-9]+")
-# A finding's key, as an entry's `covers` names it: side, path and kind.
-_KEY = re.compile(r"(rust|python) (\S+) \(([a-z_]+)\)")
+# A finding's key, as an entry's `covers` names it: side, path and kind, and
+# what it was compared with, in brackets, when the path alone does not say.
+_KEY = re.compile(r"(rust|python) (\S+) \(([a-z_]+)\)(?: \[(.+)\])?")
 # A finding's kind: what differs.
 KINDS = {
     "unmatched": "on one side only",
@@ -260,7 +261,7 @@ def entry(table: str, index: int, raw: dict) -> Entry:
         found = _KEY.fullmatch(key)
         if not found or found.group(3) not in KINDS:
             raise ParityError(
-                f"{where}: {key!r} is no finding key, `<rust|python> <path> (<kind>)`"
+                f"{where}: {key!r} is no finding key, `<rust|python> <path> (<kind>) [<with>]`"
             )
     if table != "map" and not covers:
         raise ParityError(f"{where}: covers no finding")

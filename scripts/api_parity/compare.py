@@ -26,11 +26,16 @@ class Finding:
     detail: str
     rust_item: str | None
     python_item: str | None
+    # What the finding was compared with, when the path alone does not say:
+    # the other side's call or name, the fields a struct stands for, both
+    # default values. An entry covering it is dead once that changes.
+    qualifier: str | None = None
 
     @property
     def key(self) -> str:
         """What an entry's `covers` names it by."""
-        return f"{self.side} {self.path} ({self.kind})"
+        key = f"{self.side} {self.path} ({self.kind})"
+        return f"{key} [{self.qualifier}]" if self.qualifier else key
 
 
 @dataclass(frozen=True)
@@ -77,10 +82,18 @@ class Comparison:
         return self.findings
 
     def find(
-        self, side: str, path: str, kind: str, detail: str, rust: str | None, python: str | None
+        self,
+        side: str,
+        path: str,
+        kind: str,
+        detail: str,
+        rust: str | None,
+        python: str | None,
+        *,
+        qualifier: str | None = None,
     ) -> None:
         """Record a finding, once per key."""
-        finding = Finding(side, path, kind, detail, rust, python)
+        finding = Finding(side, path, kind, detail, rust, python, qualifier)
         if finding.key not in self._keys:
             self._keys.add(finding.key)
             self.findings.append(finding)
@@ -107,7 +120,8 @@ class Comparison:
             self.applied.add(id(entry))
             if entry.table != "map":
                 short = entry.python.rpartition(".")[2]
-                self.find("rust", path, "name", f"named {short} in Python", path, entry.python)
+                detail = f"named {short} in Python"
+                self.find("rust", path, "name", detail, path, entry.python, qualifier=entry.python)
             return entry.python
         role = self._role(item)
         if role is not None:
@@ -167,7 +181,8 @@ class Comparison:
         rust_side = self.rust.params(
             item["signature"], item["path"].rpartition("::")[0], arguments=False
         )
-        parameters.compare(self, python, python_params(spec), rust_side, pairs, concrete=True)
+        sides = parameters.Sides(python, item["path"], pairs)
+        parameters.compare(self, sides, python_params(spec), rust_side, concrete=True)
 
     def _class(self, python: str, spec: dict, items: list[dict]) -> None:
         pool = self._pool(items)
@@ -308,8 +323,8 @@ class Comparison:
         arguments = any(param.name == self.rules.arguments for param in python_side)
         rust_side = self.rust.params(found.data, found.owner, arguments=arguments)
         rust_side = parameters.renamed(rust_side, renames or {})
-        where = f"{python}.{member}"
-        parameters.compare(self, where, python_side, rust_side, pairs, concrete=concrete)
+        sides = parameters.Sides(f"{python}.{member}", rust_path, pairs)
+        parameters.compare(self, sides, python_side, rust_side, concrete=concrete)
 
     def _property(
         self, where: str, candidates: list[Member], used: set, python: str, primary: str
@@ -335,7 +350,8 @@ class Comparison:
         if entry.table == "map":
             return
         member = entry.python.rpartition(".")[2]
-        self.find("rust", entry.rust, "name", f"named {member} in Python", rust_item, python)
+        detail = f"named {member} in Python"
+        self.find("rust", entry.rust, "name", detail, rust_item, python, qualifier=entry.python)
 
     def check_async(
         self, method: dict, owner: str, spec: list, pairs: tuple, where: str | None = None

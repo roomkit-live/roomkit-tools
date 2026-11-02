@@ -37,6 +37,7 @@ def compare(
     for item, method in _targets(comparison, python, member, spec, items, used):
         pairs = (item["path"], python)
         if method is None:
+            rust_path = item["path"]
             rust_side = comparison.rust.fields(item, group=None, builder=False)
             used.update((item["path"], field["name"]) for field in item.get("fields", []))
             if item.get("non_exhaustive"):
@@ -46,11 +47,12 @@ def compare(
             if not _lazy(comparison, member, spec, method, item):
                 comparison.check_async(method, item["path"], spec, pairs, where=rust_path)
             _returns(comparison, item, method, pairs)
-            if _wraps(comparison, item, method, spec, pairs):
+            if _wraps(comparison, item, method, spec, pairs, where):
                 continue
             rust_side = comparison.rust.constructor(item, method)
         rust_side = parameters.renamed(rust_side, _renames(comparison, python, member, item))
-        parameters.compare(comparison, where, python_params(spec), rust_side, pairs, concrete=True)
+        sides = parameters.Sides(where, rust_path, pairs)
+        parameters.compare(comparison, sides, python_params(spec), rust_side, concrete=True)
 
 
 def _renames(comparison: Comparison, python: str, member: str, item: dict) -> dict[str, str]:
@@ -91,7 +93,13 @@ def _targets(
         elif python_params(spec):
             detail = f"no Rust constructor (new) on {item['path']}"
             comparison.find(
-                "python", f"{python}.{member}", "unmatched", detail, item["path"], python
+                "python",
+                f"{python}.{member}",
+                "unmatched",
+                detail,
+                item["path"],
+                python,
+                qualifier=item["path"],
             )
     return targets
 
@@ -143,9 +151,12 @@ def _returns(comparison: Comparison, item: dict, method: dict, pairs: tuple) -> 
         comparison.find("rust", f"{item['path']}::{method['name']}", "result", detail, *pairs)
 
 
-def _wraps(comparison: Comparison, item: dict, method: dict, spec: list, pairs: tuple) -> bool:
+def _wraps(
+    comparison: Comparison, item: dict, method: dict, spec: list, pairs: tuple, where: str
+) -> bool:
     """A Rust constructor taking a built tool, where Python takes that tool's
-    own constructor parameters: one finding, not one per parameter."""
+    own constructor parameters: one finding, not one per parameter, its key
+    naming the parameters Python takes."""
     params = [param for param in method["params"] if not comparison.rust.is_cancellation(param)]
     if len(params) != 1 or comparison.rust.builders(item):
         return False
@@ -165,7 +176,9 @@ def _wraps(comparison: Comparison, item: dict, method: dict, spec: list, pairs: 
     else:
         how = f"Python's {pairs[1]} takes {python}.{constructor}'s parameters ({names})"
     rust_path = f"{item['path']}::{method['name']}({params[0]['name']})"
-    comparison.find("rust", rust_path, "form", f"takes a built {built}; {how}", *pairs)
+    detail = f"takes a built {built}; {how}"
+    qualifier = f"{where}({names}): {built}"
+    comparison.find("rust", rust_path, "form", detail, *pairs, qualifier=qualifier)
     return True
 
 

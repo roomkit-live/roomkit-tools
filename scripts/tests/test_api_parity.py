@@ -239,22 +239,26 @@ class Tools(unittest.TestCase):
         self.assertEqual(
             keys(report),
             {
-                "python pkg.ReadTool.create(max_bytes) (unmatched)",
-                "python pkg.ReadTool.create(max_depth) (unmatched)",
-                "rust kit::ReadLimits::max_lines (unmatched)",
+                "python pkg.ReadTool.create(max_bytes) (unmatched) [kit::ReadTool::new]",
+                "python pkg.ReadTool.create(max_depth) (unmatched) [kit::ReadTool::new]",
+                "rust kit::ReadLimits::max_lines (unmatched) [pkg.ReadTool.create]",
             },
         )
 
     def test_python_defaults_what_rust_requires(self):
         items = read_tool(input_new=False)
         report = run(items, READ_SPEC, contracts=READ_CONTRACTS)
-        self.assertIn("rust kit::ReadInput::offset (defaulted)", keys(report))
+        self.assertIn(
+            "rust kit::ReadInput::offset (defaulted) [pkg.ReadTool.read(offset=1)]", keys(report)
+        )
 
     def test_python_requires_what_rust_defaults(self):
         items = read_tool(input_new=False)
         items[2]["impls"].append("Default")
         report = run(items, READ_SPEC, contracts=READ_CONTRACTS)
-        self.assertEqual(keys(report), {"rust kit::ReadInput::path (required)"})
+        self.assertEqual(
+            keys(report), {"rust kit::ReadInput::path (required) [pkg.ReadTool.read(path)]"}
+        )
 
     def test_async_on_one_side_only(self):
         spec = {"pkg.ReadTool": dict(READ_SPEC["pkg.ReadTool"])}
@@ -439,7 +443,13 @@ class Parameters(unittest.TestCase):
         ]
         spec = {"pkg.FileDocs": {"__init__": ["def", "root", "**limits"]}}
         report = run(items, spec)
-        self.assertEqual(keys(report), {"python pkg.FileDocs.__init__(limits) (variadic)"})
+        self.assertEqual(
+            keys(report),
+            {
+                "python pkg.FileDocs.__init__(limits) (variadic) "
+                "[kit::FileDocs::new: FileLimits(max_documents, max_depth)]"
+            },
+        )
         (finding,) = report.findings
         self.assertIn("max_documents, max_depth", finding.detail)
 
@@ -466,7 +476,13 @@ class Parameters(unittest.TestCase):
             }
         }
         report = run(items, spec)
-        self.assertEqual(keys(report), {"rust kit::SearchConfig::policy (form)"})
+        self.assertEqual(
+            keys(report),
+            {
+                "rust kit::SearchConfig::policy (form) "
+                "[pkg.Search.__init__: NetworkPolicy(allowed, private)]"
+            },
+        )
 
     def test_one_parameter_left_on_each_side_is_one_named_twice(self):
         items = [
@@ -477,7 +493,9 @@ class Parameters(unittest.TestCase):
         ]
         spec = {"pkg.Tool": {"__init__": ["def", "session"]}}
         report = run(items, spec)
-        self.assertEqual(keys(report), {"rust kit::Tool::new(manager) (name)"})
+        self.assertEqual(
+            keys(report), {"rust kit::Tool::new(manager) (name) [pkg.Tool.__init__(session)]"}
+        )
 
     def test_an_option_stands_for_pythons_none_default(self):
         """`[rules] optional`: Rust has no optional call arguments; an
@@ -500,15 +518,14 @@ class Parameters(unittest.TestCase):
             }
         }
         rule = 'optional = { type = "Option", default = "None", decision = "ref" }'
-        self.assertEqual(
-            keys(run(items, specs, rules=rule)), {"rust kit::Store::forget(owner) (defaulted)"}
-        )
+        forget = "rust kit::Store::forget(owner) (defaulted) [pkg.Store.forget(owner='me')]"
+        self.assertEqual(keys(run(items, specs, rules=rule)), {forget})
         self.assertEqual(
             keys(run(items, specs)),
             {
-                "rust kit::Store::new(parent) (defaulted)",
-                "rust kit::Store::list(owner) (defaulted)",
-                "rust kit::Store::forget(owner) (defaulted)",
+                "rust kit::Store::new(parent) (defaulted) [pkg.Store.__init__(parent=None)]",
+                "rust kit::Store::list(owner) (defaulted) [pkg.Store.list(owner=None)]",
+                forget,
             },
         )
 
@@ -758,7 +775,10 @@ class ToolProtocol(unittest.TestCase):
         specs["pkg.adapter.Read"]["__init__"] = ["def", "root", "*", "max_lines=None"]
         self.assertEqual(
             keys(run(items, specs, contracts=READ_CONTRACTS)),
-            {"rust kit_adapter::Read::new(tool) (form)"},
+            {
+                "rust kit_adapter::Read::new(tool) (form) "
+                "[pkg.adapter.Read.__init__(root, max_lines): ReadTool]"
+            },
         )
 
     def test_the_roomkit_protocol_without_a_toolset(self):
@@ -796,13 +816,13 @@ class Entries(unittest.TestCase):
 rust = "kit::DocsListTool"
 python = "pkg.DocsList"
 reason = "name"
-covers = ["rust kit::DocsListTool (name)"]
+covers = ["rust kit::DocsListTool (name) [pkg.DocsList]"]
 
 [[pending]]
 rust = "kit::DocsListTool::execute"
 python = "pkg.DocsList.call"
 reason = "name"
-covers = ["rust kit::DocsListTool::execute (name)"]
+covers = ["rust kit::DocsListTool::execute (name) [pkg.DocsList.call]"]
 """
 
     def test_without_entries_the_items_are_on_one_side_only(self):
@@ -853,7 +873,7 @@ decision = "ref"
         unrenamed = mapping.replace('params = { job = "task" }\n', "")
         self.assertEqual(
             keys(run(items, specs, mapping=unrenamed)),
-            {"rust kit::Engine::start(job) (name)"},
+            {"rust kit::Engine::start(job) (name) [pkg.Engine.launch(task)]"},
         )
 
     def test_dead_entries(self):
@@ -944,6 +964,128 @@ covers = ["rust kit::DocsListTool (name)"]
         self.assertTrue(report.passed(strict=True))
 
 
+def pending(*covers: str) -> str:
+    """A `[[pending]]` entry covering these keys."""
+    keys = ", ".join(f'"{key}"' for key in covers)
+    return f'[[pending]]\nreason = "r"\ncovers = [{keys}]\n'
+
+
+class Keys(unittest.TestCase):
+    """A key names what its finding was compared with, so an entry covers
+    what was approved and nothing more: a change makes it dead."""
+
+    NAMED = (
+        OPTIONAL + 'named_calls = { method = "call", key = "name", definition = "definition", '
+        'suffix = "_definition", decision = "ref" }'
+    )
+
+    def test_a_python_parameter_names_the_rust_call_it_lacks(self):
+        specs = json.loads(json.dumps(SESSION_SPECS))
+        specs["pkg.Session"]["call"].append("verbose=False")
+        start = "python pkg.Session.call(verbose) (unmatched) [kit::Session::start]"
+        stop = "python pkg.Session.call(verbose) (unmatched) [kit::Session::stop]"
+        # A key naming no Rust call covers neither.
+        unnamed = pending("python pkg.Session.call(verbose) (unmatched)")
+        report = run(
+            SESSION_ITEMS, specs, contracts=SESSION_CONTRACTS, rules=self.NAMED, mapping=unnamed
+        )
+        self.assertEqual(uncovered(report), {start, stop})
+        report = run(
+            SESSION_ITEMS,
+            specs,
+            contracts=SESSION_CONTRACTS,
+            rules=self.NAMED,
+            mapping=pending(start),
+        )
+        self.assertEqual(uncovered(report), {stop})
+
+    def test_a_parameter_named_twice_names_its_python_name(self):
+        items = [
+            struct(
+                "kit::Tool",
+                methods=[method("new", ("manager", "Manager"), receiver=None, returns="Self")],
+            )
+        ]
+        entry = pending("rust kit::Tool::new(manager) (name) [pkg.Tool.__init__(session)]")
+        report = run(items, {"pkg.Tool": {"__init__": ["def", "sess"]}}, mapping=entry)
+        self.assertEqual(
+            uncovered(report), {"rust kit::Tool::new(manager) (name) [pkg.Tool.__init__(sess)]"}
+        )
+        self.assertEqual([dead.why for dead in report.dead], ["covers nothing: no such finding"])
+
+    def test_a_struct_that_grows_leaves_its_entry_dead(self):
+        """`variadic` and nested `form` keys name the fields covered."""
+        items = [
+            struct(
+                "kit::FileDocs",
+                methods=[
+                    method(
+                        "new",
+                        ("root", "&Path"),
+                        ("limits", "FileLimits"),
+                        receiver=None,
+                        returns="Self",
+                    )
+                ],
+            ),
+            struct(
+                "kit::FileLimits",
+                fields=[("max_documents", "usize"), ("max_depth", "usize")],
+                impls=["Default"],
+            ),
+        ]
+        spec = {"pkg.FileDocs": {"__init__": ["def", "root", "**limits"]}}
+        entry = pending(
+            "python pkg.FileDocs.__init__(limits) (variadic) "
+            "[kit::FileDocs::new: FileLimits(max_documents, max_depth)]"
+        )
+        self.assertEqual(uncovered(run(items, spec, mapping=entry)), set())
+        items[1]["fields"].append({"name": "max_bytes", "type": "usize"})
+        report = run(items, spec, mapping=entry)
+        self.assertEqual(len(report.uncovered), 1)
+        self.assertEqual(len(report.dead), 1)
+
+    def test_a_wrapped_tool_names_the_parameters_python_takes(self):
+        items = read_tool() + [
+            struct(
+                "kit_adapter::Read",
+                methods=[method("new", ("tool", "ReadTool"), receiver=None, returns="Self")],
+                impls=["Tool"],
+            )
+        ]
+        specs = {
+            **READ_SPEC,
+            "pkg.adapter.Read": {
+                "__init__": ["def", "root", "*", "max_lines=None"],
+                "definition": ["property"],
+                "handler": ["async def", "name", "arguments"],
+            },
+        }
+        entry = pending(
+            "rust kit_adapter::Read::new(tool) (form) "
+            "[pkg.adapter.Read.__init__(root, max_lines): ReadTool]"
+        )
+        report = run(items, specs, contracts=READ_CONTRACTS, mapping=entry)
+        self.assertEqual(uncovered(report), set())
+        specs["pkg.adapter.Read"]["__init__"] = ["def", "root"]
+        report = run(items, specs, contracts=READ_CONTRACTS, mapping=entry)
+        self.assertEqual(len(report.dead), 1)
+
+    def test_a_default_names_both_values(self):
+        items, spec, contracts = DefaultValues._limit("usize", "20")
+        dump = {**DefaultValues.DUMP, "kit::ReadInput": {"path": "a", "offset": 1, "limit": 10}}
+        entry = pending(
+            "rust kit::ReadInput::limit (default) [pkg.ReadTool.read(limit=20), Rust 10]"
+        )
+        rules = DefaultValues.DEFERRED
+        report = run(items, spec, contracts=contracts, rules=rules, mapping=entry, defaults=dump)
+        self.assertEqual(uncovered(report), set())
+        dump["kit::ReadInput"]["limit"] = 30
+        report = run(items, spec, contracts=contracts, rules=rules, mapping=entry, defaults=dump)
+        self.assertEqual(len(report.uncovered), 1)
+        self.assertEqual(len(report.dead), 1)
+
+
 class DefaultValues(unittest.TestCase):
     """A defaulted Python parameter's value against the Rust default the
     defaults dump holds for the field it stands for."""
@@ -978,7 +1120,10 @@ class DefaultValues(unittest.TestCase):
         items, spec, contracts = self._limit("usize", "20")
         dump = {**self.DUMP, "kit::ReadInput": {"path": "a", "offset": 1, "limit": 10}}
         report = run(items, spec, contracts=contracts, rules=self.DEFERRED, defaults=dump)
-        self.assertEqual(keys(report), {"rust kit::ReadInput::limit (default)"})
+        self.assertEqual(
+            keys(report),
+            {"rust kit::ReadInput::limit (default) [pkg.ReadTool.read(limit=20), Rust 10]"},
+        )
         (finding,) = report.findings
         self.assertEqual(finding.detail, "Python defaults it to 20; Rust to 10")
         self.assertFalse(report.passed(strict=False))
@@ -990,18 +1135,30 @@ class DefaultValues(unittest.TestCase):
         """`[rules] deferred_default`: Python's None for a field that is no
         Option is Rust's default; without the rule, a finding."""
         without = run(read_tool(), READ_SPEC, contracts=READ_CONTRACTS, defaults=self.DUMP)
-        self.assertEqual(keys(without), {"rust kit::ReadLimits::max_lines (default)"})
+        self.assertEqual(
+            keys(without),
+            {
+                "rust kit::ReadLimits::max_lines (default) "
+                "[pkg.ReadTool.create(max_lines=None), Rust 2000]"
+            },
+        )
         items, spec, contracts = self._limit("Option<usize>", "None")
         dump = {**self.DUMP, "kit::ReadInput": {"path": "a", "offset": 1, "limit": 5}}
         report = run(items, spec, contracts=contracts, rules=self.DEFERRED, defaults=dump)
-        self.assertEqual(keys(report), {"rust kit::ReadInput::limit (default)"})
+        self.assertEqual(
+            keys(report),
+            {"rust kit::ReadInput::limit (default) [pkg.ReadTool.read(limit=None), Rust 5]"},
+        )
 
     def test_an_option_rust_resolves_at_execution_is_no_silent_pass(self):
         items, spec, contracts = self._limit("Option<usize>", "20")
         dump = {**self.DUMP, "kit::ReadInput": {"path": "a", "offset": 1, "limit": None}}
         report = run(items, spec, contracts=contracts, rules=self.DEFERRED, defaults=dump)
         (finding,) = report.findings
-        self.assertEqual(finding.key, "rust kit::ReadInput::limit (default)")
+        self.assertEqual(
+            finding.key,
+            "rust kit::ReadInput::limit (default) [pkg.ReadTool.read(limit=20), Rust null]",
+        )
         self.assertIn("resolves at execution", finding.detail)
 
     def test_a_struct_the_dump_lacks_fails_whatever_the_entries(self):
@@ -1035,7 +1192,8 @@ class DefaultValues(unittest.TestCase):
         self.assertEqual(keys(run(items, spec, defaults={})), set())
         spec["pkg.FileDocs"]["__init__"][-1] = "version='v1'"
         self.assertEqual(
-            keys(run(items, spec, defaults={})), {"rust kit::FileDocs::with_version (default)"}
+            keys(run(items, spec, defaults={})),
+            {"rust kit::FileDocs::with_version (default) [pkg.FileDocs.__init__(version='v1')]"},
         )
 
     def test_values_compare_as_json(self):
@@ -1062,7 +1220,8 @@ class DefaultValues(unittest.TestCase):
         spec = {"pkg.Shell": {"__init__": ["def", "root", "*", "inherit=('A',)", "strict=1"]}}
         dump = {"kit::ShellConfig": {"inherit": ["A"], "strict": True}}
         self.assertEqual(
-            keys(run(items, spec, defaults=dump)), {"rust kit::ShellConfig::strict (default)"}
+            keys(run(items, spec, defaults=dump)),
+            {"rust kit::ShellConfig::strict (default) [pkg.Shell.__init__(strict=1), Rust true]"},
         )
 
 

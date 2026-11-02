@@ -26,9 +26,11 @@
 #   from the list: the code changes, or an approved [[map]], [[exception]]
 #   or rule replaces the entry. `make api-parity API_PARITY_FLAGS=--strict`
 #   fails while one is left.
-# An entry covers findings by key, `<rust|python> <path> (<kind>)`; the JSON
-# a Python call exchanges is written `json:<Type>.<property>`. A key no
-# finding has, or an entry naming what is gone, is dead and fails the gate.
+# An entry covers findings by key, `<rust|python> <path> (<kind>) [<with>]`,
+# `<with>` naming what the finding was compared with when the path alone does
+# not say (the other side's call or name, a struct's fields, both defaults);
+# the JSON a Python call exchanges is written `json:<Type>.<property>`. A key
+# no finding has, or an entry naming what is gone, is dead and fails the gate.
 # Every rule and every [[map]], [[exception]] and [[missing]] entry names in
 # `decision` where the maintainer decided it; the gate refuses one without.
 # A rule with no precedent and no decision yet reads "TODO: maintainer", and

@@ -62,7 +62,8 @@ def _findings(out, title: str, findings: list[Finding]) -> None:
     for (rust, python), found in _by_item(findings).items():
         out(f"  {rust or '(no Rust item)'} / {python or '(no Python name)'}")
         for finding in found:
-            out(f"    {finding.side:<6} {finding.path} ({finding.kind}): {finding.detail}")
+            key = finding.key.partition(" ")[2]
+            out(f"    {finding.side:<6} {key}: {finding.detail}")
     out("")
 
 
@@ -106,6 +107,7 @@ def as_json(report: Report) -> dict:
             "side": f.side,
             "path": f.path,
             "kind": f.kind,
+            "qualifier": f.qualifier,
             "detail": f.detail,
             "rust_item": f.rust_item,
             "python_item": f.python_item,
