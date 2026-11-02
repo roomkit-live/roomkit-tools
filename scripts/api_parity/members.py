@@ -75,12 +75,18 @@ def compare(comparison: Comparison, python: str, spec: dict, items: list[dict]) 
 
 def _wraps_native(comparison: Comparison, spec: dict) -> bool:
     """An async factory's `__init__` wrapping the native object the factory
-    built, a parameter annotated with private native types (`__native__`):
-    not compared when it takes that object alone, nor, by `[rules]
-    native_wrapper`, when that object is its first parameter, whatever else
-    it takes."""
+    built, a required parameter annotated with private native types
+    (`__native__`): not compared when it takes that object alone, nor, by
+    `[rules] native_wrapper`, when that object is its first parameter,
+    whatever else it takes. An `__init__` that can be called without it is a
+    constructor."""
     params = python_params(spec["__init__"])
-    if not params or params[0].variadic or params[0].name not in native_params(spec):
+    if (
+        not params
+        or not params[0].required
+        or params[0].variadic
+        or params[0].name not in native_params(spec)
+    ):
         return False
     wrapper = comparison.rules.setting("native_wrapper", "python") == "__init__"
     return len(params) == 1 or wrapper

@@ -784,7 +784,13 @@ class Members(unittest.TestCase):
         compared = "rust kit::ReadLimits::max_lines (unmatched) [pkg.ReadTool.__init__]"
         found = keys(run(read_tool(), specs, contracts=READ_CONTRACTS, rules=self.LAZY))
         self.assertIn(compared, found)
-        for init in (["def", "path"], ["def", "root"], ["def", "outputs", "native"]):
+        # A native object that may be omitted (`ReadTool()`) is no wrapper.
+        for init in (
+            ["def", "path"],
+            ["def", "root"],
+            ["def", "outputs", "native"],
+            ["def", "native=None"],
+        ):
             with self.subTest(init=init):
                 specs["pkg.ReadTool"]["__init__"] = init
                 found = keys(run(read_tool(), specs, contracts=READ_CONTRACTS, rules=rules))
