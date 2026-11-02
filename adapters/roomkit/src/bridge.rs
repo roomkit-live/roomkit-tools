@@ -23,19 +23,24 @@ pub(crate) fn ai_tool(definition: Definition) -> AiTool {
 /// Serve the call `name` with `arguments` for the tool named `wire`.
 ///
 /// A call to another tool is not this adapter's to serve, so RoomKit hands it
-/// to the next tool. Arguments that do not fit the input are refused, as
-/// RoomKit refuses them. `run` gets a token cancelled when RoomKit drops the
-/// call; its output reaches the model as JSON.
-pub(crate) fn serve<I, O, F, Fut>(
+/// to the next tool. `caller` then names who calls, from RoomKit's current
+/// call, or refuses, before the arguments are read, as Python's adapter
+/// checks the owner first. Arguments that do not fit the input are refused,
+/// as RoomKit refuses them. `run` gets the caller and a token cancelled when
+/// RoomKit drops the call; its output reaches the model as JSON.
+pub(crate) fn serve<C, I, O, A, F, Fut>(
     wire: &'static str,
     name: String,
     arguments: Metadata,
+    caller: A,
     run: F,
 ) -> ToolFuture
 where
     I: DeserializeOwned,
     O: Serialize,
-    F: FnOnce(I, CancellationToken) -> Fut + Send + 'static,
+    A: FnOnce() -> Result<C, ToolError> + Send + 'static,
+    C: Send + 'static,
+    F: FnOnce(C, I, CancellationToken) -> Fut + Send + 'static,
     Fut: Future<Output = Result<O, ToolError>> + Send + 'static,
 {
     Box::pin(async move {
@@ -44,17 +49,25 @@ where
                 "'{wire}' does not serve '{name}'"
             )));
         }
-        let id = current_tool_call()
-            .map(|call| call.tool_call_id)
-            .unwrap_or_default();
-        let input = roomkit_ai::arguments(&ToolCall::new(id, name, arguments))?;
+        let caller = caller()?;
+        // The call's id plays no part in reading its arguments.
+        let input = roomkit_ai::arguments(&ToolCall::new(String::new(), name, arguments))?;
         let cancel = CancellationToken::new();
         let _cancel_on_drop = cancel.clone().drop_guard();
-        let output = run(input, cancel).await?;
+        let output = run(caller, input, cancel).await?;
         serde_json::to_value(output)
             .map(ToolResult::Json)
             .map_err(|error| ToolError::raised(&error))
     })
+}
+
+/// The caller of an adapter any call may use: nobody in particular.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "a caller step answers as every other one does"
+)]
+pub(crate) fn anyone() -> Result<(), ToolError> {
+    Ok(())
 }
 
 /// The room and the acting agent of the current RoomKit tool call.

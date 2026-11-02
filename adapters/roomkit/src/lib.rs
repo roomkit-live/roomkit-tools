@@ -44,7 +44,7 @@ use roomkit_tools_ocr::OcrTool;
 use roomkit_tools_search::WebSearchTool;
 use roomkit_tools_web::WebFetchTool;
 
-use bridge::{ai_tool, serve, tool_error};
+use bridge::{ai_tool, anyone, serve, tool_error};
 
 /// The owner key of the shell, process and output toolsets for the calls of
 /// the agent `channel_id` in the room `room_id`.
@@ -83,7 +83,7 @@ macro_rules! toolset {
 
             fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {
                 let tool = Arc::clone(&self.tool);
-                serve($wire, name, arguments, move |input, cancel| async move {
+                serve($wire, name, arguments, anyone, move |(), input, cancel| async move {
                     tool.$method(input, &cancel).await.map_err(|error| tool_error(&error))
                 })
             }

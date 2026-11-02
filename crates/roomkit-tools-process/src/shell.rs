@@ -142,6 +142,13 @@ impl ShellTool {
         self
     }
 
+    /// Whether output storage is attached: only then does a call keep
+    /// archives, under the trusted owner a multi-owner host passes.
+    #[must_use]
+    pub fn has_output_store(&self) -> bool {
+        self.outputs.is_some()
+    }
+
     /// Configure positive host limits; the default timeout cannot exceed its cap.
     ///
     /// # Errors

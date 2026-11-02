@@ -31,9 +31,9 @@ macro_rules! process_toolset {
 
             fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {
                 let manager = self.manager.clone();
-                serve($wire, name, arguments, move |input, cancel| async move {
-                    // Neither owner nor room identity is accepted from model arguments.
-                    let owner = current_owner("process")?;
+                // Neither owner nor room identity is accepted from model arguments.
+                let owner = || current_owner("process");
+                serve($wire, name, arguments, owner, move |owner, input, cancel| async move {
                     manager.$method(&owner, input, &cancel).await.map_err(|error| tool_error(&error))
                 })
             }

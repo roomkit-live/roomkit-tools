@@ -5,7 +5,7 @@ use roomkit::model::Metadata;
 use roomkit_ai::{AiTool, Tool, ToolFuture};
 use roomkit_tools_docs::{DocsListTool, DocsReadTool, DocsSearchTool};
 
-use crate::bridge::{ai_tool, serve, tool_error};
+use crate::bridge::{ai_tool, anyone, serve, tool_error};
 
 macro_rules! toolset {
     ($name:ident, $tool:ident, $wire:literal) => {
@@ -28,11 +28,17 @@ macro_rules! toolset {
             }
             fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {
                 let tool = Arc::clone(&self.tool);
-                serve($wire, name, arguments, move |input, cancel| async move {
-                    tool.execute(input, &cancel)
-                        .await
-                        .map_err(|e| tool_error(&e))
-                })
+                serve(
+                    $wire,
+                    name,
+                    arguments,
+                    anyone,
+                    move |(), input, cancel| async move {
+                        tool.execute(input, &cancel)
+                            .await
+                            .map_err(|e| tool_error(&e))
+                    },
+                )
             }
         }
     };

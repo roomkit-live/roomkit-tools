@@ -3,11 +3,14 @@
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_docs::{
-    DocsBackend, DocsListTool, DocsReadTool, DocsSearchTool, FileDocs, FileDocsLimits,
+    DocsBackend, DocsFuture, DocsListInput, DocsListResult, DocsListTool, DocsReadInput,
+    DocsReadResult, DocsReadTool, DocsSearchInput, DocsSearchResult, DocsSearchTool, FileDocs,
+    FileDocsLimits,
 };
 use roomkit_tools_roomkit::{DocsListToolset, DocsReadToolset, DocsSearchToolset};
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
+use tokio_util::sync::CancellationToken;
 
 #[expect(clippy::unwrap_used, reason = "fixture arguments are objects")]
 fn arguments(arguments: Value) -> Metadata {
@@ -82,4 +85,62 @@ async fn selected_tools_use_actual_schemas_and_share_the_host_snapshot() {
             .await,
         Err(ToolError::Refused(_))
     ));
+}
+
+/// A host backend whose calls never end, keeping the token `list` was given.
+#[derive(Debug, Default)]
+struct Pending {
+    token: Arc<Mutex<Option<CancellationToken>>>,
+}
+
+impl DocsBackend for Pending {
+    fn list<'a>(
+        &'a self,
+        _: &'a DocsListInput,
+        cancel: &'a CancellationToken,
+    ) -> DocsFuture<'a, DocsListResult> {
+        *self.token.lock().unwrap_or_else(PoisonError::into_inner) = Some(cancel.clone());
+        Box::pin(std::future::pending())
+    }
+    fn search<'a>(
+        &'a self,
+        _: &'a DocsSearchInput,
+        _: &'a CancellationToken,
+    ) -> DocsFuture<'a, DocsSearchResult> {
+        Box::pin(std::future::pending())
+    }
+    fn read<'a>(
+        &'a self,
+        _: &'a DocsReadInput,
+        _: &'a CancellationToken,
+    ) -> DocsFuture<'a, DocsReadResult> {
+        Box::pin(std::future::pending())
+    }
+}
+
+/// The docs facade hands the adapter's token to the host's backend as it is:
+/// only the adapter cancels it when RoomKit drops the call.
+#[tokio::test]
+async fn dropping_a_call_cancels_the_token_the_host_backend_holds() {
+    let backend = Pending::default();
+    let token = Arc::clone(&backend.token);
+    let tool = DocsListToolset::new(DocsListTool::new(Arc::new(backend)));
+    let mut call = tool.handler("docs_list".into(), Metadata::new());
+    // Poll once, so the backend receives its token.
+    let answered = tokio::select! {
+        biased;
+        _ = &mut call => true,
+        () = std::future::ready(()) => false,
+    };
+    assert!(!answered, "the backend never answers");
+    let held = token.lock().unwrap_or_else(PoisonError::into_inner).clone();
+    let Some(held) = held else {
+        unreachable!("the backend received a token");
+    };
+    assert!(!held.is_cancelled());
+    drop(call);
+    assert!(
+        held.is_cancelled(),
+        "dropping the call cancels the backend's token"
+    );
 }

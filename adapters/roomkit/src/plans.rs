@@ -30,13 +30,19 @@ macro_rules! toolset {
             }
             fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {
                 let tool = Arc::clone(&self.tool);
-                serve($wire, name, arguments, move |input, cancel| async move {
-                    let (room_id, caller_id) = current_caller("plan")?;
-                    let scope = PlanScope { room_id, caller_id };
-                    tool.execute(&scope, input, &cancel)
-                        .await
-                        .map_err(|e| tool_error(&e))
-                })
+                let caller = || current_caller("plan");
+                serve(
+                    $wire,
+                    name,
+                    arguments,
+                    caller,
+                    move |(room_id, caller_id), input, cancel| async move {
+                        let scope = PlanScope { room_id, caller_id };
+                        tool.execute(&scope, input, &cancel)
+                            .await
+                            .map_err(|e| tool_error(&e))
+                    },
+                )
             }
         }
     };

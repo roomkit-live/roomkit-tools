@@ -1,6 +1,6 @@
 [package]
 name = "roomkit-tools-roomkit"
-description = "Select individual roomkit-tools through RoomKit Rust's Toolset interface"
+description = "Select individual roomkit-tools as RoomKit Rust tools"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"

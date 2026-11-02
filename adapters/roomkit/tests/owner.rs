@@ -129,10 +129,17 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
         .await
         .unwrap();
     let manager = ProcessManager::new(root.path()).await.unwrap();
-    let shell = ShellToolset::new(ShellTool::new(root.path()).await.unwrap());
-    let shell_refusal = "shell tools require a conversation and an acting agent";
+    let shell = ShellTool::new(root.path()).await.unwrap();
+    let archiving = ShellToolset::new(shell.with_output_store(store.clone()));
+    let shell_refusal = "shell archive tools require a conversation and an acting agent";
     assert_eq!(
-        refusal_outside_roomkit(&shell, "shell", json!({"command":"touch shell-ran"})).await,
+        refusal_outside_roomkit(&archiving, "shell", json!({"command":"touch shell-ran"})).await,
+        shell_refusal
+    );
+    // The caller is checked before the arguments, as Python's adapter does:
+    // invalid arguments get the same refusal here and below.
+    assert_eq!(
+        refusal_outside_roomkit(&archiving, "shell", json!({"bogus":1})).await,
         shell_refusal
     );
     let output_refusal = "output tools require a conversation and an acting agent";
@@ -147,6 +154,10 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
         refusal_outside_roomkit(&forget, "output_forget", archive).await,
         output_refusal
     );
+    assert_eq!(
+        refusal_outside_roomkit(&read, "output_read", json!({})).await,
+        output_refusal
+    );
     let process_refusal = "process tools require a conversation and an acting agent";
     let process = json!({"process_id":"p1"});
     let start = ProcessStartToolset::new(manager.clone());
@@ -155,6 +166,7 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     let write = ProcessWriteToolset::new(manager.clone());
     let stop = ProcessStopToolset::new(manager.clone());
     for refusal in [
+        refusal_outside_roomkit(&read, "process_read", json!({})).await,
         refusal_outside_roomkit(
             &start,
             "process_start",
@@ -178,4 +190,17 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     assert!(!root.path().join("process-ran").exists());
     assert!(manager.close().await);
     assert!(store.close().await);
+}
+
+/// A shell keeping no archive needs no caller, as Python's `Shell`: it runs
+/// outside a RoomKit tool call.
+#[tokio::test]
+async fn a_shell_without_archives_runs_outside_a_roomkit_tool_call() {
+    let root = tempfile::tempdir().unwrap();
+    let shell = ShellToolset::new(ShellTool::new(root.path()).await.unwrap());
+    let arguments: Metadata = serde_json::from_value(json!({"command":"printf ran"})).unwrap();
+    let Ok(ToolResult::Json(result)) = shell.handler("shell".into(), arguments).await else {
+        unreachable!("the shell answers outside RoomKit");
+    };
+    assert_eq!(result["data"]["stdout"]["text"], "ran");
 }

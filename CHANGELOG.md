@@ -34,8 +34,8 @@ part of an existing published preview.
   call under another tool's name is left to the next tool instead of refused.
   The adapters have no `close()` any more: dropping a call cancels it, and the
   host closes the `ProcessManager`, `OutputStore` and backends it shares.
-  Owner-scoped adapters (shell, process, output, plans) refuse a call made
-  outside a RoomKit tool call, including the shell without an output store.
+  Owner-scoped adapters (process, output, plans, and the shell with an output
+  store) refuse a call made outside a RoomKit tool call, as Python's do.
 
 ### Changed
 
@@ -49,6 +49,8 @@ part of an existing published preview.
 
 ### Added
 
+- Rust `ShellTool::has_output_store` says whether a shell keeps archives, so a
+  host knows whether its calls need a trusted owner.
 - `web_fetch` uses [`htmlmark`](https://crates.io/crates/htmlmark) 0.1:
   bounded, interruptible HTML to Markdown and text conversion for untrusted
   pages, on html5ever with its own tree. It was written here and is now

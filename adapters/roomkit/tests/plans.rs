@@ -85,10 +85,17 @@ async fn plan_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     let arguments: Metadata =
         serde_json::from_value(json!({"title":"Inspect","objective":"Check boundary","steps":[]}))
             .unwrap();
+    let refused = Err(ToolError::refused(
+        "plan tools require a conversation and an acting agent",
+    ));
     assert_eq!(
         creator.handler("plan_create".into(), arguments).await,
-        Err(ToolError::refused(
-            "plan tools require a conversation and an acting agent"
-        ))
+        refused
+    );
+    // The caller is checked before the arguments, as Python's adapter does.
+    let invalid = Metadata::new();
+    assert_eq!(
+        creator.handler("plan_create".into(), invalid).await,
+        refused
     );
 }
