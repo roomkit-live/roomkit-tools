@@ -423,7 +423,7 @@ async fn process_archives_remain_readable_after_session_close() {
         )
         .await
         .unwrap();
-    assert!(!status.data.first().unwrap().stdin_closed);
+    assert!(!status.data.processes.first().unwrap().stdin_closed);
     assert!(session.close().await);
     let result = store
         .read(Some("owner"), page(&id, 0, 100), &cancel)

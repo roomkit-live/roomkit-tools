@@ -49,6 +49,9 @@ part of an existing published preview.
   `CancelTaskInput`, `AgentFollowupInput`, `AgentSendInput` and
   `WebSearchInput` (were `DelegateInput`, `StatusInput`, `CancelInput`,
   `FollowupInput`, `SendInput` and `SearchInput`).
+- `process_status` returns `{"processes": [...]}` instead of a bare array, as
+  the other list results do; Rust's `ProcessSession::status` returns a
+  `ProcessStatusResult`.
 - Python: the documentation, plan and agent tools split into a tool and its
   RoomKit adapter, as `ReadTool` and `Read`: `DocsList(backend).call(arguments)`
   is `DocsListTool(backend).call(arguments)`, `DocsList(backend)` in RoomKit's

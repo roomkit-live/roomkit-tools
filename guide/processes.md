@@ -135,7 +135,8 @@ UTF-8 bytes (`InvalidInputError` otherwise). As in Rust,
 that owner's jobs and releases their records and quota, with the same
 two-second wait and `True`/`False` result as `close()`, while the session
 stays open for every owner, that one included.
-`status()` lists retained jobs, including completed ones. `start` returns an ID
+`status()` lists retained jobs, including completed ones, under `processes`
+(`{"processes": [...]}`, one entry for a named job). `start` returns an ID
 with open stdin, not proof of command completion. Commands use `/bin/sh -c`
 with the same host permissions, environment options, initial-cwd boundary and
 new session without a terminal as shell.

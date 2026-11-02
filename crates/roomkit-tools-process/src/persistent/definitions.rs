@@ -5,7 +5,8 @@ use roomkit_tools_core::Definition;
 use super::ProcessSession;
 use crate::{
     ProcessReadInput, ProcessReadResult, ProcessStartInput, ProcessStatus, ProcessStatusInput,
-    ProcessStopInput, ProcessStopResult, ProcessWriteInput, ProcessWriteResult,
+    ProcessStatusResult, ProcessStopInput, ProcessStopResult, ProcessWriteInput,
+    ProcessWriteResult,
 };
 
 impl ProcessSession {
@@ -18,7 +19,7 @@ impl ProcessSession {
     }
     /// Derived schema for inspecting or listing owned processes.
     pub fn status_definition() -> Definition {
-        Definition::new::<ProcessStatusInput, Vec<ProcessStatus>>(
+        Definition::new::<ProcessStatusInput, ProcessStatusResult>(
             "process_status",
             "Inspect process_id or omit it to list this conversation's processes, including retained completed jobs. Read-only: does not write, close stdin or stop jobs. State finished means cleanup and capture ended. Report the actual end, exit_code, signal and error: exit_code 0 with signal null means normal successful exit, not signal termination.",
         )

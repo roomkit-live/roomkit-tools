@@ -56,6 +56,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .await?;
             if states
                 .data
+                .processes
                 .first()
                 .is_some_and(|s| s.state == ProcessState::Finished)
             {

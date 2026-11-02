@@ -93,15 +93,15 @@
       "steps": [
         {"tool": "process_start", "input": {"command": "cat"}, "expect": {"/data/process_id": "p1", "/data/state": "running", "/data/stdin_closed": false}},
         {"tool": "process_write", "input": {"process_id": "p1", "text": "πabcπXYZ\n"}, "expect": {"/data/bytes_written": 11, "/data/complete": true, "/data/stdin_closed": false}},
-        {"tool": "process_read", "input": {"process_id": "p1"}, "wait": {"/data/0/stdout_bytes": 11}, "expect": {"/data/status/state": "running", "/data/status/stdin_closed": false, "/data/stdout/offset": 3, "/data/stdout/next_offset": 6, "/data/stdout/omitted_bytes": 3, "/data/stdout/bytes": [98, 99, 207], "/data/stdout/text": "bc�", "/data/stdout/eof": false}},
+        {"tool": "process_read", "input": {"process_id": "p1"}, "wait": {"/data/processes/0/stdout_bytes": 11}, "expect": {"/data/status/state": "running", "/data/status/stdin_closed": false, "/data/stdout/offset": 3, "/data/stdout/next_offset": 6, "/data/stdout/omitted_bytes": 3, "/data/stdout/bytes": [98, 99, 207], "/data/stdout/text": "bc�", "/data/stdout/eof": false}},
         {"tool": "process_read", "input": {"process_id": "p1", "stdout_offset": 6}, "expect": {"/data/stdout/bytes": [128, 88, 89], "/data/stdout/text": "�XY", "/data/stdout/omitted_bytes": 0, "/data/stdout/next_offset": 9}},
         {"tool": "process_read", "input": {"process_id": "p1", "stdout_offset": 9}, "expect": {"/data/stdout/bytes": [90, 10], "/data/stdout/next_offset": 11, "/data/stdout/has_more": false}},
         {"tool": "process_write", "input": {"process_id": "p1", "close_stdin": true}, "expect": {"/data/complete": true, "/data/stdin_closed": true}},
-        {"tool": "process_status", "input": {"process_id": "p1"}, "wait": {"/data/0/state": "finished"}, "expect": {"/data/0/end": "exited", "/data/0/exit_code": 0, "/data/0/signal": null, "/data/0/output_complete": true}},
+        {"tool": "process_status", "input": {"process_id": "p1"}, "wait": {"/data/processes/0/state": "finished"}, "expect": {"/data/processes/0/end": "exited", "/data/processes/0/exit_code": 0, "/data/processes/0/signal": null, "/data/processes/0/output_complete": true}},
         {"tool": "process_read", "input": {"process_id": "p1", "stdout_offset": 11}, "expect": {"/data/stdout/bytes": [], "/data/stdout/eof": true}},
         {"tool": "process_read", "input": {"process_id": "p1", "stdout_offset": 12}, "expect": {"/error": "invalid_input"}},
         {"tool": "process_stop", "input": {"process_id": "p1", "forget": true}, "expect": {"/data/forgotten": true}},
-        {"tool": "process_status", "input": {}, "expect": {"/data": []}},
+        {"tool": "process_status", "input": {}, "expect": {"/data": {"processes": []}}},
         {"tool": "process_read", "input": {"process_id": "p1"}, "expect": {"/error": "refused"}}
       ]
     }

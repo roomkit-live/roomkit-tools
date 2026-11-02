@@ -123,7 +123,7 @@
   "process_status": {
    "class": "roomkit_tools.ProcessSession",
    "input": "ProcessStatusInput",
-   "output": "Array_of_ProcessStatus"
+   "output": "ProcessStatusResult"
   },
   "process_stop": {
    "class": "roomkit_tools.ProcessSession",
@@ -183,9 +183,6 @@
     "agent_id",
     "message"
    ]
-  },
-  "Array_of_ProcessStatus": {
-   "items": "ProcessStatus"
   },
   "CancelResult": {
    "fields": [
@@ -788,6 +785,11 @@
   "ProcessStatusInput": {
    "fields": [
     "process_id"
+   ]
+  },
+  "ProcessStatusResult": {
+   "fields": [
+    "processes"
    ]
   },
   "ProcessStopInput": {

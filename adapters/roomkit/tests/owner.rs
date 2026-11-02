@@ -96,7 +96,8 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
         .status(Some(&owner), ProcessStatusInput::default(), &cancel)
         .await
         .unwrap()
-        .data;
+        .data
+        .processes;
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].process_id, id);
     assert_eq!(listed[0].state, ProcessState::Running);
@@ -116,7 +117,7 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
         .status(Some(&owner), ProcessStatusInput::default(), &cancel)
         .await
         .unwrap();
-    assert_eq!(listed.data.len(), 0);
+    assert_eq!(listed.data.processes.len(), 0);
     let archives = store.list(Some(&owner), &cancel).await.unwrap();
     assert_eq!(archives.len(), 2);
     for archive in archives {

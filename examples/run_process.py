@@ -34,14 +34,14 @@ async def main() -> None:
             await session.write(process_id, close_stdin=True)
             async with asyncio.timeout(5):
                 while True:
-                    status = (await session.status(process_id))["data"][0]
+                    status = (await session.status(process_id))["data"]["processes"][0]
                     if status["state"] == "finished" and status["output_complete"]:
                         break
                     await asyncio.sleep(0.01)
             assert status["exit_code"] == 0
             assert status["signal"] is None
             assert (await session.stop(process_id, forget=True))["data"]["forgotten"]
-            assert (await session.status())["data"] == []
+            assert (await session.status())["data"]["processes"] == []
 
 
 if __name__ == "__main__":

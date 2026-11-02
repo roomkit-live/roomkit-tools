@@ -83,7 +83,7 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
             )
             .await,
         );
-        assert_eq!(list["data"], json!([]));
+        assert_eq!(list["data"], json!({"processes": []}));
     }
     let sent = json_answer(
         call::run(

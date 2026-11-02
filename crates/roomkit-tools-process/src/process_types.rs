@@ -268,6 +268,14 @@ pub struct ProcessWriteResult {
     pub error: Option<String>,
 }
 
+/// The processes `process_status` reports: the one named, or every one this
+/// owner retains, in creation order.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ProcessStatusResult {
+    /// Each process's latest status.
+    pub processes: Vec<ProcessStatus>,
+}
+
 /// Stop outcome; unfinished cleanup never forgets the record.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ProcessStopResult {

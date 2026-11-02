@@ -16,7 +16,8 @@ pub(crate) use registry::{Entry, Record, initial_status};
 
 use crate::{
     CommandEnv, ProcessLimits, ProcessReadInput, ProcessReadResult, ProcessStartInput,
-    ProcessState, ProcessStatus, ProcessStatusInput, ProcessStopInput, ProcessStopResult,
+    ProcessState, ProcessStatus, ProcessStatusInput, ProcessStatusResult, ProcessStopInput,
+    ProcessStopResult,
 };
 
 #[derive(Debug)]
@@ -344,7 +345,7 @@ impl ProcessSession {
         owner: Option<&str>,
         input: ProcessStatusInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<Vec<ProcessStatus>>, ToolError> {
+    ) -> Result<Output<ProcessStatusResult>, ToolError> {
         self.check(owner, cancel)?;
         let entries = if let Some(id) = input.process_id {
             vec![self.entry(owner, &id, cancel).await?]
@@ -372,7 +373,7 @@ impl ProcessSession {
                 s.stderr_archive.as_ref(),
             );
         }
-        Ok(Output::new(states, text))
+        Ok(Output::new(ProcessStatusResult { processes: states }, text))
     }
 
     /// Read non-destructive pages. Stale cursors expose retention gaps explicitly.

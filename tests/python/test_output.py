@@ -130,7 +130,7 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(page["archive"]["eof"])
             with self.assertRaises(AccessRefusedError):
                 await self.store.forget(aid)
-            state = (await session.status(pid))["data"][0]
+            state = (await session.status(pid))["data"]["processes"][0]
             self.assertFalse(state["stdin_closed"])
             self.assertEqual(state["stdout_retained_from"], 4)
         page = (await self.store.read(aid))["data"]

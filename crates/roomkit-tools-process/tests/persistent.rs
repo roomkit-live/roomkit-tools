@@ -26,8 +26,8 @@ async fn finished(manager: &ProcessSession, owner: &str, id: &str) -> ProcessSta
                 )
                 .await
                 .unwrap();
-            if result.data.first().unwrap().state == ProcessState::Finished {
-                return result.data.first().unwrap().clone();
+            if result.data.processes.first().unwrap().state == ProcessState::Finished {
+                return result.data.processes.first().unwrap().clone();
             }
             tokio::task::yield_now().await;
         }
@@ -74,7 +74,8 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
             .status(Some("alice"), ProcessStatusInput::default(), &token)
             .await
             .unwrap()
-            .data[0]
+            .data
+            .processes[0]
             .state,
         ProcessState::Running
     );
@@ -240,6 +241,7 @@ async fn status_and_observation_follow_creation_order_past_nine_jobs() {
         .await
         .unwrap()
         .data
+        .processes
         .into_iter()
         .map(|status| status.process_id)
         .collect();
@@ -284,6 +286,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
             .await
             .unwrap()
             .data
+            .processes
             .is_empty()
     );
     assert!(matches!(
@@ -388,7 +391,8 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
             .status(Some("b"), ProcessStatusInput::default(), &token)
             .await
             .unwrap()
-            .data[0]
+            .data
+            .processes[0]
             .state,
         ProcessState::Running
     );
@@ -423,7 +427,7 @@ async fn the_standalone_owner_is_apart_from_an_owner_named_default() {
     // "default" neither sees nor reaches the standalone job, and has a quota
     // of its own.
     let theirs = session.status(Some("default"), ProcessStatusInput::default(), &token);
-    assert!(theirs.await.unwrap().data.is_empty());
+    assert!(theirs.await.unwrap().data.processes.is_empty());
     assert!(matches!(
         session
             .read(Some("default"), ProcessReadInput::new(&mine), &token)
@@ -437,9 +441,9 @@ async fn the_standalone_owner_is_apart_from_an_owner_named_default() {
     // Closing the standalone owner leaves "default"'s job.
     assert!(session.close_owner(None).await);
     let listed = session.status(None, ProcessStatusInput::default(), &token);
-    assert!(listed.await.unwrap().data.is_empty());
+    assert!(listed.await.unwrap().data.processes.is_empty());
     let theirs = session.status(Some("default"), ProcessStatusInput::default(), &token);
-    assert_eq!(theirs.await.unwrap().data.len(), 1);
+    assert_eq!(theirs.await.unwrap().data.processes.len(), 1);
     assert!(session.close().await);
 }
 
@@ -467,12 +471,13 @@ async fn no_owner_is_the_standalone_owner_with_its_own_quota() {
         .status(None, ProcessStatusInput::default(), &token)
         .await
         .unwrap()
-        .data;
+        .data
+        .processes;
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].process_id, id);
     // A named owner neither sees nor reaches the standalone owner's job.
     let named = session.status(Some("a"), ProcessStatusInput::default(), &token);
-    assert!(named.await.unwrap().data.is_empty());
+    assert!(named.await.unwrap().data.processes.is_empty());
     assert!(matches!(
         session
             .read(Some("a"), ProcessReadInput::new(&id), &token)
@@ -729,7 +734,8 @@ async fn closed_output_pipes_do_not_finish_a_still_running_process() {
             .status(Some("a"), ProcessStatusInput::default(), &token)
             .await
             .unwrap()
-            .data[0]
+            .data
+            .processes[0]
             .state,
         ProcessState::Running
     );
@@ -856,7 +862,8 @@ async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable(
                 )
                 .await
                 .unwrap()
-                .data[0]
+                .data
+                .processes[0]
                 .state,
             ProcessState::Running
         );

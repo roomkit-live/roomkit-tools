@@ -35,7 +35,7 @@ from roomkit_tools import (
 async def wait_status(session: ProcessSession, pid: str, *, owner: str | None = None, **expected):
     async with asyncio.timeout(5):
         while True:
-            status = (await session.status(pid, owner=owner))["data"][0]
+            status = (await session.status(pid, owner=owner))["data"]["processes"][0]
             if all(status[key] == value for key, value in expected.items()):
                 return status
             await asyncio.sleep(0.005)
@@ -131,7 +131,7 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
         first = (await self.session.start("cat"))["data"]["process_id"]
         second = (await self.session.start("cat"))["data"]["process_id"]
         async with ProcessSession(self.root) as other:
-            self.assertEqual((await other.status())["data"], [])
+            self.assertEqual((await other.status())["data"]["processes"], [])
             with self.assertRaises(AccessRefusedError):
                 await other.read(first)
             own = (await other.start("cat"))["data"]["process_id"]
@@ -144,14 +144,14 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
             ]:
                 with self.assertRaises(AccessRefusedError):
                     await other.call(name, args)
-        self.assertEqual(len((await self.session.status())["data"]), 2)
+        self.assertEqual(len((await self.session.status())["data"]["processes"]), 2)
 
     async def test_host_methods_reach_only_the_owner_they_name(self) -> None:
         own = (await self.session.start("cat", owner="host-a"))["data"]["process_id"]
         standalone = (await self.session.start("cat"))["data"]["process_id"]
-        listed = (await self.session.status(owner="host-a"))["data"]
+        listed = (await self.session.status(owner="host-a"))["data"]["processes"]
         self.assertEqual([status["process_id"] for status in listed], [own])
-        listed = (await self.session.status())["data"]
+        listed = (await self.session.status())["data"]["processes"]
         self.assertEqual([status["process_id"] for status in listed], [standalone])
         for method, arguments in [
             ("status", (own,)),
@@ -169,10 +169,10 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
         page = (await self.session.read(own, max_bytes=2, owner="host-a"))["data"]
         self.assertEqual(page["stdout"]["text"], "hi")
         call = await self.session.call("process_status", {"process_id": own}, owner="host-a")
-        self.assertEqual(call["data"][0]["exit_code"], 0)
+        self.assertEqual(call["data"]["processes"][0]["exit_code"], 0)
         stopped = (await self.session.stop(own, forget=True, owner="host-a"))["data"]
         self.assertTrue(stopped["forgotten"])
-        self.assertEqual((await self.session.status(owner="host-a"))["data"], [])
+        self.assertEqual((await self.session.status(owner="host-a"))["data"]["processes"], [])
         # Owner keys are host input, checked in Rust as for RoomKit owners.
         for owner in ["", "x" * 1025]:
             with self.subTest(owner=len(owner)), self.assertRaises(InvalidInputError):
@@ -188,10 +188,12 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
                 await session.start("true", owner="host-a")
             self.assertTrue(await session.close_owner("host-a"))
             await assert_stopped(ids)
-            self.assertEqual((await session.status(owner="host-a"))["data"], [])
+            self.assertEqual((await session.status(owner="host-a"))["data"]["processes"], [])
             # The owner's quota is free again; other owners and the session stay open.
             await session.start("true", owner="host-a")
-            self.assertEqual((await session.status(standalone))["data"][0]["state"], "running")
+            self.assertEqual(
+                (await session.status(standalone))["data"]["processes"][0]["state"], "running"
+            )
             self.assertFalse(session.closed)
             self.assertTrue(await session.close_owner("unknown"))
         # An unused session has nothing to close; a closed one stays closed.
@@ -205,14 +207,14 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
             mine = (await session.start("cat"))["data"]["process_id"]
             # "default" neither sees nor reaches the standalone job, and has a
             # quota of its own.
-            self.assertEqual((await session.status(owner="default"))["data"], [])
+            self.assertEqual((await session.status(owner="default"))["data"]["processes"], [])
             with self.assertRaises(AccessRefusedError):
                 await session.read(mine, owner="default")
             await session.start("cat", owner="default")
             # Closing the standalone owner leaves "default"'s job.
             self.assertTrue(await session.close_owner(None))
-            self.assertEqual((await session.status())["data"], [])
-            self.assertEqual(len((await session.status(owner="default"))["data"]), 1)
+            self.assertEqual((await session.status())["data"]["processes"], [])
+            self.assertEqual(len((await session.status(owner="default"))["data"]["processes"]), 1)
 
     async def test_host_secrets_stay_out_unless_listed_or_set_explicitly(self) -> None:
         command = 'printf "%s|%s" "${HOST_TEST_SECRET-unset}" "${GREETING-unset}"'
@@ -350,7 +352,9 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
             self.assertLess(result["bytes_written"], 1024 * 1024)
             self.assertIn("timed out", result["error"])
             self.assertFalse(result["stdin_closed"])
-            self.assertEqual((await session.status(pid))["data"][0]["state"], "running")
+            self.assertEqual(
+                (await session.status(pid))["data"]["processes"][0]["state"], "running"
+            )
 
     async def test_native_and_python_write_cancellation_leave_job_owned(self) -> None:
         async with ProcessSession(
@@ -373,7 +377,9 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(asyncio.CancelledError):
                     await task
             self.assertTrue(cancel.is_cancelled())
-            self.assertEqual((await session.status(pid))["data"][0]["state"], "running")
+            self.assertEqual(
+                (await session.status(pid))["data"]["processes"][0]["state"], "running"
+            )
 
     async def test_precancelled_calls_and_lost_start_response_are_recoverable(self) -> None:
         cancel = _native._Cancellation()
@@ -390,7 +396,7 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task
-        jobs = (await self.session.status())["data"]
+        jobs = (await self.session.status())["data"]["processes"]
         self.assertLessEqual(len(jobs), 1)
         for job in jobs:
             self.assertEqual(job["state"], "running")
@@ -399,7 +405,8 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
                     "process_read", json.dumps({"process_id": job["process_id"]}), cancel
                 )
             self.assertEqual(
-                (await self.session.status(job["process_id"]))["data"][0]["state"], "running"
+                (await self.session.status(job["process_id"]))["data"]["processes"][0]["state"],
+                "running",
             )
 
     @unittest.skipUnless(sys.platform == "linux", "observe Linux process cleanup")
@@ -450,7 +457,7 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         results = await asyncio.gather(*(self.session.start("cat") for _ in range(4)))
         self.assertEqual(len({r["data"]["process_id"] for r in results}), 4)
-        self.assertEqual(len((await self.session.status())["data"]), 4)
+        self.assertEqual(len((await self.session.status())["data"]["processes"]), 4)
         uninitialized = ProcessSession(self.root / "absent")
         self.assertTrue(await uninitialized.close())
         with self.assertRaises(AccessRefusedError):
