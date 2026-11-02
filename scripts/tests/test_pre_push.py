@@ -28,52 +28,64 @@ def scratch_env() -> dict[str, str]:
 
 
 class Isolation(unittest.TestCase):
+    """The hook tests, run with the variables git exports to a hook, leave the
+    repository those variables name as it was."""
+
     def test_the_repository_a_hook_runs_in_is_never_touched(self):
         with tempfile.TemporaryDirectory() as tmp:
             outer = Path(tmp) / "outer"
-            outer.mkdir()
-            quiet = {**scratch_env(), "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
-
-            def git(*arguments: str) -> str:
-                return subprocess.run(
-                    [
-                        "git",
-                        "-c",
-                        "user.name=Outer",
-                        "-c",
-                        "user.email=outer@example.com",
-                        *arguments,
-                    ],
-                    cwd=outer,
-                    env=quiet,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                ).stdout.strip()
-
-            git("init", "-q", "-b", "main")
-            (outer / "README.md").write_text("outer\n")
-            git("add", "README.md")
-            git("commit", "-q", "-m", "outer")
-            head = git("rev-parse", "HEAD")
-            hooked = {
-                **quiet,
-                "GIT_DIR": str(outer / ".git"),
-                "GIT_WORK_TREE": str(outer),
-                "GIT_INDEX_FILE": str(outer / ".git" / "index"),
-                "GIT_CONFIG_PARAMETERS": "'core.hookspath=/nonexistent'",
+            linked = Path(tmp) / "linked"
+            self.outer_repository(outer, linked)
+            head = self.outer_git(outer, "rev-parse", "HEAD")
+            hooks = {
+                "a work tree": {
+                    "GIT_DIR": str(outer / ".git"),
+                    "GIT_WORK_TREE": str(outer),
+                    "GIT_INDEX_FILE": str(outer / ".git" / "index"),
+                    "GIT_CONFIG_PARAMETERS": "'core.hookspath=/nonexistent'",
+                },
+                # What git exports to a hook run in a linked worktree: a
+                # `git init` given it alone marks the shared repository bare.
+                "a linked worktree": {"GIT_DIR": str(outer / ".git" / "worktrees" / "linked")},
             }
-            result = subprocess.run(
-                ["python3", "-m", "unittest", "-q", "test_pre_push.PrePush"],
-                cwd=Path(__file__).parent,
-                env=hooked,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr[-2000:])
-            self.assertEqual(git("rev-parse", "HEAD"), head)
-            self.assertEqual(git("status", "--porcelain"), "")
-            self.assertEqual(git("tag", "-l"), "")
+            for name, variables in hooks.items():
+                with self.subTest(hook=name):
+                    result = subprocess.run(
+                        ["python3", "-m", "unittest", "-q", "test_pre_push.PrePush"],
+                        cwd=Path(__file__).parent,
+                        env={**self.quiet(), **variables},
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(self.outer_git(outer, "rev-parse", "HEAD"), head)
+                    self.assertEqual(self.outer_git(outer, "status", "--porcelain"), "")
+                    self.assertEqual(self.outer_git(outer, "tag", "-l"), "")
+                    self.assertEqual(self.outer_git(outer, "config", "core.bare"), "false")
+                    self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+
+    @staticmethod
+    def quiet() -> dict[str, str]:
+        return {**scratch_env(), "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+    def outer_git(self, outer: Path, *arguments: str) -> str:
+        identity = ["-c", "user.name=Outer", "-c", "user.email=outer@example.com"]
+        return subprocess.run(
+            ["git", *identity, *arguments],
+            cwd=outer,
+            env=self.quiet(),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    def outer_repository(self, outer: Path, linked: Path) -> None:
+        """A repository with one commit and a linked worktree."""
+        outer.mkdir()
+        self.outer_git(outer, "init", "-q", "-b", "main")
+        (outer / "README.md").write_text("outer\n")
+        self.outer_git(outer, "add", "README.md")
+        self.outer_git(outer, "commit", "-q", "-m", "outer")
+        self.outer_git(outer, "worktree", "add", "-q", str(linked), "-b", "linked")
 
 
 class PrePush(unittest.TestCase):
