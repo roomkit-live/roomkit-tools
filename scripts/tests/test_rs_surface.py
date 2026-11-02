@@ -382,11 +382,11 @@ def _use(source, name, id_, *, glob=False, hidden=False):
 # trimmed to what the hidden reader reads: each way an item or a member is
 # hidden, and what is no public item.
 HIDDEN_INDEX = {
-    0: _json_item("fixture", {"module": {"is_crate": True, "items": [1, 2, 3, 4, 5, 6, 7, 8]}}),
+    0: _json_item("fixture", {"module": {"is_crate": True, "items": [1, 2, 3, 4, 5, 6, 7, 8, 40, 41, 44]}}),
     1: _json_item("internal", {"module": {"items": [10]}}, hidden=True),
     10: _json_item("helper", {"function": {}}),
     2: _use("private::Hidden", "Hidden", 11, hidden=True),
-    11: _json_item("Hidden", {"struct": {"kind": {"unit": None}, "impls": []}}),
+    11: _json_item("Hidden", {"struct": {"kind": "unit", "impls": []}}),
     3: _json_item("Shown", {"struct": {"kind": {"plain": {"fields": [12, 13]}}, "impls": [14, 15]}}),
     12: _json_item("visible", {"struct_field": {}}),
     13: _json_item("secret", {"struct_field": {}}, hidden=True),
@@ -396,9 +396,14 @@ HIDDEN_INDEX = {
     19: _json_item("private", {"function": {}}, visibility="default", hidden=True),
     15: _json_item(None, {"impl": {"trait": {"path": "Debug"}, "items": [18]}}, visibility="default"),
     18: _json_item("fmt", {"function": {}}, visibility="default", hidden=True),
-    4: _json_item("Mode", {"enum": {"variants": [21, 22], "impls": []}}),
-    21: _json_item("Fast", {"variant": {}}, visibility="default"),
-    22: _json_item("Legacy", {"variant": {}}, visibility="default", hidden=True),
+    4: _json_item("Mode", {"enum": {"variants": [21, 22, 24, 27], "impls": []}}),
+    21: _json_item("Fast", {"variant": {"kind": "plain"}}, visibility="default"),
+    22: _json_item("Legacy", {"variant": {"kind": "plain"}}, visibility="default", hidden=True),
+    24: _json_item("Custom", {"variant": {"kind": {"struct": {"fields": [25, 26]}}}}, visibility="default"),
+    25: _json_item("rate", {"struct_field": {}}, visibility="default", hidden=True),
+    26: _json_item("name", {"struct_field": {}}, visibility="default"),
+    27: _json_item("Raw", {"variant": {"kind": {"tuple": [28]}}}, visibility="default"),
+    28: _json_item("0", {"struct_field": {}}, visibility="default", hidden=True),
     5: _use("more", "more", 30, glob=True),
     30: _json_item("more", {"module": {"items": [31]}}, visibility="crate"),
     31: _json_item("extra", {"function": {}}, hidden=True),
@@ -406,6 +411,12 @@ HIDDEN_INDEX = {
     7: _use("other::External", "External", 99, hidden=True),
     8: _json_item("Contract", {"trait": {"items": [23], "impls": []}}),
     23: _json_item("check", {"function": {}}, visibility="default", hidden=True),
+    40: _json_item("Marker", {"struct": {"kind": "unit", "impls": []}}),
+    41: _json_item("Pair", {"struct": {"kind": {"tuple": [42, 43, None]}, "impls": []}}),
+    42: _json_item("0", {"struct_field": {}}),
+    43: _json_item("1", {"struct_field": {}}, hidden=True),
+    44: _json_item("Bits", {"union": {"fields": [45], "impls": []}}),
+    45: _json_item("raw", {"struct_field": {}}, hidden=True),
 }
 
 
@@ -430,16 +441,37 @@ class ReadsTheHiddenItems(unittest.TestCase):
         self.assertEqual(
             surface.read_hidden(self.doc, "fixture"),
             [
+                "fixture::Bits::raw",
                 "fixture::Contract::check",
                 "fixture::External",
                 "fixture::Hidden",
+                "fixture::Mode::Custom::rate",
                 "fixture::Mode::Legacy",
+                "fixture::Mode::Raw::0",
+                "fixture::Pair::1",
                 "fixture::Shown::plumbing",
                 "fixture::Shown::secret",
                 "fixture::extra",
                 "fixture::internal::helper",
             ],
         )
+
+    def test_a_shape_it_does_not_know_is_refused(self) -> None:
+        shapes = (
+            (40, {"struct": {"kind": "record", "impls": []}}),
+            (27, {"variant": {"kind": {"union": [28]}}}),
+        )
+        for item, shape in shapes:
+            with self.subTest(shape=shape):
+                original = HIDDEN_INDEX[item]
+                HIDDEN_INDEX[item] = {**original, "inner": shape}
+                try:
+                    self._write()
+                    with self.assertRaises(surface.SurfaceError) as raised:
+                        surface.read_hidden(self.doc, "fixture")
+                finally:
+                    HIDDEN_INDEX[item] = original
+                self.assertIn("shape", str(raised.exception))
 
     def test_another_json_format_is_refused(self) -> None:
         self._write(format_version=62)
@@ -454,7 +486,7 @@ class ReadsTheHiddenItems(unittest.TestCase):
             ["--hidden", "--doc", str(self.doc), "--crate", "fixture"], out=out, log=io.StringIO()
         )
         self.assertEqual(status, 0)
-        self.assertEqual(len(json.loads(out.getvalue())["hidden"]["fixture"]), 8)
+        self.assertEqual(len(json.loads(out.getvalue())["hidden"]["fixture"]), 12)
 
 
 class ChecksTheInternalCrate(unittest.TestCase):

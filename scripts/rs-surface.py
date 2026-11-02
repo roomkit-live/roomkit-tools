@@ -572,26 +572,60 @@ class _HiddenWalk:
 
     def members(self, kind: str, inner: dict, path: str) -> None:
         """The hidden members of a shown type or trait: its public fields,
-        its variants, its trait items and its public inherent members, those
-        of a hidden inherent block included."""
-        members = []
+        its variants and their fields, its trait items and its public
+        inherent members, those of a hidden inherent block included."""
+        members: list[tuple[str, dict]] = []
         if kind == "struct":
-            shape = inner["kind"]
-            ids = shape["plain"]["fields"] if "plain" in shape else shape.get("tuple") or []
-            fields = [self.item(id_) for id_ in ids if id_ is not None]  # None: a private field
-            members += [field for field in fields if field["visibility"] == "public"]
+            fields = self.fields(inner["kind"], _STRUCT_SHAPES, path)
+            members += [(path, field) for field in fields if field["visibility"] == "public"]
+        elif kind == "union":
+            fields = [self.item(id_) for id_ in inner["fields"]]
+            members += [(path, field) for field in fields if field["visibility"] == "public"]
         elif kind == "enum":
-            members += [self.item(id_) for id_ in inner["variants"]]
+            for variant in map(self.item, inner["variants"]):
+                members.append((path, variant))
+                where = f"{path}::{variant['name']}"
+                if not _hidden(variant):
+                    fields = self.fields(_inner(variant)[1]["kind"], _VARIANT_SHAPES, where)
+                    members += [(where, field) for field in fields]
         elif kind == "trait":
-            members += [self.item(id_) for id_ in inner["items"]]
+            members += [(path, self.item(id_)) for id_ in inner["items"]]
+        members += [(path, member) for member in self.inherent(inner)]
+        self.found += [f"{owner}::{member['name']}" for owner, member in members if _hidden(member)]
+
+    def fields(self, shape: object, shapes: tuple[str, str, str], where: str) -> list[dict]:
+        """The fields of a struct's or a variant's shape, `shapes` naming its
+        unit form, its tuple form and its form of named fields; a private
+        tuple field is left out. Another shape is an error."""
+        unit, tuple_, named = shapes
+        if shape == unit:
+            return []
+        if isinstance(shape, dict) and len(shape) == 1:
+            ((form, body),) = shape.items()
+            if form == tuple_ and isinstance(body, list):
+                return [self.item(id_) for id_ in body if id_ is not None]
+            if form == named and isinstance(body, dict):
+                return [self.item(id_) for id_ in body["fields"]]
+        raise SurfaceError(f"{where}: rustdoc's JSON gives a shape the reader does not know: {shape!r}")
+
+    def inherent(self, inner: dict) -> list[dict]:
+        """The public members of the inherent blocks, each carrying its
+        block's attributes."""
+        found = []
         for impl in map(self.item, inner.get("impls", [])):
             if _inner(impl)[1]["trait"] is None:
-                members += [
+                found += [
                     {**member, "attrs": member["attrs"] + impl["attrs"]}
                     for member in map(self.item, _inner(impl)[1]["items"])
                     if member["visibility"] == "public"
                 ]
-        self.found += [f"{path}::{member['name']}" for member in members if _hidden(member)]
+        return found
+
+
+# The shapes rustdoc's JSON gives a struct and an enum variant: the unit form,
+# the tuple form and the form of named fields.
+_STRUCT_SHAPES = ("unit", "tuple", "plain")
+_VARIANT_SHAPES = ("plain", "tuple", "struct")
 
 
 def _inner(item: dict) -> tuple[str, dict]:
