@@ -81,6 +81,10 @@ part of an existing published preview.
   a `NetworkPolicy`, which `roomkit_tools_search` no longer exports, and
   `SearchResult` holds `payload`, `partial`, `notices` and `usage`, its JSON
   unchanged, instead of a `BackendOutput`.
+- Rust: `RustoConfig` takes the models directory holding `det.onnx`,
+  `rec.onnx` and `dict.txt`, as Python's `RustoOcr(models)`, instead of the
+  three paths; `RustoConfig::new(models)` defaults `model_name`
+  (`ppocrv6`), `threads` (2) and `detection_max_edge` (960).
 
 ### Added
 

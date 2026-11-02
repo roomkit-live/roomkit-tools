@@ -578,16 +578,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_ocr_rusto::RustoOcr / roomkit_tools_ocr_rusto.RustoOcr: result, defaulted (3), unmatched (6)"
+reason = "roomkit_tools_ocr_rusto::RustoOcr / roomkit_tools_ocr_rusto.RustoOcr: result, unmatched (2)"
 covers = [
   "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (result)",  # returns Result<OcrEngine, ToolError>, not a RustoOcr
-  "rust roomkit_tools_ocr_rusto::RustoConfig::model_name (defaulted)",  # Python defaults it (model_name='ppocrv6'); Rust requires it
-  "rust roomkit_tools_ocr_rusto::RustoConfig::threads (defaulted)",  # Python defaults it (threads=2); Rust requires it
-  "rust roomkit_tools_ocr_rusto::RustoConfig::detection_max_edge (defaulted)",  # Python defaults it (detection_max_edge=960); Rust requires it
-  "python roomkit_tools_ocr_rusto.RustoOcr.__init__(models) (unmatched)",  # no Rust parameter
-  "rust roomkit_tools_ocr_rusto::RustoConfig::detection_model (unmatched)",  # no Python parameter
-  "rust roomkit_tools_ocr_rusto::RustoConfig::recognition_model (unmatched)",  # no Python parameter
-  "rust roomkit_tools_ocr_rusto::RustoConfig::dictionary (unmatched)",  # no Python parameter
   "python roomkit_tools_ocr_rusto.RustoOcr.bind (unmatched)",  # no Rust method
   "rust roomkit_tools_ocr_rusto::RustoOcr::load (unmatched)",  # no Python member
 ]

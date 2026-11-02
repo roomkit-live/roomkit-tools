@@ -83,13 +83,10 @@ use roomkit_tools_ocr::{OcrTool, OcrInput};
 use roomkit_tools_ocr_rusto::{RustoOcr, RustoConfig};
 use roomkit_tools_roomkit::OcrToolset;
 
+// `models` holds det.onnx, rec.onnx and dict.txt, as for Python's RustoOcr.
 let engine = RustoOcr::lazy(RustoConfig {
-    detection_model: "models/det.onnx".into(),
-    recognition_model: "models/rec.onnx".into(),
-    dictionary: "models/dict.txt".into(),
     model_name: "ppocrv6-tiny".into(),
-    threads: 2,
-    detection_max_edge: 960,
+    ..RustoConfig::new("./models")
 })?;
 let tool = OcrTool::new("./documents", engine).await?;
 // Declare it in your RoomKit Rust agent's `AiChannelOptions::tools`.

@@ -21,24 +21,47 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
-/// Explicit PP-OCRv6 model paths and host execution budgets.
+/// A PP-OCRv6 models directory and host execution budgets, Python's
+/// `RustoOcr(models, *, model_name, threads, detection_max_edge)`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RustoConfig {
-    /// Trusted ONNX or `RTen` detector model.
-    pub detection_model: PathBuf,
-    /// Trusted ONNX or `RTen` recognizer model.
-    pub recognition_model: PathBuf,
-    /// Matching UTF-8 recognizer vocabulary.
-    pub dictionary: PathBuf,
-    /// Host label, for example `ppocrv6-tiny`.
+    /// Trusted directory holding the ONNX or `RTen` detector model `det.onnx`,
+    /// the recognizer model `rec.onnx` and its UTF-8 vocabulary `dict.txt`.
+    pub models: PathBuf,
+    /// Host label, for example `ppocrv6-tiny`. Default: `ppocrv6`.
     pub model_name: String,
-    /// Threads per dedicated inference/preprocessing pool, 1..=16.
+    /// Threads per dedicated inference/preprocessing pool, 1..=16. Default: 2.
     #[serde(default = "default_threads")]
     pub threads: usize,
-    /// Maximum detector input edge, 32..=2048; avoids default short-edge upscaling.
+    /// Maximum detector input edge, 32..=2048; avoids default short-edge
+    /// upscaling. Default: 960.
     #[serde(default = "default_edge")]
     pub detection_max_edge: usize,
+}
+
+impl RustoConfig {
+    /// The models in `models`, with the default label, threads and edge.
+    pub fn new(models: impl Into<PathBuf>) -> Self {
+        Self {
+            models: models.into(),
+            model_name: "ppocrv6".into(),
+            threads: default_threads(),
+            detection_max_edge: default_edge(),
+        }
+    }
+
+    fn detection_model(&self) -> PathBuf {
+        self.models.join("det.onnx")
+    }
+
+    fn recognition_model(&self) -> PathBuf {
+        self.models.join("rec.onnx")
+    }
+
+    fn dictionary(&self) -> PathBuf {
+        self.models.join("dict.txt")
+    }
 }
 
 const fn default_threads() -> usize {
@@ -90,9 +113,9 @@ impl RustoOcr {
 
     fn load_backend(config: RustoConfig) -> Result<Self, ToolError> {
         validate(&config)?;
-        let detection = read_file(&config.detection_model, 256 * 1024 * 1024)?;
-        let recognition = read_file(&config.recognition_model, 256 * 1024 * 1024)?;
-        let dictionary = read_file(&config.dictionary, 4 * 1024 * 1024)?;
+        let detection = read_file(&config.detection_model(), 256 * 1024 * 1024)?;
+        let recognition = read_file(&config.recognition_model(), 256 * 1024 * 1024)?;
+        let dictionary = read_file(&config.dictionary(), 4 * 1024 * 1024)?;
         let characters = vocabulary(
             std::str::from_utf8(&dictionary)
                 .map_err(|_| ToolError::InvalidInput("OCR dictionary must be UTF-8".into()))?,
@@ -154,9 +177,9 @@ fn engine(
     characters: Vec<String>,
 ) -> Result<RustO, ToolError> {
     let mut preset = InitializeConfig::ppv6(
-        config.detection_model.clone(),
-        config.recognition_model.clone(),
-        config.dictionary.clone(),
+        config.detection_model(),
+        config.recognition_model(),
+        config.dictionary(),
     );
     preset.rec.rec_keys_path = None;
     let rec = session::Vocabulary {
@@ -344,14 +367,11 @@ mod tests {
         }
     }
 
-    fn config(dictionary: PathBuf) -> RustoConfig {
+    fn config(models: &Path) -> RustoConfig {
         RustoConfig {
-            detection_model: "det.onnx".into(),
-            recognition_model: "rec.onnx".into(),
-            dictionary,
             model_name: "test".into(),
             threads: 1,
-            detection_max_edge: 960,
+            ..RustoConfig::new(models)
         }
     }
 
@@ -366,12 +386,13 @@ mod tests {
 
     #[test]
     fn recognizer_decodes_with_the_validated_dictionary_bytes() {
-        // The configured path holds other content than the validated bytes, as
+        // The configured file holds other content than the validated bytes, as
         // when the file changes after validation: decoding must not reread it.
-        let other_file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let models = tempfile::tempdir().unwrap();
+        std::fs::write(models.path().join("dict.txt"), "x\ny\nz\n").unwrap();
         let validated = std::str::from_utf8(b"a\nb\n").unwrap();
         let mut engine = engine(
-            &config(other_file),
+            &config(models.path()),
             Scores(ArrayD::zeros(IxDyn(&[1]))),
             Scores(scores_for_first_two_entries()),
             vocabulary(validated),

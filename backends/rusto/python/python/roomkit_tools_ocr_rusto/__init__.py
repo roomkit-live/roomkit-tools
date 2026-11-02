@@ -44,9 +44,7 @@ class RustoOcr:
         self._engine = _native.Engine(
             json.dumps(
                 {
-                    "detection_model": str(root / "det.onnx"),
-                    "recognition_model": str(root / "rec.onnx"),
-                    "dictionary": str(root / "dict.txt"),
+                    "models": str(root),
                     "model_name": model_name,
                     "threads": threads,
                     "detection_max_edge": detection_max_edge,

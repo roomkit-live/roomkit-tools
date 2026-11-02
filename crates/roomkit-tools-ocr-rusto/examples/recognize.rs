@@ -14,14 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = args.next().ok_or("expected image workspace")?;
     let path = args.next().ok_or("expected image path")?;
     let rotation_degrees = args.next().map_or(Ok(0), |arg| arg.parse::<u16>())?;
-    let engine = RustoOcr::lazy(RustoConfig {
-        detection_model: models.join("det.onnx"),
-        recognition_model: models.join("rec.onnx"),
-        dictionary: models.join("dict.txt"),
-        model_name: "ppocrv6".into(),
-        threads: 2,
-        detection_max_edge: 960,
-    })?;
+    let engine = RustoOcr::lazy(RustoConfig::new(models))?;
     let tool = OcrTool::new(root, engine).await?;
     let output = tool
         .ocr(
