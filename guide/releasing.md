@@ -95,7 +95,14 @@ Python native modules and the RoomKit adapter are not: each sets
 `publish = false` and says why. The adapter depends on roomkit-rs by Git, which
 crates.io refuses. Internal dependencies give both `path` and `version`, so a
 packaged crate depends on the published version of its siblings; change those
-versions together with `workspace.package.version`.
+versions together with `workspace.package.version`. The unpublished packages
+carry the same version: the examples inherit it, and the native modules and the
+adapter, each a separate workspace, set it and their internal requirements in
+their own manifests. A pre-release such as `0.1.0-alpha.16` matches only a
+requirement naming a pre-release, so every internal requirement changes with
+it. Update each workspace's `Cargo.lock` with `cargo update --workspace
+--offline` (`--manifest-path` for the separate workspaces) and check that its
+diff changes only the roomkit-tools packages.
 
 From the candidate's checkout, package every published crate, build each
 against the others in a local registry and stop before the upload, then list

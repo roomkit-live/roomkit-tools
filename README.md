@@ -20,8 +20,9 @@ their own, without RoomKit or a model.
 
 > **Early development (alpha).** Preview wheels for Linux x86_64 are attached to
 > [GitHub releases](https://github.com/roomkit-live/roomkit-tools/releases). The
-> packages are not on PyPI or crates.io yet, and the APIs will change before
-> 1.0. Feedback and contributions are welcome.
+> Rust library crates are on crates.io as pre-releases; the Python packages are
+> not on PyPI yet. The APIs will change before 1.0. Feedback and contributions
+> are welcome.
 
 ## Features
 
@@ -82,16 +83,12 @@ preview wheel:
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install "roomkit-tools[roomkit] @ https://github.com/roomkit-live/roomkit-tools/releases/download/v0.1.0a15/roomkit_tools-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "roomkit-tools[roomkit] @ https://github.com/roomkit-live/roomkit-tools/releases/download/v0.1.0a16/roomkit_tools-0.1.0a16-cp312-abi3-manylinux_2_34_x86_64.whl"
 ```
 
 Omit `[roomkit]` to use the tools without RoomKit: the base package has no
-Python dependencies. The 0.1.0a15 preview predates the changes listed under
-*Unreleased* in the
-[changelog](https://github.com/roomkit-live/roomkit-tools/blob/main/CHANGELOG.md),
-including the minimal command environment described below. To use them, on
-other platforms, or to work on the project, build from a checkout; this needs
-[Rust](https://rustup.rs) to compile the extension:
+Python dependencies. On other platforms, or to work on the project, build from
+a checkout; this needs [Rust](https://rustup.rs) to compile the extension:
 
 ```sh
 git clone https://github.com/roomkit-live/roomkit-tools
@@ -171,12 +168,13 @@ covers schemas, errors and resource ownership.
 
 ## Use it from Rust
 
-The crates are not on crates.io yet. Depend on the ones you need through Git,
-pinned to a commit:
+The library crates are on crates.io as pre-releases. Depend on the ones you
+need with their exact version: a plain `"0.1"` requirement does not match a
+pre-release.
 
 ```toml
 [dependencies]
-roomkit-tools-fs = { git = "https://github.com/roomkit-live/roomkit-tools", rev = "<commit>" }
+roomkit-tools-fs = "0.1.0-alpha.16"
 tokio = { version = "1", features = ["macros", "rt"] }
 tokio-util = "0.7"
 ```
@@ -198,7 +196,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `cargo run --example read_file` runs the self-checking version from a checkout.
 The [Rust guide](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/rust.md)
-describes each crate and the optional RoomKit Rust adapter.
+describes each crate and the optional RoomKit Rust adapter. The adapter is not
+on crates.io: take it through Git, pinned to a commit, with the tool crates it
+wraps from the same commit so that your code and the adapter share their types:
+
+```toml
+[dependencies]
+roomkit-tools-roomkit = { git = "https://github.com/roomkit-live/roomkit-tools", rev = "<commit>" }
+roomkit-tools-fs = { git = "https://github.com/roomkit-live/roomkit-tools", rev = "<commit>" }
+```
 
 ## How it works
 
@@ -287,15 +293,15 @@ API documentation with `cargo doc --workspace --no-deps --open`.
 
 ## Stability
 
-The Python package follows an alpha sequence (`0.1.0aN`); the Rust crates are
-versioned separately and not published yet. Until 1.0, any preview may change
-the API, and the
+The Python package follows an alpha sequence (`0.1.0aN`), and the Rust library
+crates a pre-release sequence (`0.1.0-alpha.N`) on crates.io. Until 1.0, any
+preview may change the API, and the
 [changelog](https://github.com/roomkit-live/roomkit-tools/blob/main/CHANGELOG.md)
 says how.
 
 ## Roadmap
 
-- Publication on PyPI and crates.io.
+- Publication on PyPI.
 - Wheels for more platforms (macOS, ARM64).
 - Image results and agent delegation in the RoomKit Rust adapter.
 

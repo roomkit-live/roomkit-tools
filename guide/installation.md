@@ -8,9 +8,9 @@ managed separately; APIs may change between previews.
 | Source | Availability |
 | --- | --- |
 | Current checkout | Package version declared in `pyproject.toml` |
-| GitHub preview `v0.1.0a15` | Base package and optional OCR backend: wheels and source distributions |
+| GitHub preview `v0.1.0a16` | Base package and optional OCR backend: wheels and source distributions |
 | PyPI | First publication is being prepared; no install-from-PyPI command is available yet |
-| crates.io | No published crates; use a checkout or Git dependency |
+| crates.io | Rust library crates `0.1.0-alpha.16`, a pre-release to name exactly; the RoomKit Rust adapter through Git only. See [Rust integration](rust.md#add-a-crate) |
 
 Preview wheels and source distributions are attached to
 [GitHub releases](https://github.com/roomkit-live/roomkit-tools/releases). This
@@ -54,18 +54,18 @@ A prebuilt wheel does not require Rust. Pip can install it from its release URL:
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  "roomkit-tools[roomkit] @ https://github.com/roomkit-live/roomkit-tools/releases/download/v0.1.0a15/roomkit_tools-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl"
+  "roomkit-tools[roomkit] @ https://github.com/roomkit-live/roomkit-tools/releases/download/v0.1.0a16/roomkit_tools-0.1.0a16-cp312-abi3-manylinux_2_34_x86_64.whl"
 ```
 
 To check its checksum first, download the wheel with the release's `SHA256SUMS`
 and install the local file:
 
 ```sh
-gh release download v0.1.0a15 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a16 --repo roomkit-live/roomkit-tools \
   --pattern 'roomkit_tools-*.whl' --pattern 'SHA256SUMS' --dir dist
 (cd dist && sha256sum --check --ignore-missing SHA256SUMS)
 .venv/bin/python -m pip install \
-  './dist/roomkit_tools-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
+  './dist/roomkit_tools-0.1.0a16-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]'
 ```
 
 A source distribution is also attached to the release; installing it compiles
@@ -107,11 +107,11 @@ The `roomkit-tools-ocr-rusto` backend is a separate package. Download its wheel
 only when selecting local OCR:
 
 ```sh
-gh release download v0.1.0a15 --repo roomkit-live/roomkit-tools \
+gh release download v0.1.0a16 --repo roomkit-live/roomkit-tools \
   --pattern 'roomkit_tools_ocr_rusto-*.whl' --dir dist
 python -m pip install \
-  './dist/roomkit_tools-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]' \
-  './dist/roomkit_tools_ocr_rusto-0.1.0a15-cp312-abi3-manylinux_2_34_x86_64.whl'
+  './dist/roomkit_tools-0.1.0a16-cp312-abi3-manylinux_2_34_x86_64.whl[roomkit]' \
+  './dist/roomkit_tools_ocr_rusto-0.1.0a16-cp312-abi3-manylinux_2_34_x86_64.whl'
 ```
 
 Use the same Python environment as above and compare both wheel hashes with

@@ -6,18 +6,20 @@ actual input and output types and returns typed errors and structured output.
 
 ## Add a crate
 
-Crates are not published to crates.io. With this repository checked out next to
-your application, add a path dependency:
+The library crates are published to crates.io as pre-releases. A plain
+`"0.1"` requirement does not match a pre-release, so give the exact version:
 
 ```toml
 [dependencies]
-roomkit-tools-fs = { path = "../roomkit-tools/crates/roomkit-tools-fs" }
+roomkit-tools-fs = "0.1.0-alpha.16"
 tokio = { version = "1", features = ["macros", "rt"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 ```
 
-A Git dependency can select a crate by package name; pin the exact revision you
-intend to consume:
+For unreleased changes, depend on a checkout next to your application,
+`roomkit-tools-fs = { path = "../roomkit-tools/crates/roomkit-tools-fs" }`, or
+on a Git revision, which selects a crate by package name; pin the exact
+revision you intend to consume:
 
 ```toml
 [dependencies]
@@ -78,6 +80,17 @@ from the `roomkit-rs` repository at an immutable revision; the source is not
 required by standalone tools or the Python package. The `roomkit-rs` repository
 is not public yet, so building the adapter requires access to it. Consume the
 same source and revision to share RoomKit types.
+
+The adapter is not published to crates.io, which refuses its Git dependencies.
+Depend on it through Git, and take the tool crates it wraps from the same
+revision: a crate from crates.io and the same crate from Git are distinct
+crates, whose types do not match.
+
+```toml
+[dependencies]
+roomkit-tools-roomkit = { git = "https://github.com/roomkit-live/roomkit-tools", rev = "<commit>" }
+roomkit-tools-fs = { git = "https://github.com/roomkit-live/roomkit-tools", rev = "<commit>" }
+```
 
 Each adapter implements RoomKit's `Tool` trait, the Rust form of Python's Tool
 protocol, for filesystem, outline, command, process, output, web-fetch and
