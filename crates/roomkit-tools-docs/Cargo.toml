@@ -10,6 +10,10 @@ readme = "README.md"
 keywords = ["agent", "llm", "documentation", "search", "ai"]
 categories = ["text-processing", "asynchronous"]
 
+# Document `FileDocs` on docs.rs, not only the default features.
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = []
 files = ["dep:tokio", "dep:sha2"]

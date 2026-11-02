@@ -10,6 +10,10 @@ readme = "README.md"
 keywords = ["agent", "llm", "web-search", "search", "ai"]
 categories = ["web-programming::http-client", "asynchronous"]
 
+# Document each search backend on docs.rs, not only the default features.
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = []
 exa = ["dep:reqwest", "dep:roomkit-tools-http"]
