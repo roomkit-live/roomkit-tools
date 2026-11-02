@@ -1,0 +1,794 @@
+{
+ "rustdoc": "1.99.1 (58cf8f9c3 2026-10-13)",
+ "counts": {
+  "items": 29,
+  "methods": 28,
+  "associated_constants": 0,
+  "trait_methods": 0,
+  "fields": 0,
+  "variants": 0
+ },
+ "crates": {
+  "roomkit_tools_roomkit": [
+   {
+    "path": "roomkit_tools_roomkit::CodeOutlineToolset",
+    "kind": "struct",
+    "decl": "pub struct CodeOutlineToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "CodeOutlineTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::DiffToolset",
+    "kind": "struct",
+    "decl": "pub struct DiffToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "DiffTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::DocsListToolset",
+    "kind": "struct",
+    "decl": "pub struct DocsListToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "DocsListTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::DocsReadToolset",
+    "kind": "struct",
+    "decl": "pub struct DocsReadToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "DocsReadTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::DocsSearchToolset",
+    "kind": "struct",
+    "decl": "pub struct DocsSearchToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "DocsSearchTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::EditToolset",
+    "kind": "struct",
+    "decl": "pub struct EditToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "EditTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::GlobToolset",
+    "kind": "struct",
+    "decl": "pub struct GlobToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "GlobTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::GrepToolset",
+    "kind": "struct",
+    "decl": "pub struct GrepToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "GrepTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::ListToolset",
+    "kind": "struct",
+    "decl": "pub struct ListToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "ListTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::OcrToolset",
+    "kind": "struct",
+    "decl": "pub struct OcrToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "OcrTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::OutputForgetToolset",
+    "kind": "struct",
+    "decl": "pub struct OutputForgetToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "OutputStore"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::OutputReadToolset",
+    "kind": "struct",
+    "decl": "pub struct OutputReadToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "OutputStore"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::PatchToolset",
+    "kind": "struct",
+    "decl": "pub struct PatchToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "PatchTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::PlanCreateToolset",
+    "kind": "struct",
+    "decl": "pub struct PlanCreateToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "PlanCreateTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::PlanDeleteToolset",
+    "kind": "struct",
+    "decl": "pub struct PlanDeleteToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "PlanDeleteTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::PlanListToolset",
+    "kind": "struct",
+    "decl": "pub struct PlanListToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "PlanListTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::PlanReadToolset",
+    "kind": "struct",
+    "decl": "pub struct PlanReadToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "PlanReadTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::PlanUpdateToolset",
+    "kind": "struct",
+    "decl": "pub struct PlanUpdateToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "PlanUpdateTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::ProcessReadToolset",
+    "kind": "struct",
+    "decl": "pub struct ProcessReadToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "manager",
+        "type": "ProcessManager"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::ProcessStartToolset",
+    "kind": "struct",
+    "decl": "pub struct ProcessStartToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "manager",
+        "type": "ProcessManager"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::ProcessStatusToolset",
+    "kind": "struct",
+    "decl": "pub struct ProcessStatusToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "manager",
+        "type": "ProcessManager"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::ProcessStopToolset",
+    "kind": "struct",
+    "decl": "pub struct ProcessStopToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "manager",
+        "type": "ProcessManager"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::ProcessWriteToolset",
+    "kind": "struct",
+    "decl": "pub struct ProcessWriteToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "manager",
+        "type": "ProcessManager"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::ReadToolset",
+    "kind": "struct",
+    "decl": "pub struct ReadToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "ReadTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::ShellToolset",
+    "kind": "struct",
+    "decl": "pub struct ShellToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "ShellTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::WebFetchToolset",
+    "kind": "struct",
+    "decl": "pub struct WebFetchToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "WebFetchTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::WebSearchToolset",
+    "kind": "struct",
+    "decl": "pub struct WebSearchToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "WebSearchTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::WriteToolset",
+    "kind": "struct",
+    "decl": "pub struct WriteToolset { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "WriteTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Debug",
+     "Toolset"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::roomkit_owner",
+    "kind": "fn",
+    "decl": "pub fn roomkit_owner(room_id: &str, channel_id: &str) -> String",
+    "non_exhaustive": false,
+    "signature": {
+     "name": "roomkit_owner",
+     "async": false,
+     "receiver": null,
+     "params": [
+      {
+       "name": "room_id",
+       "type": "&str"
+      },
+      {
+       "name": "channel_id",
+       "type": "&str"
+      }
+     ],
+     "returns": "String",
+     "where": null
+    }
+   }
+  ]
+ }
+}

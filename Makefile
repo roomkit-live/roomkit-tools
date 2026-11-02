@@ -5,8 +5,12 @@ DENY_FLAGS ?=
 ROOMKIT_MANIFEST := adapters/roomkit/Cargo.toml
 PYTHON_MANIFEST := bindings/python/Cargo.toml
 PYTHON ?= python3
+TARGET_DIR := $(or $(CARGO_TARGET_DIR),target)
+ADAPTER_TARGET_DIR := $(or $(CARGO_TARGET_DIR),adapters/roomkit/target)
+API_REPORT := $(TARGET_DIR)/api-parity
+ADAPTER_SURFACE := api/roomkit-adapter-surface.json
 
-.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot
+.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-adapter-surface api-adapter-check
 
 all: fmt-check clippy test doc deny check-core-deps examples
 
@@ -55,6 +59,7 @@ roomkit-check:
 	$(CARGO) clippy --manifest-path $(ROOMKIT_MANIFEST) --all-targets --all-features --locked -- -D warnings
 	$(CARGO) test --manifest-path $(ROOMKIT_MANIFEST) --all-features --locked
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(ROOMKIT_MANIFEST) --no-deps --all-features --locked
+	$(MAKE) --no-print-directory api-adapter-check
 
 roomkit-msrv:
 	$(CARGO) +$(MSRV) check --manifest-path $(ROOMKIT_MANIFEST) --all-targets --all-features --locked
@@ -64,6 +69,25 @@ roomkit-msrv:
 # fail while they differ from the code.
 api-snapshot:
 	$(PYTHON) scripts/api-snapshot.py
+
+# The tests of the rustdoc reader and of the parity gate, on fixtures.
+api-test:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts/tests
+
+# The RoomKit adapter's surface is committed: its engine source is not public.
+# Rewrite it after changing the adapter; roomkit-check checks it is current.
+api-adapter-surface:
+	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(ROOMKIT_MANIFEST) --no-deps --all-features --locked
+	@mkdir -p $(API_REPORT)
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(ADAPTER_TARGET_DIR)/doc --crate roomkit_tools_roomkit > $(API_REPORT)/adapter-surface.json
+	cp $(API_REPORT)/adapter-surface.json $(ADAPTER_SURFACE)
+
+api-adapter-check:
+	@mkdir -p $(API_REPORT)
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(ADAPTER_TARGET_DIR)/doc --crate roomkit_tools_roomkit > $(API_REPORT)/adapter-surface.json
+	@cmp -s $(API_REPORT)/adapter-surface.json $(ADAPTER_SURFACE) || { \
+		echo "$(ADAPTER_SURFACE) is not the adapter's current surface: run make api-adapter-surface" >&2; exit 1; \
+	}
 
 # Optional CPython bridge: the standalone Rust gates remain interpreter-free.
 python-check:
