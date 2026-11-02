@@ -24,7 +24,10 @@ with `uv venv` and `uv pip install '.[roomkit]'`. See
 | Command | Scope |
 | --- | --- |
 | `make fmt` | Format the standalone Rust workspace |
-| `make all` | Formatting, Clippy, tests, rustdoc, dependency policy, core dependency allow list and executable Rust examples |
+| `make all` | Formatting, Clippy, tests, rustdoc, dependency policy, core dependency allow list, executable Rust examples and the public API parity gate |
+| `make api-test api-parity` | The parity gate's own tests, then the gate: the Rust public API against the Python snapshots (see [One public API](#one-public-api)) |
+| `make api-snapshot` | Rewrite the Python API snapshots from freshly built wheels |
+| `make api-adapter-surface` | Rewrite the RoomKit adapter's committed Rust surface; requires access to its pinned engine source |
 | `make msrv-toolchain msrv` | Install/check the minimum Rust toolchain |
 | `make python-check` | Binding lint/docs/dependencies, Python lint, independent wheel/source installs, standalone and RoomKit tests and examples |
 | `make ocr-python-check` | Optional engine wheel/source installs and RoomKit selection; set `ROOMKIT_OCR_MODELS` for real-model parity |
@@ -79,6 +82,39 @@ from larger validation scenarios.
 When changing search dependencies, run
 `cargo test -p roomkit-tools-search --no-default-features` and check each affected
 provider feature separately. No provider key belongs in a fixture or test command.
+
+## One public API
+
+The Rust crates and the Python packages have one public API: for every
+feature both have, the same names, parameters, defaults and behaviour.
+Python is the reference.
+
+- Before adding or changing a public item in Rust, read Python's in the
+  snapshot (`tests/python/public_api_signatures.json`, the tool contracts in
+  `public_api_contracts.json`, and the OCR package's in
+  `backends/rusto/python/tests/`) and mirror it.
+- Only what the language forces may differ: Rust's casing of an acronym,
+  `&self`, a struct of named fields for keyword arguments, a `Result` for a
+  raised exception, an `async fn` for an `async def`, and the like. Each such
+  mapping is written in `api/mapping.toml`, as a rule or an approved
+  `[[map]]` entry; `scripts/api-parity.py`'s docstring says what each rule
+  does.
+- Any other difference needs a maintainer's decision before it is written,
+  whatever the reason. The decision either changes the code (Python first
+  when Python changes, then Rust) or records the difference as approved in
+  `api/mapping.toml`. A difference is never shipped undiscussed.
+- `make api-parity` enforces this: it reads the crates' public surface from
+  rustdoc and fails on any difference no entry of `api/mapping.toml` covers,
+  and on an entry that no longer covers anything. The differences found
+  before the gate existed are the `[[pending]]` entries at the end of the
+  mapping; each awaits a decision, and none is approved. `make api-parity
+  API_PARITY_FLAGS=--strict` fails while one is left. The gate and its tests
+  need only `python3` (3.11 or newer) and its standard library.
+- A change to the Python public API rewrites the snapshot with
+  `make api-snapshot` in the same commit; the Python tests fail while the
+  snapshot differs from the code. A change to the RoomKit adapter's public API
+  rewrites `api/roomkit-adapter-surface.json` with
+  `make api-adapter-surface`, which `make roomkit-check` verifies.
 
 ## Implementation boundaries
 
