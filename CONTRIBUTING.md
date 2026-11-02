@@ -135,8 +135,10 @@ Python is the reference.
   gate lists them from the JSON rustdoc writes with
   `--document-hidden-items`, unstable options the pinned toolchain takes
   for that build only (`RUSTC_BOOTSTRAP=1`, `make api-hidden`), and each
-  needs a `[[hidden]]` entry naming its decision. The internal
-  `roomkit-tools-http` crate is out of scope and must show no public item.
+  needs a `[[hidden]]` entry naming its decision. The RoomKit adapter's
+  hidden items are committed in `api/roomkit-adapter-hidden.json`, written
+  and checked with its surface. The internal `roomkit-tools-http` crate is
+  out of scope and must show no public item.
 - `make hooks` enables a pre-push hook that runs `make api-test api-parity`
   when the pushed commits change what the gate reads: `crates/`,
   `adapters/`, `python/roomkit_tools/`, `api/`, `scripts/`, the defaults
@@ -151,12 +153,13 @@ Python is the reference.
   `make api-snapshot` in the same commit; the Python tests fail while the
   snapshot differs from the code. A change to the RoomKit adapter's public API
   rewrites `api/roomkit-adapter-surface.json` with
-  `make api-adapter-surface`. CI cannot check that file: the adapter's
-  engine source is not public. `make roomkit-check` checks it, and so does
-  the pre-push hook when the pushed commits change `adapters/`, the file or
-  `scripts/rs-surface.py`: it runs `make api-adapter-check`, and refuses the
-  push when the check fails or cannot run without the pinned roomkit-rs
-  source. The check ignores the rustdoc version the file names.
+  `make api-adapter-surface`, which also rewrites the adapter's hidden items
+  in `api/roomkit-adapter-hidden.json`. CI cannot check those files: the
+  adapter's engine source is not public. `make roomkit-check` checks them,
+  and so does the pre-push hook when the pushed commits change `adapters/`,
+  either file or `scripts/rs-surface.py`: it runs `make api-adapter-check`,
+  and refuses the push when the check fails or cannot run without the pinned
+  roomkit-rs source. The check ignores the rustdoc version the files name.
 
 ## Implementation boundaries
 

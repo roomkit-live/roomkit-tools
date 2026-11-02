@@ -489,6 +489,27 @@ class ReadsTheHiddenItems(unittest.TestCase):
         self.assertEqual(len(json.loads(out.getvalue())["hidden"]["fixture"]), 12)
 
 
+class ChecksCommittedHiddenItems(unittest.TestCase):
+    """`--hidden --check FILE`: the committed hidden items are those read."""
+
+    def test_the_committed_list_is_the_one_read(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            doc = Path(tmp)
+            index = {str(key): value for key, value in HIDDEN_INDEX.items()}
+            crate = {"root": 0, "index": index, "format_version": 61}
+            (doc / "fixture.json").write_text(json.dumps(crate), encoding="utf-8")
+            out = io.StringIO()
+            surface.main(["--hidden", "--doc", tmp, "--crate", "fixture"], out=out, log=io.StringIO())
+            committed = doc / "hidden.json"
+            committed.write_text(out.getvalue(), encoding="utf-8")
+            argv = ["--hidden", "--doc", tmp, "--crate", "fixture", "--check", str(committed)]
+            self.assertEqual(surface.main(argv, out=io.StringIO(), log=io.StringIO()), 0)
+            written = json.loads(out.getvalue())
+            written["hidden"]["fixture"].pop()
+            committed.write_text(json.dumps(written), encoding="utf-8")
+            self.assertEqual(surface.main(argv, out=io.StringIO(), log=io.StringIO()), 1)
+
+
 class ChecksTheInternalCrate(unittest.TestCase):
     def test_an_internal_crate_shows_no_item(self) -> None:
         with self.assertRaises(surface.SurfaceError) as raised:

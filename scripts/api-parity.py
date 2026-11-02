@@ -157,7 +157,8 @@ The gate fails (exit 1) on a finding no entry covers, a dead entry or a
 decision awaiting the maintainer; `--strict` also on any `[[pending]]`
 entry left. An input it cannot read whole exits 2.
 
-Usage: python3 scripts/api-parity.py SURFACE... --defaults FILE --hidden FILE [--python DIR]...
+Usage: python3 scripts/api-parity.py SURFACE... --defaults FILE --hidden FILE [--hidden FILE]...
+                                     [--python DIR]...
                                      [--mapping FILE] [--rules-only] [--strict]
                                      [--verbose] [--json OUT] [--pending]
 """
@@ -201,8 +202,9 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     parser.add_argument(
         "--hidden",
         type=Path,
+        action="append",
         required=True,
-        help="the hidden public items rs-surface.py --hidden wrote",
+        help="the hidden public items rs-surface.py --hidden wrote; repeat for each list",
     )
     parser.add_argument(
         "--rules-only", action="store_true", help="apply the rules, none of the entries"

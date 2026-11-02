@@ -23,9 +23,10 @@ set -- crates adapters python/roomkit_tools api scripts \
     backends/rusto/python/tests/public_api_names.json \
     backends/rusto/python/tests/public_api_signatures.json \
     Cargo.toml Cargo.lock rust-toolchain.toml Makefile
-# What the RoomKit adapter's committed surface comes from: its source, the
-# surface itself and the reader that writes it.
-adapter="adapters api/roomkit-adapter-surface.json scripts/rs-surface.py"
+# What the RoomKit adapter's committed surface and hidden items come from: its
+# source, the two files and the reader that writes them.
+adapter="adapters api/roomkit-adapter-surface.json api/roomkit-adapter-hidden.json \
+    scripts/rs-surface.py"
 
 # The files a pushed ref, from its remote commit `old` to `new`, changes
 # among those named; a new ref's commits are those no remote ref holds.

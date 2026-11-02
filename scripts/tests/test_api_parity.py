@@ -1655,6 +1655,15 @@ class Command(unittest.TestCase):
         (self.dir / "defaults.json").write_text("[]")
         self.assertEqual(self._main(Entries.PAIRS)[0], 2)
 
+    def test_the_hidden_items_of_several_lists_are_read(self):
+        (self.dir / "hidden.json").write_text(json.dumps({"hidden": {"kit": ["kit::A::b"]}}))
+        adapter = self.dir / "adapter-hidden.json"
+        adapter.write_text(json.dumps({"hidden": {"kit_adapter": ["kit_adapter::C"]}}))
+        status, out = self._main(Entries.PAIRS, "--hidden", str(adapter))
+        self.assertEqual(status, 1)
+        self.assertIn("kit::A::b (hidden)", out)
+        self.assertIn("kit_adapter::C (hidden)", out)
+
     def test_the_hidden_items_are_required(self):
         (self.dir / "mapping.toml").write_text(mapping_text())
         argv = [str(self.dir / "surface.json"), "--defaults", str(self.dir / "defaults.json")]

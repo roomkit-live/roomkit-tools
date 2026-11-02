@@ -220,6 +220,20 @@ class PrePush(unittest.TestCase):
         self.assertIn("api-adapter-check", result.stderr)
         self.assertIn("roomkit-rs", result.stderr)
 
+    def test_each_path_the_adapters_files_come_from_runs_its_check(self):
+        check = f"{self.repo} --no-print-directory api-adapter-check"
+        for path in (
+            "api/roomkit-adapter-surface.json",
+            "api/roomkit-adapter-hidden.json",
+            "scripts/rs-surface.py",
+        ):
+            with self.subTest(path=path):
+                base = self.git("rev-parse", "HEAD")
+                head = self.commit(path, path)
+                self.log.unlink(missing_ok=True)
+                self.assertEqual(self.push(head, base).returncode, 0)
+                self.assertEqual(self.made()[1:], [check])
+
     def test_in_a_worktree_the_gate_runs_on_the_worktree(self):
         tree = self.tmp / "tree"
         self.git("worktree", "add", "-q", "-b", "topic", str(tree))

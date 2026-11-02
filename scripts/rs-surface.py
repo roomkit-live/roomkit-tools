@@ -32,7 +32,7 @@ in scope, the constants' values, the internal crate's check, `--hidden` and
 with a committed one, the rustdoc version aside.
 
 Usage: python3 scripts/rs-surface.py [--doc target/doc] [--crate NAME]... [--check FILE] > surface.json
-       python3 scripts/rs-surface.py --hidden --doc DIR [--crate NAME]... > hidden.json
+       python3 scripts/rs-surface.py --hidden --doc DIR [--crate NAME]... [--check FILE] > hidden.json
 """
 
 from __future__ import annotations
@@ -656,12 +656,12 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     parser.add_argument("--doc", type=Path, default=Path("target/doc"), help="rustdoc's output directory")
     parser.add_argument("--crate", action="append", dest="crates", help="a crate to read, instead of the workspace crates in scope")
     parser.add_argument("--hidden", action="store_true", help="list the hidden public items, from rustdoc's JSON")
-    parser.add_argument("--check", type=Path, help="fail unless this committed surface is the one read, rustdoc's version aside")
+    parser.add_argument("--check", type=Path, help="fail unless this committed surface, or with --hidden this committed list, is the one read, rustdoc's version aside")
     args = parser.parse_args(argv)
     names = args.crates or list(CRATES)
     try:
         if args.hidden:
-            return _write_hidden(args.doc, names, out, log)
+            return _write_hidden(args.doc, names, args.check, out, log)
         crates = {crate: read_crate(args.doc, crate) for crate in names}
         version = rustdoc_version(args.doc, names[0])
         for crate in () if args.crates else INTERNAL:
@@ -695,8 +695,20 @@ def _check(committed: Path, crates: dict[str, list[dict]], log: TextIO) -> int:
     return 0
 
 
-def _write_hidden(doc: Path, names: list[str], out: TextIO, log: TextIO) -> int:
+def _write_hidden(doc: Path, names: list[str], check: Path | None, out: TextIO, log: TextIO) -> int:
+    """Write the hidden items, or, with `check`, compare them with a
+    committed list, the JSON format version aside."""
     hidden = {crate: read_hidden(doc, crate) for crate in names}
+    if check is not None:
+        try:
+            written = json.loads(check.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            print(f"rs-surface: {check}: {error}", file=log)
+            return 1
+        if not isinstance(written, dict) or written.get("hidden") != hidden:
+            print(f"rs-surface: {check} does not list the current hidden items", file=log)
+            return 1
+        return 0
     json.dump({"format_version": JSON_FORMAT, "hidden": hidden}, out, indent=1, ensure_ascii=False)
     out.write("\n")
     print(f"rs-surface: {sum(map(len, hidden.values()))} hidden public items", file=log)

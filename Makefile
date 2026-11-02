@@ -14,6 +14,8 @@ ADAPTER_TARGET_DIR = $(eval ADAPTER_TARGET_DIR := $$(call cargo_target,--manifes
 API_REPORT = $(TARGET_DIR)/api-parity
 HIDDEN_TARGET_DIR = $(TARGET_DIR)/api-hidden
 ADAPTER_SURFACE := api/roomkit-adapter-surface.json
+ADAPTER_HIDDEN := api/roomkit-adapter-hidden.json
+HIDDEN_FLAGS := RUSTC_BOOTSTRAP=1 RUSTDOCFLAGS="-Z unstable-options --output-format json --document-hidden-items"
 API_PARITY_FLAGS ?=
 
 .PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-hidden api-parity api-adapter-doc api-adapter-surface api-adapter-check
@@ -84,14 +86,14 @@ api-test:
 # RUSTC_BOOTSTRAP=1 lets the pinned rustdoc take them for this build only, in
 # a target directory of its own, which leaves the HTML documentation alone.
 api-hidden:
-	RUSTC_BOOTSTRAP=1 RUSTDOCFLAGS="-Z unstable-options --output-format json --document-hidden-items" \
-		$(CARGO) doc --workspace --no-deps --all-features --locked --target-dir $(HIDDEN_TARGET_DIR)
+	$(HIDDEN_FLAGS) $(CARGO) doc --workspace --no-deps --all-features --locked --target-dir $(HIDDEN_TARGET_DIR)
 
 # The parity gate: the crates' public surface read from rustdoc's HTML, with the
 # RoomKit adapter's committed surface, against the Python snapshots through
 # api/mapping.toml, and the defaults of the structs standing for Python's
 # keywords, which a test dumps since rustdoc shows none. The public items
-# #[doc(hidden)] hides are each listed in the mapping with their decision. It
+# #[doc(hidden)] hides, the crates' and the adapter's committed ones, are each
+# listed in the mapping with their decision. It
 # fails on a difference no entry covers; pass API_PARITY_FLAGS=--strict to fail
 # on a pending one too. The report, the surface, the hidden items, the defaults
 # and the findings as JSON stay in $(API_REPORT).
@@ -103,27 +105,35 @@ api-parity: doc api-hidden
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(TARGET_DIR)/doc > $(API_REPORT)/rs-surface.json
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --hidden --doc $(HIDDEN_TARGET_DIR)/doc > $(API_REPORT)/rs-hidden.json
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/api-parity.py $(API_REPORT)/rs-surface.json $(ADAPTER_SURFACE) \
-		--defaults $(API_REPORT)/rs-defaults.json --hidden $(API_REPORT)/rs-hidden.json \
+		--defaults $(API_REPORT)/rs-defaults.json --hidden $(API_REPORT)/rs-hidden.json --hidden $(ADAPTER_HIDDEN) \
 		$(API_PARITY_FLAGS) --json $(API_REPORT)/report.json
 
-# The RoomKit adapter's surface is committed: its engine source is not public,
-# so CI cannot read it. Rewrite it after changing the adapter; roomkit-check and
-# the pre-push hook check it is current. Both need read access to the pinned
-# roomkit-rs source.
+# The RoomKit adapter's surface and hidden items are committed: its engine
+# source is not public, so CI cannot read them. Rewrite them after changing the
+# adapter; roomkit-check and the pre-push hook check they are current. Both
+# need read access to the pinned roomkit-rs source.
 api-adapter-doc:
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(ROOMKIT_MANIFEST) --no-deps --all-features --locked
+	$(HIDDEN_FLAGS) $(CARGO) doc --manifest-path $(ROOMKIT_MANIFEST) --no-deps --all-features --locked \
+		--target-dir $(ADAPTER_TARGET_DIR)/api-hidden
 
 api-adapter-surface: api-adapter-doc
 	@mkdir -p $(API_REPORT)
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(ADAPTER_TARGET_DIR)/doc --crate roomkit_tools_roomkit > $(API_REPORT)/adapter-surface.json
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --hidden --doc $(ADAPTER_TARGET_DIR)/api-hidden/doc --crate roomkit_tools_roomkit > $(API_REPORT)/adapter-hidden.json
 	cp $(API_REPORT)/adapter-surface.json $(ADAPTER_SURFACE)
+	cp $(API_REPORT)/adapter-hidden.json $(ADAPTER_HIDDEN)
 
-# The surface read against the committed one, the rustdoc version aside: a
-# toolchain bump that reads the same surface leaves it current.
+# The surface and hidden items read against the committed ones, the rustdoc
+# version aside: a toolchain bump that reads the same leaves them current.
 api-adapter-check: api-adapter-doc
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(ADAPTER_TARGET_DIR)/doc --crate roomkit_tools_roomkit \
 		--check $(ADAPTER_SURFACE) > /dev/null || { \
 		echo "$(ADAPTER_SURFACE) is not the adapter's current surface: run make api-adapter-surface" >&2; exit 1; \
+	}
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --hidden --doc $(ADAPTER_TARGET_DIR)/api-hidden/doc \
+		--crate roomkit_tools_roomkit --check $(ADAPTER_HIDDEN) || { \
+		echo "$(ADAPTER_HIDDEN) does not list the adapter's hidden items: run make api-adapter-surface" >&2; exit 1; \
 	}
 
 # Optional CPython bridge: the standalone Rust gates remain interpreter-free.

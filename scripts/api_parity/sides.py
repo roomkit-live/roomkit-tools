@@ -245,12 +245,14 @@ def load_surface(paths: list[Path]) -> Surface:
     return surface
 
 
-def load_hidden(path: Path) -> list[str]:
+def load_hidden(paths: list[Path]) -> list[str]:
     """The public paths `#[doc(hidden)]` hides, as `rs-surface.py --hidden`
-    wrote them."""
-    try:
-        written = json.loads(path.read_text(encoding="utf-8"))
-        hidden = [str(item) for items in written["hidden"].values() for item in items]
-    except (OSError, ValueError, KeyError, AttributeError, TypeError) as error:
-        raise ParityError(f"{path}: the hidden items cannot be read: {error}") from error
+    wrote them: the workspace's, and the RoomKit adapter's committed list."""
+    hidden: list[str] = []
+    for path in paths:
+        try:
+            written = json.loads(path.read_text(encoding="utf-8"))
+            hidden += [str(item) for items in written["hidden"].values() for item in items]
+        except (OSError, ValueError, KeyError, AttributeError, TypeError) as error:
+            raise ParityError(f"{path}: the hidden items cannot be read: {error}") from error
     return sorted(set(hidden))
