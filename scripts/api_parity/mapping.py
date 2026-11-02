@@ -70,7 +70,7 @@ _RULES: dict[str, set[str] | None] = {
     "typed_call": {"method"},
     "named_calls": {"method", "key", "definition", "suffix"},
     "lazy_constructor": {"python"},
-    "union_constructor": {"prefix"},
+    "union_constructor": {"prefix", "types"},
     "deferred_default": {"python"},
 }
 # The rules a mapping may leave out: the comparison then applies none.
@@ -126,7 +126,7 @@ class Rules:
     # By rule: where the maintainer decided it, its `decision`.
     decisions: dict[str, str] = field(default_factory=dict)
     # The table rules the mapping holds (`_TABLE_RULES`), by name: their settings.
-    tables: dict[str, dict[str, str]] = field(default_factory=dict)
+    tables: dict[str, dict] = field(default_factory=dict)
 
     @classmethod
     def from_table(cls, table: dict) -> Rules:
@@ -153,14 +153,10 @@ class Rules:
             builtins=rules.get("builtins", {}),
             builtin_errors=rules.get("builtin_errors", {}),
             decisions=decisions,
-            tables={
-                name: {key: str(value) for key, value in rules[name].items()}
-                for name in _TABLE_RULES
-                if name in rules
-            },
+            tables={name: dict(rules[name]) for name in _TABLE_RULES if name in rules},
         )
 
-    def setting(self, rule: str, name: str) -> str | None:
+    def setting(self, rule: str, name: str):
         """A table rule's setting, or None when the mapping has not the rule."""
         return self.tables.get(rule, {}).get(name)
 

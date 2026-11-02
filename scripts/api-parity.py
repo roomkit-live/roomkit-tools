@@ -29,16 +29,18 @@ applies with no setting is declared all the same:
   side only is a finding;
 - constructors: Python's constructor is an async factory (`[rules]
   factory`, `create`) when the class has one taking more than `**keywords`,
-  since Python cannot await in `__init__`, whose `__init__` then wraps the
-  native object the factory built and is not compared; else `__init__`.
+  since Python cannot await in `__init__`; else `__init__`. A factory
+  class's `__init__` is compared as a constructor too, unless it takes only
+  the native object the factory built.
   Rust's is `new` and the builders (`[rules] builder_prefix`, `with_<x>(self,
   value)`), a builder standing for the keyword of its parameter's name, or
   for its struct's fields; a struct with public fields and no `new` is
   built from its fields, as a dataclass. A synchronous `__init__` stands
   for an async `new`: Python resolves the root at first use, Rust at once
   (`[rules] lazy_constructor`). An associated `from_<x>(x)` building the
-  type from a type Python names is the constructor given that type for its
-  first parameter, Python's union `root | X` (`[rules] union_constructor`);
+  type from one of the types `[rules] union_constructor` names, which
+  Python names too, is the constructor given that type for its first
+  parameter, Python's union `root | X`;
 - keywords as a struct of named fields: a Rust parameter whose type is an
   `<X>Input` (`[rules] input_suffix`) or an options struct (a name ending
   with one of `[rules] options_suffixes`) stands for its fields, each the

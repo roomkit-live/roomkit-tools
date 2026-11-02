@@ -168,7 +168,7 @@ class Comparison:
                 *pairs,
             )
             return
-        self.check_async(item["signature"], item["path"], spec, pairs)
+        self.check_async(item["signature"], item["path"], spec, pairs, item["path"], python)
         rust_side = self.rust.params(
             item["signature"], item["path"].rpartition("::")[0], arguments=False
         )
@@ -192,24 +192,20 @@ class Comparison:
         used.add((found.owner, found.data["name"]))
         rust_path = f"{found.owner}::{found.data['name']}"
         pairs = (found.owner, python)
+        where = f"{python}.{member}"
         if (found.data["receiver"] is None) != members.static(spec):
             rust_form = (
                 "an associated function" if found.data["receiver"] is None else "a method of self"
             )
-            self.find(
-                "rust",
-                rust_path,
-                "form",
-                f"{rust_form}; Python's {member} is a {spec[0].split()[-1]}",
-                *pairs,
-            )
-        self.check_async(found.data, found.owner, spec, pairs, where=rust_path)
+            detail = f"{rust_form}; Python's {member} is a {spec[0].split()[-1]}"
+            self.find("rust", rust_path, "form", detail, *pairs, qualifier=where)
+        self.check_async(found.data, found.owner, spec, pairs, rust_path, where)
         if python_side is None:
             python_side = python_params(spec)
         arguments = any(param.name == self.rules.arguments for param in python_side)
         rust_side = self.rust.params(found.data, found.owner, arguments=arguments)
         rust_side = parameters.renamed(rust_side, renames or {})
-        sides = parameters.Sides(f"{python}.{member}", rust_path, pairs)
+        sides = parameters.Sides(where, rust_path, pairs)
         parameters.compare(self, sides, python_side, rust_side, concrete=concrete)
 
     def paired_member(self, entry: Entry, python: str, rust_item: str) -> None:
@@ -222,15 +218,17 @@ class Comparison:
         self.find("rust", entry.rust, "name", detail, rust_item, python, qualifier=entry.python)
 
     def check_async(
-        self, method: dict, owner: str, spec: list, pairs: tuple, where: str | None = None
+        self, method: dict, owner: str, spec: list, pairs: tuple, where: str, python: str
     ) -> None:
+        """Async on both sides or neither: Rust's `where` against Python's
+        `python`, which the key names."""
         python_async = spec[0].startswith("async")
         rust_async = self.rust.is_async(method, owner)
         if python_async != rust_async:
             detail = (
                 "async in Python, not in Rust" if python_async else "async in Rust, not in Python"
             )
-            self.find("rust", where or owner, "async", detail, *pairs)
+            self.find("rust", where, "async", detail, *pairs, qualifier=python)
 
     def non_exhaustive(self, item: dict, python: str | None) -> None:
         """A struct a caller builds keeps no `#[non_exhaustive]`: outside its

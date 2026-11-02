@@ -96,8 +96,8 @@ lazy_constructor = { python = "__init__", decision = "luge-hitl:76e988fe Q6" }
 deferred_default = { python = "None", decision = "TODO: maintainer" }
 # Rust has no union parameter: Python's create(root | Workspace) is Rust's
 # new(root) and from_workspace(workspace), an associated from_<x> building
-# the type from a type Python names.
-union_constructor = { prefix = "from_", decision = "luge-hitl:76e988fe Q6" }
+# the type from one of `types`, which Python names too.
+union_constructor = { prefix = "from_", types = ["Workspace"], decision = "luge-hitl:76e988fe Q6" }
 # The RoomKit engine's tool protocol: Python's `definition` property and
 # `handler` are the Rust adapter's implementation of roomkit_ai's `Tool`, the
 # Rust form of that protocol. Each adapter has the name of its Python
@@ -245,13 +245,13 @@ covers = [
 [[pending]]
 reason = "roomkit_tools_web::WebFetchTool / roomkit_tools.WebFetchTool: async"
 covers = [
-  "rust roomkit_tools_web::WebFetchTool::new (async)",  # Python's async create(...), naming its parameters, is the constructor; Rust's new() is sync, needing no I/O
+  "rust roomkit_tools_web::WebFetchTool::new (async) [roomkit_tools.WebFetchTool.create]",  # Python's async create(...), naming its parameters, is the constructor; Rust's new() is sync, needing no I/O
 ]
 
 [[pending]]
 reason = "roomkit_tools_search::WebSearchTool / roomkit_tools.WebSearchTool: async"
 covers = [
-  "rust roomkit_tools_search::WebSearchTool::new (async)",  # Python's async create(...), naming its parameters, is the constructor; Rust's new(backend) is sync, needing no I/O
+  "rust roomkit_tools_search::WebSearchTool::new (async) [roomkit_tools.WebSearchTool.create]",  # Python's async create(...), naming its parameters, is the constructor; Rust's new(backend) is sync, needing no I/O
 ]
 
 [[pending]]
@@ -259,4 +259,17 @@ reason = "roomkit_tools_ocr_rusto::RustoOcr / roomkit_tools_ocr_rusto.RustoOcr: 
 covers = [
   "rust roomkit_tools_ocr_rusto::RustoOcr::identity (unmatched)",  # implements OcrBackend's identity; Python's RustoOcr has bind
   "rust roomkit_tools_ocr_rusto::RustoOcr::recognize (unmatched)",  # implements OcrBackend's recognize
+]
+
+[[pending]]
+reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool.__init__: unmatched (8); Python's public ShellTool(native, outputs=None) wraps the native tool create built and the OutputStore, a constructor Rust has not; the gate compares a factory class's __init__ taking more than the native object"
+covers = [
+  "python roomkit_tools.ShellTool.__init__(native) (unmatched) [roomkit_tools_process::ShellTool::new]",
+  "rust roomkit_tools_process::ShellTool::new(root) (unmatched) [roomkit_tools.ShellTool.__init__]",
+  "rust roomkit_tools_process::ShellLimits::max_command_bytes (unmatched) [roomkit_tools.ShellTool.__init__]",
+  "rust roomkit_tools_process::ShellLimits::max_output_bytes (unmatched) [roomkit_tools.ShellTool.__init__]",
+  "rust roomkit_tools_process::ShellLimits::default_timeout_ms (unmatched) [roomkit_tools.ShellTool.__init__]",
+  "rust roomkit_tools_process::ShellLimits::max_timeout_ms (unmatched) [roomkit_tools.ShellTool.__init__]",
+  "rust roomkit_tools_process::CommandEnv::inherit_env (unmatched) [roomkit_tools.ShellTool.__init__]",
+  "rust roomkit_tools_process::CommandEnv::env (unmatched) [roomkit_tools.ShellTool.__init__]",
 ]

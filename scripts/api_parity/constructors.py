@@ -45,7 +45,7 @@ def compare(
         else:
             rust_path = f"{item['path']}::{method['name']}"
             if not _lazy(comparison, member, spec, method, item):
-                comparison.check_async(method, item["path"], spec, pairs, where=rust_path)
+                comparison.check_async(method, item["path"], spec, pairs, rust_path, where)
             _returns(comparison, item, method, pairs)
             if _wraps(comparison, item, method, spec, pairs, where):
                 continue
@@ -118,9 +118,10 @@ def _lazy(comparison: Comparison, member: str, spec: list, method: dict, item: d
 def _alternates(comparison: Comparison, item: dict) -> list[str]:
     """`[rules] union_constructor`: Rust has no union parameter, so Python's
     `create(root | Workspace)` is `new(root)` and an associated
-    `from_workspace(workspace)` building the same type from a type Python
-    names."""
+    `from_workspace(workspace)` building the same type from one of the types
+    the rule names, which Python names too."""
     prefix = comparison.rules.setting("union_constructor", "prefix")
+    types = comparison.rules.setting("union_constructor", "types") or []
     builds = re.compile(rf"\b(?:Self|{re.escape(item['path'].rpartition('::')[2])})\b")
     found = []
     for method in item.get("methods", []):
@@ -130,13 +131,11 @@ def _alternates(comparison: Comparison, item: dict) -> list[str]:
             or method["receiver"] is not None
             or not method["name"].startswith(prefix)
             or not builds.search(method.get("returns") or "")
+            or len(params) != 1
+            or base_type(params[0]["type"]) not in types
         ):
             continue
-        source = (
-            comparison.surface.named("struct", base_type(params[0]["type"]), item["path"])
-            if len(params) == 1
-            else None
-        )
+        source = comparison.surface.named("struct", base_type(params[0]["type"]), item["path"])
         if source is not None and source["path"] in comparison.counterparts:
             found.append(method["name"])
     return found

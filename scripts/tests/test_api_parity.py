@@ -264,7 +264,7 @@ class Tools(unittest.TestCase):
         spec = {"pkg.ReadTool": dict(READ_SPEC["pkg.ReadTool"])}
         spec["pkg.ReadTool"]["read"] = ["def", "path", "*", "offset=1"]
         report = run(read_tool(), spec, contracts=READ_CONTRACTS)
-        self.assertEqual(keys(report), {"rust kit::ReadTool::read (async)"})
+        self.assertEqual(keys(report), {"rust kit::ReadTool::read (async) [pkg.ReadTool.read]"})
 
     def test_an_options_struct_keeps_no_non_exhaustive(self):
         items = read_tool()
@@ -634,7 +634,7 @@ class Members(unittest.TestCase):
         ]
         spec = {"pkg.Store": {"__init__": ["def"], "closed": ["property"], "size": ["property"]}}
         report = run(items, spec)
-        self.assertEqual(keys(report), {"rust kit::Store::size (form)"})
+        self.assertEqual(keys(report), {"rust kit::Store::size (form) [pkg.Store.size]"})
 
     def test_a_static_method_is_an_associated_function(self):
         items = [
@@ -645,7 +645,7 @@ class Members(unittest.TestCase):
         ]
         spec = {"pkg.Tool": {"__init__": ["def"], "definition": ["staticmethod"]}}
         report = run(items, spec)
-        self.assertEqual(keys(report), {"rust kit::Tool::definition (form)"})
+        self.assertEqual(keys(report), {"rust kit::Tool::definition (form) [pkg.Tool.definition]"})
 
     def test_a_model_is_built_from_its_fields(self):
         items = [struct("kit::Scope", fields=[("room_id", "String"), ("caller_id", "String")])]
@@ -663,7 +663,7 @@ class Members(unittest.TestCase):
         self.assertEqual(keys(report), {"rust kit::Backend::new (result)"})
 
     LAZY = 'lazy_constructor = { python = "__init__", decision = "ref" }\n'
-    UNION = 'union_constructor = { prefix = "from_", decision = "ref" }\n'
+    UNION = 'union_constructor = { prefix = "from_", types = ["Workspace"], decision = "ref" }\n'
     ROOTED = method(
         "new", ("root", "impl AsRef<Path>"), receiver=None, returns="Result<Self, E>", is_async=True
     )
@@ -674,7 +674,9 @@ class Members(unittest.TestCase):
         items = [struct("kit::Session", methods=[self.ROOTED])]
         specs = {"pkg.Session": {"__init__": ["def", "root"]}}
         self.assertEqual(keys(run(items, specs, rules=self.LAZY)), set())
-        self.assertEqual(keys(run(items, specs)), {"rust kit::Session::new (async)"})
+        self.assertEqual(
+            keys(run(items, specs)), {"rust kit::Session::new (async) [pkg.Session.__init__]"}
+        )
 
     def test_from_a_paired_type_is_the_constructors_union_parameter(self):
         """`[rules] union_constructor`: Python's `create(root | Workspace)`
@@ -697,6 +699,36 @@ class Members(unittest.TestCase):
         self.assertEqual(
             keys(run(items, specs, rules=self.LAZY)),
             {"rust kit::EditTool::from_workspace (unmatched)"},
+        )
+
+    def test_a_union_takes_only_the_types_its_rule_names(self):
+        from_store = method("from_store", ("store", "Store"), receiver=None, returns="Self")
+        items = [
+            struct("kit::EditTool", methods=[self.ROOTED, from_store]),
+            struct("kit::Store", methods=[self.ROOTED]),
+        ]
+        specs = {
+            "pkg.EditTool": {
+                "__init__": ["def", "native"],
+                "create": ["async classmethod", "root"],
+            },
+            "pkg.Store": {"__init__": ["def", "root"]},
+        }
+        self.assertEqual(
+            keys(run(items, specs, rules=self.LAZY + self.UNION)),
+            {"rust kit::EditTool::from_store (unmatched)"},
+        )
+
+    def test_a_factory_classs_init_is_compared_unless_it_wraps_the_native_object(self):
+        """With an async factory, Python's `__init__` taking only the native
+        object it built is not compared; one taking parameters is, as a
+        constructor."""
+        specs = {"pkg.ReadTool": dict(READ_SPEC["pkg.ReadTool"])}
+        self.assertEqual(keys(run(read_tool(), specs, contracts=READ_CONTRACTS)), set())
+        specs["pkg.ReadTool"]["__init__"] = ["def", "root", "*", "max_lines=None", "strict=False"]
+        self.assertEqual(
+            keys(run(read_tool(), specs, contracts=READ_CONTRACTS, rules=self.LAZY)),
+            {"python pkg.ReadTool.__init__(strict) (unmatched) [kit::ReadTool::new]"},
         )
 
     def test_items_and_names_on_one_side_only(self):

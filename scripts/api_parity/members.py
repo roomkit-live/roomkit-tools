@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from api_parity import calls, constructors, wire
+from api_parity.sides import python_params
 
 if TYPE_CHECKING:
     from api_parity.compare import Comparison
@@ -46,8 +47,12 @@ def compare(comparison: Comparison, python: str, spec: dict, items: list[dict]) 
     trait_bases = _trait_bases(comparison, python, items)
     rules = comparison.rules
     for member, member_spec in spec.items():
-        if member == "__bases__" or (member == "__init__" and constructor == rules.factory):
-            continue  # an async factory's __init__ wraps the native object it built
+        if member == "__bases__":
+            continue
+        if member == "__init__" and constructor == rules.factory:
+            if not _wraps_native(member_spec):
+                constructors.compare(comparison, python, member, member_spec, items, used)
+            continue
         if any(comparison.python.specs[base].get(member) == member_spec for base in trait_bases):
             continue  # compared on the base, which stands for a trait the items implement
         if member in rules.tool_protocol.members and not static(member_spec):
@@ -60,6 +65,13 @@ def compare(comparison: Comparison, python: str, spec: dict, items: list[dict]) 
             _member(comparison, python, member, member_spec, pool, used, interface, primary)
     wire.call_types(comparison, python, items)
     _leftovers(comparison, python, pool, used, primary, trait_bases)
+
+
+def _wraps_native(spec: list) -> bool:
+    """An async factory's `__init__` taking only the native object the
+    factory built: not compared."""
+    params = python_params(spec)
+    return len(params) == 1 and params[0].required and not params[0].variadic
 
 
 def _trait_bases(comparison: Comparison, python: str, items: list[dict]) -> list[str]:
@@ -189,7 +201,7 @@ def _property(
     if data["params"] or data["receiver"] is None:
         detail = f"{where} is a property: Rust's is no method of &self alone"
         path = f"{found.owner}::{data['name']}"
-        comparison.find("rust", path, "form", detail, found.owner, python)
+        comparison.find("rust", path, "form", detail, found.owner, python, qualifier=where)
 
 
 def static(spec: list) -> bool:
