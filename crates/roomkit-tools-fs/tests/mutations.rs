@@ -2,8 +2,8 @@
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
-    EditInput, EditLimits, EditTool, MutationWorkspace, PatchChange, PatchInput, PatchTool,
-    ReadInput, ReadTool, WriteInput, WriteLimits, WriteTool,
+    EditInput, EditLimits, EditTool, PatchChange, PatchInput, PatchTool, ReadInput, ReadTool,
+    Workspace, WriteInput, WriteLimits, WriteTool,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -501,7 +501,7 @@ async fn replacement_preserves_permissions_and_refuses_read_only_files() {
 #[tokio::test]
 async fn shared_workspace_serializes_mutations_without_losing_independent_edits() {
     let root = tempfile::tempdir().unwrap();
-    let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+    let workspace = Workspace::new(root.path()).await.unwrap();
     let write = WriteTool::from_workspace(workspace.clone());
     let edit = EditTool::from_workspace(workspace);
     let cancel = CancellationToken::new();
@@ -552,7 +552,7 @@ async fn created_files_get_the_mode_of_ordinary_file_creation() {
     // std::fs::write creates with 0o666 minus the process umask.
     std::fs::write(root.path().join("reference"), "x").unwrap();
     let expected = mode("reference");
-    let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+    let workspace = Workspace::new(root.path()).await.unwrap();
     let cancel = CancellationToken::new();
     WriteTool::from_workspace(workspace.clone())
         .write(WriteInput::new("written", "x"), &cancel)

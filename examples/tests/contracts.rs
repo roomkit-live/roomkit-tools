@@ -9,11 +9,10 @@ use std::time::Duration;
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
-    DiffTool, EditTool, GlobTool, GrepTool, ListTool, MutationWorkspace, PatchTool, ReadTool,
-    WriteTool,
+    DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, Workspace, WriteTool,
 };
 use roomkit_tools_process::{
-    OutputLimits, OutputStore, ProcessLimits, ProcessManager, ProcessStatusInput, ShellLimits,
+    OutputLimits, OutputStore, ProcessLimits, ProcessSession, ProcessStatusInput, ShellLimits,
     ShellTool,
 };
 use serde::de::DeserializeOwned;
@@ -30,8 +29,8 @@ fn input<T: DeserializeOwned>(arguments: &Value) -> Result<T, ToolError> {
 
 async fn invoke(
     root: &Path,
-    workspace: &MutationWorkspace,
-    manager: &ProcessManager,
+    workspace: &Workspace,
+    manager: &ProcessSession,
     outputs: Option<&OutputStore>,
     step: &Value,
     token: &CancellationToken,
@@ -155,7 +154,7 @@ fn snapshot(root: &Path, directory: &Path, files: &mut BTreeMap<String, Vec<u8>>
     }
 }
 
-async fn wait(manager: &ProcessManager, expected: &Value) {
+async fn wait(manager: &ProcessSession, expected: &Value) {
     // Synchronize on observed output/state, never on a guessed process delay.
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -213,7 +212,7 @@ async fn run_case(root: &Path, case: &Value, reports: &mut BTreeMap<String, Valu
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, bytes(content)).unwrap();
     }
-    let workspace = MutationWorkspace::new(root).await.unwrap();
+    let workspace = Workspace::new(root).await.unwrap();
     let storage = tempfile::tempdir().unwrap();
     let outputs = if case["outputs"] == true {
         let mut limits = OutputLimits::default();
@@ -225,7 +224,7 @@ async fn run_case(root: &Path, case: &Value, reports: &mut BTreeMap<String, Valu
     let mut limits = ProcessLimits::default();
     limits.max_output_bytes = 8;
     limits.max_read_bytes = 3;
-    let mut manager = ProcessManager::new(root)
+    let mut manager = ProcessSession::new(root)
         .await
         .unwrap()
         .with_limits(limits)

@@ -49,23 +49,23 @@ const fn default_edge() -> usize {
 }
 
 /// Loaded engine implementation. Its pools are private to this backend.
-pub struct RustoBackend {
+pub struct RustoOcr {
     engine: RustO,
     pool: rayon::ThreadPool,
     identity: OcrIdentity,
     options: OcrRunOptions,
 }
 
-impl std::fmt::Debug for RustoBackend {
+impl std::fmt::Debug for RustoOcr {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("RustoBackend")
+            .debug_struct("RustoOcr")
             .field("identity", &self.identity)
             .finish_non_exhaustive()
     }
 }
 
-impl RustoBackend {
+impl RustoOcr {
     /// Load local PP-OCRv6 models once. Each model is capped at 256 MiB, dictionary at 4 MiB.
     /// Each file is read once; the engine uses the bytes that were checked and fingerprinted.
     /// This synchronous initialization belongs on a host-owned blocking worker.
@@ -181,7 +181,7 @@ fn validate(config: &RustoConfig) -> Result<(), ToolError> {
 
 struct LazyBackend {
     config: RustoConfig,
-    loaded: Option<RustoBackend>,
+    loaded: Option<RustoOcr>,
 }
 
 impl OcrBackend for LazyBackend {
@@ -201,7 +201,7 @@ impl OcrBackend for LazyBackend {
         cancel: &CancellationToken,
     ) -> Result<Vec<OcrBlock>, ToolError> {
         if self.loaded.is_none() {
-            self.loaded = Some(RustoBackend::load_backend(self.config.clone())?);
+            self.loaded = Some(RustoOcr::load_backend(self.config.clone())?);
         }
         self.loaded
             .as_mut()
@@ -210,7 +210,7 @@ impl OcrBackend for LazyBackend {
     }
 }
 
-impl OcrBackend for RustoBackend {
+impl OcrBackend for RustoOcr {
     fn identity(&self) -> OcrIdentity {
         self.identity.clone()
     }

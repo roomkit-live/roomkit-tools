@@ -6,10 +6,10 @@ use roomkit_tools_core::{Output, ToolError};
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 
-use super::{Entry, ProcessManager};
+use super::{Entry, ProcessSession};
 use crate::{ProcessWriteInput, ProcessWriteResult};
 
-impl ProcessManager {
+impl ProcessSession {
     /// Write exact stdin bytes, with bounded waiting and explicit partial effects.
     ///
     /// # Errors

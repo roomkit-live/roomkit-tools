@@ -2,8 +2,8 @@
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
-    DiffInput, DiffLimits, DiffTool, EditInput, EditTool, MutationWorkspace, PatchChange,
-    PatchInput, PatchLimits, PatchOperation, PatchTool,
+    DiffInput, DiffLimits, DiffTool, EditInput, EditTool, PatchChange, PatchInput, PatchLimits,
+    PatchOperation, PatchTool, Workspace,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -396,7 +396,7 @@ async fn patch_limits_and_cancellation_prevent_writes() {
 async fn patch_and_edit_share_the_same_mutation_scope() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("orders"), "old").unwrap();
-    let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+    let workspace = Workspace::new(root.path()).await.unwrap();
     let patch = PatchTool::from_workspace(workspace.clone());
     let edit = EditTool::from_workspace(workspace);
     let mut input = PatchInput::new(vec![update("orders", "old", "patch")]);

@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use pyo3::prelude::*;
 use roomkit_tools_fs::{
-    EditInput, EditLimits, EditTool, MutationWorkspace, PatchInput, PatchLimits, PatchTool,
-    WriteInput, WriteLimits, WriteTool,
+    EditInput, EditLimits, EditTool, PatchInput, PatchLimits, PatchTool, Workspace, WriteInput,
+    WriteLimits, WriteTool,
 };
 use serde::Deserialize;
 use tokio::sync::OnceCell;
@@ -58,7 +58,7 @@ impl PatchOptions {
 #[derive(Clone, Debug)]
 pub(super) struct PythonWorkspace {
     root: PathBuf,
-    resolved: Arc<OnceCell<MutationWorkspace>>,
+    resolved: Arc<OnceCell<Workspace>>,
 }
 
 #[pymethods]
@@ -73,12 +73,12 @@ impl PythonWorkspace {
 }
 
 impl PythonWorkspace {
-    async fn resolve(&self) -> Result<MutationWorkspace, roomkit_tools_core::ToolError> {
+    async fn resolve(&self) -> Result<Workspace, roomkit_tools_core::ToolError> {
         // Unlike independent lazy read tools, concurrent mutation constructors
         // must resolve to the same lock. Cancelled/failed initialization can be
         // retried; no Python task or lock is bound to a particular asyncio loop.
         self.resolved
-            .get_or_try_init(|| MutationWorkspace::new(&self.root))
+            .get_or_try_init(|| Workspace::new(&self.root))
             .await
             .cloned()
     }

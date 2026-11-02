@@ -2,13 +2,13 @@
 
 use roomkit_tools_core::Definition;
 
-use super::ProcessManager;
+use super::ProcessSession;
 use crate::{
     ProcessReadInput, ProcessReadResult, ProcessStartInput, ProcessStatus, ProcessStatusInput,
     ProcessStopInput, ProcessStopResult, ProcessWriteInput, ProcessWriteResult,
 };
 
-impl ProcessManager {
+impl ProcessSession {
     /// Derived schema for starting a process.
     pub fn start_definition() -> Definition {
         Definition::new::<ProcessStartInput, ProcessStatus>(

@@ -52,7 +52,7 @@ use bridge::{ai_tool, anyone, serve, tool_error};
 /// Those toolsets file the jobs and archives of each call under this key:
 /// compact JSON of `[room_id, channel_id]`, the key Python's `roomkit_owner`
 /// also returns, so neither part can be mistaken for the other. Pass it to
-/// [`ProcessManager`](roomkit_tools_process::ProcessManager) and
+/// [`ProcessSession`](roomkit_tools_process::ProcessSession) and
 /// [`OutputStore`](roomkit_tools_process::OutputStore) methods to list, read,
 /// stop or release them from the host.
 pub fn roomkit_owner(room_id: &str, channel_id: &str) -> String {
@@ -129,7 +129,7 @@ toolset!(
 toolset!(
     /// Create or explicitly replace text files using a host-configured `write` tool.
     ///
-    /// Share a `MutationWorkspace` with `edit` to serialize mutations. Dropping
+    /// Share a `Workspace` with `edit` to serialize mutations. Dropping
     /// a call cancels it before commit; an already-started commit may finish.
     WriteToolset, WriteTool, write, "write"
 );

@@ -509,7 +509,7 @@
       "params": [
        {
         "name": "manager",
-        "type": "ProcessManager"
+        "type": "ProcessSession"
        }
       ],
       "returns": "Self",
@@ -536,7 +536,7 @@
       "params": [
        {
         "name": "manager",
-        "type": "ProcessManager"
+        "type": "ProcessSession"
        }
       ],
       "returns": "Self",
@@ -563,7 +563,7 @@
       "params": [
        {
         "name": "manager",
-        "type": "ProcessManager"
+        "type": "ProcessSession"
        }
       ],
       "returns": "Self",
@@ -590,7 +590,7 @@
       "params": [
        {
         "name": "manager",
-        "type": "ProcessManager"
+        "type": "ProcessSession"
        }
       ],
       "returns": "Self",
@@ -617,7 +617,7 @@
       "params": [
        {
         "name": "manager",
-        "type": "ProcessManager"
+        "type": "ProcessSession"
        }
       ],
       "returns": "Self",

@@ -7,13 +7,13 @@ use std::time::Duration;
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_process::{
-    CommandEnv, ProcessEnd, ProcessLimits, ProcessManager, ProcessReadInput, ProcessStartInput,
+    CommandEnv, ProcessEnd, ProcessLimits, ProcessReadInput, ProcessSession, ProcessStartInput,
     ProcessState, ProcessStatus, ProcessStatusInput, ProcessStopInput, ProcessWriteInput,
 };
 use tokio_util::sync::CancellationToken;
 
 #[expect(clippy::unwrap_used, reason = "fixture failure must fail tests")]
-async fn finished(manager: &ProcessManager, owner: &str, id: &str) -> ProcessStatus {
+async fn finished(manager: &ProcessSession, owner: &str, id: &str) -> ProcessStatus {
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let result = manager
@@ -57,7 +57,7 @@ async fn file(path: &Path) -> String {
 #[tokio::test]
 async fn stdin_eof_output_cursors_and_nonzero_exit() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     let id = manager
         .start(
@@ -150,7 +150,7 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
 #[tokio::test]
 async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     let id = manager
         .start(
@@ -221,7 +221,7 @@ async fn status_and_observation_follow_creation_order_past_nine_jobs() {
     let root = tempfile::tempdir().unwrap();
     let mut limits = ProcessLimits::default();
     limits.max_processes_per_owner = 11;
-    let manager = ProcessManager::new(root.path())
+    let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_limits(limits)
@@ -263,7 +263,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     let mut limits = ProcessLimits::default();
     limits.max_processes = 2;
     limits.max_processes_per_owner = 1;
-    let manager = ProcessManager::new(root.path())
+    let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_limits(limits)
@@ -398,11 +398,22 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
 }
 
 #[tokio::test]
+async fn closed_reports_a_requested_shutdown_to_every_clone() {
+    let root = tempfile::tempdir().unwrap();
+    let session = ProcessSession::new(root.path()).await.unwrap();
+    let clone = session.clone();
+    assert!(!session.closed());
+    assert!(session.close().await);
+    assert!(session.closed());
+    assert!(clone.closed());
+}
+
+#[tokio::test]
 async fn bounded_retention_exposes_every_gap_and_keeps_draining() {
     let root = tempfile::tempdir().unwrap();
     let mut limits = ProcessLimits::default();
     limits.max_output_bytes = 17;
-    let manager = ProcessManager::new(root.path())
+    let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_limits(limits)
@@ -431,7 +442,7 @@ async fn lifetime_timeout_caps_requests_and_retains_output() {
     let mut limits = ProcessLimits::default();
     limits.default_timeout_ms = 200;
     limits.max_timeout_ms = 200;
-    let manager = ProcessManager::new(root.path())
+    let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_limits(limits)
@@ -468,7 +479,7 @@ async fn blocked_stdin_reports_partial_bytes_and_does_not_prevent_stop() {
     let mut limits = ProcessLimits::default();
     limits.max_write_bytes = 2 * 1024 * 1024;
     limits.write_timeout_ms = 100;
-    let manager = ProcessManager::new(root.path())
+    let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_limits(limits)
@@ -503,7 +514,7 @@ async fn blocked_stdin_reports_partial_bytes_and_does_not_prevent_stop() {
 async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
     let root = tempfile::tempdir().unwrap();
     let outside = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     token.cancel();
     assert!(matches!(
@@ -536,7 +547,7 @@ async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
         serde_json::from_str::<ProcessReadInput>(r#"{"process_id":"p1","owner":"other"}"#).is_err()
     );
     assert_eq!(
-        ProcessManager::start_definition().input_schema["additionalProperties"],
+        ProcessSession::start_definition().input_schema["additionalProperties"],
         false
     );
     manager.close().await;
@@ -546,7 +557,7 @@ async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
 #[tokio::test]
 async fn dropping_last_manager_reaps_shell_and_stops_its_child() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     manager
         .start(
             "a",
@@ -580,7 +591,7 @@ async fn dropping_last_manager_reaps_shell_and_stops_its_child() {
 #[tokio::test]
 async fn closed_output_pipes_do_not_finish_a_still_running_process() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     let id = manager
         .start(
@@ -620,7 +631,7 @@ async fn closed_output_pipes_do_not_finish_a_still_running_process() {
 #[tokio::test]
 async fn concurrent_stdin_calls_preserve_each_payload_and_drain_all_bytes() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     let id = manager
         .start("a", ProcessStartInput::new("cat"), &token)
@@ -671,7 +682,7 @@ async fn concurrent_stdin_calls_preserve_each_payload_and_drain_all_bytes() {
 async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable() {
     for drop_call in [false, true] {
         let root = tempfile::tempdir().unwrap();
-        let manager = ProcessManager::new(root.path()).await.unwrap();
+        let manager = ProcessSession::new(root.path()).await.unwrap();
         let id = manager
             .start(
                 "a",
@@ -747,7 +758,7 @@ async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable(
 #[tokio::test]
 async fn normal_exit_stops_background_children_and_reaps_the_direct_child() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let id = manager
         .start(
             "a",
@@ -785,7 +796,7 @@ async fn normal_exit_stops_background_children_and_reaps_the_direct_child() {
 #[tokio::test]
 async fn each_process_leads_a_new_session_without_the_host_terminal() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     let id = manager
         .start(
@@ -829,7 +840,7 @@ async fn persistent_processes_do_not_receive_unlisted_host_variables() {
     // Cargo sets this in the test process; it stands for any host secret.
     assert!(std::env::var_os("CARGO_PKG_NAME").is_some());
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     let command = r#"printf '%s|%s' "${CARGO_PKG_NAME-unset}" "${PATH:+path}""#;
     let id = manager
@@ -854,7 +865,7 @@ async fn persistent_environment_is_host_configured_before_start() {
     let mut env = CommandEnv::default();
     env.inherit_env.push("CARGO_PKG_NAME".into());
     env.env.insert("GREETING".into(), "hello".into());
-    let manager = ProcessManager::new(root.path())
+    let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_env(env.clone())
@@ -882,7 +893,7 @@ async fn persistent_environment_is_host_configured_before_start() {
     let mut invalid = env;
     invalid.inherit_env.push("A=B".into());
     assert!(matches!(
-        ProcessManager::new(root.path())
+        ProcessSession::new(root.path())
             .await
             .unwrap()
             .with_env(invalid),
@@ -893,7 +904,7 @@ async fn persistent_environment_is_host_configured_before_start() {
 #[tokio::test]
 async fn reading_cat_preserves_stdin_and_reports_newline_and_normal_eof_exactly() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     let id = manager
         .start("a", ProcessStartInput::new("cat"), &token)

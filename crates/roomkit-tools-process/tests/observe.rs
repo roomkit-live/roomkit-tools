@@ -2,7 +2,7 @@
 #![cfg(unix)]
 
 use roomkit_tools_process::{
-    ProcessManager, ProcessStartInput, ProcessState, ProcessStopInput, ProcessWriteInput,
+    ProcessSession, ProcessStartInput, ProcessState, ProcessStopInput, ProcessWriteInput,
 };
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -10,7 +10,7 @@ use tokio_util::sync::CancellationToken;
 #[tokio::test]
 async fn observation_tracks_owners_natural_exit_stable_duration_and_forgetting() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let cancel = CancellationToken::new();
     let mut changes = manager.subscribe();
     assert!(manager.observe().await.is_empty());

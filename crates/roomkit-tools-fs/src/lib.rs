@@ -28,7 +28,7 @@ pub use edit::{EditInput, EditLimits, EditResult, EditTool};
 pub use glob::{GlobInput, GlobLimits, GlobTool};
 pub use grep::{GrepInput, GrepLimits, GrepMatch, GrepPage, GrepTool};
 pub use list::{ListInput, ListLimits, ListTool};
-pub use mutation::MutationWorkspace;
+pub use mutation::Workspace;
 pub use patch::{
     PatchApplied, PatchChange, PatchFailure, PatchInput, PatchLimits, PatchOperation, PatchPreview,
     PatchResult, PatchTool,

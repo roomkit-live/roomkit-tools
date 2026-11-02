@@ -9,7 +9,7 @@ use std::error::Error;
 use std::time::Duration;
 
 use roomkit_tools_process::{
-    ProcessManager, ProcessReadInput, ProcessStartInput, ProcessState, ProcessStatusInput,
+    ProcessReadInput, ProcessSession, ProcessStartInput, ProcessState, ProcessStatusInput,
     ProcessStopInput, ProcessWriteInput,
 };
 use tokio_util::sync::CancellationToken;
@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
     let root = tempfile::tempdir()?;
-    let manager = ProcessManager::new(root.path()).await?;
+    let manager = ProcessSession::new(root.path()).await?;
     let cancel = CancellationToken::new();
     let started = manager
         .start(

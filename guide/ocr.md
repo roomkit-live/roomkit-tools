@@ -80,10 +80,10 @@ use std::sync::Arc;
 
 use roomkit_ai::ToolEntry;
 use roomkit_tools_ocr::{OcrTool, OcrInput};
-use roomkit_tools_ocr_rusto::{RustoBackend, RustoConfig};
+use roomkit_tools_ocr_rusto::{RustoOcr, RustoConfig};
 use roomkit_tools_roomkit::OcrToolset;
 
-let engine = RustoBackend::lazy(RustoConfig {
+let engine = RustoOcr::lazy(RustoConfig {
     detection_model: "models/det.onnx".into(),
     recognition_model: "models/rec.onnx".into(),
     dictionary: "models/dict.txt".into(),

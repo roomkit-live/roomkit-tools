@@ -14,7 +14,7 @@ use roomkit::model::{
 use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
-use roomkit_tools_fs::{EditTool, MutationWorkspace, ReadTool, WriteTool};
+use roomkit_tools_fs::{EditTool, ReadTool, Workspace, WriteTool};
 use roomkit_tools_roomkit::{EditToolset, ReadToolset, WriteToolset};
 use serde_json::{Value, json};
 
@@ -59,7 +59,7 @@ fn script() -> [ScriptedRound; 6] {
 
 async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, Option<String>) {
     let root = tempfile::tempdir().unwrap();
-    let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+    let workspace = Workspace::new(root.path()).await.unwrap();
     let model = ScriptedProvider::new(script());
     let id = ChannelId::new("assistant").unwrap();
     let tools: Vec<ToolEntry> = vec![
@@ -186,7 +186,7 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
     let path = root.path().join("notes");
     std::fs::write(&path, "count=1\nowner=Alex\n").unwrap();
     let read = ReadToolset::new(ReadTool::new(root.path()).await.unwrap());
-    let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+    let workspace = Workspace::new(root.path()).await.unwrap();
     let edit = EditToolset::new(EditTool::from_workspace(workspace.clone()));
     let write = WriteToolset::new(WriteTool::from_workspace(workspace));
     let ToolResult::Json(original) = read
@@ -243,7 +243,7 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
 #[tokio::test]
 async fn adapters_keep_overwrite_and_ambiguity_refusals_and_decline_other_tools() {
     let root = tempfile::tempdir().unwrap();
-    let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+    let workspace = Workspace::new(root.path()).await.unwrap();
     let write = WriteToolset::new(WriteTool::from_workspace(workspace.clone()));
     let edit = EditToolset::new(EditTool::from_workspace(workspace));
     assert_eq!(write.definition().name, "write");

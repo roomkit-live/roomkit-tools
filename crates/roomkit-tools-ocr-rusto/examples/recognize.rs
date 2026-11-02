@@ -4,7 +4,7 @@
     reason = "example emits the observed tool envelope"
 )]
 use roomkit_tools_ocr::{OcrInput, OcrTool};
-use roomkit_tools_ocr_rusto::{RustoBackend, RustoConfig};
+use roomkit_tools_ocr_rusto::{RustoConfig, RustoOcr};
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = args.next().ok_or("expected image workspace")?;
     let path = args.next().ok_or("expected image path")?;
     let rotation_degrees = args.next().map_or(Ok(0), |arg| arg.parse::<u16>())?;
-    let engine = RustoBackend::lazy(RustoConfig {
+    let engine = RustoOcr::lazy(RustoConfig {
         detection_model: models.join("det.onnx"),
         recognition_model: models.join("rec.onnx"),
         dictionary: models.join("dict.txt"),

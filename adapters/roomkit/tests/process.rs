@@ -11,7 +11,7 @@ use roomkit::model::{ChannelId, ChannelType, InboundMessage, RoomId, TextContent
 use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{ToolEntry, ToolError, ToolResult};
-use roomkit_tools_process::ProcessManager;
+use roomkit_tools_process::ProcessSession;
 use roomkit_tools_roomkit::{
     ProcessReadToolset, ProcessStartToolset, ProcessStatusToolset, ProcessStopToolset,
     ProcessWriteToolset,
@@ -30,7 +30,7 @@ fn json_answer(answer: Result<ToolResult, ToolError>) -> Value {
 #[tokio::test]
 async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
     let fixture = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(fixture.path()).await.unwrap();
+    let manager = ProcessSession::new(fixture.path()).await.unwrap();
     let start = ProcessStartToolset::new(manager.clone());
     let read = ProcessReadToolset::new(manager.clone());
     let write = ProcessWriteToolset::new(manager.clone());
@@ -125,14 +125,14 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
         .await,
     );
     assert_eq!(stopped["data"]["forgotten"], true);
-    // The host, not the adapters, closes the shared manager.
+    // The host, not the adapters, closes the shared session.
     assert!(manager.close().await);
 }
 
 #[tokio::test]
 async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
     let fixture = tempfile::tempdir().unwrap();
-    let manager = ProcessManager::new(fixture.path()).await.unwrap();
+    let manager = ProcessSession::new(fixture.path()).await.unwrap();
     let model = ScriptedProvider::new([
         ScriptedRound::calling("", [("p1", "process_start", r#"{"command":"cat"}"#)]),
         ScriptedRound::calling(
@@ -201,7 +201,7 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
             .find(|t| t.name == "process_start")
             .unwrap()
             .parameters,
-        ProcessManager::start_definition().input_schema
+        ProcessSession::start_definition().input_schema
     );
     let result_of = |request: usize, call: &str| -> Value {
         let message = requests[request]
@@ -236,7 +236,7 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
         ),
         ScriptedRound::answering("The command was refused."),
     ]);
-    let manager = ProcessManager::new(fixture.path()).await.unwrap();
+    let manager = ProcessSession::new(fixture.path()).await.unwrap();
     let agent_id = ChannelId::new("assistant").unwrap();
     let start = ToolEntry::Tool(Arc::new(ProcessStartToolset::new(manager.clone())));
     let agent = common::agent(&agent_id, &model, vec![start]).unwrap();

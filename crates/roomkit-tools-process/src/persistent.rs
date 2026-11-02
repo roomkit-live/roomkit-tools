@@ -61,11 +61,11 @@ pub struct ObservedProcess {
 /// [`crate::DEFAULT_INHERITED_ENV`]. Each command leads a new Unix session
 /// without a controlling terminal.
 #[derive(Clone, Debug)]
-pub struct ProcessManager {
+pub struct ProcessSession {
     inner: Arc<Inner>,
 }
 
-impl ProcessManager {
+impl ProcessSession {
     /// Resolve an existing root for initial working directories.
     ///
     /// # Errors
@@ -102,6 +102,12 @@ impl ProcessManager {
         })
     }
 
+    /// Whether shutdown was requested, not whether all cleanup has finished.
+    /// A closed session cannot reopen; every clone shares this state.
+    pub fn closed(&self) -> bool {
+        self.inner.closed.is_cancelled()
+    }
+
     /// Subscribe to coalesced lifecycle changes (start, finish, forget, close).
     /// Subscribe before taking an observation to avoid a missed wakeup. Output
     /// bytes do not trigger notifications; page output only when needed.
@@ -132,11 +138,11 @@ impl ProcessManager {
         processes
     }
 
-    /// Attach optional output storage before cloning/starting. Closing this manager
+    /// Attach optional output storage before cloning/starting. Closing this session
     /// stops capture but keeps disk copies until the store is explicitly closed.
     ///
     /// # Errors
-    /// Refuses shared or previously used managers.
+    /// Refuses shared or previously used sessions.
     pub fn with_output_store(mut self, outputs: crate::OutputStore) -> Result<Self, ToolError> {
         let inner = Arc::get_mut(&mut self.inner).ok_or_else(|| {
             ToolError::AccessRefused("configure output storage before cloning".into())
@@ -153,7 +159,7 @@ impl ProcessManager {
     /// Set positive host bounds before cloning or starting processes.
     ///
     /// # Errors
-    /// Rejects shared/used managers, inconsistent bounds and timers above 24 hours.
+    /// Rejects shared/used sessions, inconsistent bounds and timers above 24 hours.
     pub fn with_limits(mut self, limits: ProcessLimits) -> Result<Self, ToolError> {
         if limits.max_processes == 0
             || limits.max_processes_per_owner == 0
@@ -187,7 +193,7 @@ impl ProcessManager {
     ///
     /// # Errors
     /// Rejects invalid variable names or values, as [`CommandEnv::validate`],
-    /// and shared or previously used managers.
+    /// and shared or previously used sessions.
     pub fn with_env(mut self, env: CommandEnv) -> Result<Self, ToolError> {
         env.validate()?;
         let inner = Arc::get_mut(&mut self.inner).ok_or_else(|| {
@@ -262,7 +268,7 @@ impl ProcessManager {
         Ok(cwd)
     }
 
-    /// Spawn and transfer ownership to the manager before returning its identifier.
+    /// Spawn and transfer ownership to the session before returning its identifier.
     ///
     /// # Errors
     /// Rejects invalid commands, escaping initial paths, quotas and cancellation
@@ -329,7 +335,7 @@ impl ProcessManager {
     /// Inspect or list this owner's records, in creation order, without consuming output.
     ///
     /// # Errors
-    /// Rejects unknown/foreign identifiers, closed managers and cancellation.
+    /// Rejects unknown/foreign identifiers, closed sessions and cancellation.
     pub async fn status(
         &self,
         owner: &str,
@@ -465,7 +471,7 @@ impl ProcessManager {
         self.finish_close(entries).await
     }
 
-    /// Permanently close the manager, stop every group and release retained output.
+    /// Permanently close the session, stop every group and release retained output.
     /// Returns whether cleanup finished within the collective two-second wait.
     pub async fn close(&self) -> bool {
         self.inner.closed.cancel();
@@ -519,7 +525,7 @@ mod tests {
             max_processes_per_owner: 1,
             ..ProcessLimits::default()
         };
-        let manager = ProcessManager::new(root.path())
+        let manager = ProcessSession::new(root.path())
             .await
             .unwrap()
             .with_limits(limits)
@@ -557,7 +563,7 @@ mod tests {
 }
 
 // Wait on the existing worker signal, without polling output or retaining the
-// manager itself past its owning host.
+// session itself past its owning host.
 #[cfg(unix)]
 fn notify_finished(mut done: watch::Receiver<bool>, changes: watch::Sender<()>) {
     tokio::spawn(async move {

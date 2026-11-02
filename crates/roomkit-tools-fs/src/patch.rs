@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 use crate::patch_prepare::{Job, prepare};
-use crate::{DiffLimits, DiffResult, MutationWorkspace, mutation};
+use crate::{DiffLimits, DiffResult, Workspace, mutation};
 
 /// A version-1 structured patch operation. Text expectations match whole files exactly.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -172,7 +172,7 @@ pub struct PatchResult {
 /// Independently selectable structured multi-file mutations.
 #[derive(Clone, Debug)]
 pub struct PatchTool {
-    workspace: MutationWorkspace,
+    workspace: Workspace,
     limits: PatchLimits,
 }
 
@@ -182,11 +182,11 @@ impl PatchTool {
     /// # Errors
     /// Returns invalid-root or I/O failures.
     pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
-        Ok(Self::from_workspace(MutationWorkspace::new(root).await?))
+        Ok(Self::from_workspace(Workspace::new(root).await?))
     }
 
     /// Share serialization with write and edit.
-    pub fn from_workspace(workspace: MutationWorkspace) -> Self {
+    pub fn from_workspace(workspace: Workspace) -> Self {
         Self {
             workspace,
             limits: PatchLimits::default(),

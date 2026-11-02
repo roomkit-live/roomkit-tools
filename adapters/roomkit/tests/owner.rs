@@ -7,7 +7,7 @@ mod call;
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_process::{
-    OutputForgetInput, OutputLimits, OutputStore, ProcessManager, ProcessReadInput, ProcessState,
+    OutputForgetInput, OutputLimits, OutputStore, ProcessReadInput, ProcessSession, ProcessState,
     ProcessStatusInput, ProcessStopInput, ShellTool,
 };
 use roomkit_tools_roomkit::{
@@ -59,7 +59,7 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
     let store = OutputStore::new(root.path(), OutputLimits::default())
         .await
         .unwrap();
-    let manager = ProcessManager::new(root.path())
+    let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_output_store(store.clone())
@@ -128,7 +128,7 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     let store = OutputStore::new(root.path(), OutputLimits::default())
         .await
         .unwrap();
-    let manager = ProcessManager::new(root.path()).await.unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
     let shell = ShellTool::new(root.path()).await.unwrap();
     let archiving = ShellToolset::new(shell.with_output_store(store.clone()));
     let shell_refusal = "shell archive tools require a conversation and an acting agent";

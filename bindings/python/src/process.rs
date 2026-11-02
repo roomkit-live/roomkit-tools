@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use pyo3::prelude::*;
 use roomkit_tools_process::{
-    CommandEnv, DEFAULT_INHERITED_ENV, ProcessLimits, ProcessManager, ProcessReadInput,
+    CommandEnv, DEFAULT_INHERITED_ENV, ProcessLimits, ProcessReadInput, ProcessSession,
     ProcessStartInput, ProcessStatusInput, ProcessStopInput, ProcessWriteInput,
 };
 use serde::Deserialize;
@@ -101,13 +101,13 @@ struct SessionState {
     root: PathBuf,
     limits: ProcessLimits,
     env: CommandEnv,
-    manager: OnceCell<ProcessManager>,
+    manager: OnceCell<ProcessSession>,
     closed: CancellationToken,
     outputs: Option<Arc<super::output::State>>,
 }
 
 impl SessionState {
-    async fn resolve(&self) -> Result<ProcessManager, roomkit_tools_core::ToolError> {
+    async fn resolve(&self) -> Result<ProcessSession, roomkit_tools_core::ToolError> {
         if self.closed.is_cancelled() {
             return Err(roomkit_tools_core::ToolError::AccessRefused(
                 "process session is closed".into(),
@@ -116,7 +116,7 @@ impl SessionState {
         let manager = self
             .manager
             .get_or_try_init(|| async {
-                let mut manager = ProcessManager::new(&self.root)
+                let mut manager = ProcessSession::new(&self.root)
                     .await?
                     .with_limits(self.limits)?
                     .with_env(self.env.clone())?;
@@ -214,11 +214,11 @@ impl PythonProcessSession {
     #[staticmethod]
     fn definition_json(name: &str) -> PyResult<String> {
         let definition = match name {
-            "process_start" => ProcessManager::start_definition(),
-            "process_status" => ProcessManager::status_definition(),
-            "process_read" => ProcessManager::read_definition(),
-            "process_write" => ProcessManager::write_definition(),
-            "process_stop" => ProcessManager::stop_definition(),
+            "process_start" => ProcessSession::start_definition(),
+            "process_status" => ProcessSession::status_definition(),
+            "process_read" => ProcessSession::read_definition(),
+            "process_write" => ProcessSession::write_definition(),
+            "process_stop" => ProcessSession::stop_definition(),
             _ => return Err(InvalidInputError::new_err("unknown process tool")),
         };
         serde_json::to_string(&definition)

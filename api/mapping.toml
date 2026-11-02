@@ -80,24 +80,6 @@ roomkit_tools_roomkit = ["roomkit_tools.roomkit", "roomkit_tools"]
 # ---------------------------------------------------------------------------
 
 [[pending]]
-rust = "roomkit_tools_fs::MutationWorkspace"
-python = "roomkit_tools.Workspace"
-reason = "The shared mutation scope: Rust's MutationWorkspace, Python's Workspace"
-covers = ["rust roomkit_tools_fs::MutationWorkspace (name)"]
-
-[[pending]]
-rust = "roomkit_tools_process::ProcessManager"
-python = "roomkit_tools.ProcessSession"
-reason = "The persistent processes: Rust's ProcessManager, Python's ProcessSession"
-covers = ["rust roomkit_tools_process::ProcessManager (name)"]
-
-[[pending]]
-rust = "roomkit_tools_process::OutputStore::is_closed"
-python = "roomkit_tools.OutputStore.closed"
-reason = "Rust's is_closed(), Python's closed property"
-covers = ["rust roomkit_tools_process::OutputStore::is_closed (name)"]
-
-[[pending]]
 rust = "roomkit_tools_docs::DocsListTool"
 python = "roomkit_tools.DocsList"
 reason = "Rust's DocsListTool, Python's DocsList (no Tool suffix)"
@@ -302,16 +284,10 @@ reason = "Rust's definition(), Python's contract() (Python's definition is the R
 covers = ["rust roomkit_tools_agents::AgentSendTool::definition (name)"]
 
 [[pending]]
-rust = "roomkit_tools_ocr_rusto::RustoBackend"
-python = "roomkit_tools_ocr_rusto.RustoOcr"
-reason = "The RustO engine: Rust's RustoBackend, Python's RustoOcr"
-covers = ["rust roomkit_tools_ocr_rusto::RustoBackend (name)"]
-
-[[pending]]
-rust = "roomkit_tools_ocr_rusto::RustoBackend::lazy"
+rust = "roomkit_tools_ocr_rusto::RustoOcr::lazy"
 python = "roomkit_tools_ocr_rusto.RustoOcr.__init__"
-reason = "Rust builds the lazy engine with RustoBackend::lazy(RustoConfig); Python with RustoOcr(models, ...)"
-covers = ["rust roomkit_tools_ocr_rusto::RustoBackend::lazy (name)"]
+reason = "Rust builds the lazy engine with RustoOcr::lazy(RustoConfig); Python with RustoOcr(models, ...)"
+covers = ["rust roomkit_tools_ocr_rusto::RustoOcr::lazy (name)"]
 
 [[pending]]
 reason = "roomkit_tools_agents::AgentContract / no Python name: unmatched"
@@ -528,9 +504,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::MutationWorkspace / roomkit_tools.Workspace: async"
+reason = "roomkit_tools_fs::Workspace / roomkit_tools.Workspace: async"
 covers = [
-  "rust roomkit_tools_fs::MutationWorkspace::new (async)",  # async in Rust, not in Python
+  "rust roomkit_tools_fs::Workspace::new (async)",  # async in Rust, not in Python
 ]
 
 [[pending]]
@@ -677,9 +653,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_ocr_rusto::RustoBackend / roomkit_tools_ocr_rusto.RustoOcr: result, defaulted (3), unmatched (6)"
+reason = "roomkit_tools_ocr_rusto::RustoOcr / roomkit_tools_ocr_rusto.RustoOcr: result, defaulted (3), unmatched (6)"
 covers = [
-  "rust roomkit_tools_ocr_rusto::RustoBackend::lazy (result)",  # returns Result<OcrEngine, Error>, not a RustoBackend
+  "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (result)",  # returns Result<OcrEngine, ToolError>, not a RustoOcr
   "rust roomkit_tools_ocr_rusto::RustoConfig::model_name (defaulted)",  # Python defaults it (model_name='ppocrv6'); Rust requires it
   "rust roomkit_tools_ocr_rusto::RustoConfig::threads (defaulted)",  # Python defaults it (threads=2); Rust requires it
   "rust roomkit_tools_ocr_rusto::RustoConfig::detection_max_edge (defaulted)",  # Python defaults it (detection_max_edge=960); Rust requires it
@@ -688,7 +664,7 @@ covers = [
   "rust roomkit_tools_ocr_rusto::RustoConfig::recognition_model (unmatched)",  # no Python parameter
   "rust roomkit_tools_ocr_rusto::RustoConfig::dictionary (unmatched)",  # no Python parameter
   "python roomkit_tools_ocr_rusto.RustoOcr.bind (unmatched)",  # no Rust method
-  "rust roomkit_tools_ocr_rusto::RustoBackend::load (unmatched)",  # no Python member
+  "rust roomkit_tools_ocr_rusto::RustoOcr::load (unmatched)",  # no Python member
 ]
 
 [[pending]]
@@ -773,27 +749,26 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::ProcessManager / roomkit_tools.ProcessSession: async, unmatched (10), defaulted (8)"
+reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: async, unmatched (9), defaulted (8)"
 covers = [
-  "rust roomkit_tools_process::ProcessManager::new (async)",  # async in Rust, not in Python
+  "rust roomkit_tools_process::ProcessSession::new (async)",  # async in Rust, not in Python
   "python roomkit_tools.ProcessSession.call (unmatched)",  # no Rust method
-  "python roomkit_tools.ProcessSession.closed (unmatched)",  # a property: no Rust method or field
   "python roomkit_tools.ProcessSession.definition (unmatched)",  # no Rust method
-  "rust roomkit_tools_process::ProcessManager::read(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::ProcessManager::start(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::ProcessManager::status(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessSession::read(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessSession::start(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessSession::status(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::ProcessStopInput::forget (defaulted)",  # Python defaults it (forget=False); Rust requires it
-  "rust roomkit_tools_process::ProcessManager::stop(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessSession::stop(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::ProcessWriteInput::text (defaulted)",  # Python defaults it (text=''); Rust requires it
   "rust roomkit_tools_process::ProcessWriteInput::close_stdin (defaulted)",  # Python defaults it (close_stdin=False); Rust requires it
-  "rust roomkit_tools_process::ProcessManager::write(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::ProcessManager::start_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessManager::status_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessManager::read_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessManager::write_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessManager::stop_definition (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessManager::subscribe (unmatched)",  # no Python member
-  "rust roomkit_tools_process::ProcessManager::observe (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessSession::write(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessSession::start_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessSession::status_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessSession::read_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessSession::write_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessSession::stop_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessSession::subscribe (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessSession::observe (unmatched)",  # no Python member
 ]
 
 [[pending]]

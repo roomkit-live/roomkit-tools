@@ -49,6 +49,10 @@ part of an existing published preview.
 - Rust: the core error is `ToolError`, as in Python, and its variants
   `Refused` and `Unsupported` are `AccessRefused` and `UnsupportedResource`,
   as Python's `AccessRefusedError` and `UnsupportedResourceError`.
+- Rust takes Python's names: `ProcessManager` is `ProcessSession`,
+  `MutationWorkspace` is `Workspace`, `RustoBackend` is `RustoOcr`, and
+  `OutputStore::is_closed` is `closed`. `ProcessSession::closed` reports a
+  requested shutdown, as Python's `closed` property.
 
 ### Added
 

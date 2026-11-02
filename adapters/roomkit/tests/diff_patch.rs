@@ -10,7 +10,7 @@ use roomkit::model::{ChannelId, ChannelType, InboundMessage, Metadata, RoomId, T
 use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
-use roomkit_tools_fs::{DiffTool, MutationWorkspace, PatchTool};
+use roomkit_tools_fs::{DiffTool, PatchTool, Workspace};
 use roomkit_tools_roomkit::{DiffToolset, PatchToolset};
 use serde_json::{Value, json};
 
@@ -68,7 +68,7 @@ async fn scenario(refused: bool) -> Vec<Value> {
             DiffTool::new(root.path()).await.unwrap(),
         ))),
         ToolEntry::Tool(Arc::new(PatchToolset::new(PatchTool::from_workspace(
-            MutationWorkspace::new(root.path()).await.unwrap(),
+            Workspace::new(root.path()).await.unwrap(),
         )))),
     ];
     let agent = common::agent(&id, &model, tools).unwrap();

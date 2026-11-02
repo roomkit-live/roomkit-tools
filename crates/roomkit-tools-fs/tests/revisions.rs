@@ -2,7 +2,7 @@
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
-    EditInput, EditTool, MutationWorkspace, ReadInput, ReadTool, WriteInput, WriteTool,
+    EditInput, EditTool, ReadInput, ReadTool, Workspace, WriteInput, WriteTool,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -190,7 +190,7 @@ async fn shared_mutation_lock_covers_the_revision_check() {
         .unwrap()
         .data
         .revision;
-    let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+    let workspace = Workspace::new(root.path()).await.unwrap();
     let first = EditTool::from_workspace(workspace.clone());
     let second = EditTool::from_workspace(workspace);
     let mut a = EditInput::new("notes", "count=1", "count=2");

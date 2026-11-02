@@ -2,7 +2,7 @@
 
 ## Host observation
 
-Subscribe with `ProcessManager::subscribe()` before calling `observe()`. The watch
+Subscribe with `ProcessSession::subscribe()` before calling `observe()`. The watch
 receiver coalesces starts, completions, removal and shutdown; output chunks do not
 produce notifications. Observations include the exact command, trusted owner key,
 elapsed runtime (frozen on completion) and current status. This is a privileged

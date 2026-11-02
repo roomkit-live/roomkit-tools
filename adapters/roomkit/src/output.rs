@@ -18,7 +18,7 @@ macro_rules! owned_toolset {
 
         impl $name {
             /// Select one capability. The host closes the shared `OutputStore`
-            /// after its shell calls and process managers have finished.
+            /// after its shell calls and process sessions have finished.
             pub fn new(tool: $tool) -> Self {
                 Self { tool: Arc::new(tool) }
             }
@@ -53,7 +53,7 @@ pub struct ShellToolset {
 
 impl ShellToolset {
     /// Select the shell. The host closes its `OutputStore`, if any, after its
-    /// shell calls and process managers have finished.
+    /// shell calls and process sessions have finished.
     pub fn new(tool: ShellTool) -> Self {
         Self {
             tool: Arc::new(tool),

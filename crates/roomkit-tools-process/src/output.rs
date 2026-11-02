@@ -190,7 +190,7 @@ impl OutputStore {
     }
 
     /// Whether close was requested. Closed stores cannot reopen.
-    pub fn is_closed(&self) -> bool {
+    pub fn closed(&self) -> bool {
         self.inner.closed.is_cancelled()
     }
 
@@ -223,7 +223,7 @@ impl OutputStore {
         if cancel.is_cancelled() {
             return Err(ToolError::Cancelled);
         }
-        if self.is_closed() {
+        if self.closed() {
             return Err(ToolError::AccessRefused("output store is closed".into()));
         }
         lock(&self.inner.registry)
@@ -247,7 +247,7 @@ impl OutputStore {
         if cancel.is_cancelled() {
             return Err(ToolError::Cancelled);
         }
-        if self.is_closed() {
+        if self.closed() {
             return Err(ToolError::AccessRefused("output store is closed".into()));
         }
         let registry = lock(&self.inner.registry);
@@ -381,7 +381,7 @@ impl OutputStore {
 
     pub(crate) fn begin(&self, owner: &str) -> Sink {
         let mut registry = lock(&self.inner.registry);
-        let error = if self.is_closed() {
+        let error = if self.closed() {
             Some("store_closed")
         } else if registry.entries.len() >= self.inner.limits.max_archives
             || registry

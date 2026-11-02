@@ -48,7 +48,7 @@ host's environment do not reach commands unless listed. `Shell`, `ShellTool.crea
 and `ProcessSession` take the same two options and check them when constructed:
 a name must be nonempty without `=` or NUL and a value must not contain NUL,
 otherwise `InvalidInputError`. Rust hosts pass a `CommandEnv` with the same
-`inherit_env` and `env` fields to `ShellTool::with_env` or `ProcessManager::with_env`.
+`inherit_env` and `env` fields to `ShellTool::with_env` or `ProcessSession::with_env`.
 
 Host constructor bounds are `max_command_bytes` (16 KiB), `max_output_bytes`
 (32 KiB raw bytes per stream), `default_timeout_ms` (10,000) and `max_timeout_ms`
@@ -109,7 +109,7 @@ async with ProcessSession(root="./workspace") as processes:
     # leaving this scope. Only the selected tools are exposed.
 ```
 
-`ProcessSession` owns a distinct Rust manager. Every job belongs to one owner, a
+`ProcessSession` owns a distinct Rust session. Every job belongs to one owner, a
 trusted string the host supplies and model arguments never select. Each RoomKit
 process tool call belongs to the owner of the current room and acting AI
 channel, `roomkit_owner(room_id, channel_id)`: compact JSON of the two IDs, the
@@ -309,7 +309,7 @@ RoomKit loop, native tools, disk reads and verifier are real.
 
 ## Rust host observation
 
-Subscribe with `ProcessManager::subscribe()` before calling `observe()`. The watch
+Subscribe with `ProcessSession::subscribe()` before calling `observe()`. The watch
 receiver coalesces starts, completions, removal and shutdown; output chunks do not
 produce notifications. Observations include the exact command, trusted owner key,
 elapsed runtime (frozen on completion) and current status. This is a privileged

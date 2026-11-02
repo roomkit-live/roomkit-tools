@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 use crate::paths::Root;
-use crate::{MutationWorkspace, line_endings, mutation, revision};
+use crate::{Workspace, line_endings, mutation, revision};
 
 /// Replace an exact, nonempty piece of a UTF-8 text file.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -81,7 +81,7 @@ pub struct EditResult {
 /// Exact text replacement preserving all bytes outside matched spans.
 #[derive(Clone, Debug)]
 pub struct EditTool {
-    workspace: MutationWorkspace,
+    workspace: Workspace,
     limits: EditLimits,
 }
 
@@ -91,11 +91,11 @@ impl EditTool {
     /// # Errors
     /// Returns invalid input or I/O for an invalid root.
     pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
-        Ok(Self::from_workspace(MutationWorkspace::new(root).await?))
+        Ok(Self::from_workspace(Workspace::new(root).await?))
     }
 
     /// Share serialization with other tools using clones of this workspace.
-    pub fn from_workspace(workspace: MutationWorkspace) -> Self {
+    pub fn from_workspace(workspace: Workspace) -> Self {
         Self {
             workspace,
             limits: EditLimits::default(),

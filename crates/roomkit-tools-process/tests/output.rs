@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_process::{
-    OutputForgetInput, OutputLimits, OutputReadInput, OutputStore, ProcessLimits, ProcessManager,
+    OutputForgetInput, OutputLimits, OutputReadInput, OutputStore, ProcessLimits, ProcessSession,
     ProcessStartInput, ProcessStatusInput, ProcessWriteInput, ShellInput, ShellLimits, ShellTool,
 };
 use tokio_util::sync::CancellationToken;
@@ -241,7 +241,7 @@ async fn process_archives_remain_readable_after_manager_close() {
         .unwrap();
     let mut limits = ProcessLimits::default();
     limits.max_output_bytes = 2;
-    let manager = ProcessManager::new(root.path())
+    let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_limits(limits)
@@ -325,7 +325,7 @@ async fn closing_store_keeps_the_process_running_and_refuses_reads() {
     let store = OutputStore::new(root.path(), OutputLimits::default())
         .await
         .unwrap();
-    let manager = ProcessManager::new(root.path())
+    let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_output_store(store.clone())

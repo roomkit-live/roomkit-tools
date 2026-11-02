@@ -5,9 +5,7 @@
     reason = "the executable example shows its checked results"
 )]
 
-use roomkit_tools_fs::{
-    DiffInput, DiffTool, MutationWorkspace, PatchChange, PatchInput, PatchTool,
-};
+use roomkit_tools_fs::{DiffInput, DiffTool, PatchChange, PatchInput, PatchTool, Workspace};
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main(flavor = "current_thread")]
@@ -19,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write(root.path().join("proposed.txt"), new)?;
     let token = CancellationToken::new();
     let diff = DiffTool::new(root.path()).await?;
-    let patch = PatchTool::from_workspace(MutationWorkspace::new(root.path()).await?);
+    let patch = PatchTool::from_workspace(Workspace::new(root.path()).await?);
     let before = diff
         .diff(DiffInput::new("hours.txt", "proposed.txt"), &token)
         .await?;

@@ -10,14 +10,14 @@ use std::error::Error;
 use std::process::ExitCode;
 
 use roomkit_tools_fs::{
-    EditInput, EditTool, MutationWorkspace, ReadInput, ReadTool, WriteInput, WriteTool,
+    EditInput, EditTool, ReadInput, ReadTool, Workspace, WriteInput, WriteTool,
 };
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<ExitCode, Box<dyn Error>> {
     let root = tempfile::tempdir()?;
-    let workspace = MutationWorkspace::new(root.path()).await?;
+    let workspace = Workspace::new(root.path()).await?;
     let write = WriteTool::from_workspace(workspace.clone());
     let edit = EditTool::from_workspace(workspace);
     let cancel = CancellationToken::new();

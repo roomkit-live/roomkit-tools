@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
-use crate::{MutationWorkspace, mutation, revision};
+use crate::{Workspace, mutation, revision};
 
 /// Create a UTF-8 text file or explicitly replace an existing one.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -72,7 +72,7 @@ pub struct WriteResult {
 /// Stage and commit complete UTF-8 text files beneath an explicit root.
 #[derive(Clone, Debug)]
 pub struct WriteTool {
-    workspace: MutationWorkspace,
+    workspace: Workspace,
     limits: WriteLimits,
 }
 
@@ -82,11 +82,11 @@ impl WriteTool {
     /// # Errors
     /// Returns invalid input or I/O for an invalid root.
     pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
-        Ok(Self::from_workspace(MutationWorkspace::new(root).await?))
+        Ok(Self::from_workspace(Workspace::new(root).await?))
     }
 
     /// Share serialization with other tools using clones of this workspace.
-    pub fn from_workspace(workspace: MutationWorkspace) -> Self {
+    pub fn from_workspace(workspace: Workspace) -> Self {
         Self {
             workspace,
             limits: WriteLimits::default(),

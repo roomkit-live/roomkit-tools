@@ -1,7 +1,7 @@
 //! Separate optional native OCR distribution, reusing the shared Rust tool.
 use pyo3::prelude::*;
 use roomkit_tools_ocr::{OcrEngine, OcrInput, OcrTool};
-use roomkit_tools_ocr_rusto::RustoBackend;
+use roomkit_tools_ocr_rusto::RustoOcr;
 use tokio_util::sync::CancellationToken;
 
 // Reuse the public exception identities from the base package across extensions.
@@ -67,7 +67,7 @@ impl Engine {
         let config = serde_json::from_str(config_json)
             .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
         Ok(Self {
-            engine: RustoBackend::lazy(config).map_err(|e| error(&e))?,
+            engine: RustoOcr::lazy(config).map_err(|e| error(&e))?,
         })
     }
 

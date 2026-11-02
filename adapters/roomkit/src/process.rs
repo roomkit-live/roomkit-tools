@@ -2,7 +2,7 @@
 
 use roomkit::model::Metadata;
 use roomkit_ai::{AiTool, Tool, ToolFuture};
-use roomkit_tools_process::ProcessManager;
+use roomkit_tools_process::ProcessSession;
 
 use crate::bridge::{ai_tool, current_owner, serve, tool_error};
 
@@ -11,22 +11,22 @@ macro_rules! process_toolset {
         $(#[$doc])*
         #[derive(Clone, Debug)]
         pub struct $name {
-            manager: ProcessManager,
+            manager: ProcessSession,
         }
 
         impl $name {
-            /// Register one capability over a shared process manager.
+            /// Register one capability over a shared process session.
             ///
-            /// Pass clones of the same manager to the selected process
-            /// adapters. The host closes that manager once its agents are done.
-            pub fn new(manager: ProcessManager) -> Self {
+            /// Pass clones of the same session to the selected process
+            /// adapters. The host closes that session once its agents are done.
+            pub fn new(manager: ProcessSession) -> Self {
                 Self { manager }
             }
         }
 
         impl Tool for $name {
             fn definition(&self) -> AiTool {
-                ai_tool(ProcessManager::$definition())
+                ai_tool(ProcessSession::$definition())
             }
 
             fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {

@@ -24,12 +24,12 @@ const RESOLVE_PARENT: &str = "resolve the destination parent";
 /// attributes and ACLs are not carried over, hard links to the old file keep
 /// the old content, and the parent directory is not synced after the rename.
 #[derive(Clone, Debug)]
-pub struct MutationWorkspace {
+pub struct Workspace {
     root: Root,
     gate: Arc<Mutex<()>>,
 }
 
-impl MutationWorkspace {
+impl Workspace {
     /// Construct a shared mutation scope beneath an existing directory.
     ///
     /// # Errors
@@ -452,7 +452,7 @@ mod tests {
     async fn dropped_call_cancels_before_commit_and_keeps_the_lock_until_worker_exits() {
         let root = tempfile::tempdir().unwrap();
         fs::write(root.path().join("orders"), "original").unwrap();
-        let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+        let workspace = Workspace::new(root.path()).await.unwrap();
         let worker = workspace.clone();
         let (started, ready) = tokio::sync::oneshot::channel();
         let (resume, paused) = std::sync::mpsc::channel();
@@ -485,7 +485,7 @@ mod tests {
     #[tokio::test]
     async fn cancellation_after_commit_does_not_report_an_unchanged_file() {
         let root = tempfile::tempdir().unwrap();
-        let workspace = MutationWorkspace::new(root.path()).await.unwrap();
+        let workspace = Workspace::new(root.path()).await.unwrap();
         let result = workspace
             .run(&CancellationToken::new(), |root, cancel| {
                 let path = destination(root, "orders")?;
