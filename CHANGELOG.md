@@ -28,7 +28,7 @@ part of an existing published preview.
   parsing allocates far more than the source size before limits apply.
 - Jobs, output archives and plans are listed in creation order (`p2` before
   `p10`).
-- The RoomKit Rust adapter follows roomkit-rs 93e757c, whose tools take
+- The RoomKit Rust adapter follows roomkit-rs 5d88436, whose tools take
   Python's Tool protocol: each adapter implements `roomkit_ai::Tool` and is
   declared as `ToolEntry::Tool(Arc::new(..))` in `AiChannelOptions::tools`. A
   call under another tool's name is left to the next tool instead of refused.
