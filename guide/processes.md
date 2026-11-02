@@ -127,12 +127,14 @@ Standalone callers use `await processes.start("cat")`, `.status(process_id)`,
 All return the existing Rust `data`/`text` dictionaries. `.call(name, arguments)`
 and `.definition(name)` expose each `process_*` contract and its derived schemas.
 Each of these methods takes `owner=`. Without it, the methods share one
-standalone owner and do not see the jobs of RoomKit tool calls; the host reaches
-an agent's jobs in a room with `owner=roomkit_owner(room_id, channel_id)`. An
-owner is 1 to 1,024 UTF-8 bytes (`InvalidInputError` otherwise). As in Rust,
-`await processes.close_owner(owner)` stops that owner's jobs and releases their
-records and quota, with the same two-second wait and `True`/`False` result as
-`close()`, while the session stays open for every owner, that one included.
+standalone owner, apart from every named owner (`"default"` included), and do
+not see the jobs of RoomKit tool calls; the host reaches an agent's jobs in a
+room with `owner=roomkit_owner(room_id, channel_id)`. An owner is 1 to 1,024
+UTF-8 bytes (`InvalidInputError` otherwise). As in Rust,
+`await processes.close_owner(owner)` (`None` for the standalone owner) stops
+that owner's jobs and releases their records and quota, with the same
+two-second wait and `True`/`False` result as `close()`, while the session
+stays open for every owner, that one included.
 `status()` lists retained jobs, including completed ones. `start` returns an ID
 with open stdin, not proof of command completion. Commands use `/bin/sh -c`
 with the same host permissions, environment options, initial-cwd boundary and

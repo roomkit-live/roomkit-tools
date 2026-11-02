@@ -136,6 +136,40 @@ async fn no_owner_is_the_standalone_owner_of_shell_archives() {
     assert!(store.close().await);
 }
 
+#[tokio::test]
+async fn the_standalone_owner_is_apart_from_an_owner_named_default() {
+    let root = tempfile::tempdir().unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let limits = OutputLimits {
+        max_archives_per_owner: 2,
+        ..OutputLimits::default()
+    };
+    let store = OutputStore::new(Some(storage.path()), limits)
+        .await
+        .unwrap();
+    let shell = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_output_store(store.clone());
+    let cancel = CancellationToken::new();
+    let standalone = shell.shell(ShellInput::new("printf mine"), &cancel).await;
+    let mine = standalone.unwrap().data.stdout.archive.unwrap();
+    // The standalone owner's two archives fill its quota, not "default"'s.
+    let named = shell
+        .shell_owned("default", ShellInput::new("printf theirs"), &cancel)
+        .await
+        .unwrap();
+    assert!(named.data.stdout.archive.unwrap().archive_id.is_some());
+    assert_eq!(store.list(None, &cancel).await.unwrap().len(), 2);
+    assert_eq!(store.list(Some("default"), &cancel).await.unwrap().len(), 2);
+    let id = mine.archive_id.unwrap();
+    assert!(matches!(
+        store.read(Some("default"), page(&id, 0, 64), &cancel).await,
+        Err(ToolError::AccessRefused(_))
+    ));
+    assert!(store.close().await);
+}
+
 /// Set in the child process that checks the system temporary directory.
 const TEMPORARY_CHILD: &str = "ROOMKIT_OUTPUT_TEMPORARY_CHILD";
 

@@ -25,8 +25,9 @@ class ProcessSession:
     acting agent its own owner, roomkit_owner(room_id, channel_id), so one
     session can serve several conversations without them seeing each other's
     jobs. The host methods take owner=; None, the default, is one standalone
-    owner. IDs are local to this session and sequential, not OS PIDs,
-    credentials or portable identifiers.
+    owner, apart from every named owner, "default" included. IDs are local to
+    this session and sequential, not OS PIDs, credentials or portable
+    identifiers.
 
     Commands use /bin/sh -c with piped stdin, the host's permissions, the
     environment selected by inherit_env and env (as for ShellTool), a new
@@ -125,8 +126,10 @@ class ProcessSession:
         """
         return await self._native.close()
 
-    async def close_owner(self, owner: str) -> bool:
+    async def close_owner(self, owner: str | None) -> bool:
         """Stop one owner's jobs and release their records; the session stays open.
+
+        None names the standalone owner, apart from every named owner.
 
         Waits up to two seconds, as close does: False means cleanup continues;
         call close_owner again to await it. The owner can start jobs again

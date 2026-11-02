@@ -168,6 +168,21 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
             again = (await session.start("true", owner="host-a"))["data"]
             self.assertIsNone(again["stdout_archive"]["error"])
 
+    async def test_the_standalone_owner_is_apart_from_an_owner_named_default(self) -> None:
+        async with (
+            OutputStore(self.parent, max_archives_per_owner=2) as store,
+            ProcessSession(self.root, outputs=store) as session,
+        ):
+            shell = await ShellTool.create(self.root, outputs=store)
+            mine = (await shell.shell("printf mine"))["data"]["stdout"]["archive"]
+            # The standalone owner's two archives fill its quota, not "default"'s.
+            theirs = (await session.start("printf theirs", owner="default"))["data"]
+            self.assertIsNone(theirs["stdout_archive"]["error"])
+            self.assertEqual(len(await store.list()), 2)
+            self.assertEqual(len(await store.list(owner="default")), 2)
+            with self.assertRaises(AccessRefusedError):
+                await store.read(mine["archive_id"], owner="default")
+
     async def test_separate_stores_isolate_ids_and_validate_inputs(self) -> None:
         shell = await ShellTool.create(self.root, outputs=self.store)
         result = (await shell.shell("printf private"))["data"]

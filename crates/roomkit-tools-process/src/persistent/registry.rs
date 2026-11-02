@@ -43,7 +43,8 @@ impl Record {
 
 #[derive(Debug)]
 pub(crate) struct Entry {
-    pub(crate) owner: String,
+    /// The trusted owner, `None` for the standalone one.
+    pub(crate) owner: Option<String>,
     pub(crate) command: String,
     pub(crate) started: Instant,
     pub(crate) finished: OnceLock<Duration>,
@@ -61,8 +62,16 @@ pub(super) struct Registry {
 
 impl Registry {
     /// The next identifier number for `owner`, within the host quotas.
-    pub(super) fn next_for(&self, owner: &str, limits: ProcessLimits) -> Result<u64, ToolError> {
-        let retained = self.entries.values().filter(|e| e.owner == owner).count();
+    pub(super) fn next_for(
+        &self,
+        owner: Option<&str>,
+        limits: ProcessLimits,
+    ) -> Result<u64, ToolError> {
+        let retained = self
+            .entries
+            .values()
+            .filter(|e| e.owner.as_deref() == owner)
+            .count();
         if self.entries.len() >= limits.max_processes || retained >= limits.max_processes_per_owner
         {
             return Err(ToolError::LimitExceeded(

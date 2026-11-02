@@ -91,7 +91,8 @@ current RoomKit tool call, and a call made outside one is refused:
 `roomkit_owner(room_id, channel_id)` returns that key, so the host can pass it
 to `ProcessSession` and `OutputStore` methods to reach the jobs and archives of
 an agent's calls in a room. Their `owner` is an `Option<&str>`: `None` is the
-standalone owner, as Python's `owner=None`.
+standalone owner, as Python's `owner=None`, apart from every named owner,
+`"default"` included; `close_owner(None)` closes its jobs.
 
 | Capability | Native Rust tool | RoomKit Rust adapter |
 | --- | --- | --- |

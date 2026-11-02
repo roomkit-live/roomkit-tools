@@ -137,8 +137,8 @@ impl ShellTool {
 
     /// Attach optional output storage. Archive reads use the same trusted owner.
     /// Standalone `shell` files them under the standalone owner, the one
-    /// [`OutputStore`](crate::OutputStore) methods reach with `None`;
-    /// multi-owner hosts call `shell_owned`.
+    /// [`OutputStore`](crate::OutputStore) methods reach with `None`, apart
+    /// from every named owner; multi-owner hosts call `shell_owned`.
     #[must_use]
     pub fn with_output_store(mut self, outputs: crate::OutputStore) -> Self {
         self.outputs = Some(outputs);
@@ -204,8 +204,7 @@ impl ShellTool {
         input: ShellInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ShellResult>, ToolError> {
-        self.shell_owned(crate::STANDALONE_OWNER, input, cancel)
-            .await
+        self.run(None, input, cancel).await
     }
 
     /// Execute with a trusted archive owner supplied by the host, never the model.
@@ -216,6 +215,16 @@ impl ShellTool {
     pub async fn shell_owned(
         &self,
         owner: &str,
+        input: ShellInput,
+        cancel: &CancellationToken,
+    ) -> Result<Output<ShellResult>, ToolError> {
+        self.run(Some(owner), input, cancel).await
+    }
+
+    /// A call under its archives' owner, `None` for the standalone one.
+    async fn run(
+        &self,
+        owner: Option<&str>,
         input: ShellInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ShellResult>, ToolError> {
@@ -260,7 +269,7 @@ impl ShellTool {
                 outputs: self
                     .outputs
                     .as_ref()
-                    .map(|store| (store.clone(), owner.to_owned())),
+                    .map(|store| (store.clone(), owner.map(str::to_owned))),
             };
             tokio::spawn(crate::unix::run(foreground, child_cancel))
                 .await

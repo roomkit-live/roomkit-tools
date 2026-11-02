@@ -18,7 +18,7 @@ use crate::{CommandEnv, ProcessEnd, ProcessLimits, ProcessState, ProcessStatus};
 
 /// A command to start for an owner, in its initial directory and environment.
 pub(crate) struct Launch<'a> {
-    pub(crate) owner: &'a str,
+    pub(crate) owner: Option<&'a str>,
     pub(crate) command: &'a str,
     pub(crate) cwd: &'a Path,
     pub(crate) env: &'a CommandEnv,
@@ -57,7 +57,7 @@ fn adopt(
     status.stdout_archive = stdout_archive.as_ref().map(crate::output::Sink::snapshot);
     status.stderr_archive = stderr_archive.as_ref().map(crate::output::Sink::snapshot);
     let entry = Arc::new(Entry {
-        owner: owner.into(),
+        owner: owner.map(Into::into),
         command: command.into(),
         started: std::time::Instant::now(),
         finished: std::sync::OnceLock::new(),
@@ -292,7 +292,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let env = CommandEnv::default();
         let request = Launch {
-            owner: "a",
+            owner: Some("a"),
             command: "sleep 30",
             cwd: root.path(),
             env: &env,

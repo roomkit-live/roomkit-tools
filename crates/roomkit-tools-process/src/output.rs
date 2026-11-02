@@ -24,7 +24,8 @@ pub(crate) use writer::{Sink, View};
 
 #[derive(Debug)]
 struct Record {
-    owner: String,
+    /// The trusted owner, `None` for the standalone one.
+    owner: Option<String>,
     state: Mutex<OutputArchive>,
     file: Mutex<Option<Arc<File>>>,
     directory: Arc<TempDir>,
@@ -97,7 +98,8 @@ impl Drop for Inner {
 ///
 /// Every archive belongs to the owner of the command that produced it, a
 /// trusted key the host passes, never from model arguments; `None` is the
-/// one standalone owner, that of [`ShellTool::shell`](crate::ShellTool::shell).
+/// one standalone owner, that of [`ShellTool::shell`](crate::ShellTool::shell),
+/// apart from every named owner, `"default"` included.
 /// Clones share a store.
 /// Copies survive process-record deletion until explicit forget/store close.
 /// The last store reference requests writer cleanup; prefer explicit close.
@@ -223,7 +225,7 @@ impl OutputStore {
 
     fn entry(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         id: &str,
         cancel: &CancellationToken,
     ) -> Result<Arc<Record>, ToolError> {
@@ -236,7 +238,7 @@ impl OutputStore {
         lock(&self.inner.registry)
             .entries
             .get(id)
-            .filter(|entry| entry.owner == owner)
+            .filter(|entry| entry.owner.as_deref() == owner)
             .cloned()
             .ok_or_else(|| ToolError::AccessRefused("unknown output archive".into()))
     }
@@ -254,12 +256,12 @@ impl OutputStore {
         owner: Option<&str>,
         cancel: &CancellationToken,
     ) -> impl Future<Output = Result<Vec<OutputArchive>, ToolError>> {
-        std::future::ready(self.snapshots(crate::owner_key(owner), cancel))
+        std::future::ready(self.snapshots(owner, cancel))
     }
 
     fn snapshots(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         cancel: &CancellationToken,
     ) -> Result<Vec<OutputArchive>, ToolError> {
         if cancel.is_cancelled() {
@@ -272,7 +274,7 @@ impl OutputStore {
         let mut records: Vec<_> = registry
             .entries
             .iter()
-            .filter(|(_, record)| record.owner == owner)
+            .filter(|(_, record)| record.owner.as_deref() == owner)
             .collect();
         records.sort_by_key(|&(id, _)| roomkit_tools_core::identifiers::creation_order(id));
         Ok(records
@@ -291,7 +293,6 @@ impl OutputStore {
         input: OutputReadInput,
         cancel: &CancellationToken,
     ) -> Result<Output<OutputPage>, ToolError> {
-        let owner = crate::owner_key(owner);
         let record = self.entry(owner, &input.archive_id, cancel)?;
         let archive = record.snapshot();
         if input.offset > archive.stored_bytes {
@@ -343,7 +344,6 @@ impl OutputStore {
         input: OutputForgetInput,
         cancel: &CancellationToken,
     ) -> Result<Output<OutputForgetResult>, ToolError> {
-        let owner = crate::owner_key(owner);
         let record = self.entry(owner, &input.archive_id, cancel)?;
         let state = record.snapshot();
         if !state.finished || !record.capture_done.load(Ordering::Acquire) {
@@ -399,7 +399,7 @@ impl OutputStore {
         finished
     }
 
-    pub(crate) fn begin(&self, owner: &str) -> Sink {
+    pub(crate) fn begin(&self, owner: Option<&str>) -> Sink {
         let mut registry = lock(&self.inner.registry);
         let error = if self.closed() {
             Some("store_closed")
@@ -407,7 +407,7 @@ impl OutputStore {
             || registry
                 .entries
                 .values()
-                .filter(|r| r.owner == owner)
+                .filter(|r| r.owner.as_deref() == owner)
                 .count()
                 >= self.inner.limits.max_archives_per_owner
         {
@@ -425,7 +425,7 @@ impl OutputStore {
         };
         let (done, _) = watch::channel(error.is_some());
         let record = Arc::new(Record {
-            owner: owner.into(),
+            owner: owner.map(Into::into),
             state: Mutex::new(OutputArchive {
                 archive_id: id.clone(),
                 observed_bytes: 0,

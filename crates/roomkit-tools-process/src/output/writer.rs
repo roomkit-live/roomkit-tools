@@ -261,7 +261,7 @@ mod tests {
     fn fixture() -> (Sink, mpsc::Receiver<Vec<u8>>) {
         let (done, _) = watch::channel(false);
         let record = Arc::new(Record {
-            owner: "test".into(),
+            owner: Some("test".into()),
             state: Mutex::new(OutputArchive {
                 archive_id: Some("o1".into()),
                 observed_bytes: 0,

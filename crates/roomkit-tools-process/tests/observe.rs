@@ -28,7 +28,7 @@ async fn observation_tracks_owners_natural_exit_stable_duration_and_forgetting()
         .unwrap()
         .unwrap();
     let observed = manager.observe().await;
-    assert_eq!(observed[0].owner, "trusted-owner");
+    assert_eq!(observed[0].owner.as_deref(), Some("trusted-owner"));
     assert_eq!(observed[0].command, "cat");
     assert_eq!(observed[0].status.state, ProcessState::Running);
     manager

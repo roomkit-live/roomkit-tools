@@ -41,8 +41,9 @@ impl Drop for Inner {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ObservedProcess {
-    /// Trusted owner key, not a model argument or OS PID.
-    pub owner: String,
+    /// Trusted owner key, not a model argument or OS PID; `None` for the
+    /// standalone owner, apart from every named one.
+    pub owner: Option<String>,
     /// Exact command supplied when starting the process.
     pub command: String,
     /// Elapsed runtime, frozen once cleanup finishes.
@@ -54,7 +55,8 @@ pub struct ObservedProcess {
 /// Host-owned process collection with explicit owner boundaries, independent of RoomKit.
 ///
 /// Every job belongs to one owner, a trusted key the host passes on each
-/// operation, never from model arguments; `None` is the one standalone owner.
+/// operation, never from model arguments; `None` is the one standalone owner,
+/// apart from every named owner, `"default"` included.
 /// Clones share ownership; dropping the last clone requests all process cleanup.
 /// Keep the Tokio runtime alive and prefer awaiting [`Self::close`]. This is not
 /// a sandbox: commands run with host permissions. They receive only the
@@ -209,14 +211,14 @@ impl ProcessSession {
         Ok(self)
     }
 
-    fn check(&self, owner: &str, cancel: &CancellationToken) -> Result<(), ToolError> {
+    fn check(&self, owner: Option<&str>, cancel: &CancellationToken) -> Result<(), ToolError> {
         if cancel.is_cancelled() {
             return Err(ToolError::Cancelled);
         }
         if self.inner.closed.is_cancelled() {
             return Err(ToolError::AccessRefused("process session is closed".into()));
         }
-        if owner.is_empty() || owner.len() > 1024 {
+        if owner.is_some_and(|owner| owner.is_empty() || owner.len() > 1024) {
             return Err(ToolError::InvalidInput(
                 "owner key must contain 1 to 1024 bytes".into(),
             ));
@@ -226,7 +228,7 @@ impl ProcessSession {
 
     async fn entry(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         id: &str,
         cancel: &CancellationToken,
     ) -> Result<Arc<Entry>, ToolError> {
@@ -235,7 +237,7 @@ impl ProcessSession {
         registry
             .entries
             .get(id)
-            .filter(|entry| entry.owner == owner)
+            .filter(|entry| entry.owner.as_deref() == owner)
             .map(Arc::clone)
             .ok_or_else(|| ToolError::AccessRefused("unknown process in this owner scope".into()))
     }
@@ -281,7 +283,6 @@ impl ProcessSession {
         input: ProcessStartInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessStatus>, ToolError> {
-        let owner = crate::owner_key(owner);
         self.check(owner, cancel)?;
         let cwd = self.start_directory(&input, cancel).await?;
         let mut registry = self.inner.registry.lock().await;
@@ -344,7 +345,6 @@ impl ProcessSession {
         input: ProcessStatusInput,
         cancel: &CancellationToken,
     ) -> Result<Output<Vec<ProcessStatus>>, ToolError> {
-        let owner = crate::owner_key(owner);
         self.check(owner, cancel)?;
         let entries = if let Some(id) = input.process_id {
             vec![self.entry(owner, &id, cancel).await?]
@@ -353,7 +353,7 @@ impl ProcessSession {
                 .registry
                 .lock()
                 .await
-                .ordered(|entry| entry.owner == owner)
+                .ordered(|entry| entry.owner.as_deref() == owner)
         };
         let mut states = Vec::with_capacity(entries.len());
         for entry in entries {
@@ -385,7 +385,6 @@ impl ProcessSession {
         input: ProcessReadInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessReadResult>, ToolError> {
-        let owner = crate::owner_key(owner);
         let entry = self.entry(owner, &input.process_id, cancel).await?;
         let record = entry.record.lock().await;
         let limit = input
@@ -431,7 +430,6 @@ impl ProcessSession {
         input: ProcessStopInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessStopResult>, ToolError> {
-        let owner = crate::owner_key(owner);
         let entry = self.entry(owner, &input.process_id, cancel).await?;
         entry.stop.cancel();
         wait_done(&entry, tokio::time::Instant::now() + Duration::from_secs(2)).await;
@@ -464,12 +462,12 @@ impl ProcessSession {
 
     /// Stop and release one owner's records; future calls may establish a new scope.
     /// Returns whether cleanup finished within the collective two-second wait.
-    pub async fn close_owner(&self, owner: &str) -> bool {
+    pub async fn close_owner(&self, owner: Option<&str>) -> bool {
         let registry = self.inner.registry.lock().await;
         let entries = registry
             .entries
             .iter()
-            .filter(|(_, e)| e.owner == owner)
+            .filter(|(_, e)| e.owner.as_deref() == owner)
             .map(|(id, entry)| (id.clone(), Arc::clone(entry)))
             .collect();
         drop(registry);
@@ -542,12 +540,12 @@ mod tests {
             .unwrap()
             .data
             .process_id;
-        let entry = manager.entry("a", &id, &token).await.unwrap();
+        let entry = manager.entry(Some("a"), &id, &token).await.unwrap();
         // Hold final status publication to make the pending-cleanup boundary
         // deterministic, without relying on OS scheduling or sleeps.
         let publishing = entry.record.lock().await;
         let closer = manager.clone();
-        let task = tokio::spawn(async move { closer.close_owner("a").await });
+        let task = tokio::spawn(async move { closer.close_owner(Some("a")).await });
         entry.stop.cancelled().await;
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
@@ -558,7 +556,7 @@ mod tests {
             Err(ToolError::LimitExceeded(_))
         ));
         drop(publishing);
-        assert!(manager.close_owner("a").await);
+        assert!(manager.close_owner(Some("a")).await);
         manager
             .start(Some("a"), ProcessStartInput::new("true"), &token)
             .await

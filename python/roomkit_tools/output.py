@@ -19,8 +19,9 @@ class OutputStore:
     to the owner of the command that produced it: the RoomKit tools give each
     room and acting agent its own owner, roomkit_owner(room_id, channel_id), so
     one store can serve several conversations. The host methods take owner=;
-    None, the default, is one standalone owner. No arbitrary paths are
-    accepted by those tools. The host controls the parent directory and quotas.
+    None, the default, is one standalone owner, apart from every named owner,
+    "default" included. No arbitrary paths are accepted by those tools. The
+    host controls the parent directory and quotas.
 
     Archives survive process-record deletion and session close. Explicit forget
     or store close releases them; nothing is promised across host restarts.

@@ -21,7 +21,6 @@ impl ProcessSession {
         input: ProcessWriteInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessWriteResult>, ToolError> {
-        let owner = crate::owner_key(owner);
         if input.text.len() > self.inner.limits.max_write_bytes {
             return Err(ToolError::LimitExceeded(
                 "process stdin exceeds host limit".into(),

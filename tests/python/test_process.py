@@ -200,6 +200,20 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(AccessRefusedError):
             await session.start("true", owner="host-a")
 
+    async def test_the_standalone_owner_is_apart_from_an_owner_named_default(self) -> None:
+        async with ProcessSession(self.root, max_processes_per_owner=1) as session:
+            mine = (await session.start("cat"))["data"]["process_id"]
+            # "default" neither sees nor reaches the standalone job, and has a
+            # quota of its own.
+            self.assertEqual((await session.status(owner="default"))["data"], [])
+            with self.assertRaises(AccessRefusedError):
+                await session.read(mine, owner="default")
+            await session.start("cat", owner="default")
+            # Closing the standalone owner leaves "default"'s job.
+            self.assertTrue(await session.close_owner(None))
+            self.assertEqual((await session.status())["data"], [])
+            self.assertEqual(len((await session.status(owner="default"))["data"]), 1)
+
     async def test_host_secrets_stay_out_unless_listed_or_set_explicitly(self) -> None:
         command = 'printf "%s|%s" "${HOST_TEST_SECRET-unset}" "${GREETING-unset}"'
         with patch.dict(os.environ, {"HOST_TEST_SECRET": "s3cret"}):

@@ -382,7 +382,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
             .await,
         Err(ToolError::LimitExceeded(_))
     ));
-    assert!(manager.close_owner("a").await);
+    assert!(manager.close_owner(Some("a")).await);
     assert_eq!(
         manager
             .status(Some("b"), ProcessStatusInput::default(), &token)
@@ -402,7 +402,49 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
 }
 
 #[tokio::test]
-async fn no_owner_calls_share_one_owner_and_quota_that_owner_a_cannot_reach() {
+async fn the_standalone_owner_is_apart_from_an_owner_named_default() {
+    let root = tempfile::tempdir().unwrap();
+    let limits = ProcessLimits {
+        max_processes_per_owner: 1,
+        ..ProcessLimits::default()
+    };
+    let session = ProcessSession::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(limits)
+        .unwrap();
+    let token = CancellationToken::new();
+    let mine = session
+        .start(None, ProcessStartInput::new("cat"), &token)
+        .await
+        .unwrap()
+        .data
+        .process_id;
+    // "default" neither sees nor reaches the standalone job, and has a quota
+    // of its own.
+    let theirs = session.status(Some("default"), ProcessStatusInput::default(), &token);
+    assert!(theirs.await.unwrap().data.is_empty());
+    assert!(matches!(
+        session
+            .read(Some("default"), ProcessReadInput::new(&mine), &token)
+            .await,
+        Err(ToolError::AccessRefused(_))
+    ));
+    session
+        .start(Some("default"), ProcessStartInput::new("cat"), &token)
+        .await
+        .unwrap();
+    // Closing the standalone owner leaves "default"'s job.
+    assert!(session.close_owner(None).await);
+    let listed = session.status(None, ProcessStatusInput::default(), &token);
+    assert!(listed.await.unwrap().data.is_empty());
+    let theirs = session.status(Some("default"), ProcessStatusInput::default(), &token);
+    assert_eq!(theirs.await.unwrap().data.len(), 1);
+    assert!(session.close().await);
+}
+
+#[tokio::test]
+async fn no_owner_is_the_standalone_owner_with_its_own_quota() {
     let root = tempfile::tempdir().unwrap();
     let limits = ProcessLimits {
         max_processes: 2,

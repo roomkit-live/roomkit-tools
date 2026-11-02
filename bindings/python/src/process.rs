@@ -264,13 +264,18 @@ impl PythonProcessSession {
         })
     }
 
-    fn close_owner<'py>(&self, py: Python<'py>, owner: String) -> PyResult<Bound<'py, PyAny>> {
+    // `owner` is the trusted owner whose jobs close; None is the standalone one.
+    fn close_owner<'py>(
+        &self,
+        py: Python<'py>,
+        owner: Option<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
         fork::ensure_unforked()?;
         // Start the worker synchronously, as close does. A manager not yet
         // created holds no process for any owner.
         let worker = self.state.manager.get().cloned().map(|manager| {
             pyo3_async_runtimes::tokio::get_runtime()
-                .spawn(async move { manager.close_owner(&owner).await })
+                .spawn(async move { manager.close_owner(owner.as_deref()).await })
         });
         crate::runtime::future_into_py(py, async move {
             match worker {

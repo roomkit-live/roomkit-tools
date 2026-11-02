@@ -142,7 +142,8 @@ pub(crate) struct Foreground {
     pub(crate) env: Arc<CommandEnv>,
     pub(crate) limits: ShellLimits,
     pub(crate) timeout_ms: u64,
-    pub(crate) outputs: Option<(crate::OutputStore, String)>,
+    /// The store and the archives' owner, `None` for the standalone one.
+    pub(crate) outputs: Option<(crate::OutputStore, Option<String>)>,
 }
 
 pub(crate) async fn run(
@@ -181,8 +182,8 @@ async fn supervise(
     let mut out = Capture::new(foreground.limits.max_output_bytes);
     let mut err = Capture::new(foreground.limits.max_output_bytes);
     if let Some((store, owner)) = &foreground.outputs {
-        out.archive(Some(store.begin(owner)));
-        err.archive(Some(store.begin(owner)));
+        out.archive(Some(store.begin(owner.as_deref())));
+        err.archive(Some(store.begin(owner.as_deref())));
     }
     let mut timed_out = false;
     let mut cancelled = false;

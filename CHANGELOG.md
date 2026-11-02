@@ -40,6 +40,10 @@ part of an existing published preview.
   `&CancellationToken`, as every other tool's, and each `AgentBackend` method
   receives that token. A call cancelled before it reaches the backend returns
   `ToolError::Cancelled`.
+- The standalone owner, `owner=None` in Python and `None` in Rust, is apart
+  from every named owner: a host passing `"default"` no longer reaches its
+  jobs, archives or quota. `close_owner` takes `None` for it (Rust
+  `Option<&str>`), and Rust's `ObservedProcess::owner` is an `Option<String>`.
 - Python: the documentation, plan and agent tools split into a tool and its
   RoomKit adapter, as `ReadTool` and `Read`: `DocsList(backend).call(arguments)`
   is `DocsListTool(backend).call(arguments)`, `DocsList(backend)` in RoomKit's
