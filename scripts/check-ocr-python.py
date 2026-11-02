@@ -20,6 +20,17 @@ def run(*args, cwd, env=None):
     subprocess.run(args, cwd=cwd, env=env, check=True)
 
 
+def cargo_env(target):
+    """The environment of a wheel build whose Cargo artifacts go in the
+    subdirectory ``target`` of a shared CARGO_TARGET_DIR: both native
+    libraries are named _native, and one shared output would package the
+    other's into a later build that cargo finds fresh."""
+    env = dict(os.environ)
+    if target and env.get("CARGO_TARGET_DIR"):
+        env["CARGO_TARGET_DIR"] = str(Path(env["CARGO_TARGET_DIR"]) / target)
+    return env
+
+
 def main():
     root = Path(__file__).resolve().parents[1]
     # Extracted sdists live outside the checkout's rustup override.
@@ -53,7 +64,7 @@ def main():
             wheel = options.wheel.resolve()
             source = options.sdist.resolve()
         else:
-            for directory in [root, plugin]:
+            for directory, target in [(root, None), (plugin, "rusto-python")]:
                 run(
                     *maturin,
                     "build",
@@ -64,6 +75,7 @@ def main():
                     "--out",
                     str(artifacts),
                     cwd=directory,
+                    env=cargo_env(target),
                 )
             run(*maturin, "sdist", "--out", str(artifacts), cwd=plugin)
             (base,) = artifacts.glob("roomkit_tools-*.whl")
@@ -146,6 +158,8 @@ def main():
                 str(package),
                 "roomkit==0.110.0",
                 cwd=work,
+                # The source archive builds the OCR library: keep it apart too.
+                env=cargo_env("rusto-python"),
             )
             run(
                 str(python),
