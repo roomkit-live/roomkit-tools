@@ -11,6 +11,7 @@ use std::{
     collections::BTreeSet,
     fs,
     io::Read,
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -179,7 +180,7 @@ impl DocsBackend for FileDocs {
                 &snapshot.revision,
             )?;
             let total = snapshot.documents.len();
-            let start = input.offset.get() - 1;
+            let start = results_start(input.offset, total)?;
             let end = page_end(start, input.limit, total)?;
             let documents = snapshot
                 .documents
@@ -235,6 +236,18 @@ fn check_revision(expected: Option<&str>, current: &str) -> Result<(), ToolError
     } else {
         Ok(())
     }
+}
+/// The zero-based start of a page of results from the one-based `offset`, as
+/// fs `list`, `glob` and `grep`: an offset past the last result is refused,
+/// but for offset 1 when there is none.
+pub(crate) fn results_start(offset: NonZeroUsize, total: usize) -> Result<usize, ToolError> {
+    let offset = offset.get();
+    if offset > total && !(offset == 1 && total == 0) {
+        return Err(ToolError::InvalidInput(
+            "offset is beyond the last entry".into(),
+        ));
+    }
+    Ok(offset - 1)
 }
 /// The end of the page starting at the zero-based `offset`.
 fn page_end(offset: usize, limit: usize, total: usize) -> Result<usize, ToolError> {
@@ -479,7 +492,7 @@ fn search(
             .then_with(|| da.info.document_id.cmp(&db.info.document_id))
     });
     let total = ranked.len();
-    let start = input.offset.get() - 1;
+    let start = results_start(input.offset, total)?;
     let end = page_end(start, input.limit, total)?;
     let mut matches = Vec::new();
     for (_, doc) in ranked.iter().skip(start).take(end - start) {
@@ -523,7 +536,7 @@ fn read(
         .find(|d| d.info.document_id == input.document_id)
         .ok_or_else(|| ToolError::AccessRefused("unknown document in this catalogue".into()))?;
     check_revision(input.expected_revision.as_deref(), &doc.info.revision)?;
-    let start = input.offset - 1;
+    let start = input.offset.get() - 1;
     let end = page_end(start, input.limit, doc.lines.len())?;
     let mut size = serde_json::to_vec(&doc.info)
         .map_err(|e| ToolError::InvalidInput(e.to_string()))?
@@ -556,7 +569,7 @@ fn read(
         document: doc.info.clone(),
         catalog_revision: snapshot.revision.clone(),
         lines,
-        offset: input.offset,
+        offset: input.offset.get(),
         next_offset: (next < doc.lines.len()).then_some(next + 1),
         truncated: next < doc.lines.len(),
     })

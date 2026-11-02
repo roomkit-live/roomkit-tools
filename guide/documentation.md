@@ -69,8 +69,9 @@ RoomKit also receives the envelope as structured tool content.
 List/search offsets count results from one, as `list`, `glob` and `grep`'s,
 and read offsets count lines from one; 0 is refused.
 Follow `next_offset` until null. `truncated` means more results/lines remain.
-Offsets immediately after the last result/line produce an empty final page;
-larger offsets are rejected. Search hits have their own excerpt `truncated` and
+As in `list`, an offset past the last result is refused; offset 1 with no
+result gives an empty page. A read offset just after the last line gives an
+empty final page; larger ones are refused. Search hits have their own excerpt `truncated` and
 `omitted_bytes` fields, distinct from result pagination.
 
 Search uses literal, case-insensitive substring matching. All whitespace-separated

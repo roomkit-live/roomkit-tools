@@ -59,8 +59,11 @@ part of an existing published preview.
   when the input is read.
 - `shell` results and process statuses name their `cwd` relative to the
   workspace, `.` for its root, instead of the host's absolute path.
-- `docs_list` and `docs_search` count `offset` and `next_offset` from one, as
-  `list`, `glob` and `grep` do, instead of zero; 0 is refused. Python's
+- `docs_list` and `docs_search` page as `list`, `glob` and `grep` do: `offset`
+  and `next_offset` count results from one instead of zero, 0 is refused, and
+  an offset past the last result is refused (offset 1 on no result is an
+  empty page) instead of returning an empty page. `docs_read`'s `offset`
+  schema says its minimum, 1, which the call already required. Python's
   `FileDocs.list` and `search` default to `offset=1`, and a host
   `DocsBackend` receives and returns one-based offsets.
 - Python: the documentation, plan and agent tools split into a tool and its

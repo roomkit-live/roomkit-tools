@@ -45,5 +45,30 @@
         "document_id": "empty.txt"
       }
     }
+  ],
+  "refused": [
+    {
+      "tool": "docs_list",
+      "arguments": {
+        "offset": 4
+      },
+      "error": "invalid_input"
+    },
+    {
+      "tool": "docs_search",
+      "arguments": {
+        "query": "AGENT_FOLLOWUP idle",
+        "offset": 2
+      },
+      "error": "invalid_input"
+    },
+    {
+      "tool": "docs_read",
+      "arguments": {
+        "document_id": "agents.md",
+        "offset": 0
+      },
+      "error": "invalid_input"
+    }
   ]
 }

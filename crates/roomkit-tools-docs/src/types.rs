@@ -12,8 +12,8 @@ fn search_limit() -> usize {
 fn read_limit() -> usize {
     100
 }
-fn first_line() -> usize {
-    1
+fn first_line() -> NonZeroUsize {
+    NonZeroUsize::MIN
 }
 fn first_result() -> NonZeroUsize {
     NonZeroUsize::MIN
@@ -79,7 +79,7 @@ pub struct DocsReadInput {
     pub document_id: String,
     /// First line, one-based; defaults to 1.
     #[serde(default = "first_line")]
-    pub offset: usize,
+    pub offset: NonZeroUsize,
     /// Maximum lines, 1..500; defaults to 100. A byte budget may shorten the page.
     #[serde(default = "read_limit")]
     pub limit: usize,

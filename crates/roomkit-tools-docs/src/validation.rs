@@ -39,6 +39,22 @@ fn limit(value: usize, max: usize) -> Result<(), ToolError> {
         Ok(())
     }
 }
+/// A page of results, as `page`, from an offset fs `list` accepts: none past
+/// the last result, but for offset 1 when there is none.
+fn results_page(
+    offset: usize,
+    count: usize,
+    total: usize,
+    next: Option<usize>,
+    truncated: bool,
+) -> Result<(), ToolError> {
+    if offset > total && !(offset == 1 && total == 0) {
+        return Err(ToolError::InvalidInput(
+            "inconsistent documentation pagination".into(),
+        ));
+    }
+    page(offset, count, total, next, truncated)
+}
 /// A page of `count` results from the one-based `offset`, of `total`; `next`
 /// the one-based offset of the next page.
 fn page(
@@ -87,9 +103,6 @@ impl DocsContract for DocsSearchInput {
 impl DocsContract for DocsReadInput {
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.document_id, 512)?;
-        if self.offset == 0 {
-            return Err(ToolError::InvalidInput("offset starts at line one".into()));
-        }
         limit(self.limit, 500)?;
         expected(self.expected_revision.as_deref())
     }
@@ -118,7 +131,7 @@ impl DocsContract for DocsListResult {
                 return Err(ToolError::InvalidInput("duplicate document ID".into()));
             }
         }
-        page(
+        results_page(
             self.offset,
             self.documents.len(),
             self.total_documents,
@@ -148,7 +161,7 @@ impl DocsContract for DocsSearchResult {
                 return Err(ToolError::InvalidInput("invalid document excerpt".into()));
             }
         }
-        page(
+        results_page(
             self.offset,
             self.matches.len(),
             self.matched_documents,

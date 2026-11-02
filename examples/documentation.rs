@@ -5,6 +5,7 @@ use roomkit_tools_docs::{
     DocsBackend, DocsListInput, DocsListTool, DocsReadInput, DocsReadTool, DocsSearchInput,
     DocsSearchTool, FileDocs, FileDocsLimits,
 };
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
@@ -41,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let page = DocsReadTool::new(backend)
         .call(
             DocsReadInput {
-                offset: 5,
+                offset: NonZeroUsize::new(5).ok_or("line 5")?,
                 limit: 2,
                 expected_revision: Some(hit.document.revision.clone()),
                 ..DocsReadInput::new(hit.document.document_id.clone())

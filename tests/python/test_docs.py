@@ -123,6 +123,20 @@ class DocsTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(InvalidInputError):
                 await call
 
+    async def test_offsets_past_the_last_result_are_refused_as_fs(self):
+        tools = {t.name: t(self.backend) for t in (DocsListTool, DocsSearchTool, DocsReadTool)}
+        for case in self.fixture["refused"]:
+            with self.subTest(case=case), self.assertRaises(InvalidInputError):
+                await tools[case["tool"]].call(case["arguments"])
+        with tempfile.TemporaryDirectory() as empty:
+            backend = FileDocs(empty)
+            first = await backend.list()
+            self.assertEqual(
+                (first["offset"], first["next_offset"], first["documents"]), (1, None, [])
+            )
+            with self.assertRaises(InvalidInputError):
+                await backend.list(offset=2)
+
     async def test_custom_backend_is_validated_and_cancellable(self):
         data = await self.backend.list()
         started, cancelled = asyncio.Event(), asyncio.Event()

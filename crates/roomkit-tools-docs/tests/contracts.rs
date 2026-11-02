@@ -1,5 +1,6 @@
 //! Complete Rust envelopes for installed Python parity checks.
 #![cfg(feature = "files")]
+use roomkit_tools_core::ToolError;
 use roomkit_tools_docs::{
     DocsBackend, DocsListTool, DocsReadTool, DocsSearchTool, FileDocs, FileDocsLimits, decode,
 };
@@ -52,6 +53,33 @@ async fn shared_documentation_contracts() {
     assert_eq!(results[3]["data"]["matched_documents"], 0);
     assert_eq!(results[4]["data"]["next_offset"], 3);
     assert_eq!(results[5]["data"]["lines"], serde_json::json!([]));
+    // As fs `list`, an offset past the last result is refused, and so is a
+    // line offset of zero.
+    for case in fixture["refused"].as_array().unwrap() {
+        let input = case["arguments"].to_string();
+        macro_rules! refused {
+            ($tool:ident) => {
+                match decode(&input) {
+                    Ok(input) => $tool::new(Arc::clone(&backend))
+                        .call(input, &token)
+                        .await
+                        .err(),
+                    Err(error) => Some(error),
+                }
+            };
+        }
+        let error = match case["tool"].as_str().unwrap() {
+            "docs_list" => refused!(DocsListTool),
+            "docs_search" => refused!(DocsSearchTool),
+            "docs_read" => refused!(DocsReadTool),
+            _ => panic!("invalid fixture"),
+        };
+        assert_eq!(case["error"], "invalid_input");
+        assert!(
+            matches!(error, Some(ToolError::InvalidInput(_))),
+            "{case}: {error:?}"
+        );
+    }
     if let Ok(path) = std::env::var("ROOMKIT_DOCS_RESULTS") {
         std::fs::write(path, serde_json::to_vec(&results).unwrap()).unwrap();
     }
@@ -59,12 +87,34 @@ async fn shared_documentation_contracts() {
 
 #[test]
 fn a_result_offset_starts_at_one() {
-    use roomkit_tools_docs::{DocsListInput, DocsSearchInput};
+    use roomkit_tools_docs::{DocsListInput, DocsReadInput, DocsSearchInput};
     assert!(decode::<DocsListInput>(r#"{"offset":0}"#).is_err());
+    assert_eq!(DocsReadInput::new("a.md").offset.get(), 1);
+    let read = DocsReadTool::definition();
+    assert_eq!(read.input_schema["properties"]["offset"]["minimum"], 1);
     assert!(decode::<DocsSearchInput>(r#"{"query":"q","offset":0}"#).is_err());
     assert_eq!(DocsListInput::default().offset.get(), 1);
     assert_eq!(DocsSearchInput::new("q").offset.get(), 1);
     let list = DocsListTool::definition();
     assert_eq!(list.input_schema["properties"]["offset"]["minimum"], 1);
     assert_eq!(list.input_schema["properties"]["offset"]["default"], 1);
+}
+
+#[tokio::test]
+async fn an_empty_catalogue_has_one_empty_page() {
+    let root = tempfile::tempdir().unwrap();
+    let backend = FileDocs::new(root.path(), FileDocsLimits::default()).unwrap();
+    let token = CancellationToken::new();
+    let first = backend
+        .list(&decode(r#"{"offset":1}"#).unwrap(), &token)
+        .await
+        .unwrap();
+    assert_eq!((first.offset, first.next_offset), (1, None));
+    assert_eq!(first.documents.len(), 0);
+    assert!(matches!(
+        backend
+            .list(&decode(r#"{"offset":2}"#).unwrap(), &token)
+            .await,
+        Err(ToolError::InvalidInput(_))
+    ));
 }
