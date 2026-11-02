@@ -70,7 +70,7 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
     let owner = roomkit_owner("salle \"é\"", "agent");
     let cancel = CancellationToken::new();
     let listed = manager
-        .status(&owner, ProcessStatusInput::default(), &cancel)
+        .status(Some(&owner), ProcessStatusInput::default(), &cancel)
         .await
         .unwrap()
         .data;
@@ -81,29 +81,29 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
         process_id: id.into(),
         forget: false,
     };
-    let stopped = manager.stop(&owner, stop, &cancel).await.unwrap();
+    let stopped = manager.stop(Some(&owner), stop, &cancel).await.unwrap();
     assert_eq!(stopped.data.status.state, ProcessState::Finished);
     let page = manager
-        .read(&owner, ProcessReadInput::new(id), &cancel)
+        .read(Some(&owner), ProcessReadInput::new(id), &cancel)
         .await
         .unwrap();
     assert_eq!(page.data.stdout.text, "saved");
     assert!(manager.close_owner(&owner).await);
     let listed = manager
-        .status(&owner, ProcessStatusInput::default(), &cancel)
+        .status(Some(&owner), ProcessStatusInput::default(), &cancel)
         .await
         .unwrap();
     assert_eq!(listed.data.len(), 0);
-    let archives = store.list(&owner, &cancel).unwrap();
+    let archives = store.list(Some(&owner), &cancel).unwrap();
     assert_eq!(archives.len(), 2);
     for archive in archives {
         let archive_id = archive.archive_id.unwrap();
         store
-            .forget(&owner, OutputForgetInput { archive_id }, &cancel)
+            .forget(Some(&owner), OutputForgetInput { archive_id }, &cancel)
             .await
             .unwrap();
     }
-    assert_eq!(store.list(&owner, &cancel).unwrap().len(), 0);
+    assert_eq!(store.list(Some(&owner), &cancel).unwrap().len(), 0);
     assert!(manager.close().await);
     assert!(store.close().await);
 }

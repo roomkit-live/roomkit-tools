@@ -18,7 +18,7 @@ async fn finished(manager: &ProcessSession, owner: &str, id: &str) -> ProcessSta
         loop {
             let result = manager
                 .status(
-                    owner,
+                    Some(owner),
                     ProcessStatusInput {
                         process_id: Some(id.into()),
                     },
@@ -61,7 +61,7 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
     let token = CancellationToken::new();
     let id = manager
         .start(
-            "alice",
+            Some("alice"),
             ProcessStartInput::new("cat; printf warning >&2; exit 7"),
             &token,
         )
@@ -71,7 +71,7 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
         .process_id;
     assert_eq!(
         manager
-            .status("alice", ProcessStatusInput::default(), &token)
+            .status(Some("alice"), ProcessStatusInput::default(), &token)
             .await
             .unwrap()
             .data[0]
@@ -80,7 +80,7 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
     );
     let sent = manager
         .write(
-            "alice",
+            Some("alice"),
             ProcessWriteInput {
                 process_id: id.clone(),
                 text: "πxπ\nhello\n".into(),
@@ -103,7 +103,7 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
     let mut err = Vec::new();
     loop {
         let result = manager
-            .read("alice", input.clone(), &token)
+            .read(Some("alice"), input.clone(), &token)
             .await
             .unwrap()
             .data;
@@ -121,7 +121,7 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
     assert_eq!(err, b"warning");
     assert_eq!(
         manager
-            .read("alice", input.clone(), &token)
+            .read(Some("alice"), input.clone(), &token)
             .await
             .unwrap()
             .data
@@ -131,12 +131,12 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
     );
     input.stdout_offset += 1;
     assert!(matches!(
-        manager.read("alice", input, &token).await,
+        manager.read(Some("alice"), input, &token).await,
         Err(ToolError::InvalidInput(_))
     ));
     assert_eq!(
         manager
-            .read("alice", ProcessReadInput::new(&id), &token)
+            .read(Some("alice"), ProcessReadInput::new(&id), &token)
             .await
             .unwrap()
             .data
@@ -154,7 +154,7 @@ async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
     let token = CancellationToken::new();
     let id = manager
         .start(
-            "a",
+            Some("a"),
             ProcessStartInput::new("printf first; read -r line; printf '%s' \"$line\""),
             &token,
         )
@@ -165,7 +165,7 @@ async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let read = manager
-                .read("a", ProcessReadInput::new(&id), &token)
+                .read(Some("a"), ProcessReadInput::new(&id), &token)
                 .await
                 .unwrap()
                 .data;
@@ -182,7 +182,7 @@ async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
     input.stdout_offset = 5;
     assert_eq!(
         manager
-            .read("a", input.clone(), &token)
+            .read(Some("a"), input.clone(), &token)
             .await
             .unwrap()
             .data
@@ -192,7 +192,7 @@ async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
     );
     manager
         .write(
-            "a",
+            Some("a"),
             ProcessWriteInput {
                 process_id: id.clone(),
                 text: "second\n".into(),
@@ -205,7 +205,7 @@ async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
     finished(&manager, "a", &id).await;
     assert_eq!(
         manager
-            .read("a", input, &token)
+            .read(Some("a"), input, &token)
             .await
             .unwrap()
             .data
@@ -229,13 +229,13 @@ async fn status_and_observation_follow_creation_order_past_nine_jobs() {
     let token = CancellationToken::new();
     for _ in 0..11 {
         manager
-            .start("a", ProcessStartInput::new("true"), &token)
+            .start(Some("a"), ProcessStartInput::new("true"), &token)
             .await
             .unwrap();
     }
     let expected: Vec<String> = (1..=11).map(|n| format!("p{n}")).collect();
     let listed: Vec<String> = manager
-        .status("a", ProcessStatusInput::default(), &token)
+        .status(Some("a"), ProcessStatusInput::default(), &token)
         .await
         .unwrap()
         .data
@@ -270,27 +270,29 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
         .unwrap();
     let token = CancellationToken::new();
     let id = manager
-        .start("a", ProcessStartInput::new("cat"), &token)
+        .start(Some("a"), ProcessStartInput::new("cat"), &token)
         .await
         .unwrap()
         .data
         .process_id;
     assert!(
         manager
-            .status("b", ProcessStatusInput::default(), &token)
+            .status(Some("b"), ProcessStatusInput::default(), &token)
             .await
             .unwrap()
             .data
             .is_empty()
     );
     assert!(matches!(
-        manager.read("b", ProcessReadInput::new(&id), &token).await,
+        manager
+            .read(Some("b"), ProcessReadInput::new(&id), &token)
+            .await,
         Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         manager
             .write(
-                "b",
+                Some("b"),
                 ProcessWriteInput {
                     process_id: id.clone(),
                     text: "no".into(),
@@ -304,7 +306,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     assert!(matches!(
         manager
             .stop(
-                "b",
+                Some("b"),
                 ProcessStopInput {
                     process_id: id.clone(),
                     forget: true
@@ -316,14 +318,18 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     ));
     assert!(matches!(
         manager
-            .start("a", ProcessStartInput::new("touch unexpected"), &token)
+            .start(
+                Some("a"),
+                ProcessStartInput::new("touch unexpected"),
+                &token
+            )
             .await,
         Err(ToolError::LimitExceeded(_))
     ));
     assert!(!root.path().join("unexpected").exists());
     let stopped = manager
         .stop(
-            "a",
+            Some("a"),
             ProcessStopInput {
                 process_id: id.clone(),
                 forget: false,
@@ -338,14 +344,14 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     assert!(!stopped.forgotten);
     assert!(matches!(
         manager
-            .start("a", ProcessStartInput::new("true"), &token)
+            .start(Some("a"), ProcessStartInput::new("true"), &token)
             .await,
         Err(ToolError::LimitExceeded(_))
     ));
     assert!(
         manager
             .stop(
-                "a",
+                Some("a"),
                 ProcessStopInput {
                     process_id: id.clone(),
                     forget: true
@@ -358,30 +364,32 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
             .forgotten
     );
     assert!(matches!(
-        manager.read("a", ProcessReadInput::new(&id), &token).await,
+        manager
+            .read(Some("a"), ProcessReadInput::new(&id), &token)
+            .await,
         Err(ToolError::AccessRefused(_))
     ));
     let next = manager
-        .start("a", ProcessStartInput::new("cat"), &token)
+        .start(Some("a"), ProcessStartInput::new("cat"), &token)
         .await
         .unwrap()
         .data
         .process_id;
     assert_ne!(next, id);
     manager
-        .start("b", ProcessStartInput::new("cat"), &token)
+        .start(Some("b"), ProcessStartInput::new("cat"), &token)
         .await
         .unwrap();
     assert!(matches!(
         manager
-            .start("c", ProcessStartInput::new("true"), &token)
+            .start(Some("c"), ProcessStartInput::new("true"), &token)
             .await,
         Err(ToolError::LimitExceeded(_))
     ));
     assert!(manager.close_owner("a").await);
     assert_eq!(
         manager
-            .status("b", ProcessStatusInput::default(), &token)
+            .status(Some("b"), ProcessStatusInput::default(), &token)
             .await
             .unwrap()
             .data[0]
@@ -391,10 +399,73 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     assert!(manager.close().await);
     assert!(matches!(
         manager
-            .start("a", ProcessStartInput::new("true"), &token)
+            .start(Some("a"), ProcessStartInput::new("true"), &token)
             .await,
         Err(ToolError::AccessRefused(_))
     ));
+}
+
+#[tokio::test]
+async fn no_owner_is_one_standalone_owner_with_its_own_quota() {
+    let root = tempfile::tempdir().unwrap();
+    let mut limits = ProcessLimits::default();
+    limits.max_processes = 2;
+    limits.max_processes_per_owner = 1;
+    let session = ProcessSession::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(limits)
+        .unwrap();
+    let token = CancellationToken::new();
+    let id = session
+        .start(None, ProcessStartInput::new("cat"), &token)
+        .await
+        .unwrap()
+        .data
+        .process_id;
+    let listed = session
+        .status(None, ProcessStatusInput::default(), &token)
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].process_id, id);
+    // A named owner neither sees nor reaches the standalone owner's job.
+    let named = session.status(Some("a"), ProcessStatusInput::default(), &token);
+    assert!(named.await.unwrap().data.is_empty());
+    assert!(matches!(
+        session
+            .read(Some("a"), ProcessReadInput::new(&id), &token)
+            .await,
+        Err(ToolError::AccessRefused(_))
+    ));
+    // The per-owner quota counts the standalone owner's jobs as one owner's.
+    assert!(matches!(
+        session
+            .start(None, ProcessStartInput::new("true"), &token)
+            .await,
+        Err(ToolError::LimitExceeded(_))
+    ));
+    session
+        .start(Some("a"), ProcessStartInput::new("cat"), &token)
+        .await
+        .unwrap();
+    session
+        .read(None, ProcessReadInput::new(&id), &token)
+        .await
+        .unwrap();
+    let close = ProcessWriteInput {
+        process_id: id.clone(),
+        text: String::new(),
+        close_stdin: true,
+    };
+    session.write(None, close, &token).await.unwrap();
+    let stop = ProcessStopInput {
+        process_id: id,
+        forget: true,
+    };
+    session.stop(None, stop, &token).await.unwrap();
+    assert!(session.close().await);
 }
 
 #[tokio::test]
@@ -419,10 +490,10 @@ async fn bounded_retention_exposes_every_gap_and_keeps_draining() {
         .with_limits(limits)
         .unwrap();
     let token = CancellationToken::new();
-    let id = manager.start("a", ProcessStartInput::new("head -c 131072 /dev/zero; printf TAIL; head -c 131072 /dev/zero >&2; printf ERR >&2"), &token).await.unwrap().data.process_id;
+    let id = manager.start(Some("a"), ProcessStartInput::new("head -c 131072 /dev/zero; printf TAIL; head -c 131072 /dev/zero >&2; printf ERR >&2"), &token).await.unwrap().data.process_id;
     finished(&manager, "a", &id).await;
     let result = manager
-        .read("a", ProcessReadInput::new(&id), &token)
+        .read(Some("a"), ProcessReadInput::new(&id), &token)
         .await
         .unwrap()
         .data;
@@ -451,7 +522,7 @@ async fn lifetime_timeout_caps_requests_and_retains_output() {
     input.timeout_ms = std::num::NonZeroU64::new(60_000);
     let token = CancellationToken::new();
     let id = manager
-        .start("a", input, &token)
+        .start(Some("a"), input, &token)
         .await
         .unwrap()
         .data
@@ -462,7 +533,7 @@ async fn lifetime_timeout_caps_requests_and_retains_output() {
     assert_eq!(status.signal, Some(9));
     assert_eq!(
         manager
-            .read("a", ProcessReadInput::new(&id), &token)
+            .read(Some("a"), ProcessReadInput::new(&id), &token)
             .await
             .unwrap()
             .data
@@ -486,14 +557,14 @@ async fn blocked_stdin_reports_partial_bytes_and_does_not_prevent_stop() {
         .unwrap();
     let token = CancellationToken::new();
     let id = manager
-        .start("a", ProcessStartInput::new("sleep 60"), &token)
+        .start(Some("a"), ProcessStartInput::new("sleep 60"), &token)
         .await
         .unwrap()
         .data
         .process_id;
     let result = manager
         .write(
-            "a",
+            Some("a"),
             ProcessWriteInput {
                 process_id: id.clone(),
                 text: "x".repeat(limits.max_write_bytes),
@@ -519,7 +590,11 @@ async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
     token.cancel();
     assert!(matches!(
         manager
-            .start("a", ProcessStartInput::new("touch unexpected"), &token)
+            .start(
+                Some("a"),
+                ProcessStartInput::new("touch unexpected"),
+                &token
+            )
             .await,
         Err(ToolError::Cancelled)
     ));
@@ -527,7 +602,7 @@ async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
     for command in ["", "\n", "bad\0command"] {
         assert!(matches!(
             manager
-                .start("a", ProcessStartInput::new(command), &token)
+                .start(Some("a"), ProcessStartInput::new(command), &token)
                 .await,
             Err(ToolError::InvalidInput(_))
         ));
@@ -535,7 +610,7 @@ async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
     let mut input = ProcessStartInput::new("touch unexpected");
     input.cwd = Some(outside.path().display().to_string());
     assert!(matches!(
-        manager.start("a", input, &token).await,
+        manager.start(Some("a"), input, &token).await,
         Err(ToolError::AccessRefused(_))
     ));
     assert!(!outside.path().join("unexpected").exists());
@@ -560,7 +635,7 @@ async fn dropping_last_manager_reaps_shell_and_stops_its_child() {
     let manager = ProcessSession::new(root.path()).await.unwrap();
     manager
         .start(
-            "a",
+            Some("a"),
             ProcessStartInput::new("sleep 60 & printf '%s %s' $$ $! > pids; wait"),
             &CancellationToken::new(),
         )
@@ -595,7 +670,7 @@ async fn closed_output_pipes_do_not_finish_a_still_running_process() {
     let token = CancellationToken::new();
     let id = manager
         .start(
-            "a",
+            Some("a"),
             ProcessStartInput::new("exec 1>&- 2>&-; printf ready > ready; sleep 60"),
             &token,
         )
@@ -606,7 +681,7 @@ async fn closed_output_pipes_do_not_finish_a_still_running_process() {
     file(&root.path().join("ready")).await;
     assert_eq!(
         manager
-            .status("a", ProcessStatusInput::default(), &token)
+            .status(Some("a"), ProcessStatusInput::default(), &token)
             .await
             .unwrap()
             .data[0]
@@ -615,7 +690,7 @@ async fn closed_output_pipes_do_not_finish_a_still_running_process() {
     );
     let stopped = manager
         .stop(
-            "a",
+            Some("a"),
             ProcessStopInput {
                 process_id: id,
                 forget: true,
@@ -634,7 +709,7 @@ async fn concurrent_stdin_calls_preserve_each_payload_and_drain_all_bytes() {
     let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     let id = manager
-        .start("a", ProcessStartInput::new("cat"), &token)
+        .start(Some("a"), ProcessStartInput::new("cat"), &token)
         .await
         .unwrap()
         .data
@@ -647,13 +722,13 @@ async fn concurrent_stdin_calls_preserve_each_payload_and_drain_all_bytes() {
         close_stdin: false,
     };
     let (first, second) = tokio::join!(
-        manager.write("a", write(a.clone()), &token),
-        manager.write("a", write(b.clone()), &token)
+        manager.write(Some("a"), write(a.clone()), &token),
+        manager.write(Some("a"), write(b.clone()), &token)
     );
     assert!(first.unwrap().data.complete && second.unwrap().data.complete);
     manager
         .write(
-            "a",
+            Some("a"),
             ProcessWriteInput {
                 process_id: id.clone(),
                 text: String::new(),
@@ -667,7 +742,11 @@ async fn concurrent_stdin_calls_preserve_each_payload_and_drain_all_bytes() {
     let mut input = ProcessReadInput::new(&id);
     let mut text = String::new();
     loop {
-        let page = manager.read("a", input.clone(), &token).await.unwrap().data;
+        let page = manager
+            .read(Some("a"), input.clone(), &token)
+            .await
+            .unwrap()
+            .data;
         text.push_str(&page.stdout.text);
         input.stdout_offset = page.stdout.next_offset;
         if !page.stdout.has_more {
@@ -685,7 +764,7 @@ async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable(
         let manager = ProcessSession::new(root.path()).await.unwrap();
         let id = manager
             .start(
-                "a",
+                Some("a"),
                 ProcessStartInput::new("sleep 60"),
                 &CancellationToken::new(),
             )
@@ -700,7 +779,7 @@ async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable(
         let task = tokio::spawn(async move {
             writer
                 .write(
-                    "a",
+                    Some("a"),
                     ProcessWriteInput {
                         process_id: write_id,
                         text: "x".repeat(65_536),
@@ -728,7 +807,7 @@ async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable(
         assert_eq!(
             manager
                 .status(
-                    "a",
+                    Some("a"),
                     ProcessStatusInput::default(),
                     &CancellationToken::new()
                 )
@@ -740,7 +819,7 @@ async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable(
         );
         let stopped = manager
             .stop(
-                "a",
+                Some("a"),
                 ProcessStopInput {
                     process_id: id,
                     forget: true,
@@ -761,7 +840,7 @@ async fn normal_exit_stops_background_children_and_reaps_the_direct_child() {
     let manager = ProcessSession::new(root.path()).await.unwrap();
     let id = manager
         .start(
-            "a",
+            Some("a"),
             ProcessStartInput::new("sleep 60 & printf '%s %s' $$ $! > pids; exit 3"),
             &CancellationToken::new(),
         )
@@ -800,7 +879,7 @@ async fn each_process_leads_a_new_session_without_the_host_terminal() {
     let token = CancellationToken::new();
     let id = manager
         .start(
-            "a",
+            Some("a"),
             ProcessStartInput::new("printf '%s ' $$; cat /proc/$$/stat"),
             &token,
         )
@@ -810,7 +889,7 @@ async fn each_process_leads_a_new_session_without_the_host_terminal() {
         .process_id;
     finished(&manager, "a", &id).await;
     let output = manager
-        .read("a", ProcessReadInput::new(&id), &token)
+        .read(Some("a"), ProcessReadInput::new(&id), &token)
         .await
         .unwrap()
         .data
@@ -844,14 +923,14 @@ async fn persistent_processes_do_not_receive_unlisted_host_variables() {
     let token = CancellationToken::new();
     let command = r#"printf '%s|%s' "${CARGO_PKG_NAME-unset}" "${PATH:+path}""#;
     let id = manager
-        .start("a", ProcessStartInput::new(command), &token)
+        .start(Some("a"), ProcessStartInput::new(command), &token)
         .await
         .unwrap()
         .data
         .process_id;
     finished(&manager, "a", &id).await;
     let read = manager
-        .read("a", ProcessReadInput::new(&id), &token)
+        .read(Some("a"), ProcessReadInput::new(&id), &token)
         .await
         .unwrap()
         .data;
@@ -873,14 +952,14 @@ async fn persistent_environment_is_host_configured_before_start() {
     let token = CancellationToken::new();
     let command = r#"printf '%s|%s' "$CARGO_PKG_NAME" "$GREETING""#;
     let id = manager
-        .start("a", ProcessStartInput::new(command), &token)
+        .start(Some("a"), ProcessStartInput::new(command), &token)
         .await
         .unwrap()
         .data
         .process_id;
     finished(&manager, "a", &id).await;
     let read = manager
-        .read("a", ProcessReadInput::new(&id), &token)
+        .read(Some("a"), ProcessReadInput::new(&id), &token)
         .await
         .unwrap()
         .data;
@@ -907,14 +986,14 @@ async fn reading_cat_preserves_stdin_and_reports_newline_and_normal_eof_exactly(
     let manager = ProcessSession::new(root.path()).await.unwrap();
     let token = CancellationToken::new();
     let id = manager
-        .start("a", ProcessStartInput::new("cat"), &token)
+        .start(Some("a"), ProcessStartInput::new("cat"), &token)
         .await
         .unwrap()
         .data
         .process_id;
     let sent = manager
         .write(
-            "a",
+            Some("a"),
             ProcessWriteInput {
                 process_id: id.clone(),
                 text: "Hello!!\n".into(),
@@ -930,7 +1009,7 @@ async fn reading_cat_preserves_stdin_and_reports_newline_and_normal_eof_exactly(
     let output = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let read = manager
-                .read("a", ProcessReadInput::new(&id), &token)
+                .read(Some("a"), ProcessReadInput::new(&id), &token)
                 .await
                 .unwrap()
                 .data;
@@ -952,13 +1031,13 @@ async fn reading_cat_preserves_stdin_and_reports_newline_and_normal_eof_exactly(
     assert_eq!(output.status.signal, None);
     let mut next = ProcessReadInput::new(&id);
     next.stdout_offset = output.stdout.next_offset;
-    let empty = manager.read("a", next, &token).await.unwrap().data;
+    let empty = manager.read(Some("a"), next, &token).await.unwrap().data;
     assert_eq!(empty.stdout.bytes, b"");
     assert_eq!(empty.status.state, ProcessState::Running);
     assert!(!empty.status.stdin_closed);
     manager
         .write(
-            "a",
+            Some("a"),
             ProcessWriteInput {
                 process_id: id.clone(),
                 text: String::new(),

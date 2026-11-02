@@ -95,7 +95,10 @@ impl Drop for Inner {
 
 /// Optional ephemeral output storage shared by selected shell/process tools.
 ///
-/// Supply trusted owner keys, never model arguments. Clones share a store.
+/// Every archive belongs to the owner of the command that produced it, a
+/// trusted key the host passes, never from model arguments; `None` is the
+/// one standalone owner, that of [`ShellTool::shell`](crate::ShellTool::shell).
+/// Clones share a store.
 /// Copies survive process-record deletion until explicit forget/store close.
 /// The last store reference requests writer cleanup; prefer explicit close.
 /// No restart persistence, fsync durability, sandbox or arbitrary file access.
@@ -241,9 +244,10 @@ impl OutputStore {
     /// Returns cancellation or refusal after close.
     pub fn list(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         cancel: &CancellationToken,
     ) -> Result<Vec<OutputArchive>, ToolError> {
+        let owner = crate::owner_key(owner);
         if cancel.is_cancelled() {
             return Err(ToolError::Cancelled);
         }
@@ -269,10 +273,11 @@ impl OutputStore {
     /// Rejects foreign/unknown IDs and offsets past stored bytes. Reports read I/O failures.
     pub async fn read(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         input: OutputReadInput,
         cancel: &CancellationToken,
     ) -> Result<Output<OutputPage>, ToolError> {
+        let owner = crate::owner_key(owner);
         let record = self.entry(owner, &input.archive_id, cancel)?;
         let archive = record.snapshot();
         if input.offset > archive.stored_bytes {
@@ -320,10 +325,11 @@ impl OutputStore {
     /// Rejects active, unknown or foreign copies, closed stores and cancellation.
     pub async fn forget(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         input: OutputForgetInput,
         cancel: &CancellationToken,
     ) -> Result<Output<OutputForgetResult>, ToolError> {
+        let owner = crate::owner_key(owner);
         let record = self.entry(owner, &input.archive_id, cancel)?;
         let state = record.snapshot();
         if !state.finished || !record.capture_done.load(Ordering::Acquire) {

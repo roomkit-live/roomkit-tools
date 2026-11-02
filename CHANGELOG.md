@@ -53,6 +53,10 @@ part of an existing published preview.
   `MutationWorkspace` is `Workspace`, `RustoBackend` is `RustoOcr`, and
   `OutputStore::is_closed` is `closed`. `ProcessSession::closed` reports a
   requested shutdown, as Python's `closed` property.
+- Rust: `ProcessSession` (`start`, `status`, `read`, `write`, `stop`) and
+  `OutputStore` (`read`, `forget`, `list`) take `owner: Option<&str>`; `None`
+  is the standalone owner, the one `ShellTool::shell` files archives under,
+  as Python's `owner=None`.
 
 ### Added
 

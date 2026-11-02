@@ -13,10 +13,6 @@ use tokio_util::sync::CancellationToken;
 
 use super::{Cancellation, InvalidInputError, ShellOptions, ToolError, fork, tool_error};
 
-// The owner of Python calls that name none. Hosts pass a trusted owner, and
-// RoomKit handlers the owner of each call, derived from its room and acting agent.
-pub(super) const OWNER: &str = "default";
-
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Options {
@@ -126,6 +122,8 @@ impl PythonOutputStore {
             .map_err(|_| ToolError::new_err("Unable to serialize output definition"))
     }
 
+    // `owner` is the trusted owner whose archives the call reaches, never a model
+    // argument; None is the standalone owner, as in Rust.
     #[pyo3(signature = (name, arguments_json, cancellation, owner=None))]
     fn call<'py>(
         &self,
@@ -136,7 +134,6 @@ impl PythonOutputStore {
         owner: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let state = Arc::clone(&self.state);
-        let owner = owner.unwrap_or_else(|| OWNER.to_owned());
         let token = cancellation.token.clone();
         let guard = token.clone().drop_guard();
         crate::runtime::future_into_py(py, async move {
@@ -150,7 +147,7 @@ impl PythonOutputStore {
                         .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
                     let store = state.resolve().await.map_err(|e| tool_error(&e))?;
                     let result = store
-                        .$method(&owner, input, &token)
+                        .$method(owner.as_deref(), input, &token)
                         .await
                         .map_err(|e| tool_error(&e))?;
                     serde_json::to_string(&result)
@@ -162,7 +159,9 @@ impl PythonOutputStore {
                 "output_forget" => invoke!(forget, OutputForgetInput),
                 "initialize" | "list" => {
                     let store = state.resolve().await.map_err(|e| tool_error(&e))?;
-                    let entries = store.list(&owner, &token).map_err(|e| tool_error(&e))?;
+                    let entries = store
+                        .list(owner.as_deref(), &token)
+                        .map_err(|e| tool_error(&e))?;
                     serde_json::to_string(&entries)
                         .map_err(|_| ToolError::new_err("Unable to serialize output list"))
                 }
@@ -247,17 +246,19 @@ impl PythonShellTool {
         owner: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let tool = self.tool.clone();
-        let owner = owner.unwrap_or_else(|| OWNER.to_owned());
         let token = cancellation.token.clone();
         let guard = token.clone().drop_guard();
         crate::runtime::future_into_py(py, async move {
             let _guard = guard;
             let input: ShellInput = serde_json::from_str(&arguments_json)
                 .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
-            let result = tool
-                .shell_owned(&owner, input, &token)
-                .await
-                .map_err(|e| tool_error(&e))?;
+            // A call that names no owner is the standalone shell's, whose
+            // archives the store reaches with no owner too.
+            let result = match owner {
+                Some(owner) => tool.shell_owned(&owner, input, &token).await,
+                None => tool.shell(input, &token).await,
+            }
+            .map_err(|e| tool_error(&e))?;
             serde_json::to_string(&result)
                 .map_err(|_| ToolError::new_err("Unable to serialize tool result"))
         })

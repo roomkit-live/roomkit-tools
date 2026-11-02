@@ -43,10 +43,12 @@ async fn invoke(
     }
     macro_rules! process {
         ($method:ident) => {
-            Ok(
-                serde_json::to_value(manager.$method(OWNER, input(arguments)?, token).await?)
-                    .unwrap(),
+            Ok(serde_json::to_value(
+                manager
+                    .$method(Some(OWNER), input(arguments)?, token)
+                    .await?,
             )
+            .unwrap())
         };
     }
     match step["tool"].as_str().unwrap() {
@@ -73,14 +75,14 @@ async fn invoke(
         "output_read" => Ok(serde_json::to_value(
             outputs
                 .unwrap()
-                .read(OWNER, input(arguments)?, token)
+                .read(Some(OWNER), input(arguments)?, token)
                 .await?,
         )
         .unwrap()),
         "output_forget" => Ok(serde_json::to_value(
             outputs
                 .unwrap()
-                .forget(OWNER, input(arguments)?, token)
+                .forget(Some(OWNER), input(arguments)?, token)
                 .await?,
         )
         .unwrap()),
@@ -160,7 +162,7 @@ async fn wait(manager: &ProcessSession, expected: &Value) {
         loop {
             let observed = manager
                 .status(
-                    OWNER,
+                    Some(OWNER),
                     ProcessStatusInput {
                         process_id: Some("p1".into()),
                     },

@@ -53,7 +53,8 @@ pub struct ObservedProcess {
 
 /// Host-owned process collection with explicit owner boundaries, independent of RoomKit.
 ///
-/// Hosts supply a trusted owner key on every operation, never from model arguments.
+/// Every job belongs to one owner, a trusted key the host passes on each
+/// operation, never from model arguments; `None` is the one standalone owner.
 /// Clones share ownership; dropping the last clone requests all process cleanup.
 /// Keep the Tokio runtime alive and prefer awaiting [`Self::close`]. This is not
 /// a sandbox: commands run with host permissions. They receive only the
@@ -276,10 +277,11 @@ impl ProcessSession {
     /// a lost response. Non-Unix platforms are unsupported.
     pub async fn start(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         input: ProcessStartInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessStatus>, ToolError> {
+        let owner = crate::owner_key(owner);
         self.check(owner, cancel)?;
         let cwd = self.start_directory(&input, cancel).await?;
         let mut registry = self.inner.registry.lock().await;
@@ -338,10 +340,11 @@ impl ProcessSession {
     /// Rejects unknown/foreign identifiers, closed sessions and cancellation.
     pub async fn status(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         input: ProcessStatusInput,
         cancel: &CancellationToken,
     ) -> Result<Output<Vec<ProcessStatus>>, ToolError> {
+        let owner = crate::owner_key(owner);
         self.check(owner, cancel)?;
         let entries = if let Some(id) = input.process_id {
             vec![self.entry(owner, &id, cancel).await?]
@@ -378,10 +381,11 @@ impl ProcessSession {
     /// Rejects cursors past observed EOF, unknown owners/IDs and cancellation.
     pub async fn read(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         input: ProcessReadInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessReadResult>, ToolError> {
+        let owner = crate::owner_key(owner);
         let entry = self.entry(owner, &input.process_id, cancel).await?;
         let record = entry.record.lock().await;
         let limit = input
@@ -423,10 +427,11 @@ impl ProcessSession {
     /// requested it continues even if this call is cancelled or dropped.
     pub async fn stop(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         input: ProcessStopInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessStopResult>, ToolError> {
+        let owner = crate::owner_key(owner);
         let entry = self.entry(owner, &input.process_id, cancel).await?;
         entry.stop.cancel();
         wait_done(&entry, tokio::time::Instant::now() + Duration::from_secs(2)).await;
@@ -532,7 +537,7 @@ mod tests {
             .unwrap();
         let token = CancellationToken::new();
         let id = manager
-            .start("a", ProcessStartInput::new("cat"), &token)
+            .start(Some("a"), ProcessStartInput::new("cat"), &token)
             .await
             .unwrap()
             .data
@@ -548,14 +553,14 @@ mod tests {
         assert!(task.await.unwrap_err().is_cancelled());
         assert!(matches!(
             manager
-                .start("a", ProcessStartInput::new("true"), &token)
+                .start(Some("a"), ProcessStartInput::new("true"), &token)
                 .await,
             Err(ToolError::LimitExceeded(_))
         ));
         drop(publishing);
         assert!(manager.close_owner("a").await);
         manager
-            .start("a", ProcessStartInput::new("true"), &token)
+            .start(Some("a"), ProcessStartInput::new("true"), &token)
             .await
             .unwrap();
         assert!(manager.close().await);

@@ -33,7 +33,7 @@ macro_rules! owned_toolset {
                 let tool = Arc::clone(&self.tool);
                 let owner = || current_owner($family);
                 serve($wire, name, arguments, owner, move |owner, input, cancel| async move {
-                    tool.$method(&owner, input, &cancel).await.map_err(|error| tool_error(&error))
+                    tool.$method(Some(&owner), input, &cancel).await.map_err(|error| tool_error(&error))
                 })
             }
         }

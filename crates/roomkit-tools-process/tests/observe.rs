@@ -15,7 +15,11 @@ async fn observation_tracks_owners_natural_exit_stable_duration_and_forgetting()
     let mut changes = manager.subscribe();
     assert!(manager.observe().await.is_empty());
     let process = manager
-        .start("trusted-owner", ProcessStartInput::new("cat"), &cancel)
+        .start(
+            Some("trusted-owner"),
+            ProcessStartInput::new("cat"),
+            &cancel,
+        )
         .await
         .unwrap()
         .data;
@@ -29,7 +33,7 @@ async fn observation_tracks_owners_natural_exit_stable_duration_and_forgetting()
     assert_eq!(observed[0].status.state, ProcessState::Running);
     manager
         .write(
-            "trusted-owner",
+            Some("trusted-owner"),
             ProcessWriteInput {
                 process_id: process.process_id.clone(),
                 text: "hello\n".into(),
@@ -47,7 +51,7 @@ async fn observation_tracks_owners_natural_exit_stable_duration_and_forgetting()
     );
     manager
         .write(
-            "trusted-owner",
+            Some("trusted-owner"),
             ProcessWriteInput {
                 process_id: process.process_id.clone(),
                 text: String::new(),
@@ -68,7 +72,7 @@ async fn observation_tracks_owners_natural_exit_stable_duration_and_forgetting()
     assert_eq!(manager.observe().await[0].elapsed, finished[0].elapsed);
     manager
         .stop(
-            "trusted-owner",
+            Some("trusted-owner"),
             ProcessStopInput {
                 process_id: process.process_id,
                 forget: true,

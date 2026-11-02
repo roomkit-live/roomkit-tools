@@ -40,3 +40,12 @@ pub use output::{
 pub use persistent::{ObservedProcess, ProcessSession};
 pub use process_types::*;
 pub use shell::{ShellInput, ShellLimits, ShellResult, ShellTool};
+
+/// The owner of the calls that name none, Python's `owner=None`: the one
+/// standalone owner of a session or store, apart from every named owner.
+const STANDALONE_OWNER: &str = "default";
+
+/// The trusted owner key a call files its jobs and archives under.
+fn owner_key(owner: Option<&str>) -> &str {
+    owner.unwrap_or(STANDALONE_OWNER)
+}

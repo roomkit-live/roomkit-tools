@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let page = outputs
         .read(
-            "default",
+            None,
             OutputReadInput {
                 archive_id: archive.archive_id.clone().ok_or("missing archive ID")?,
                 offset: 65_536,

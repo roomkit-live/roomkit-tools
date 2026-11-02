@@ -15,10 +15,6 @@ use tokio_util::sync::CancellationToken;
 
 use super::{Cancellation, InvalidInputError, ToolError, fork, tool_error};
 
-// Calls that name no owner use this one; hosts and RoomKit handlers pass a
-// trusted owner. Neither the manager nor an owner is selected by model arguments.
-const OWNER: &str = super::output::OWNER;
-
 /// Add the default inherited variable names and the environment check.
 pub(super) fn install(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("DEFAULT_INHERITED_ENV", DEFAULT_INHERITED_ENV.to_vec())?;
@@ -225,6 +221,8 @@ impl PythonProcessSession {
             .map_err(|_| ToolError::new_err("Unable to serialize the tool definition"))
     }
 
+    // `owner` is the trusted owner whose jobs the call reaches, never a model
+    // argument; None is the standalone owner, as in Rust.
     #[pyo3(signature = (name, arguments_json, cancellation, owner=None))]
     fn call<'py>(
         &self,
@@ -235,7 +233,6 @@ impl PythonProcessSession {
         owner: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let state = Arc::clone(&self.state);
-        let owner = owner.unwrap_or_else(|| OWNER.to_owned());
         let token = cancellation.token.clone();
         let guard = token.clone().drop_guard();
         crate::runtime::future_into_py(py, async move {
@@ -249,7 +246,7 @@ impl PythonProcessSession {
                         .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
                     let manager = state.resolve().await.map_err(|error| tool_error(&error))?;
                     let result = manager
-                        .$method(&owner, input, &token)
+                        .$method(owner.as_deref(), input, &token)
                         .await
                         .map_err(|error| tool_error(&error))?;
                     serde_json::to_string(&result)

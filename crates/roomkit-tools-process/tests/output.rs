@@ -52,7 +52,7 @@ async fn recover_full_binary_output_without_rerunning_a_command() {
     let mut recovered = Vec::new();
     loop {
         let page = store
-            .read("default", page(&id, recovered.len() as u64, 4096), &cancel)
+            .read(None, page(&id, recovered.len() as u64, 4096), &cancel)
             .await
             .unwrap()
             .data;
@@ -63,7 +63,7 @@ async fn recover_full_binary_output_without_rerunning_a_command() {
     }
     assert_eq!(recovered, original);
     assert_eq!(std::fs::read(root.path().join("runs")).unwrap(), b"run");
-    assert_eq!(store.list("default", &cancel).unwrap().len(), 2);
+    assert_eq!(store.list(None, &cancel).unwrap().len(), 2);
     assert!(store.close().await);
     assert_eq!(std::fs::read_dir(storage.path()).unwrap().count(), 0);
 }
@@ -84,13 +84,51 @@ async fn listing_follows_creation_order_past_nine_archives() {
         shell.shell(ShellInput::new("true"), &cancel).await.unwrap();
     }
     let listed: Vec<String> = store
-        .list("default", &cancel)
+        .list(None, &cancel)
         .unwrap()
         .into_iter()
         .map(|archive| archive.archive_id.unwrap())
         .collect();
     let expected: Vec<String> = (1..=12).map(|n| format!("o{n}")).collect();
     assert_eq!(listed, expected);
+    assert!(store.close().await);
+}
+
+#[tokio::test]
+async fn no_owner_is_the_standalone_owner_of_shell_archives() {
+    let root = tempfile::tempdir().unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let store = OutputStore::new(storage.path(), OutputLimits::default())
+        .await
+        .unwrap();
+    let shell = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_output_store(store.clone());
+    let cancel = CancellationToken::new();
+    let standalone = shell
+        .shell(ShellInput::new("printf mine"), &cancel)
+        .await
+        .unwrap();
+    let named = shell
+        .shell_owned("a", ShellInput::new("printf theirs"), &cancel)
+        .await
+        .unwrap();
+    let mine = standalone.data.stdout.archive.unwrap().archive_id.unwrap();
+    let theirs = named.data.stdout.archive.unwrap().archive_id.unwrap();
+    // Standalone commands file stdout and stderr under the owner None names.
+    assert_eq!(store.list(None, &cancel).unwrap().len(), 2);
+    assert_eq!(store.list(Some("a"), &cancel).unwrap().len(), 2);
+    let page_of_mine = store.read(None, page(&mine, 0, 64), &cancel).await;
+    assert_eq!(page_of_mine.unwrap().data.text, "mine");
+    assert!(matches!(
+        store.read(None, page(&theirs, 0, 64), &cancel).await,
+        Err(ToolError::AccessRefused(_))
+    ));
+    assert!(matches!(
+        store.read(Some("a"), page(&mine, 0, 64), &cancel).await,
+        Err(ToolError::AccessRefused(_))
+    ));
     assert!(store.close().await);
 }
 
@@ -139,7 +177,7 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
     let id = archive.archive_id.unwrap();
     assert_eq!(
         store
-            .read("default", page(&id, 0, 100), &cancel)
+            .read(None, page(&id, 0, 100), &cancel)
             .await
             .unwrap()
             .data
@@ -147,7 +185,7 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
         b"01"
     );
     assert!(matches!(
-        store.read("default", page(&id, 6, 1), &cancel).await,
+        store.read(None, page(&id, 6, 1), &cancel).await,
         Err(ToolError::InvalidInput(_))
     ));
     let second = shell
@@ -161,7 +199,7 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
     );
     store
         .forget(
-            "default",
+            None,
             OutputForgetInput {
                 archive_id: id.clone(),
             },
@@ -170,7 +208,7 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
         .await
         .unwrap();
     assert!(matches!(
-        store.read("default", page(&id, 0, 1), &cancel).await,
+        store.read(None, page(&id, 0, 1), &cancel).await,
         Err(ToolError::AccessRefused(_))
     ));
     let third = shell
@@ -205,13 +243,13 @@ async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
     assert_eq!(archive.stored_bytes, 0);
     assert_eq!(archive.error.as_deref(), Some("total_limit"));
     assert!(matches!(
-        store.read("two", page(&id, 0, 1), &cancel).await,
+        store.read(Some("two"), page(&id, 0, 1), &cancel).await,
         Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         store
             .forget(
-                "two",
+                Some("two"),
                 OutputForgetInput {
                     archive_id: id.clone()
                 },
@@ -220,9 +258,9 @@ async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
             .await,
         Err(ToolError::AccessRefused(_))
     ));
-    assert_eq!(store.list("unknown", &cancel).unwrap(), []);
+    assert_eq!(store.list(Some("unknown"), &cancel).unwrap(), []);
     store
-        .forget("one", OutputForgetInput { archive_id: id }, &cancel)
+        .forget(Some("one"), OutputForgetInput { archive_id: id }, &cancel)
         .await
         .unwrap();
     let third = shell
@@ -250,14 +288,14 @@ async fn process_archives_remain_readable_after_manager_close() {
         .unwrap();
     let cancel = CancellationToken::new();
     let start = manager
-        .start("owner", ProcessStartInput::new("cat"), &cancel)
+        .start(Some("owner"), ProcessStartInput::new("cat"), &cancel)
         .await
         .unwrap()
         .data;
     let id = start.stdout_archive.unwrap().archive_id.unwrap();
     manager
         .write(
-            "owner",
+            Some("owner"),
             ProcessWriteInput {
                 process_id: start.process_id.clone(),
                 text: "πabc\n".into(),
@@ -270,7 +308,7 @@ async fn process_archives_remain_readable_after_manager_close() {
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let result = store
-                .read("owner", page(&id, 0, 1), &cancel)
+                .read(Some("owner"), page(&id, 0, 1), &cancel)
                 .await
                 .unwrap()
                 .data;
@@ -288,7 +326,7 @@ async fn process_archives_remain_readable_after_manager_close() {
     assert!(matches!(
         store
             .forget(
-                "owner",
+                Some("owner"),
                 OutputForgetInput {
                     archive_id: id.clone()
                 },
@@ -299,7 +337,7 @@ async fn process_archives_remain_readable_after_manager_close() {
     ));
     let status = manager
         .status(
-            "owner",
+            Some("owner"),
             ProcessStatusInput {
                 process_id: Some(start.process_id),
             },
@@ -310,7 +348,7 @@ async fn process_archives_remain_readable_after_manager_close() {
     assert!(!status.data.first().unwrap().stdin_closed);
     assert!(manager.close().await);
     let result = store
-        .read("owner", page(&id, 0, 100), &cancel)
+        .read(Some("owner"), page(&id, 0, 100), &cancel)
         .await
         .unwrap()
         .data;
@@ -332,7 +370,7 @@ async fn closing_store_keeps_the_process_running_and_refuses_reads() {
         .unwrap();
     let cancel = CancellationToken::new();
     let start = manager
-        .start("owner", ProcessStartInput::new("cat"), &cancel)
+        .start(Some("owner"), ProcessStartInput::new("cat"), &cancel)
         .await
         .unwrap()
         .data;
@@ -340,7 +378,7 @@ async fn closing_store_keeps_the_process_running_and_refuses_reads() {
     assert!(store.close().await);
     let sent = manager
         .write(
-            "owner",
+            Some("owner"),
             ProcessWriteInput {
                 process_id: start.process_id,
                 text: "still running\n".into(),
@@ -351,6 +389,6 @@ async fn closing_store_keeps_the_process_running_and_refuses_reads() {
         .await
         .unwrap();
     assert!(sent.data.complete);
-    assert!(store.list("owner", &cancel).is_err());
+    assert!(store.list(Some("owner"), &cancel).is_err());
     assert!(manager.close().await);
 }

@@ -137,7 +137,9 @@ impl ShellTool {
     }
 
     /// Attach optional output storage. Archive reads use the same trusted owner.
-    /// Standalone `shell` uses owner `default`; multi-owner hosts call `shell_owned`.
+    /// Standalone `shell` files them under the standalone owner, the one
+    /// [`OutputStore`](crate::OutputStore) methods reach with `None`;
+    /// multi-owner hosts call `shell_owned`.
     #[must_use]
     pub fn with_output_store(mut self, outputs: crate::OutputStore) -> Self {
         self.outputs = Some(outputs);
@@ -200,7 +202,8 @@ impl ShellTool {
         input: ShellInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ShellResult>, ToolError> {
-        self.shell_owned("default", input, cancel).await
+        self.shell_owned(crate::STANDALONE_OWNER, input, cancel)
+            .await
     }
 
     /// Execute with a trusted archive owner supplied by the host, never the model.

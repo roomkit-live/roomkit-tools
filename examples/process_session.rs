@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let cancel = CancellationToken::new();
     let started = manager
         .start(
-            "example-demo",
+            Some("example-demo"),
             ProcessStartInput::new(
                 "while IFS= read -r order; do printf 'Received: %s\n' \"$order\"; done",
             ),
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let id = started.data.process_id;
     let sent = manager
         .write(
-            "example-demo",
+            Some("example-demo"),
             ProcessWriteInput {
                 process_id: id.clone(),
                 text: "43: 2 notebooks\n".into(),
@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         loop {
             let states = manager
                 .status(
-                    "example-demo",
+                    Some("example-demo"),
                     ProcessStatusInput {
                         process_id: Some(id.clone()),
                     },
@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     })
     .await??;
     let read = manager
-        .read("example-demo", ProcessReadInput::new(&id), &cancel)
+        .read(Some("example-demo"), ProcessReadInput::new(&id), &cancel)
         .await?;
     if read.data.stdout.text != "Received: 43: 2 notebooks\n"
         || read.data.status.exit_code != Some(0)
@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", read.text);
     let stopped = manager
         .stop(
-            "example-demo",
+            Some("example-demo"),
             ProcessStopInput {
                 process_id: id,
                 forget: true,

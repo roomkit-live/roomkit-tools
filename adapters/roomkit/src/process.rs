@@ -34,7 +34,7 @@ macro_rules! process_toolset {
                 // Neither owner nor room identity is accepted from model arguments.
                 let owner = || current_owner("process");
                 serve($wire, name, arguments, owner, move |owner, input, cancel| async move {
-                    manager.$method(&owner, input, &cancel).await.map_err(|error| tool_error(&error))
+                    manager.$method(Some(&owner), input, &cancel).await.map_err(|error| tool_error(&error))
                 })
             }
         }

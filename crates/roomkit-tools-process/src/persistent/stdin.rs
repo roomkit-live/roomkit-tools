@@ -17,10 +17,11 @@ impl ProcessSession {
     /// starts, failure is a structured result; dropped futures may lose that result.
     pub async fn write(
         &self,
-        owner: &str,
+        owner: Option<&str>,
         input: ProcessWriteInput,
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessWriteResult>, ToolError> {
+        let owner = crate::owner_key(owner);
         if input.text.len() > self.inner.limits.max_write_bytes {
             return Err(ToolError::LimitExceeded(
                 "process stdin exceeds host limit".into(),
