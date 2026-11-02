@@ -11,9 +11,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
 
 from ._native import (
-    AccessRefusedError,
     InvalidInputError,
-    LimitExceededError,
     UnsupportedResourceError,
     _AgentContract,
 )
@@ -58,18 +56,8 @@ class _AgentTool:
     def __init__(self, backend: AgentBackend) -> None:
         self._backend = backend
 
-    @property
-    def definition(self) -> dict[str, Any]:
-        """RoomKit-compatible definition derived from the implementation types."""
-        definition = self.contract()
-        return {
-            "name": definition["name"],
-            "description": definition["description"],
-            "parameters": definition["input_schema"],
-        }
-
     @classmethod
-    def contract(cls) -> dict[str, Any]:
+    def definition(cls) -> dict[str, Any]:
         """Full framework-neutral Rust input/output schemas."""
         return json.loads(_AgentContract.definition_json(cls.name))
 
@@ -84,64 +72,36 @@ class _AgentTool:
         result = await method(scope, **inputs)
         return json.loads(_AgentContract.output_json(self.name, json.dumps(result)))
 
-    async def handler(self, name: str, arguments: dict[str, Any]) -> str:
-        """Resolve RoomKit's trusted caller; never accept scope from the model."""
-        from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
-        from roomkit.tools.context import current_tool_call, current_tool_room_id
 
-        if name != self.name:
-            raise UnservedToolCallError(name)
-        room, call = current_tool_room_id(), current_tool_call()
-        actor = call.channel_id if call is not None else None
-        if not room or not actor:
-            raise ToolRefusedError("agent tools require a conversation and an acting agent")
-        try:
-            result = await self.call(arguments, scope=AgentScope(room, actor))
-        except (InvalidInputError, AccessRefusedError) as error:
-            raise ToolRefusedError(str(error)) from error
-        except (LimitExceededError, UnsupportedResourceError) as error:
-            raise ToolFailedError(str(error)) from error
-        call.structured_content = result
-        return json.dumps(result, ensure_ascii=False)
-
-
-class DelegateTask(_AgentTool):
+class DelegateTaskTool(_AgentTool):
     """Start an isolated worker from a host-approved profile."""
 
     name = "delegate_task"
     method = "delegate"
 
-    @property
-    def definition(self) -> dict[str, Any]:
-        definition = super().definition
-        profiles = getattr(self._backend, "allowed_profiles", None)
-        if profiles is not None:
-            definition["parameters"]["properties"]["profile"]["enum"] = list(profiles)
-        return definition
 
-
-class TaskStatus(_AgentTool):
+class TaskStatusTool(_AgentTool):
     """Inspect only this backend's tasks; does not start or cancel work."""
 
     name = "task_status"
     method = "status"
 
 
-class CancelTask(_AgentTool):
+class CancelTaskTool(_AgentTool):
     """Cancel an owned task; already ended tasks remain unchanged."""
 
     name = "cancel_task"
     method = "cancel"
 
 
-class AgentFollowup(_AgentTool):
+class AgentFollowupTool(_AgentTool):
     """Start another mission in a retained idle agent's conversation."""
 
     name = "agent_followup"
     method = "followup"
 
 
-class AgentSend(_AgentTool):
+class AgentSendTool(_AgentTool):
     """Queue a clarification for a running agent, without starting another task."""
 
     name = "agent_send"

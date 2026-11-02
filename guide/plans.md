@@ -13,19 +13,22 @@ One shared backend connects the tools. Pass only the capabilities an agent needs
 ```python
 from roomkit import AIChannel
 from roomkit_tools import (
-    MemoryPlanBackend, PlanCreate, PlanRead, PlanList, PlanUpdate, PlanDelete,
+    MemoryPlanBackend, PlanCreate, PlanCreateTool, PlanDelete, PlanDeleteTool, PlanList,
+    PlanListTool, PlanRead, PlanReadTool, PlanUpdate, PlanUpdateTool,
 )
 
 store = MemoryPlanBackend()
 channel = AIChannel(
     "assistant",
     provider=provider,  # Your configured RoomKit provider.
-    tools=[PlanCreate(store), PlanRead(store), PlanList(store),
-           PlanUpdate(store), PlanDelete(store)],
+    tools=[PlanCreate(PlanCreateTool(store)), PlanRead(PlanReadTool(store)),
+           PlanList(PlanListTool(store)), PlanUpdate(PlanUpdateTool(store)),
+           PlanDelete(PlanDeleteTool(store))],
 )
 ```
 
-For a reader, select only `PlanRead(store)` and `PlanList(store)`. A tool object
+For a reader, select only `PlanRead(PlanReadTool(store))` and
+`PlanList(PlanListTool(store))`. A tool object
 owns configuration, not a private copy of the plans. Reuse the same backend across
 turns. Each handler derives ownership from RoomKit's current room and acting AI
 channel; callers cannot choose an owner in model arguments. Two conversations,
@@ -73,23 +76,25 @@ the described work actually happened.
 No RoomKit dependency is needed for direct calls:
 
 ```python
-from roomkit_tools import MemoryPlanBackend, PlanCreate, PlanRead, PlanScope, PlanUpdate
+from roomkit_tools import (
+    MemoryPlanBackend, PlanCreateTool, PlanReadTool, PlanScope, PlanUpdateTool,
+)
 
 store = MemoryPlanBackend()
 scope = PlanScope(room_id="review", caller_id="assistant")  # Trusted host identity.
-result = await PlanCreate(store).call({
+result = await PlanCreateTool(store).call({
     "title": "Review shipping",
     "objective": "Check the fee boundary",
     "steps": [{"step_id": "inspect", "description": "Read the source", "status": "pending"}],
 }, scope=scope)
 plan = result["data"]
 plan["steps"][0]["status"] = "in_progress"
-await PlanUpdate(store).call({
+await PlanUpdateTool(store).call({
     "plan_id": plan["plan_id"],
     "expected_revision": plan["revision"],
     "steps": plan["steps"],
 }, scope=scope)
-current = await PlanRead(store).call({"plan_id": plan["plan_id"]}, scope=scope)
+current = await PlanReadTool(store).call({"plan_id": plan["plan_id"]}, scope=scope)
 ```
 
 `PlanBackend` describes the five async host methods: `create`, `read`, `list`,
@@ -100,9 +105,10 @@ ownership on every operation, atomic revision checks, capacity, unique IDs and
 bounded records; declare its persistence guarantees. Implementations can use
 application storage. No database backend is included in this version.
 
-`PlanCreate.contract()` (and the other classes) exposes Rust-derived input/output
-schemas. `.definition` is the RoomKit definition. `.call()` returns `{data, text}`;
-`.handler()` uses trusted RoomKit context and records structured results.
+`PlanCreateTool.definition()` (and the other tools') exposes Rust-derived
+input/output schemas, and `.call()` returns `{data, text}`. The RoomKit adapter
+`PlanCreate(tool)` has the RoomKit `.definition` and a `.handler()` that uses
+trusted RoomKit context and records structured results.
 
 Cancellation can arrive after a mutation has committed but before its receipt
 is delivered. It does not roll back that mutation. Recover with `plan_read` or

@@ -85,6 +85,13 @@ part of an existing published preview.
   `rec.onnx` and `dict.txt`, as Python's `RustoOcr(models)`, instead of the
   three paths; `RustoConfig::new(models)` defaults `model_name`
   (`ppocrv6`), `threads` (2) and `detection_max_edge` (960).
+- Python: the documentation, plan and agent tools split into a tool and its
+  RoomKit adapter, as `ReadTool` and `Read`: `DocsList(backend).call(arguments)`
+  is `DocsListTool(backend).call(arguments)`, `DocsList(backend)` in RoomKit's
+  tools is `DocsList(DocsListTool(backend))`, and `DocsList.contract()` is
+  `DocsListTool.definition()`; likewise `DocsSearch`, `DocsRead`, `PlanCreate`,
+  `PlanRead`, `PlanList`, `PlanUpdate`, `PlanDelete`, `DelegateTask`,
+  `TaskStatus`, `CancelTask`, `AgentFollowup` and `AgentSend`.
 - Rust RoomKit adapter: each adapter takes the name of its Python RoomKit
   tool, `<X>Toolset` becoming `<X>`: `ReadToolset::new(tool)` is
   `Read::new(tool)`, and likewise `List`, `Glob`, `Grep`, `Diff`, `Edit`,

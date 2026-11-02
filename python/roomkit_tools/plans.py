@@ -7,9 +7,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
 
 from ._native import (
-    AccessRefusedError,
     InvalidInputError,
-    LimitExceededError,
     UnsupportedResourceError,
     _Cancellation,
     _MemoryPlanBackend,
@@ -132,19 +130,9 @@ class _PlanTool:
         self._backend = backend
 
     @classmethod
-    def contract(cls) -> dict[str, Any]:
+    def definition(cls) -> dict[str, Any]:
         """Full framework-independent schemas derived from actual Rust types."""
         return json.loads(_PlanContract.definition_json(cls.name))
-
-    @property
-    def definition(self) -> dict[str, Any]:
-        """Select this tool directly in RoomKit's tools list."""
-        schema = self.contract()
-        return {
-            "name": schema["name"],
-            "description": schema["description"],
-            "parameters": schema["input_schema"],
-        }
 
     async def call(self, arguments: dict[str, Any], *, scope: PlanScope) -> dict[str, Any]:
         """Standalone call with trusted owner and validated backend output."""
@@ -159,56 +147,36 @@ class _PlanTool:
         data = await method(scope, **inputs)
         return json.loads(_PlanContract.output_json(self.name, json.dumps(data, allow_nan=False)))
 
-    async def handler(self, name: str, arguments: dict[str, Any]) -> str:
-        """Use RoomKit's trusted conversation/channel identity for every call."""
-        from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
-        from roomkit.tools.context import current_tool_call, current_tool_room_id
 
-        if name != self.name:
-            raise UnservedToolCallError(name)
-        room, call = current_tool_room_id(), current_tool_call()
-        actor = call.channel_id if call is not None else None
-        if not room or not actor:
-            raise ToolRefusedError("plan tools require a conversation and an acting agent")
-        try:
-            result = await self.call(arguments, scope=PlanScope(room, actor))
-        except (InvalidInputError, AccessRefusedError) as error:
-            raise ToolRefusedError(str(error)) from error
-        except (LimitExceededError, UnsupportedResourceError) as error:
-            raise ToolFailedError(str(error)) from error
-        call.structured_content = result
-        return json.dumps(result, ensure_ascii=False)
-
-
-class PlanCreate(_PlanTool):
+class PlanCreateTool(_PlanTool):
     """Create an owned plan and return its identifier and revision."""
 
     name = "plan_create"
     method = "create"
 
 
-class PlanRead(_PlanTool):
+class PlanReadTool(_PlanTool):
     """Read the complete current plan."""
 
     name = "plan_read"
     method = "read"
 
 
-class PlanList(_PlanTool):
+class PlanListTool(_PlanTool):
     """List summaries in the trusted scope."""
 
     name = "plan_list"
     method = "list"
 
 
-class PlanUpdate(_PlanTool):
+class PlanUpdateTool(_PlanTool):
     """Update selected fields with a mandatory expected revision."""
 
     name = "plan_update"
     method = "update"
 
 
-class PlanDelete(_PlanTool):
+class PlanDeleteTool(_PlanTool):
     """Delete one version of a plan without cancelling any related execution."""
 
     name = "plan_delete"

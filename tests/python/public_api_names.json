@@ -3,19 +3,26 @@
     "AccessRefusedError",
     "AgentBackend",
     "AgentFollowup",
+    "AgentFollowupTool",
     "AgentScope",
     "AgentSend",
+    "AgentSendTool",
     "CancelTask",
+    "CancelTaskTool",
     "CodeOutline",
     "CodeOutlineTool",
     "DEFAULT_INHERITED_ENV",
     "DelegateTask",
+    "DelegateTaskTool",
     "Diff",
     "DiffTool",
     "DocsBackend",
     "DocsList",
+    "DocsListTool",
     "DocsRead",
+    "DocsReadTool",
     "DocsSearch",
+    "DocsSearchTool",
     "Edit",
     "EditTool",
     "FileDocs",
@@ -39,11 +46,16 @@
     "PatchTool",
     "PlanBackend",
     "PlanCreate",
+    "PlanCreateTool",
     "PlanDelete",
+    "PlanDeleteTool",
     "PlanList",
+    "PlanListTool",
     "PlanRead",
+    "PlanReadTool",
     "PlanScope",
     "PlanUpdate",
+    "PlanUpdateTool",
     "ProcessRead",
     "ProcessSession",
     "ProcessStart",
@@ -55,6 +67,7 @@
     "Shell",
     "ShellTool",
     "TaskStatus",
+    "TaskStatusTool",
     "ToolError",
     "ToolIOError",
     "UnsupportedResourceError",
@@ -71,21 +84,21 @@
   ],
   "roomkit_tools.agents": [
     "AgentBackend",
-    "AgentFollowup",
+    "AgentFollowupTool",
     "AgentScope",
-    "AgentSend",
-    "CancelTask",
-    "DelegateTask",
-    "TaskStatus"
+    "AgentSendTool",
+    "CancelTaskTool",
+    "DelegateTaskTool",
+    "TaskStatusTool"
   ],
   "roomkit_tools.code": [
     "CodeOutlineTool"
   ],
   "roomkit_tools.docs": [
     "DocsBackend",
-    "DocsList",
-    "DocsRead",
-    "DocsSearch",
+    "DocsListTool",
+    "DocsReadTool",
+    "DocsSearchTool",
     "FileDocs"
   ],
   "roomkit_tools.fs": [
@@ -112,12 +125,12 @@
   "roomkit_tools.plans": [
     "MemoryPlanBackend",
     "PlanBackend",
-    "PlanCreate",
-    "PlanDelete",
-    "PlanList",
-    "PlanRead",
+    "PlanCreateTool",
+    "PlanDeleteTool",
+    "PlanListTool",
+    "PlanReadTool",
     "PlanScope",
-    "PlanUpdate"
+    "PlanUpdateTool"
   ],
   "roomkit_tools.process": [
     "DEFAULT_INHERITED_ENV",
@@ -125,8 +138,15 @@
     "ShellTool"
   ],
   "roomkit_tools.roomkit": [
+    "AgentFollowup",
+    "AgentSend",
+    "CancelTask",
     "CodeOutline",
+    "DelegateTask",
     "Diff",
+    "DocsList",
+    "DocsRead",
+    "DocsSearch",
     "Edit",
     "Glob",
     "Grep",
@@ -135,6 +155,11 @@
     "OutputForget",
     "OutputRead",
     "Patch",
+    "PlanCreate",
+    "PlanDelete",
+    "PlanList",
+    "PlanRead",
+    "PlanUpdate",
     "ProcessRead",
     "ProcessStart",
     "ProcessStatus",
@@ -143,11 +168,19 @@
     "Read",
     "ReadToolAdapter",
     "Shell",
+    "TaskStatus",
     "ViewImage",
     "WebFetch",
     "WebSearch",
     "Write",
     "roomkit_owner"
+  ],
+  "roomkit_tools.roomkit.agents": [
+    "AgentFollowup",
+    "AgentSend",
+    "CancelTask",
+    "DelegateTask",
+    "TaskStatus"
   ],
   "roomkit_tools.roomkit.commands": [
     "OutputForget",
@@ -159,6 +192,11 @@
     "ProcessWrite",
     "Shell",
     "roomkit_owner"
+  ],
+  "roomkit_tools.roomkit.docs": [
+    "DocsList",
+    "DocsRead",
+    "DocsSearch"
   ],
   "roomkit_tools.roomkit.files": [
     "CodeOutline",
@@ -177,6 +215,13 @@
     "Edit",
     "Patch",
     "Write"
+  ],
+  "roomkit_tools.roomkit.plans": [
+    "PlanCreate",
+    "PlanDelete",
+    "PlanList",
+    "PlanRead",
+    "PlanUpdate"
   ],
   "roomkit_tools.roomkit.web": [
     "WebFetch",

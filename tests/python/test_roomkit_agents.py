@@ -18,13 +18,16 @@ from roomkit.providers.ai import AIResponse, MockAIProvider
 from roomkit.tools.context import ToolCallContext, tool_turn_context
 from roomkit_tools import (
     AccessRefusedError,
-    AgentFollowup,
+    AgentFollowupTool,
     AgentScope,
-    AgentSend,
+    AgentSendTool,
     CancelTask,
+    CancelTaskTool,
     DelegateTask,
+    DelegateTaskTool,
     LimitExceededError,
     TaskStatus,
+    TaskStatusTool,
 )
 from roomkit_tools.roomkit_agents import AgentConfig, RoomKitAgentBackend
 
@@ -101,7 +104,7 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
 
     async def launch(self, backend, profile="reader"):
         return (
-            await DelegateTask(backend).call(
+            await DelegateTaskTool(backend).call(
                 {"profile": profile, "task": "Inspect the source"}, scope=self.scope
             )
         )["data"]
@@ -141,7 +144,7 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
             return self.config(answer=request.profile)
 
         backend = self.backend(resolver=resolve, allowed_profiles=("reader", "reviewer"))
-        tool = DelegateTask(backend)
+        tool = DelegateTask(DelegateTaskTool(backend))
         self.assertEqual(
             tool.definition["parameters"]["properties"]["profile"]["enum"], ["reader", "reviewer"]
         )
@@ -161,23 +164,27 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         await self.workers[0].entered.wait()
         for scope in (AgentScope("other", "assistant"), AgentScope("parent", "other")):
             for tool, args in (
-                (TaskStatus(backend), {}),
-                (CancelTask(backend), {"task_id": receipt["task_id"]}),
-                (DelegateTask(backend), {"profile": "reader", "task": "read"}),
+                (TaskStatusTool(backend), {}),
+                (CancelTaskTool(backend), {"task_id": receipt["task_id"]}),
+                (DelegateTaskTool(backend), {"profile": "reader", "task": "read"}),
             ):
                 with self.assertRaises(AccessRefusedError):
                     await tool.call(args, scope=scope)
         with self.assertRaises(ToolRefusedError):
-            await TaskStatus(backend).handler("task_status", {})
+            await TaskStatus(TaskStatusTool(backend)).handler("task_status", {})
         with tool_turn_context(
             room_id="parent",
             actor_id="user",
             call=ToolCallContext(room_id="parent", channel_id="assistant"),
         ):
-            status = json.loads(await TaskStatus(backend).handler("task_status", {}))
+            status = json.loads(
+                await TaskStatus(TaskStatusTool(backend)).handler("task_status", {})
+            )
             self.assertEqual(status["data"]["tasks"][0]["task_id"], receipt["task_id"])
             cancelled = json.loads(
-                await CancelTask(backend).handler("cancel_task", {"task_id": receipt["task_id"]})
+                await CancelTask(CancelTaskTool(backend)).handler(
+                    "cancel_task", {"task_id": receipt["task_id"]}
+                )
             )["data"]
         self.assertTrue(cancelled["cancelled"])
         self.assertEqual(cancelled["task"]["status"], "cancelled")
@@ -255,7 +262,7 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         )
         receipt = await self.launch(backend)
         await backend.wait(receipt["task_id"])
-        result = (await TaskStatus(backend).call({}, scope=self.scope))["data"]["tasks"][0]
+        result = (await TaskStatusTool(backend).call({}, scope=self.scope))["data"]["tasks"][0]
         self.assertEqual(len(result["result"].encode()), 8192)
         self.assertTrue(result["result_truncated"])
         with self.assertRaises(LimitExceededError):
@@ -359,7 +366,7 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         await backend.wait(first["task_id"])
         self.workers[0].answer = "SECOND_OBSERVATION"
         second = (
-            await AgentFollowup(backend).call(
+            await AgentFollowupTool(backend).call(
                 {"agent_id": first["agent_id"], "task": "FOLLOWUP_MARKER"}, scope=self.scope
             )
         )["data"]
@@ -401,8 +408,8 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(AccessRefusedError):
             await backend.followup(self.scope, agent_id=first["agent_id"], task="BUSY")
         for tool, arguments in (
-            (AgentFollowup(backend), {"agent_id": first["agent_id"], "task": "OTHER"}),
-            (AgentSend(backend), {"agent_id": first["agent_id"], "message": "OTHER"}),
+            (AgentFollowupTool(backend), {"agent_id": first["agent_id"], "task": "OTHER"}),
+            (AgentSendTool(backend), {"agent_id": first["agent_id"], "message": "OTHER"}),
         ):
             with self.assertRaises(AccessRefusedError):
                 await tool.call(arguments, scope=AgentScope("foreign", "assistant"))
@@ -480,7 +487,7 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         # Must return while the worker's tool is still blocked.
         async with asyncio.timeout(2):
             sent = (
-                await AgentSend(backend).call(
+                await AgentSendTool(backend).call(
                     {"agent_id": first["agent_id"], "message": "CLARIFICATION_MARKER"},
                     scope=self.scope,
                 )
@@ -613,8 +620,8 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         typo = actual[:-3] + actual[-1:]
         before = await backend.status(self.scope)
         for tool, arguments in (
-            (AgentFollowup(backend), {"agent_id": typo, "task": "Continue"}),
-            (AgentSend(backend), {"agent_id": typo, "message": "Clarify"}),
+            (AgentFollowupTool(backend), {"agent_id": typo, "task": "Continue"}),
+            (AgentSendTool(backend), {"agent_id": typo, "message": "Clarify"}),
         ):
             with self.assertRaises(AccessRefusedError) as error:
                 await tool.call(arguments, scope=self.scope)
@@ -629,10 +636,10 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         await backend.wait(first["task_id"])
         with self.assertRaises(AccessRefusedError):
             await backend.followup(self.scope, agent_id=typo, task="Still the same typo")
-        current = (await TaskStatus(backend).call({}, scope=self.scope))["data"]["tasks"][0]
+        current = (await TaskStatusTool(backend).call({}, scope=self.scope))["data"]["tasks"][0]
         self.assertTrue(current["agent_available"])
         second = (
-            await AgentFollowup(backend).call(
+            await AgentFollowupTool(backend).call(
                 {"agent_id": current["agent_id"], "task": "Continue with the exact ID"},
                 scope=self.scope,
             )
@@ -650,8 +657,8 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
         await backend.wait(first["task_id"])
         for scope in (AgentScope("other-room", "assistant"), AgentScope("parent", "other-agent")):
             for tool, arguments in (
-                (AgentFollowup(backend), {"agent_id": "unknown", "task": "Continue"}),
-                (AgentSend(backend), {"agent_id": "unknown", "message": "Clarify"}),
+                (AgentFollowupTool(backend), {"agent_id": "unknown", "task": "Continue"}),
+                (AgentSendTool(backend), {"agent_id": "unknown", "message": "Clarify"}),
             ):
                 with self.assertRaises(AccessRefusedError) as error:
                     await tool.call(arguments, scope=scope)

@@ -11,17 +11,17 @@ from roomkit_tools import (
     InvalidInputError,
     LimitExceededError,
     MemoryPlanBackend,
-    PlanCreate,
-    PlanDelete,
-    PlanList,
-    PlanRead,
+    PlanCreateTool,
+    PlanDeleteTool,
+    PlanListTool,
+    PlanReadTool,
     PlanScope,
-    PlanUpdate,
+    PlanUpdateTool,
     UnsupportedResourceError,
 )
 
 FIXTURE = json.loads((Path(__file__).resolve().parents[1] / "fixtures/plans.json").read_text())
-CLASSES = (PlanCreate, PlanRead, PlanList, PlanUpdate, PlanDelete)
+CLASSES = (PlanCreateTool, PlanReadTool, PlanListTool, PlanUpdateTool, PlanDeleteTool)
 CREATE = {"title": "Review shipping", "objective": "Check the threshold", "steps": []}
 OWNER = PlanScope("plans", "assistant")
 
@@ -40,10 +40,10 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
                 results, json.loads(await asyncio.to_thread(Path(reference).read_text))
             )
         for cls in CLASSES:
-            schema = cls.contract()["input_schema"]
+            schema = cls.definition()["input_schema"]
             self.assertNotIn("room_id", schema.get("properties", {}))
             self.assertNotIn("caller_id", schema.get("properties", {}))
-        self.assertIn("expected_revision", PlanDelete.contract()["input_schema"]["required"])
+        self.assertIn("expected_revision", PlanDeleteTool.definition()["input_schema"]["required"])
 
     async def test_isolation_capacity_revision_conflicts_and_atomic_updates(self):
         backend = MemoryPlanBackend(max_plans=2, max_plans_per_scope=1)
@@ -92,7 +92,7 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
                     self.stopped.set()
 
         host = Host()
-        tool = PlanCreate(host)
+        tool = PlanCreateTool(host)
         for invalid in ({**CREATE, "room_id": "spoof"}, {**CREATE, "title": ""}):
             with self.assertRaises(InvalidInputError):
                 await tool.call(invalid, scope=OWNER)
@@ -108,11 +108,11 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(InvalidInputError):
             await tool.call(CREATE, scope=OWNER)
         with self.assertRaises(UnsupportedResourceError):
-            await PlanList(host).call({}, scope=OWNER)
+            await PlanListTool(host).call({}, scope=OWNER)
 
     async def test_invalid_steps_and_revisions_leave_state_unchanged(self):
         backend = MemoryPlanBackend()
-        tool = PlanCreate(backend)
+        tool = PlanCreateTool(backend)
         step = {"step_id": "inspect", "description": "Inspect", "status": "pending"}
         for steps in ([step, step], [{**step, "status": "invented"}], [{**step, "step_id": "a b"}]):
             with self.assertRaises(InvalidInputError):
@@ -124,8 +124,23 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
             {"expected_revision": 1},
         ):
             with self.assertRaises(InvalidInputError):
-                await PlanUpdate(backend).call({"plan_id": plan["plan_id"], **patch}, scope=OWNER)
+                await PlanUpdateTool(backend).call(
+                    {"plan_id": plan["plan_id"], **patch}, scope=OWNER
+                )
         self.assertEqual(await backend.read(OWNER, plan_id=plan["plan_id"]), plan)
+
+
+class PlanSplitTests(unittest.TestCase):
+    def test_each_tool_serves_its_call_and_definition_alone(self):
+        """The core tool has `call` and a static `definition()`; RoomKit's
+        `definition` property and `handler` belong to its adapter."""
+        for cls in CLASSES:
+            definition = cls.definition()
+            self.assertEqual(
+                set(definition), {"name", "description", "input_schema", "output_schema"}
+            )
+            self.assertFalse(hasattr(cls, "handler"))
+            self.assertFalse(hasattr(cls, "contract"))
 
 
 class CrossLoopTests(unittest.TestCase):

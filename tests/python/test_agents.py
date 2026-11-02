@@ -4,14 +4,14 @@ import copy
 import unittest
 
 from roomkit_tools import (
-    AgentFollowup,
+    AgentFollowupTool,
     AgentScope,
-    AgentSend,
-    CancelTask,
-    DelegateTask,
+    AgentSendTool,
+    CancelTaskTool,
+    DelegateTaskTool,
     InvalidInputError,
     LimitExceededError,
-    TaskStatus,
+    TaskStatusTool,
     UnsupportedResourceError,
 )
 
@@ -50,19 +50,19 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
     async def test_individually_selected_tools_share_only_the_backend(self):
         backend = Backend()
         scope = AgentScope("room", "assistant")
-        receipt = await DelegateTask(backend).call(
+        receipt = await DelegateTaskTool(backend).call(
             {"profile": "reader", "task": "Read a file"}, scope=scope
         )
         self.assertEqual(receipt["data"], RECEIPT)
-        result = await TaskStatus(backend).call({}, scope=scope)
+        result = await TaskStatusTool(backend).call({}, scope=scope)
         self.assertEqual(result["data"]["tasks"], [RECEIPT])
         self.assertEqual(backend.calls[-1], (scope, {"task_id": None}))
-        cancelled = await CancelTask(backend).call({"task_id": "t1"}, scope=scope)
+        cancelled = await CancelTaskTool(backend).call({"task_id": "t1"}, scope=scope)
         self.assertTrue(cancelled["data"]["cancelled"])
 
     async def test_rust_contract_rejects_input_before_backend(self):
         backend = Backend()
-        tool = DelegateTask(backend)
+        tool = DelegateTaskTool(backend)
         for args in (
             {"profile": "reader", "task": " "},
             {"profile": "reader", "task": "read", "room_id": "foreign"},
@@ -80,13 +80,13 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         backend = Backend()
         backend.receipt["status"] = "invented"
         with self.assertRaises(InvalidInputError):
-            await TaskStatus(backend).call({}, scope=AgentScope("room", "assistant"))
+            await TaskStatusTool(backend).call({}, scope=AgentScope("room", "assistant"))
         backend.receipt.update(status="completed", result="x" * 8193)
         with self.assertRaises(LimitExceededError):
-            await TaskStatus(backend).call({}, scope=AgentScope("room", "assistant"))
+            await TaskStatusTool(backend).call({}, scope=AgentScope("room", "assistant"))
 
     def test_schemas_never_expose_host_scope_or_configuration(self):
-        definition = DelegateTask.contract()
+        definition = DelegateTaskTool.definition()
         self.assertEqual(set(definition["input_schema"]["properties"]), {"profile", "task"})
         self.assertFalse(definition["input_schema"]["additionalProperties"])
         self.assertIn("delivery", definition["output_schema"]["properties"])
@@ -95,8 +95,8 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         scope = AgentScope("room", "assistant")
         backend = Backend()
         for tool, arguments in (
-            (AgentFollowup(backend), {"agent_id": "a1", "task": "Continue"}),
-            (AgentSend(backend), {"agent_id": "a1", "message": "Clarify"}),
+            (AgentFollowupTool(backend), {"agent_id": "a1", "task": "Continue"}),
+            (AgentSendTool(backend), {"agent_id": "a1", "message": "Clarify"}),
         ):
             with self.assertRaises(UnsupportedResourceError):
                 await tool.call(arguments, scope=scope)
@@ -116,16 +116,37 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             }
 
         backend.followup, backend.send = followup, send
-        result = await AgentFollowup(backend).call(
+        result = await AgentFollowupTool(backend).call(
             {"agent_id": "a1", "task": "Continue"}, scope=scope
         )
         self.assertEqual(result["data"]["task_id"], "t2")
-        result = await AgentSend(backend).call(
+        result = await AgentSendTool(backend).call(
             {"agent_id": "a1", "message": "Clarify"}, scope=scope
         )
         self.assertEqual(result["data"]["message_id"], "m1")
         with self.assertRaises(LimitExceededError):
-            await AgentSend(backend).call({"agent_id": "a1", "message": "é" * 4097}, scope=scope)
+            await AgentSendTool(backend).call(
+                {"agent_id": "a1", "message": "é" * 4097}, scope=scope
+            )
         self.assertEqual(
-            set(AgentSend.contract()["input_schema"]["properties"]), {"agent_id", "message"}
+            set(AgentSendTool.definition()["input_schema"]["properties"]), {"agent_id", "message"}
         )
+
+
+class AgentSplitTests(unittest.TestCase):
+    def test_each_tool_serves_its_call_and_definition_alone(self):
+        """The core tool has `call` and a static `definition()`; RoomKit's
+        `definition` property and `handler` belong to its adapter."""
+        for cls in (
+            DelegateTaskTool,
+            TaskStatusTool,
+            CancelTaskTool,
+            AgentFollowupTool,
+            AgentSendTool,
+        ):
+            definition = cls.definition()
+            self.assertEqual(
+                set(definition), {"name", "description", "input_schema", "output_schema"}
+            )
+            self.assertFalse(hasattr(cls, "handler"))
+            self.assertFalse(hasattr(cls, "contract"))

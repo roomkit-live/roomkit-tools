@@ -21,7 +21,15 @@ from roomkit import (
     WebSocketChannel,
 )
 from roomkit.providers.ai import AIResponse, AIToolCall, AIToolResultPart, MockAIProvider
-from roomkit_tools import DocsList, DocsRead, DocsSearch, FileDocs
+from roomkit_tools import (
+    DocsList,
+    DocsListTool,
+    DocsRead,
+    DocsReadTool,
+    DocsSearch,
+    DocsSearchTool,
+    FileDocs,
+)
 
 ROOM = "documentation-demo"
 ROOT = Path(__file__).parent / "fixtures/documentation"
@@ -141,7 +149,11 @@ async def run(*, live=False, chat=False):
             AIChannel(
                 "assistant",
                 provider=live_provider() if live or chat else ScriptedReader(),
-                tools=[DocsList(backend), DocsSearch(backend), DocsRead(backend)],
+                tools=[
+                    DocsList(DocsListTool(backend)),
+                    DocsSearch(DocsSearchTool(backend)),
+                    DocsRead(DocsReadTool(backend)),
+                ],
                 max_tool_rounds=12,
                 system_prompt="Answer using the configured documentation. Discover/search and "
                 "read actual sources before citing them. Carry the document revision in reads. "

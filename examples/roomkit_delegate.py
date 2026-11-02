@@ -24,7 +24,12 @@ from roomkit import (
     WebSocketChannel,
 )
 from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
-from roomkit_tools import AgentScope, DelegateTask, Read
+from roomkit_tools import (
+    AgentScope,
+    DelegateTask,
+    DelegateTaskTool,
+    Read,
+)
 from roomkit_tools.roomkit_agents import AgentConfig, RoomKitAgentBackend
 
 
@@ -90,7 +95,7 @@ async def main(root, *, live=False):
                         AIResponse(content="The researcher reports: the Sample project is ready."),
                     ],
                 ),
-                tools=[DelegateTask(agents)],
+                tools=[DelegateTask(DelegateTaskTool(agents))],
                 system_prompt="Delegate the requested read to researcher. Acknowledge the launch "
                 "and end your turn. When its report arrives, explain the result to the user.",
             )

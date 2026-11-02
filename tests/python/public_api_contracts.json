@@ -1,17 +1,17 @@
 {
  "tools": {
   "agent_followup": {
-   "class": "roomkit_tools.AgentFollowup",
+   "class": "roomkit_tools.AgentFollowupTool",
    "input": "FollowupInput",
    "output": "TaskInfo"
   },
   "agent_send": {
-   "class": "roomkit_tools.AgentSend",
+   "class": "roomkit_tools.AgentSendTool",
    "input": "SendInput",
    "output": "SendResult"
   },
   "cancel_task": {
-   "class": "roomkit_tools.CancelTask",
+   "class": "roomkit_tools.CancelTaskTool",
    "input": "CancelInput",
    "output": "CancelResult"
   },
@@ -21,7 +21,7 @@
    "output": "CodeOutlinePage"
   },
   "delegate_task": {
-   "class": "roomkit_tools.DelegateTask",
+   "class": "roomkit_tools.DelegateTaskTool",
    "input": "DelegateInput",
    "output": "TaskInfo"
   },
@@ -31,17 +31,17 @@
    "output": "DiffResult"
   },
   "docs_list": {
-   "class": "roomkit_tools.DocsList",
+   "class": "roomkit_tools.DocsListTool",
    "input": "DocsListInput",
    "output": "DocsListResult"
   },
   "docs_read": {
-   "class": "roomkit_tools.DocsRead",
+   "class": "roomkit_tools.DocsReadTool",
    "input": "DocsReadInput",
    "output": "DocsReadResult"
   },
   "docs_search": {
-   "class": "roomkit_tools.DocsSearch",
+   "class": "roomkit_tools.DocsSearchTool",
    "input": "DocsSearchInput",
    "output": "DocsSearchResult"
   },
@@ -86,27 +86,27 @@
    "output": "PatchResult"
   },
   "plan_create": {
-   "class": "roomkit_tools.PlanCreate",
+   "class": "roomkit_tools.PlanCreateTool",
    "input": "PlanCreateInput",
    "output": "Plan"
   },
   "plan_delete": {
-   "class": "roomkit_tools.PlanDelete",
+   "class": "roomkit_tools.PlanDeleteTool",
    "input": "PlanDeleteInput",
    "output": "PlanDeleteResult"
   },
   "plan_list": {
-   "class": "roomkit_tools.PlanList",
+   "class": "roomkit_tools.PlanListTool",
    "input": "PlanListInput",
    "output": "PlanListResult"
   },
   "plan_read": {
-   "class": "roomkit_tools.PlanRead",
+   "class": "roomkit_tools.PlanReadTool",
    "input": "PlanReadInput",
    "output": "Plan"
   },
   "plan_update": {
-   "class": "roomkit_tools.PlanUpdate",
+   "class": "roomkit_tools.PlanUpdateTool",
    "input": "PlanUpdateInput",
    "output": "Plan"
   },
@@ -146,7 +146,7 @@
    "output": "ShellResult"
   },
   "task_status": {
-   "class": "roomkit_tools.TaskStatus",
+   "class": "roomkit_tools.TaskStatusTool",
    "input": "StatusInput",
    "output": "TaskList"
   },

@@ -7,9 +7,6 @@ import os
 from typing import Any, ClassVar, Protocol
 
 from ._native import (
-    AccessRefusedError,
-    InvalidInputError,
-    LimitExceededError,
     UnsupportedResourceError,
     _Cancellation,
     _DocsContract,
@@ -112,19 +109,9 @@ class _DocsTool:
         self._backend = backend
 
     @classmethod
-    def contract(cls) -> dict[str, Any]:
+    def definition(cls) -> dict[str, Any]:
         """Input/output schemas derived from actual Rust types."""
         return json.loads(_DocsContract.definition_json(cls.name))
-
-    @property
-    def definition(self) -> dict[str, Any]:
-        """RoomKit tool definition for explicit selection."""
-        contract = self.contract()
-        return {
-            "name": contract["name"],
-            "description": contract["description"],
-            "parameters": contract["input_schema"],
-        }
 
     async def call(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """Validate arguments and backend output; return the common envelope."""
@@ -137,44 +124,22 @@ class _DocsTool:
         data = await method(**inputs)
         return json.loads(_DocsContract.output_json(self.name, json.dumps(data, allow_nan=False)))
 
-    async def handler(self, name: str, arguments: dict[str, Any]) -> str:
-        """RoomKit adapter; the host selects the documentation accessible here.
 
-        Refusals and resource failures expose their public messages. I/O and
-        other tool errors propagate for RoomKit to report without host details.
-        """
-        from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
-        from roomkit.tools.context import current_tool_call
-
-        if name != self.name:
-            raise UnservedToolCallError(name)
-        try:
-            result = await self.call(arguments)
-        except (InvalidInputError, AccessRefusedError) as error:
-            raise ToolRefusedError(str(error)) from error
-        except (LimitExceededError, UnsupportedResourceError) as error:
-            raise ToolFailedError(str(error)) from error
-        context = current_tool_call()
-        if context is not None:
-            context.structured_content = result
-        return json.dumps(result, ensure_ascii=False)
-
-
-class DocsList(_DocsTool):
+class DocsListTool(_DocsTool):
     """Discover document IDs, titles, sources and revisions."""
 
     name = "docs_list"
     method = "list"
 
 
-class DocsSearch(_DocsTool):
+class DocsSearchTool(_DocsTool):
     """Search documentation and return ranked, attributable source excerpts."""
 
     name = "docs_search"
     method = "search"
 
 
-class DocsRead(_DocsTool):
+class DocsReadTool(_DocsTool):
     """Read complete numbered lines with optional revision checking."""
 
     name = "docs_read"

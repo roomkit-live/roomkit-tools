@@ -16,14 +16,16 @@ Rust backend is not implemented yet.
 | `agent_followup` | `agent_id`, `task` | Start another mission on an idle retained instance |
 | `agent_send` | `agent_id`, `message` | Queue a clarification for a running instance |
 
-Python exposes the same validated contracts through `DelegateTask`, `TaskStatus`,
-`CancelTask`, `AgentFollowup` and `AgentSend`. A custom Python backend implements
+Python exposes the same validated contracts through `DelegateTaskTool`,
+`TaskStatusTool`, `CancelTaskTool`, `AgentFollowupTool` and `AgentSendTool`. A custom Python backend implements
 the corresponding async methods in `roomkit_tools.agents.AgentBackend`; no Rust
 callback implementation is needed. Backends lacking continuation/message support
 return an explicit unsupported error when those tools are selected.
 `tool.call(arguments, scope=AgentScope(...))` works without RoomKit.
-`tool.contract()` exposes both schemas; `tool.definition` and `tool.handler`
-implement RoomKit's Tool protocol. Inputs and normalized outputs are checked
+`tool.definition()` exposes both schemas. The RoomKit adapters `DelegateTask`,
+`TaskStatus`, `CancelTask`, `AgentFollowup` and `AgentSend` take a built tool,
+`DelegateTask(DelegateTaskTool(backend))`, and implement RoomKit's Tool
+protocol. Inputs and normalized outputs are checked
 by Rust, including unknown fields, UTF-8 byte limits and terminal states.
 
 ## RoomKit backend
@@ -34,7 +36,8 @@ child rooms and `kit.deliver()` relay. Configure it once and select tools:
 ```python
 from roomkit import AIChannel
 from roomkit_tools import (
-    AgentScope, CancelTask, DelegateTask, AgentFollowup, AgentSend, Read, TaskStatus,
+    AgentFollowup, AgentFollowupTool, AgentScope, AgentSend, AgentSendTool, CancelTask,
+    CancelTaskTool, DelegateTask, DelegateTaskTool, Read, TaskStatus, TaskStatusTool,
 )
 from roomkit_tools.roomkit_agents import AgentConfig, RoomKitAgentBackend
 
@@ -55,8 +58,9 @@ async with RoomKitAgentBackend(
         "assistant",
         provider=make_principal_provider(),
         tools=[
-            DelegateTask(agents), TaskStatus(agents), CancelTask(agents),
-            AgentFollowup(agents), AgentSend(agents),
+            DelegateTask(DelegateTaskTool(agents)), TaskStatus(TaskStatusTool(agents)),
+            CancelTask(CancelTaskTool(agents)), AgentFollowup(AgentFollowupTool(agents)),
+            AgentSend(AgentSendTool(agents)),
         ],
     )
     # Register/attach assistant and run the host conversation here.

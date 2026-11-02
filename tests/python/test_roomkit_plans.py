@@ -5,13 +5,23 @@ import unittest
 
 from roomkit.core.exceptions import ToolRefusedError, UnservedToolCallError
 from roomkit.tools.context import ToolCallContext, tool_turn_context
-from roomkit_tools import MemoryPlanBackend, PlanCreate, PlanList, PlanRead, PlanUpdate
+from roomkit_tools import (
+    MemoryPlanBackend,
+    PlanCreate,
+    PlanCreateTool,
+    PlanList,
+    PlanListTool,
+    PlanRead,
+    PlanReadTool,
+    PlanUpdate,
+    PlanUpdateTool,
+)
 
 
 class RoomKitPlansTests(unittest.IsolatedAsyncioTestCase):
     async def test_trusted_room_and_channel_scope_and_structured_results(self):
         backend = MemoryPlanBackend()
-        creator = PlanCreate(backend)
+        creator = PlanCreate(PlanCreateTool(backend))
         arguments = {"title": "Inspect", "objective": "Check the threshold", "steps": []}
         with self.assertRaises(ToolRefusedError):
             await creator.handler("plan_create", arguments)
@@ -25,7 +35,7 @@ class RoomKitPlansTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(UnservedToolCallError):
                 await creator.handler("plan_delete", {})
             with self.assertRaises(ToolRefusedError):
-                await PlanUpdate(backend).handler(
+                await PlanUpdate(PlanUpdateTool(backend)).handler(
                     "plan_update",
                     {"plan_id": plan["plan_id"], "expected_revision": 9, "title": "Changed"},
                 )
@@ -35,7 +45,16 @@ class RoomKitPlansTests(unittest.IsolatedAsyncioTestCase):
                 actor_id="user",
                 call=ToolCallContext(room_id=room, channel_id=channel),
             ):
-                result = json.loads(await PlanList(backend).handler("plan_list", {}))
+                result = json.loads(await PlanList(PlanListTool(backend)).handler("plan_list", {}))
                 self.assertEqual(result["data"]["plans"], [])
                 with self.assertRaises(ToolRefusedError):
-                    await PlanRead(backend).handler("plan_read", {"plan_id": plan["plan_id"]})
+                    await PlanRead(PlanReadTool(backend)).handler(
+                        "plan_read", {"plan_id": plan["plan_id"]}
+                    )
+
+    def test_an_adapter_takes_its_built_tool(self):
+        backend = MemoryPlanBackend()
+        self.assertEqual(PlanList(PlanListTool(backend)).definition["name"], "plan_list")
+        for wrong in (backend, PlanReadTool(backend)):
+            with self.assertRaises(TypeError):
+                PlanList(wrong)

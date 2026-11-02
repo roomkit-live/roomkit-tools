@@ -18,11 +18,10 @@ the snapshot's directory:
   ``async def``, ``classmethod``, ``staticmethod`` (each possibly ``async``),
   ``property``, ``member`` or ``bases``. A protocol has no constructor.
 - ``public_api_contracts.json`` (the base package only): the JSON shape of
-  every tool contract a public class returns from ``definition()`` or
-  ``contract()``. The schemas are derived from the Rust types; each named
-  type is kept as its property names, its values (an enumeration) or its
-  tagged variants (a tagged union), with neither descriptions nor
-  requiredness.
+  every tool contract a public class returns from ``definition()``. The
+  schemas are derived from the Rust types; each named type is kept as its
+  property names, its values (an enumeration) or its tagged variants (a
+  tagged union), with neither descriptions nor requiredness.
 
 ``test_public_api.py`` fails when the code and the files differ, a
 compatible addition included: the files are the exact public surface the
@@ -174,21 +173,17 @@ def contracts(package: Package, signatures: dict[str, dict[str, Spec]]) -> dict[
 
 
 def _definitions(cls: type, members: dict[str, Spec]) -> list[dict[str, Any]]:
-    """The definitions a class serves: `definition()` or `contract()` taking
-    nothing, or `definition(name)` for each name NAMED_DEFINITIONS lists."""
-    found = []
-    for member in ("definition", "contract"):
-        spec = members.get(member)
-        if spec is None or spec[0] not in ("staticmethod", "classmethod"):
-            continue
-        if len(spec) == 1:
-            found.append(getattr(cls, member)())
-            continue
-        names = NAMED_DEFINITIONS.get(cls.__name__)
-        if names is None:
-            raise ValueError(f"{cls.__name__}.{member}: list its tool names in NAMED_DEFINITIONS")
-        found += [getattr(cls, member)(name) for name in names]
-    return found
+    """The definitions a class serves: `definition()` taking nothing, or
+    `definition(name)` for each name NAMED_DEFINITIONS lists."""
+    spec = members.get("definition")
+    if spec is None or spec[0] not in ("staticmethod", "classmethod"):
+        return []
+    if len(spec) == 1:
+        return [cls.definition()]
+    names = NAMED_DEFINITIONS.get(cls.__name__)
+    if names is None:
+        raise ValueError(f"{cls.__name__}.definition: list its tool names in NAMED_DEFINITIONS")
+    return [cls.definition(name) for name in names]
 
 
 def _collect(schema: dict[str, Any], types: dict[str, dict[str, Any]], tool: str) -> str | None:

@@ -23,11 +23,16 @@ from roomkit.providers.ai import AIResponse, AIToolCall, AIToolResultPart, MockA
 from roomkit_tools import (
     MemoryPlanBackend,
     PlanCreate,
+    PlanCreateTool,
     PlanDelete,
+    PlanDeleteTool,
     PlanList,
+    PlanListTool,
     PlanRead,
+    PlanReadTool,
     PlanScope,
     PlanUpdate,
+    PlanUpdateTool,
 )
 
 ROOM = "plans-demo"
@@ -149,11 +154,11 @@ async def run(*, live=False):
                 "assistant",
                 provider=live_provider() if live else ScriptedPlanner(),
                 tools=[
-                    PlanCreate(store),
-                    PlanRead(store),
-                    PlanList(store),
-                    PlanUpdate(store),
-                    PlanDelete(store),
+                    PlanCreate(PlanCreateTool(store)),
+                    PlanRead(PlanReadTool(store)),
+                    PlanList(PlanListTool(store)),
+                    PlanUpdate(PlanUpdateTool(store)),
+                    PlanDelete(PlanDeleteTool(store)),
                 ],
                 max_tool_rounds=12,
                 system_prompt="Help the user create and track plans. "

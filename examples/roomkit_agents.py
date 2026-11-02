@@ -33,14 +33,19 @@ from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
 from roomkit.providers.ai.base import AIToolResultPart
 from roomkit_tools import (
     AgentFollowup,
+    AgentFollowupTool,
     AgentScope,
     AgentSend,
+    AgentSendTool,
     CancelTask,
+    CancelTaskTool,
     CodeOutline,
     DelegateTask,
+    DelegateTaskTool,
     Grep,
     Read,
     TaskStatus,
+    TaskStatusTool,
     ToolError,
 )
 from roomkit_tools.roomkit_agents import AgentConfig, RoomKitAgentBackend
@@ -217,7 +222,7 @@ class ParallelScenario:
             raise RuntimeError("start the parallel scenario in a fresh demo session")
         receipts = await asyncio.gather(
             *(
-                DelegateTask(self.backend).call(
+                DelegateTaskTool(self.backend).call(
                     {"profile": profile, "task": TASK}, scope=self.scope
                 )
                 for profile in ("researcher", "reviewer")
@@ -282,7 +287,7 @@ class ParallelScenario:
 
         researcher, reviewer = self.tasks["researcher"], self.tasks["reviewer"]
         self.message = (
-            await AgentSend(self.backend).call(
+            await AgentSendTool(self.backend).call(
                 {
                     "agent_id": researcher["agent_id"],
                     "message": "Focus on exactly 50 units. Include the verification marker "
@@ -308,7 +313,9 @@ class ParallelScenario:
         print("Host parallel: clarification queued and recorded only in the researcher room.")
 
         cancelled = (
-            await CancelTask(self.backend).call({"task_id": reviewer["task_id"]}, scope=self.scope)
+            await CancelTaskTool(self.backend).call(
+                {"task_id": reviewer["task_id"]}, scope=self.scope
+            )
         )["data"]
         current = await self.states()
         if not cancelled["cancelled"] or cancelled["task"]["status"] != "cancelled":
@@ -327,7 +334,7 @@ class ParallelScenario:
         ):
             raise RuntimeError("researcher report did not acknowledge the actual clarification")
         self.followup = (
-            await AgentFollowup(self.backend).call(
+            await AgentFollowupTool(self.backend).call(
                 {
                     "agent_id": researcher["agent_id"],
                     "task": FOLLOWUP_TASK
@@ -411,11 +418,11 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False, parall
         )
         async with RoomKitAgentBackend(kit, scope=scope, **options) as backend:
             tools = [
-                DelegateTask(backend),
-                TaskStatus(backend),
-                CancelTask(backend),
-                AgentFollowup(backend),
-                AgentSend(backend),
+                DelegateTask(DelegateTaskTool(backend)),
+                TaskStatus(TaskStatusTool(backend)),
+                CancelTask(CancelTaskTool(backend)),
+                AgentFollowup(AgentFollowupTool(backend)),
+                AgentSend(AgentSendTool(backend)),
             ]
             kit.register_channel(
                 AIChannel(

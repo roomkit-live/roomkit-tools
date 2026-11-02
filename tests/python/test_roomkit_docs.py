@@ -10,7 +10,9 @@ from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedT
 from roomkit.tools.context import ToolCallContext, tool_turn_context
 from roomkit_tools import (
     DocsList,
+    DocsListTool,
     DocsRead,
+    DocsReadTool,
     FileDocs,
     LimitExceededError,
     ToolError,
@@ -26,7 +28,7 @@ class RoomKitDocsTests(unittest.IsolatedAsyncioTestCase):
                 Path(temporary, "guide.md").write_text, "# Guide\nRead reference material.\n"
             )
             backend = FileDocs(temporary, version="demo")
-            lister, reader = DocsList(backend), DocsRead(backend)
+            lister, reader = DocsList(DocsListTool(backend)), DocsRead(DocsReadTool(backend))
             call = ToolCallContext(room_id="docs", channel_id="assistant")
             with tool_turn_context(room_id="docs", actor_id="user", call=call):
                 result = json.loads(await lister.handler("docs_list", {}))
@@ -42,6 +44,13 @@ class RoomKitDocsTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(call.structured_content, result)
                 self.assertEqual(result["data"]["lines"][1]["text"], "Read reference material.")
 
+    def test_an_adapter_takes_its_built_tool(self):
+        backend = FileDocs(".")
+        self.assertEqual(DocsList(DocsListTool(backend)).definition["name"], "docs_list")
+        for wrong in (backend, DocsReadTool(backend)):
+            with self.assertRaises(TypeError):
+                DocsList(wrong)
+
     async def test_errors_map_like_the_other_roomkit_adapters(self):
         class Failing:
             def __init__(self, error):
@@ -53,12 +62,14 @@ class RoomKitDocsTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as temporary:
             # I/O failures propagate for RoomKit to report without their message.
             with self.assertRaises(ToolIOError):
-                await DocsList(FileDocs(Path(temporary, "missing"))).handler("docs_list", {})
+                await DocsList(DocsListTool(FileDocs(Path(temporary, "missing")))).handler(
+                    "docs_list", {}
+                )
         with self.assertRaises(ToolIOError):
-            await DocsList(Failing(ToolIOError("disk"))).handler("docs_list", {})
+            await DocsList(DocsListTool(Failing(ToolIOError("disk")))).handler("docs_list", {})
         with self.assertRaises(ToolError) as raised:
-            await DocsList(Failing(ToolError("other"))).handler("docs_list", {})
+            await DocsList(DocsListTool(Failing(ToolError("other")))).handler("docs_list", {})
         self.assertIs(type(raised.exception), ToolError)
         for error in [LimitExceededError("budget"), UnsupportedResourceError("kind")]:
             with self.subTest(error=type(error).__name__), self.assertRaises(ToolFailedError):
-                await DocsList(Failing(error)).handler("docs_list", {})
+                await DocsList(DocsListTool(Failing(error))).handler("docs_list", {})

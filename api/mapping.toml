@@ -97,6 +97,23 @@ roomkit_tools_agents = ["roomkit_tools", "roomkit_tools.agents"]
 roomkit_tools_roomkit = ["roomkit_tools.roomkit", "roomkit_tools"]
 
 # ---------------------------------------------------------------------------
+# MISSING: features one side has and the other lacks, recorded for this
+# release rather than ported.
+# ---------------------------------------------------------------------------
+
+[[missing]]
+approved = 2026-11-02
+decision = "luge-hitl:76e988fe Q9"
+reason = "Python only: the RoomKit agent backend (roomkit_tools.roomkit_agents) and hence the RoomKit adapters of the agent tools; Rust has the agent tools without RoomKit adapters"
+covers = [
+  "python roomkit_tools.AgentFollowup (unmatched)",
+  "python roomkit_tools.AgentSend (unmatched)",
+  "python roomkit_tools.CancelTask (unmatched)",
+  "python roomkit_tools.DelegateTask (unmatched)",
+  "python roomkit_tools.TaskStatus (unmatched)",
+]
+
+# ---------------------------------------------------------------------------
 # PENDING: the differences found on 2026-11-01, awaiting the maintainer's
 # decision. None is approved. The first entries pair counterparts named
 # differently, so their members are compared while the name waits; the
@@ -105,201 +122,10 @@ roomkit_tools_roomkit = ["roomkit_tools.roomkit", "roomkit_tools"]
 # ---------------------------------------------------------------------------
 
 [[pending]]
-rust = "roomkit_tools_docs::DocsListTool"
-python = "roomkit_tools.DocsList"
-reason = "Rust's DocsListTool, Python's DocsList (no Tool suffix)"
-covers = ["rust roomkit_tools_docs::DocsListTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_docs::DocsListTool::definition"
-python = "roomkit_tools.DocsList.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_docs::DocsListTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_docs::DocsSearchTool"
-python = "roomkit_tools.DocsSearch"
-reason = "Rust's DocsSearchTool, Python's DocsSearch (no Tool suffix)"
-covers = ["rust roomkit_tools_docs::DocsSearchTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_docs::DocsSearchTool::definition"
-python = "roomkit_tools.DocsSearch.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_docs::DocsSearchTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_docs::DocsReadTool"
-python = "roomkit_tools.DocsRead"
-reason = "Rust's DocsReadTool, Python's DocsRead (no Tool suffix)"
-covers = ["rust roomkit_tools_docs::DocsReadTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_docs::DocsReadTool::definition"
-python = "roomkit_tools.DocsRead.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_docs::DocsReadTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanCreateTool"
-python = "roomkit_tools.PlanCreate"
-reason = "Rust's PlanCreateTool, Python's PlanCreate (no Tool suffix)"
-covers = ["rust roomkit_tools_plans::PlanCreateTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanCreateTool::definition"
-python = "roomkit_tools.PlanCreate.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_plans::PlanCreateTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanReadTool"
-python = "roomkit_tools.PlanRead"
-reason = "Rust's PlanReadTool, Python's PlanRead (no Tool suffix)"
-covers = ["rust roomkit_tools_plans::PlanReadTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanReadTool::definition"
-python = "roomkit_tools.PlanRead.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_plans::PlanReadTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanListTool"
-python = "roomkit_tools.PlanList"
-reason = "Rust's PlanListTool, Python's PlanList (no Tool suffix)"
-covers = ["rust roomkit_tools_plans::PlanListTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanListTool::definition"
-python = "roomkit_tools.PlanList.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_plans::PlanListTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanUpdateTool"
-python = "roomkit_tools.PlanUpdate"
-reason = "Rust's PlanUpdateTool, Python's PlanUpdate (no Tool suffix)"
-covers = ["rust roomkit_tools_plans::PlanUpdateTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanUpdateTool::definition"
-python = "roomkit_tools.PlanUpdate.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_plans::PlanUpdateTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanDeleteTool"
-python = "roomkit_tools.PlanDelete"
-reason = "Rust's PlanDeleteTool, Python's PlanDelete (no Tool suffix)"
-covers = ["rust roomkit_tools_plans::PlanDeleteTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanDeleteTool::definition"
-python = "roomkit_tools.PlanDelete.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_plans::PlanDeleteTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::DelegateTaskTool"
-python = "roomkit_tools.DelegateTask"
-reason = "Rust's DelegateTaskTool, Python's DelegateTask (no Tool suffix)"
-covers = ["rust roomkit_tools_agents::DelegateTaskTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::DelegateTaskTool::definition"
-python = "roomkit_tools.DelegateTask.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_agents::DelegateTaskTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::TaskStatusTool"
-python = "roomkit_tools.TaskStatus"
-reason = "Rust's TaskStatusTool, Python's TaskStatus (no Tool suffix)"
-covers = ["rust roomkit_tools_agents::TaskStatusTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::TaskStatusTool::definition"
-python = "roomkit_tools.TaskStatus.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_agents::TaskStatusTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::CancelTaskTool"
-python = "roomkit_tools.CancelTask"
-reason = "Rust's CancelTaskTool, Python's CancelTask (no Tool suffix)"
-covers = ["rust roomkit_tools_agents::CancelTaskTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::CancelTaskTool::definition"
-python = "roomkit_tools.CancelTask.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_agents::CancelTaskTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::AgentFollowupTool"
-python = "roomkit_tools.AgentFollowup"
-reason = "Rust's AgentFollowupTool, Python's AgentFollowup (no Tool suffix)"
-covers = ["rust roomkit_tools_agents::AgentFollowupTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::AgentFollowupTool::definition"
-python = "roomkit_tools.AgentFollowup.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_agents::AgentFollowupTool::definition (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::AgentSendTool"
-python = "roomkit_tools.AgentSend"
-reason = "Rust's AgentSendTool, Python's AgentSend (no Tool suffix)"
-covers = ["rust roomkit_tools_agents::AgentSendTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_agents::AgentSendTool::definition"
-python = "roomkit_tools.AgentSend.contract"
-reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
-covers = ["rust roomkit_tools_agents::AgentSendTool::definition (name)"]
-
-[[pending]]
 rust = "roomkit_tools_ocr_rusto::RustoOcr::lazy"
 python = "roomkit_tools_ocr_rusto.RustoOcr.__init__"
 reason = "Rust builds the lazy engine with RustoOcr::lazy(RustoConfig); Python with RustoOcr(models, ...)"
 covers = ["rust roomkit_tools_ocr_rusto::RustoOcr::lazy (name)"]
-
-[[pending]]
-reason = "roomkit_tools_agents::AgentFollowupTool / roomkit_tools.AgentFollowup: unmatched (2)"
-covers = [
-  "python roomkit_tools.AgentFollowup.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-  "python roomkit_tools.AgentFollowup.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-]
-
-[[pending]]
-reason = "roomkit_tools_agents::AgentSendTool / roomkit_tools.AgentSend: unmatched (2)"
-covers = [
-  "python roomkit_tools.AgentSend.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-  "python roomkit_tools.AgentSend.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-]
-
-[[pending]]
-reason = "roomkit_tools_agents::CancelTaskTool / roomkit_tools.CancelTask: unmatched (2)"
-covers = [
-  "python roomkit_tools.CancelTask.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-  "python roomkit_tools.CancelTask.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-]
-
-[[pending]]
-reason = "roomkit_tools_agents::DelegateTaskTool / roomkit_tools.DelegateTask: unmatched (2)"
-covers = [
-  "python roomkit_tools.DelegateTask.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-  "python roomkit_tools.DelegateTask.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-]
-
-[[pending]]
-reason = "roomkit_tools_agents::TaskStatusTool / roomkit_tools.TaskStatus: unmatched (2)"
-covers = [
-  "python roomkit_tools.TaskStatus.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-  "python roomkit_tools.TaskStatus.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
-]
 
 [[pending]]
 reason = "roomkit_tools_core::ToolError / roomkit_tools.ToolError: unmatched"
@@ -486,24 +312,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_roomkit::DocsList / roomkit_tools.DocsList: form"
-covers = [
-  "rust roomkit_tools_roomkit::DocsList::new(tool) (form)",  # takes a built DocsListTool; Python's roomkit_tools.DocsList is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::DocsRead / roomkit_tools.DocsRead: form"
-covers = [
-  "rust roomkit_tools_roomkit::DocsRead::new(tool) (form)",  # takes a built DocsReadTool; Python's roomkit_tools.DocsRead is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::DocsSearch / roomkit_tools.DocsSearch: form"
-covers = [
-  "rust roomkit_tools_roomkit::DocsSearch::new(tool) (form)",  # takes a built DocsSearchTool; Python's roomkit_tools.DocsSearch is that tool itself, built from (backend)
-]
-
-[[pending]]
 reason = "roomkit_tools_roomkit::Edit / roomkit_tools.Edit: form"
 covers = [
   "rust roomkit_tools_roomkit::Edit::new(tool) (form)",  # takes a built EditTool; Python's roomkit_tools.Edit takes roomkit_tools.EditTool.create's parameters (root, max_file_bytes)
@@ -537,36 +345,6 @@ covers = [
 reason = "roomkit_tools_roomkit::Patch / roomkit_tools.Patch: form"
 covers = [
   "rust roomkit_tools_roomkit::Patch::new(tool) (form)",  # takes a built PatchTool; Python's roomkit_tools.Patch takes roomkit_tools.PatchTool.create's parameters (root, max_changes, max_input_bytes, max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanCreate / roomkit_tools.PlanCreate: form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanCreate::new(tool) (form)",  # takes a built PlanCreateTool; Python's roomkit_tools.PlanCreate is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanDelete / roomkit_tools.PlanDelete: form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanDelete::new(tool) (form)",  # takes a built PlanDeleteTool; Python's roomkit_tools.PlanDelete is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanList / roomkit_tools.PlanList: form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanList::new(tool) (form)",  # takes a built PlanListTool; Python's roomkit_tools.PlanList is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanRead / roomkit_tools.PlanRead: form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanRead::new(tool) (form)",  # takes a built PlanReadTool; Python's roomkit_tools.PlanRead is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanUpdate / roomkit_tools.PlanUpdate: form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanUpdate::new(tool) (form)",  # takes a built PlanUpdateTool; Python's roomkit_tools.PlanUpdate is that tool itself, built from (backend)
 ]
 
 [[pending]]

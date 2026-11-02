@@ -13,15 +13,25 @@ other host-provided backends without changing the model-facing tools.
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import DocsList, DocsRead, DocsSearch, FileDocs
+from roomkit_tools import (
+    DocsList, DocsListTool, DocsRead, DocsReadTool, DocsSearch, DocsSearchTool, FileDocs,
+)
 
 documentation = FileDocs("./reference", version="application-v1")
 agent = AIChannel(
     "assistant",
     provider=provider,  # Your configured RoomKit provider.
-    tools=[DocsList(documentation), DocsSearch(documentation), DocsRead(documentation)],
+    tools=[
+        DocsList(DocsListTool(documentation)),
+        DocsSearch(DocsSearchTool(documentation)),
+        DocsRead(DocsReadTool(documentation)),
+    ],
 )
 ```
+
+`DocsListTool`, `DocsSearchTool` and `DocsReadTool` are the tools; `DocsList`,
+`DocsSearch` and `DocsRead` are their RoomKit adapters, each taking a built
+tool, as in Rust.
 
 The host chooses the root, version and tools. A call cannot change the root or
 fetch an arbitrary path/URL. Share a backend to share its snapshot; use different
@@ -31,11 +41,11 @@ catalogue and no automatic injection into every agent.
 Without RoomKit, call the selected tool directly:
 
 ```python
-search = DocsSearch(documentation)
+search = DocsSearchTool(documentation)
 result = await search.call({"query": "agent_followup idle"})
 if result["data"]["matches"]:
     doc = result["data"]["matches"][0]["document"]
-    page = await DocsRead(documentation).call({
+    page = await DocsReadTool(documentation).call({
         "document_id": doc["document_id"],
         "expected_revision": doc["revision"],
         "offset": 1,
@@ -135,7 +145,7 @@ backend shared by other tools.
 
 Python `DocsBackend` is a protocol with asynchronous `list`, `search` and `read`
 methods returning data dictionaries, not envelopes. The selected facade validates
-inputs and outputs using the same Rust-derived schemas; `.contract()` exposes
+inputs and outputs using the same Rust-derived schemas; `.definition()` exposes
 those schemas. Custom backends implement bounds, the documented search semantics,
 provenance, revision checks and cancellation. They must enforce their own access
 policy. Tool selection alone does not make arbitrary backend I/O safe.
