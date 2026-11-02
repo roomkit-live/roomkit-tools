@@ -88,12 +88,20 @@ mod http;
 #[tokio::test]
 async fn native_openai_answer_preserves_citations_and_usage_through_roomkit() {
     let server = http::Server::start().await;
-    let mut config = roomkit_tools_search::SearchHttpConfig::default();
-    config.endpoint = Some(format!("{}/openai/answer", server.origin));
-    config.policy.private_origins.push(server.origin.clone());
+    let config = roomkit_tools_search::SearchHttpConfig {
+        endpoint: Some(format!("{}/openai/answer", server.origin)),
+        policy: roomkit_tools_search::NetworkPolicy {
+            private_origins: vec![server.origin.clone()],
+            ..roomkit_tools_search::NetworkPolicy::default()
+        },
+        ..roomkit_tools_search::SearchHttpConfig::default()
+    };
     let backend = roomkit_tools_search::OpenAISearch::new(
         "fixture-key",
-        roomkit_tools_search::OpenAISearchConfig::new("fixture-model"),
+        roomkit_tools_search::OpenAISearchConfig {
+            max_tool_calls: 1,
+            ..roomkit_tools_search::OpenAISearchConfig::new("fixture-model")
+        },
         config,
     )
     .unwrap();

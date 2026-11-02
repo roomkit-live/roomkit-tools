@@ -15,9 +15,10 @@ fn url(url: &str) -> Metadata {
 #[tokio::test]
 async fn schema_result_policy_and_dropped_calls_preserve_native_contracts() {
     let server = web::Server::start().await;
-    let mut policy = WebFetchPolicy::default();
-    policy.allowed_origins = Some(vec![server.origin.clone()]);
-    policy.private_origins = vec![server.origin.clone()];
+    let policy = WebFetchPolicy {
+        allowed_origins: Some(vec![server.origin.clone()]),
+        private_origins: vec![server.origin.clone()],
+    };
     let tools = WebFetchToolset::new(WebFetchTool::new().with_policy(policy).unwrap());
     assert_eq!(tools.definition().name, "web_fetch");
     assert_eq!(

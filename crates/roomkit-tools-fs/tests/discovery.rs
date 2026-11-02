@@ -61,8 +61,10 @@ async fn list_is_sorted_non_recursive_and_includes_hidden_entries() {
 #[tokio::test]
 async fn list_pagination_uses_host_limits_and_workspace_relative_paths() {
     let root = fixture();
-    let mut limits = ListLimits::default();
-    limits.max_entries = 1;
+    let limits = ListLimits {
+        max_entries: 1,
+        ..ListLimits::default()
+    };
     let tool = ListTool::new(root.path())
         .await
         .unwrap()
@@ -121,8 +123,10 @@ async fn names_are_escaped_in_rendering_and_utf8_bytes_count_toward_the_budget()
     for file in ["a", "π"] {
         std::fs::write(root.path().join(file), "").unwrap();
     }
-    let mut limits = ListLimits::default();
-    limits.max_output_bytes = "1: file \"a\"\n".len();
+    let limits = ListLimits {
+        max_output_bytes: "1: file \"a\"\n".len(),
+        ..ListLimits::default()
+    };
     let tool = ListTool::new(root.path())
         .await
         .unwrap()
@@ -156,8 +160,10 @@ async fn names_are_escaped_in_rendering_and_utf8_bytes_count_toward_the_budget()
 #[tokio::test]
 async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
     let root = fixture();
-    let mut list_limits = ListLimits::default();
-    list_limits.max_scan_entries = 2;
+    let list_limits = ListLimits {
+        max_scan_entries: 2,
+        ..ListLimits::default()
+    };
     let list = ListTool::new(root.path())
         .await
         .unwrap()
@@ -168,8 +174,10 @@ async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
             .await,
         Err(ToolError::LimitExceeded(_))
     ));
-    let mut glob_limits = GlobLimits::default();
-    glob_limits.max_scan_entries = 5;
+    let mut glob_limits = GlobLimits {
+        max_scan_entries: 5,
+        ..GlobLimits::default()
+    };
     let glob = GlobTool::new(root.path())
         .await
         .unwrap()
@@ -365,9 +373,11 @@ async fn grep_caps_file_bytes_total_bytes_matches_and_rendered_bytes() {
         std::fs::write(root.path().join(file), "hit\n").unwrap();
     }
     for (file_limit, total_limit) in [(3, 100), (100, 7)] {
-        let mut limits = GrepLimits::default();
-        limits.max_file_bytes = file_limit;
-        limits.max_total_bytes = total_limit;
+        let limits = GrepLimits {
+            max_file_bytes: file_limit,
+            max_total_bytes: total_limit,
+            ..GrepLimits::default()
+        };
         let tool = GrepTool::new(root.path())
             .await
             .unwrap()
@@ -379,8 +389,10 @@ async fn grep_caps_file_bytes_total_bytes_matches_and_rendered_bytes() {
             Err(ToolError::LimitExceeded(_))
         ));
     }
-    let mut limits = GrepLimits::default();
-    limits.max_matches = 1;
+    let mut limits = GrepLimits {
+        max_matches: 1,
+        ..GrepLimits::default()
+    };
     let tool = GrepTool::new(root.path())
         .await
         .unwrap()
@@ -548,9 +560,11 @@ async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
         deep.push("deep");
     }
     let cancel = CancellationToken::new();
-    let mut glob_limits = GlobLimits::default();
-    glob_limits.max_scan_entries = 8;
-    glob_limits.max_depth = 2;
+    let glob_limits = GlobLimits {
+        max_scan_entries: 8,
+        max_depth: 2,
+        ..GlobLimits::default()
+    };
     let glob = GlobTool::new(root.path())
         .await
         .unwrap()
@@ -576,9 +590,11 @@ async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
             "{unbounded}"
         );
     }
-    let mut grep_limits = GrepLimits::default();
-    grep_limits.max_scan_entries = 8;
-    grep_limits.max_depth = 2;
+    let grep_limits = GrepLimits {
+        max_scan_entries: 8,
+        max_depth: 2,
+        ..GrepLimits::default()
+    };
     let grep = GrepTool::new(root.path())
         .await
         .unwrap()

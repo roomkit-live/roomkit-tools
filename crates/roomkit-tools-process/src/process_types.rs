@@ -98,7 +98,6 @@ pub struct ProcessStopInput {
 
 /// Host-selected aggregate, per-process and per-call bounds.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct ProcessLimits {
     /// Maximum retained processes across all owners, including finished ones (32).
     pub max_processes: usize,

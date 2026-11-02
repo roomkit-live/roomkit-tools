@@ -38,7 +38,6 @@ impl DiffInput {
 
 /// Host-owned input, algorithm and presentation bounds.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct DiffLimits {
     /// Maximum bytes per file. Default: 8 MiB.
     pub max_file_bytes: usize,

@@ -22,8 +22,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         format!("{}{middle}{}", "x".repeat(65_536), "y".repeat(65_536)),
     )?;
     let outputs = OutputStore::new(parent.path(), OutputLimits::default()).await?;
-    let mut limits = ShellLimits::default();
-    limits.max_output_bytes = 16;
+    let limits = ShellLimits {
+        max_output_bytes: 16,
+        ..ShellLimits::default()
+    };
     let shell = ShellTool::new(root.path())
         .await?
         .with_limits(limits)?

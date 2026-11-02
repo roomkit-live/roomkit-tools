@@ -349,12 +349,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_code::CodeOutlineLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_code::CodeOutlineLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
 reason = "roomkit_tools_code::CodeOutlineTool / roomkit_tools.CodeOutlineTool: unmatched"
 covers = [
   "python roomkit_tools.CodeOutlineTool.call (unmatched)",  # no Rust method
@@ -442,21 +436,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::DiffLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_fs::DiffLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
 reason = "roomkit_tools_fs::DiffTool / roomkit_tools.DiffTool: unmatched"
 covers = [
   "python roomkit_tools.DiffTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::EditLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_fs::EditLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
 ]
 
 [[pending]]
@@ -467,33 +449,15 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::GlobLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_fs::GlobLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
 reason = "roomkit_tools_fs::GlobTool / roomkit_tools.GlobTool: unmatched"
 covers = [
   "python roomkit_tools.GlobTool.call (unmatched)",  # no Rust method
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::GrepLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_fs::GrepLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
 reason = "roomkit_tools_fs::GrepTool / roomkit_tools.GrepTool: unmatched"
 covers = [
   "python roomkit_tools.GrepTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::ListLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_fs::ListLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
 ]
 
 [[pending]]
@@ -510,12 +474,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::PatchLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_fs::PatchLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
 reason = "roomkit_tools_fs::PatchTool / roomkit_tools.PatchTool: unmatched (2), form"
 covers = [
   "python roomkit_tools.PatchTool.call (unmatched)",  # no Rust method
@@ -524,21 +482,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::ReadLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_fs::ReadLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
 reason = "roomkit_tools_fs::ReadTool / roomkit_tools.ReadTool: unmatched"
 covers = [
   "python roomkit_tools.ReadTool.call (unmatched)",  # no Rust method
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::WriteLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_fs::WriteLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
 ]
 
 [[pending]]
@@ -707,9 +653,8 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::CommandEnv / no Python name: non_exhaustive, unmatched"
+reason = "roomkit_tools_process::CommandEnv / no Python name: unmatched"
 covers = [
-  "rust roomkit_tools_process::CommandEnv (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
   "rust roomkit_tools_process::CommandEnv::validate (unmatched)",  # an options struct's own member: no Python counterpart
 ]
 
@@ -717,12 +662,6 @@ covers = [
 reason = "roomkit_tools_process::ObservedProcess / no Python name: unmatched"
 covers = [
   "rust roomkit_tools_process::ObservedProcess (unmatched)",  # no Python name
-]
-
-[[pending]]
-reason = "roomkit_tools_process::OutputLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_process::OutputLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
 ]
 
 [[pending]]
@@ -739,12 +678,6 @@ covers = [
   "rust roomkit_tools_process::OutputStore::read(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::OutputStore::read_definition (unmatched)",  # no Python member
   "rust roomkit_tools_process::OutputStore::forget_definition (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_process::ProcessLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_process::ProcessLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
 ]
 
 [[pending]]
@@ -774,12 +707,6 @@ covers = [
 reason = "roomkit_tools_process::ProcessStatus / roomkit_tools.ProcessStatus: meaning"
 covers = [
   "rust roomkit_tools_process::ProcessStatus (meaning)",  # a contract type; Python's roomkit_tools.ProcessStatus of the same name is another thing, a class
-]
-
-[[pending]]
-reason = "roomkit_tools_process::ShellLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_process::ShellLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
 ]
 
 [[pending]]
@@ -993,18 +920,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_search::NetworkPolicy / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_search::NetworkPolicy (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
-reason = "roomkit_tools_search::OpenAISearchConfig / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_search::OpenAISearchConfig (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
 reason = "roomkit_tools_search::SearchBackend / roomkit_tools.search.SearchBackend: unmatched (2)"
 covers = [
   "rust roomkit_tools_search::SearchBackend::name (unmatched)",  # no Python member
@@ -1019,21 +934,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_search::SearchHttpConfig / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_search::SearchHttpConfig (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
 reason = "roomkit_tools_search::SearchKind / no Python name: uncompared"
 covers = [
   "rust roomkit_tools_search::SearchKind (uncompared)",  # a contract type no tool contract holds: its JSON is compared with nothing
-]
-
-[[pending]]
-reason = "roomkit_tools_search::SearchLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_search::SearchLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
 ]
 
 [[pending]]
@@ -1052,18 +955,6 @@ covers = [
   "python roomkit_tools.WebSearchTool.call (unmatched)",  # no Rust method
   "python roomkit_tools.WebSearchTool.create (unmatched)",  # no Rust method
   "rust roomkit_tools_search::WebSearchTool::capabilities (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_web::WebFetchLimits / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_web::WebFetchLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
-]
-
-[[pending]]
-reason = "roomkit_tools_web::WebFetchPolicy / no Python name: non_exhaustive"
-covers = [
-  "rust roomkit_tools_web::WebFetchPolicy (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
 ]
 
 [[pending]]

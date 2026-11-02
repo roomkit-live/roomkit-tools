@@ -11,7 +11,6 @@ mod decode;
 /// Host budgets for one synchronous Responses request; no automatic continuations.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[non_exhaustive]
 pub struct OpenAISearchConfig {
     /// Explicit model supporting Responses web search; no implicit model selection.
     pub model: String,

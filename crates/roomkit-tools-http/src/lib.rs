@@ -9,7 +9,6 @@ use serde::Deserialize;
 /// Exact HTTP(S) origins configured by the host, never by a model.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-#[non_exhaustive]
 pub struct NetworkPolicy {
     /// None allows public origins; Some(empty) refuses all destinations.
     pub allowed_origins: Option<Vec<String>>,

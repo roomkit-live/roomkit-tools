@@ -8,9 +8,10 @@ use tokio_util::sync::CancellationToken;
 
 #[expect(clippy::unwrap_used, reason = "valid test origin")]
 fn local(server: &web::Server) -> WebFetchTool {
-    let mut policy = WebFetchPolicy::default();
-    policy.allowed_origins = Some(vec![server.origin.clone()]);
-    policy.private_origins = vec![server.origin.clone()];
+    let policy = WebFetchPolicy {
+        allowed_origins: Some(vec![server.origin.clone()]),
+        private_origins: vec![server.origin.clone()],
+    };
     WebFetchTool::new().with_policy(policy).unwrap()
 }
 
@@ -66,9 +67,10 @@ async fn policy_and_invalid_input_refuse_before_network_effects() {
             .await
             .is_err()
     );
-    let mut policy = WebFetchPolicy::default();
-    policy.allowed_origins = Some(Vec::new());
-    policy.private_origins.push(server.origin.clone());
+    let policy = WebFetchPolicy {
+        allowed_origins: Some(Vec::new()),
+        private_origins: vec![server.origin.clone()],
+    };
     assert!(
         WebFetchTool::new()
             .with_policy(policy)
@@ -141,10 +143,14 @@ fn configuration_and_schemas_have_no_model_access_controls() {
     let schema = WebFetchTool::definition().input_schema;
     assert!(schema["properties"].get("private_origins").is_none());
     assert_eq!(schema["additionalProperties"], false);
-    let mut limits = WebFetchLimits::default();
-    limits.max_response_bytes = 0;
+    let limits = WebFetchLimits {
+        max_response_bytes: 0,
+        ..WebFetchLimits::default()
+    };
     assert!(WebFetchTool::new().with_limits(limits).is_err());
-    let mut policy = WebFetchPolicy::default();
-    policy.private_origins = vec!["http://localhost/path".into()];
+    let policy = WebFetchPolicy {
+        private_origins: vec!["http://localhost/path".into()],
+        ..WebFetchPolicy::default()
+    };
     assert!(WebFetchTool::new().with_policy(policy).is_err());
 }

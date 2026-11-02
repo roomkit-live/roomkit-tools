@@ -37,7 +37,6 @@ impl ShellInput {
 
 /// Host-owned limits; models cannot increase these bounds.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct ShellLimits {
     /// Maximum command input size. Default: 16 KiB.
     pub max_command_bytes: usize,

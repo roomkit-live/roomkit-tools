@@ -47,7 +47,6 @@ impl EditInput {
 
 /// Host-owned source, argument and resulting file bound.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct EditLimits {
     /// Maximum source, each text argument and resulting file bytes. Default: 8 MiB.
     pub max_file_bytes: usize,

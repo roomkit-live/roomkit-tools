@@ -87,8 +87,10 @@ async fn byte_budget_pages_whole_matches_with_all_requested_context() {
     input.limit = NonZeroUsize::new(1);
     let unlimited = GrepTool::new(root.path()).await.unwrap();
     let first = unlimited.grep(input.clone(), &cancel).await.unwrap();
-    let mut limits = GrepLimits::default();
-    limits.max_output_bytes = first.text.len();
+    let limits = GrepLimits {
+        max_output_bytes: first.text.len(),
+        ..GrepLimits::default()
+    };
     let tool = unlimited.with_limits(limits).unwrap();
     input.limit = None;
     let bounded = tool.grep(input.clone(), &cancel).await.unwrap();
@@ -106,8 +108,10 @@ async fn oversized_context_is_omitted_with_an_explicit_clipped_flag() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("a"), "very long context\nhit\n").unwrap();
     let cancel = CancellationToken::new();
-    let mut limits = GrepLimits::default();
-    limits.max_output_bytes = 12;
+    let limits = GrepLimits {
+        max_output_bytes: 12,
+        ..GrepLimits::default()
+    };
     let tool = GrepTool::new(root.path())
         .await
         .unwrap()
@@ -136,8 +140,10 @@ async fn oversized_context_is_omitted_with_an_explicit_clipped_flag() {
 async fn the_host_can_bound_or_disable_context_and_invalid_json_is_refused() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("a"), "hit\n").unwrap();
-    let mut limits = GrepLimits::default();
-    limits.max_context_lines = 0;
+    let limits = GrepLimits {
+        max_context_lines: 0,
+        ..GrepLimits::default()
+    };
     let tool = GrepTool::new(root.path())
         .await
         .unwrap()

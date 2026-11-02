@@ -87,8 +87,10 @@ async fn validates_inputs_limits_and_initial_cwd_before_spawning() {
         Err(ToolError::AccessRefused(_))
     ));
     assert!(!outside.path().join("must-not-exist").exists());
-    let mut limits = ShellLimits::default();
-    limits.max_command_bytes = 2;
+    let mut limits = ShellLimits {
+        max_command_bytes: 2,
+        ..ShellLimits::default()
+    };
     let bounded = tool.clone().with_limits(limits).unwrap();
     assert!(matches!(
         bounded.shell(ShellInput::new("touch x"), &token).await,
@@ -121,8 +123,10 @@ async fn cancelled_before_start_has_no_side_effect() {
 #[tokio::test]
 async fn large_outputs_keep_head_and_tail_and_continue_draining_both_pipes() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = ShellLimits::default();
-    limits.max_output_bytes = 100;
+    let limits = ShellLimits {
+        max_output_bytes: 100,
+        ..ShellLimits::default()
+    };
     let tool = ShellTool::new(root.path())
         .await
         .unwrap()
@@ -150,8 +154,10 @@ async fn utf8_binary_and_single_byte_budget_have_explicit_lossy_views() {
     assert_eq!(result.stdout.total_bytes, 5);
     assert_eq!(result.stderr.text, "\u{fffd}");
     assert_eq!(result.stderr.total_bytes, 1);
-    let mut limits = ShellLimits::default();
-    limits.max_output_bytes = 1;
+    let limits = ShellLimits {
+        max_output_bytes: 1,
+        ..ShellLimits::default()
+    };
     let tool = ShellTool::new(root.path())
         .await
         .unwrap()
@@ -179,9 +185,11 @@ async fn stdin_is_eof_and_signal_exit_is_distinct_from_an_exit_code() {
 #[tokio::test]
 async fn timeout_keeps_partial_output_and_clamps_the_requested_duration() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = ShellLimits::default();
-    limits.default_timeout_ms = 300;
-    limits.max_timeout_ms = 300;
+    let limits = ShellLimits {
+        default_timeout_ms: 300,
+        max_timeout_ms: 300,
+        ..ShellLimits::default()
+    };
     let tool = ShellTool::new(root.path())
         .await
         .unwrap()
@@ -368,8 +376,10 @@ async fn host_variables_outside_the_default_list_are_not_passed() {
 #[tokio::test]
 async fn host_lists_inherited_variables_and_sets_explicit_values() {
     let root = tempfile::tempdir().unwrap();
-    let mut env = CommandEnv::default();
-    env.inherit_env = vec!["CARGO_PKG_NAME".into(), "PATH".into()];
+    let mut env = CommandEnv {
+        inherit_env: vec!["CARGO_PKG_NAME".into(), "PATH".into()],
+        ..CommandEnv::default()
+    };
     env.env.insert("GREETING".into(), "hello world".into());
     env.env
         .insert("CARGO_PKG_NAME".into(), "explicit wins".into());

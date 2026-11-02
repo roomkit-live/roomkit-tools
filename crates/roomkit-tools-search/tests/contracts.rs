@@ -1,8 +1,8 @@
 //! External backend extensibility without any built-in provider feature.
 use roomkit_tools_core::ToolError;
 use roomkit_tools_search::{
-    BackendOutput, SearchBackend, SearchFuture, SearchHit, SearchInput, SearchPayload,
-    WebSearchTool,
+    BackendOutput, SearchBackend, SearchFuture, SearchHit, SearchInput, SearchLimits,
+    SearchPayload, WebSearchTool,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -73,7 +73,10 @@ async fn invalid_citations_fail_instead_of_fabricating_or_reindexing() {
 #[tokio::test]
 async fn answer_bounds_do_not_clip_citations() {
     let tool = backend(answer())
-        .with_limits(serde_json::from_value(json!({"max_output_bytes":12})).unwrap())
+        .with_limits(SearchLimits {
+            max_output_bytes: 12,
+            ..SearchLimits::default()
+        })
         .unwrap();
     assert!(matches!(
         tool.search(SearchInput::new("q"), &CancellationToken::new())
@@ -89,7 +92,10 @@ async fn utf8_excerpt_clipping_is_accounted_for() {
         content: Some("éé".into()),
         omitted_bytes: 1,
     }]))))
-    .with_limits(serde_json::from_value(json!({"max_content_bytes":3})).unwrap())
+    .with_limits(SearchLimits {
+        max_content_bytes: 3,
+        ..SearchLimits::default()
+    })
     .unwrap();
     let out = tool
         .search(SearchInput::new("q"), &CancellationToken::new())

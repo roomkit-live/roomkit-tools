@@ -16,7 +16,6 @@ pub const DEFAULT_INHERITED_ENV: &[&str] = &[
 /// inherited ones of the same name. No other host variable reaches it, so
 /// credentials in the host's environment stay out of commands unless listed.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub struct CommandEnv {
     /// Names of host variables to pass through when set.
     /// Default: [`DEFAULT_INHERITED_ENV`].

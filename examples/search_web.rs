@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "standalone demonstration output")]
 use roomkit_tools_search::{
-    ExaSearch, OllamaSearch, SearchBackend, SearchHttpConfig, SearchInput, SearchPayload,
-    WebSearchTool,
+    ExaSearch, NetworkPolicy, OllamaSearch, SearchBackend, SearchHttpConfig, SearchInput,
+    SearchPayload, WebSearchTool,
 };
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -39,9 +39,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await?;
             Ok::<_, std::io::Error>(())
         });
-        let mut config = SearchHttpConfig::default();
-        config.endpoint = Some(format!("{origin}/search"));
-        config.policy.private_origins.push(origin);
+        let config = SearchHttpConfig {
+            endpoint: Some(format!("{origin}/search")),
+            policy: NetworkPolicy {
+                private_origins: vec![origin],
+                ..NetworkPolicy::default()
+            },
+            ..SearchHttpConfig::default()
+        };
         Arc::new(OllamaSearch::new("fixture-only", config)?)
     };
     let tool = WebSearchTool::new(backend);

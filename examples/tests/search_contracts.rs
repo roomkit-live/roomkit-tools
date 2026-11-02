@@ -5,7 +5,8 @@
 mod search;
 use roomkit_tools_core::ToolError;
 use roomkit_tools_search::{
-    ExaSearch, OllamaSearch, OpenAISearch, SearchBackend, SearchHttpConfig, WebSearchTool,
+    ExaSearch, NetworkPolicy, OllamaSearch, OpenAISearch, SearchBackend, SearchHttpConfig,
+    WebSearchTool,
 };
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -29,13 +30,18 @@ async fn shared_search_contracts() {
     for case in fixture["cases"].as_array().unwrap() {
         let mut arguments = case["input"].clone();
         replace(&mut arguments, "$ORIGIN", &server.origin);
-        let mut config = SearchHttpConfig::default();
-        config.endpoint = Some(format!(
-            "{}{}",
-            server.origin,
-            case["path"].as_str().unwrap()
-        ));
-        config.policy.private_origins.push(server.origin.clone());
+        let mut config = SearchHttpConfig {
+            endpoint: Some(format!(
+                "{}{}",
+                server.origin,
+                case["path"].as_str().unwrap()
+            )),
+            policy: NetworkPolicy {
+                private_origins: vec![server.origin.clone()],
+                ..NetworkPolicy::default()
+            },
+            ..SearchHttpConfig::default()
+        };
         if case["deny"] == true {
             config.policy.allowed_origins = Some(vec![]);
         }

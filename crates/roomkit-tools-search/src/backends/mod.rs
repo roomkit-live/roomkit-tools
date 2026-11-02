@@ -27,7 +27,6 @@ pub use openai::{OpenAISearch, OpenAISearchConfig};
 /// Host-only transport configuration; never exposed in model arguments.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-#[non_exhaustive]
 pub struct SearchHttpConfig {
     /// Override service URL, primarily for local tests or an explicit proxy.
     pub endpoint: Option<String>,

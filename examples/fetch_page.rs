@@ -24,9 +24,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok::<_, std::io::Error>(())
     });
-    let mut policy = WebFetchPolicy::default();
-    policy.allowed_origins = Some(vec![origin.clone()]);
-    policy.private_origins = vec![origin.clone()];
+    let policy = WebFetchPolicy {
+        allowed_origins: Some(vec![origin.clone()]),
+        private_origins: vec![origin.clone()],
+    };
     let result = WebFetchTool::new()
         .with_policy(policy)?
         .fetch(

@@ -105,7 +105,6 @@ pub struct GrepPage {
 
 /// Host-owned traversal, ingestion and output bounds.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct GrepLimits {
     /// Maximum matching lines per page. Default: 200.
     pub max_matches: usize,

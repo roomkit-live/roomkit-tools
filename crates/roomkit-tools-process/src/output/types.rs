@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 /// Host-owned disk and paging limits. Reserved queued bytes also count as usage.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct OutputLimits {
     /// Maximum retained streams, including empty and failed copies. Default: 64.
     pub max_archives: usize,

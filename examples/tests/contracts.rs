@@ -61,8 +61,10 @@ async fn invoke(
         "edit" => call!(EditTool::from_workspace(workspace.clone()), edit),
         "patch" => call!(PatchTool::from_workspace(workspace.clone()), patch),
         "shell" => {
-            let mut limits = ShellLimits::default();
-            limits.max_output_bytes = 8;
+            let limits = ShellLimits {
+                max_output_bytes: 8,
+                ..ShellLimits::default()
+            };
             let mut tool = ShellTool::new(root).await?.with_limits(limits)?;
             if let Some(outputs) = outputs {
                 tool = tool.with_output_store(outputs.clone());
@@ -217,15 +219,19 @@ async fn run_case(root: &Path, case: &Value, reports: &mut BTreeMap<String, Valu
     let workspace = Workspace::new(root).await.unwrap();
     let storage = tempfile::tempdir().unwrap();
     let outputs = if case["outputs"] == true {
-        let mut limits = OutputLimits::default();
-        limits.max_read_bytes = 3;
+        let limits = OutputLimits {
+            max_read_bytes: 3,
+            ..OutputLimits::default()
+        };
         Some(OutputStore::new(storage.path(), limits).await.unwrap())
     } else {
         None
     };
-    let mut limits = ProcessLimits::default();
-    limits.max_output_bytes = 8;
-    limits.max_read_bytes = 3;
+    let limits = ProcessLimits {
+        max_output_bytes: 8,
+        max_read_bytes: 3,
+        ..ProcessLimits::default()
+    };
     let mut manager = ProcessSession::new(root)
         .await
         .unwrap()

@@ -38,7 +38,6 @@ impl WriteInput {
 
 /// Host-owned input and destination bound.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct WriteLimits {
     /// Maximum bytes in both the new and an existing file. Default: 8 MiB.
     pub max_file_bytes: usize,

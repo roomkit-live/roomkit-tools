@@ -28,8 +28,10 @@ async fn recover_full_binary_output_without_rerunning_a_command() {
     let store = OutputStore::new(storage.path(), OutputLimits::default())
         .await
         .unwrap();
-    let mut limits = ShellLimits::default();
-    limits.max_output_bytes = 8;
+    let limits = ShellLimits {
+        max_output_bytes: 8,
+        ..ShellLimits::default()
+    };
     let shell = ShellTool::new(root.path())
         .await
         .unwrap()
@@ -154,12 +156,14 @@ async fn store_directory_is_private_to_the_host_user() {
 #[tokio::test]
 async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = OutputLimits::default();
-    limits.max_stream_bytes = 5;
-    limits.max_total_bytes = 7;
-    limits.max_archives = 2;
-    limits.max_archives_per_owner = 2;
-    limits.max_read_bytes = 2;
+    let limits = OutputLimits {
+        max_stream_bytes: 5,
+        max_total_bytes: 7,
+        max_archives: 2,
+        max_archives_per_owner: 2,
+        max_read_bytes: 2,
+        ..OutputLimits::default()
+    };
     let store = OutputStore::new(root.path(), limits).await.unwrap();
     let shell = ShellTool::new(root.path())
         .await
@@ -223,8 +227,10 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
 #[tokio::test]
 async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = OutputLimits::default();
-    limits.max_total_bytes = 4;
+    let limits = OutputLimits {
+        max_total_bytes: 4,
+        ..OutputLimits::default()
+    };
     let store = OutputStore::new(root.path(), limits).await.unwrap();
     let shell = ShellTool::new(root.path())
         .await
@@ -278,8 +284,10 @@ async fn process_archives_remain_readable_after_manager_close() {
     let store = OutputStore::new(root.path(), OutputLimits::default())
         .await
         .unwrap();
-    let mut limits = ProcessLimits::default();
-    limits.max_output_bytes = 2;
+    let limits = ProcessLimits {
+        max_output_bytes: 2,
+        ..ProcessLimits::default()
+    };
     let manager = ProcessSession::new(root.path())
         .await
         .unwrap()

@@ -39,8 +39,10 @@ async fn a_page_preserves_unicode_and_resumes_at_the_next_line() {
 #[tokio::test]
 async fn byte_budgets_count_utf8_and_number_prefixes() {
     let (_directory, tool) = fixture("π\nx\n".as_bytes()).await;
-    let mut limits = ReadLimits::default();
-    limits.max_output_bytes = 6;
+    let limits = ReadLimits {
+        max_output_bytes: 6,
+        ..ReadLimits::default()
+    };
     let tool = tool.with_limits(limits).unwrap();
     let output = tool
         .read(ReadInput::new("source.txt"), &CancellationToken::new())
@@ -54,8 +56,10 @@ async fn byte_budgets_count_utf8_and_number_prefixes() {
 #[tokio::test]
 async fn the_host_caps_a_models_requested_line_count() {
     let (_directory, tool) = fixture(b"one\ntwo\nthree\n").await;
-    let mut limits = ReadLimits::default();
-    limits.max_lines = 1;
+    let limits = ReadLimits {
+        max_lines: 1,
+        ..ReadLimits::default()
+    };
     let tool = tool.with_limits(limits).unwrap();
     let mut input = ReadInput::new("source.txt");
     input.limit = NonZeroUsize::new(100);
@@ -117,8 +121,10 @@ async fn binary_and_non_utf8_files_are_refused() {
 #[tokio::test]
 async fn a_file_above_the_ingestion_budget_is_refused() {
     let (_directory, tool) = fixture(b"large").await;
-    let mut limits = ReadLimits::default();
-    limits.max_file_bytes = 4;
+    let limits = ReadLimits {
+        max_file_bytes: 4,
+        ..ReadLimits::default()
+    };
     let tool = tool.with_limits(limits).unwrap();
     assert!(matches!(
         tool.read(ReadInput::new("source.txt"), &CancellationToken::new())
@@ -139,9 +145,11 @@ async fn large_files_and_huge_unrequested_lines_do_not_expand_the_page() {
     file.write_all("\nselected π\r\n".as_bytes()).unwrap();
     std::io::copy(&mut std::io::repeat(b'y').take(12 * 1024 * 1024), &mut file).unwrap();
     drop(file);
-    let mut limits = ReadLimits::default();
-    limits.max_file_bytes = 32 * 1024 * 1024;
-    limits.max_output_bytes = 32;
+    let limits = ReadLimits {
+        max_file_bytes: 32 * 1024 * 1024,
+        max_output_bytes: 32,
+        ..ReadLimits::default()
+    };
     let tool = ReadTool::new(root.path())
         .await
         .unwrap()
@@ -159,8 +167,10 @@ async fn large_files_and_huge_unrequested_lines_do_not_expand_the_page() {
 #[tokio::test]
 async fn a_line_that_cannot_fit_is_reported_instead_of_silently_lost() {
     let (_directory, tool) = fixture(b"long line\n").await;
-    let mut limits = ReadLimits::default();
-    limits.max_output_bytes = 4;
+    let limits = ReadLimits {
+        max_output_bytes: 4,
+        ..ReadLimits::default()
+    };
     let tool = tool.with_limits(limits).unwrap();
     assert!(matches!(
         tool.read(ReadInput::new("source.txt"), &CancellationToken::new())

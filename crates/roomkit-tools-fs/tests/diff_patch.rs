@@ -87,14 +87,25 @@ async fn diff_enforces_file_line_complexity_and_complete_output_bounds() {
     std::fs::write(root.path().join("a"), "a\nb\nc\n").unwrap();
     std::fs::write(root.path().join("b"), "d\ne\nf\n").unwrap();
     let tool = DiffTool::new(root.path()).await.unwrap();
-    for dimension in 0..4 {
-        let mut limits = DiffLimits::default();
-        match dimension {
-            0 => limits.max_file_bytes = 2,
-            1 => limits.max_lines = 2,
-            2 => limits.max_comparison_cells = 8,
-            _ => limits.max_output_bytes = 5,
-        }
+    let bounds = [
+        DiffLimits {
+            max_file_bytes: 2,
+            ..DiffLimits::default()
+        },
+        DiffLimits {
+            max_lines: 2,
+            ..DiffLimits::default()
+        },
+        DiffLimits {
+            max_comparison_cells: 8,
+            ..DiffLimits::default()
+        },
+        DiffLimits {
+            max_output_bytes: 5,
+            ..DiffLimits::default()
+        },
+    ];
+    for limits in bounds {
         let result = tool
             .clone()
             .with_limits(limits)
@@ -355,13 +366,27 @@ async fn patch_limits_and_cancellation_prevent_writes() {
     }]);
     input.dry_run = false;
     let tool = PatchTool::new(root.path()).await.unwrap();
-    for dimension in 0..3 {
-        let mut limits = PatchLimits::default();
-        match dimension {
-            0 => limits.max_input_bytes = 1,
-            1 => limits.diff.max_file_bytes = 1,
-            _ => limits.diff.max_output_bytes = 1,
-        }
+    let bounds = [
+        PatchLimits {
+            max_input_bytes: 1,
+            ..PatchLimits::default()
+        },
+        PatchLimits {
+            diff: DiffLimits {
+                max_file_bytes: 1,
+                ..DiffLimits::default()
+            },
+            ..PatchLimits::default()
+        },
+        PatchLimits {
+            diff: DiffLimits {
+                max_output_bytes: 1,
+                ..DiffLimits::default()
+            },
+            ..PatchLimits::default()
+        },
+    ];
+    for limits in bounds {
         assert!(matches!(
             tool.clone()
                 .with_limits(limits)

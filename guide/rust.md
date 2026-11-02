@@ -43,6 +43,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+The limits and configuration structs stand for Python's constructor keywords:
+set the fields you need and take the rest from their defaults, as in
+`ReadLimits { max_lines: 200, ..ReadLimits::default() }`.
+
 Within this repository, `cargo run --example read_file` runs a complete
 self-contained check. More examples are listed in the [example index](../examples/README.md).
 Run `cargo doc --workspace --no-deps --open` for field-level API documentation.

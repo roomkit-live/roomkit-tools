@@ -88,8 +88,10 @@ async fn refuses_a_file_outside_the_configured_root() {
 #[tokio::test]
 async fn reports_limits_as_safe_failures_and_io_as_diagnostic_errors() {
     let (root, _) = fixture().await;
-    let mut limits = ReadLimits::default();
-    limits.max_file_bytes = 1;
+    let limits = ReadLimits {
+        max_file_bytes: 1,
+        ..ReadLimits::default()
+    };
     let tools = ReadToolset::new(
         ReadTool::new(root.path())
             .await

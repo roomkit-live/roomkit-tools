@@ -163,7 +163,6 @@ pub struct SearchResult {
 /// Host limits for the generic tool; transport limits belong to each backend.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-#[non_exhaustive]
 pub struct SearchLimits {
     /// Maximum query UTF-8 bytes. Default 4096.
     pub max_query_bytes: usize,

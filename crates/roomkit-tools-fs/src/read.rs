@@ -43,7 +43,6 @@ const fn first_line() -> NonZeroUsize {
 
 /// Host-owned bounds, independent of model-supplied arguments.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct ReadLimits {
     /// Maximum bytes scanned from one file. Default: 8 MiB. Memory is page-bounded;
     /// raise this limit explicitly to read larger files.

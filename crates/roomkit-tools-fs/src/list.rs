@@ -36,7 +36,6 @@ impl ListInput {
 
 /// Host-owned bounds for a directory listing.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct ListLimits {
     /// Maximum entries returned per page. Default: 200.
     pub max_entries: usize,

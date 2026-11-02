@@ -71,7 +71,6 @@ pub struct WebFetchResult {
 /// Host resource limits, independent of model arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-#[non_exhaustive]
 pub struct WebFetchLimits {
     /// Maximum UTF-8 URL bytes, including each redirect. Default: 8 KiB.
     pub max_url_bytes: usize,

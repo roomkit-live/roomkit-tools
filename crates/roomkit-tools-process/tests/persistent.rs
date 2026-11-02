@@ -219,8 +219,10 @@ async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
 #[tokio::test]
 async fn status_and_observation_follow_creation_order_past_nine_jobs() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = ProcessLimits::default();
-    limits.max_processes_per_owner = 11;
+    let limits = ProcessLimits {
+        max_processes_per_owner: 11,
+        ..ProcessLimits::default()
+    };
     let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
@@ -260,9 +262,11 @@ async fn status_and_observation_follow_creation_order_past_nine_jobs() {
 )]
 async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = ProcessLimits::default();
-    limits.max_processes = 2;
-    limits.max_processes_per_owner = 1;
+    let limits = ProcessLimits {
+        max_processes: 2,
+        max_processes_per_owner: 1,
+        ..ProcessLimits::default()
+    };
     let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
@@ -408,9 +412,11 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
 #[tokio::test]
 async fn no_owner_is_one_standalone_owner_with_its_own_quota() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = ProcessLimits::default();
-    limits.max_processes = 2;
-    limits.max_processes_per_owner = 1;
+    let limits = ProcessLimits {
+        max_processes: 2,
+        max_processes_per_owner: 1,
+        ..ProcessLimits::default()
+    };
     let session = ProcessSession::new(root.path())
         .await
         .unwrap()
@@ -482,8 +488,10 @@ async fn closed_reports_a_requested_shutdown_to_every_clone() {
 #[tokio::test]
 async fn bounded_retention_exposes_every_gap_and_keeps_draining() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = ProcessLimits::default();
-    limits.max_output_bytes = 17;
+    let limits = ProcessLimits {
+        max_output_bytes: 17,
+        ..ProcessLimits::default()
+    };
     let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
@@ -510,9 +518,11 @@ async fn bounded_retention_exposes_every_gap_and_keeps_draining() {
 #[tokio::test]
 async fn lifetime_timeout_caps_requests_and_retains_output() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = ProcessLimits::default();
-    limits.default_timeout_ms = 200;
-    limits.max_timeout_ms = 200;
+    let limits = ProcessLimits {
+        default_timeout_ms: 200,
+        max_timeout_ms: 200,
+        ..ProcessLimits::default()
+    };
     let manager = ProcessSession::new(root.path())
         .await
         .unwrap()
@@ -547,9 +557,11 @@ async fn lifetime_timeout_caps_requests_and_retains_output() {
 #[tokio::test]
 async fn blocked_stdin_reports_partial_bytes_and_does_not_prevent_stop() {
     let root = tempfile::tempdir().unwrap();
-    let mut limits = ProcessLimits::default();
-    limits.max_write_bytes = 2 * 1024 * 1024;
-    limits.write_timeout_ms = 100;
+    let limits = ProcessLimits {
+        max_write_bytes: 2 * 1024 * 1024,
+        write_timeout_ms: 100,
+        ..ProcessLimits::default()
+    };
     let manager = ProcessSession::new(root.path())
         .await
         .unwrap()

@@ -41,7 +41,6 @@ impl GlobInput {
 
 /// Host bounds for path discovery; exceeding a traversal bound fails the search.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct GlobLimits {
     /// Maximum matches per page. Default: 200.
     pub max_matches: usize,

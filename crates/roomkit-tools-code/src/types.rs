@@ -57,7 +57,6 @@ impl CodeOutlineInput {
 /// Host-owned bounds; parser allocations are not a hard memory sandbox.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-#[non_exhaustive]
 pub struct CodeOutlineLimits {
     /// Maximum UTF-8 source bytes retained for parsing. Default: 512 KiB.
     /// Parser memory grows with the input: deeply nested invalid source can

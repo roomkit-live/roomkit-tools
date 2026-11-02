@@ -17,8 +17,10 @@ async fn revisions_detect_changes_and_output_is_bounded_without_losing_symbols()
     input.limit = NonZeroUsize::new(1);
     let first = tool.outline(input.clone(), &token).await.unwrap();
     assert_eq!(first.data.next_offset, Some(2));
-    let mut limits = CodeOutlineLimits::default();
-    limits.max_output_bytes = serde_json::to_vec(&first).unwrap().len() + 20;
+    let limits = CodeOutlineLimits {
+        max_output_bytes: serde_json::to_vec(&first).unwrap().len() + 20,
+        ..CodeOutlineLimits::default()
+    };
     let small = tool.clone().with_limits(limits).unwrap();
     input.limit = None;
     let page = small.outline(input.clone(), &token).await.unwrap();
@@ -193,14 +195,18 @@ async fn invalid_limits_and_cancellation_are_explicit_and_reusable() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("valid.rs"), "fn example() {}\n").unwrap();
     let tool = CodeOutlineTool::new(root.path()).await.unwrap();
-    let mut limits = CodeOutlineLimits::default();
-    limits.max_file_bytes = 0;
+    let limits = CodeOutlineLimits {
+        max_file_bytes: 0,
+        ..CodeOutlineLimits::default()
+    };
     assert!(matches!(
         tool.clone().with_limits(limits),
         Err(ToolError::InvalidInput(_))
     ));
-    limits = CodeOutlineLimits::default();
-    limits.default_timeout_ms = limits.max_timeout_ms + 1;
+    let limits = CodeOutlineLimits {
+        default_timeout_ms: CodeOutlineLimits::default().max_timeout_ms + 1,
+        ..CodeOutlineLimits::default()
+    };
     assert!(matches!(
         tool.clone().with_limits(limits),
         Err(ToolError::InvalidInput(_))

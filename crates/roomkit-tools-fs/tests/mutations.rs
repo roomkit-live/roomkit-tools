@@ -213,8 +213,7 @@ async fn replace_all_is_explicit_and_uses_non_overlapping_matches() {
 async fn bounds_cover_existing_input_and_expanded_content_before_writing() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("orders"), "aaa").unwrap();
-    let mut limits = WriteLimits::default();
-    limits.max_file_bytes = 2;
+    let limits = WriteLimits { max_file_bytes: 2 };
     let write = WriteTool::new(root.path())
         .await
         .unwrap()
@@ -231,8 +230,7 @@ async fn bounds_cover_existing_input_and_expanded_content_before_writing() {
         write.write(overwrite, &cancel).await,
         Err(ToolError::LimitExceeded(_))
     ));
-    let mut limits = EditLimits::default();
-    limits.max_file_bytes = 4;
+    let limits = EditLimits { max_file_bytes: 4 };
     let edit = EditTool::new(root.path())
         .await
         .unwrap()

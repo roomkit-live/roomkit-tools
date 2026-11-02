@@ -79,7 +79,6 @@ impl PatchInput {
 
 /// Host-owned bounds for a complete patch and its previews.
 #[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
 pub struct PatchLimits {
     /// Maximum operations per call. Default: 32.
     pub max_changes: usize,

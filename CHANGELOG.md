@@ -61,6 +61,10 @@ part of an existing published preview.
 - Rust RoomKit adapter: the process toolsets take `session` and
   `OutputReadToolset` and `OutputForgetToolset` take `store`, as Python's
   `ProcessStart(session)` and `OutputRead(store)`.
+- Rust: the limits, policy and configuration structs a host builds are no
+  longer `#[non_exhaustive]`, so `ReadLimits { max_lines: 200,
+  ..ReadLimits::default() }` sets some fields as Python's keywords do. A
+  literal naming every field now breaks when a field is added.
 
 ### Added
 

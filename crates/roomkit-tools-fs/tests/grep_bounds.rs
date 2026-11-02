@@ -87,8 +87,10 @@ async fn lines_longer_than_the_host_bound_are_skipped_and_counted() {
         "short hit\nthis line is far too long to search for hit\nhit\n",
     )
     .unwrap();
-    let mut limits = GrepLimits::default();
-    limits.max_line_bytes = 16;
+    let mut limits = GrepLimits {
+        max_line_bytes: 16,
+        ..GrepLimits::default()
+    };
     let tool = GrepTool::new(root.path())
         .await
         .unwrap()
