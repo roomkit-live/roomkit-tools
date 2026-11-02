@@ -179,12 +179,13 @@ impl DocsBackend for FileDocs {
                 &snapshot.revision,
             )?;
             let total = snapshot.documents.len();
-            let end = page_end(input.offset, input.limit, total)?;
+            let start = input.offset.get() - 1;
+            let end = page_end(start, input.limit, total)?;
             let documents = snapshot
                 .documents
                 .iter()
-                .skip(input.offset)
-                .take(end - input.offset)
+                .skip(start)
+                .take(end - start)
                 .map(|d| d.info.clone())
                 .collect();
             cancelled(cancel)?;
@@ -192,8 +193,8 @@ impl DocsBackend for FileDocs {
                 documents,
                 catalog_revision: snapshot.revision.clone(),
                 total_documents: total,
-                offset: input.offset,
-                next_offset: (end < total).then_some(end),
+                offset: input.offset.get(),
+                next_offset: (end < total).then_some(end + 1),
                 truncated: end < total,
             })
         })
@@ -235,6 +236,7 @@ fn check_revision(expected: Option<&str>, current: &str) -> Result<(), ToolError
         Ok(())
     }
 }
+/// The end of the page starting at the zero-based `offset`.
 fn page_end(offset: usize, limit: usize, total: usize) -> Result<usize, ToolError> {
     if offset > total {
         return Err(ToolError::InvalidInput(
@@ -477,9 +479,10 @@ fn search(
             .then_with(|| da.info.document_id.cmp(&db.info.document_id))
     });
     let total = ranked.len();
-    let end = page_end(input.offset, input.limit, total)?;
+    let start = input.offset.get() - 1;
+    let end = page_end(start, input.limit, total)?;
     let mut matches = Vec::new();
-    for (_, doc) in ranked.iter().skip(input.offset).take(end - input.offset) {
+    for (_, doc) in ranked.iter().skip(start).take(end - start) {
         cancelled(cancel)?;
         let line = doc.lines.iter().enumerate().find(|(_, line)| {
             let lower = line.to_lowercase();
@@ -503,8 +506,8 @@ fn search(
         catalog_revision: snapshot.revision.clone(),
         total_documents: snapshot.documents.len(),
         matched_documents: total,
-        offset: input.offset,
-        next_offset: (end < total).then_some(end),
+        offset: input.offset.get(),
+        next_offset: (end < total).then_some(end + 1),
         truncated: end < total,
     })
 }

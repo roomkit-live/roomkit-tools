@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,14 +15,17 @@ fn read_limit() -> usize {
 fn first_line() -> usize {
     1
 }
+fn first_result() -> NonZeroUsize {
+    NonZeroUsize::MIN
+}
 
 /// Discover documents in the host-configured catalogue.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DocsListInput {
-    /// Zero-based result offset.
-    #[serde(default)]
-    pub offset: usize,
+    /// First result, starting at one, as `list`, `glob` and `grep`.
+    #[serde(default = "first_result")]
+    pub offset: NonZeroUsize,
     /// Maximum results, 1..100; defaults to 20.
     #[serde(default = "list_limit")]
     pub limit: usize,
@@ -32,7 +37,7 @@ pub struct DocsListInput {
 impl Default for DocsListInput {
     fn default() -> Self {
         Self {
-            offset: 0,
+            offset: first_result(),
             limit: list_limit(),
             expected_catalog_revision: None,
         }
@@ -44,9 +49,9 @@ impl Default for DocsListInput {
 pub struct DocsSearchInput {
     /// Up to 16 terms and 1024 UTF-8 bytes; no regex or query operators.
     pub query: String,
-    /// Zero-based result offset.
-    #[serde(default)]
-    pub offset: usize,
+    /// First result, starting at one, as `list`, `glob` and `grep`.
+    #[serde(default = "first_result")]
+    pub offset: NonZeroUsize,
     /// Maximum document hits, 1..50; defaults to 10.
     #[serde(default = "search_limit")]
     pub limit: usize,
@@ -60,7 +65,7 @@ impl DocsSearchInput {
     pub fn new(query: impl Into<String>) -> Self {
         Self {
             query: query.into(),
-            offset: 0,
+            offset: first_result(),
             limit: search_limit(),
             expected_catalog_revision: None,
         }
@@ -121,9 +126,9 @@ pub struct DocsListResult {
     pub catalog_revision: String,
     /// Number of eligible documents in the complete catalogue.
     pub total_documents: usize,
-    /// Zero-based start of this page.
+    /// One-based first result of this page.
     pub offset: usize,
-    /// Next offset, or null at the end.
+    /// One-based offset of the next page, or null at the end.
     pub next_offset: Option<usize>,
     /// Whether more records remain after this page.
     pub truncated: bool,
@@ -155,9 +160,9 @@ pub struct DocsSearchResult {
     pub total_documents: usize,
     /// Number of documents matching all query terms.
     pub matched_documents: usize,
-    /// Zero-based result offset.
+    /// One-based first result of this page.
     pub offset: usize,
-    /// Next result offset, or null at the end.
+    /// One-based offset of the next page, or null at the end.
     pub next_offset: Option<usize>,
     /// Whether more matching documents remain after this page.
     pub truncated: bool,

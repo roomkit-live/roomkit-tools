@@ -112,6 +112,17 @@ class DocsTests(unittest.IsolatedAsyncioTestCase):
         bad.unlink()
         self.assertEqual((await DocsListTool(self.backend).call({}))["data"]["total_documents"], 3)
 
+    async def test_result_offsets_start_at_one(self):
+        """As list, glob and grep's: the default is 1, 0 is refused, and
+        next_offset is the next page's first result."""
+        first = await self.backend.list(limit=2)
+        self.assertEqual((first["offset"], first["next_offset"]), (1, 3))
+        last = await self.backend.list(offset=first["next_offset"])
+        self.assertEqual((last["offset"], len(last["documents"])), (3, 1))
+        for call in (self.backend.list(offset=0), self.backend.search(query="agent", offset=0)):
+            with self.assertRaises(InvalidInputError):
+                await call
+
     async def test_custom_backend_is_validated_and_cancellable(self):
         data = await self.backend.list()
         started, cancelled = asyncio.Event(), asyncio.Event()
@@ -134,7 +145,7 @@ class DocsTests(unittest.IsolatedAsyncioTestCase):
         result = await DocsListTool(backend).call({})
         self.assertEqual(result["data"], data)
         self.assertEqual(
-            backend.arguments, {"offset": 0, "limit": 20, "expected_catalog_revision": None}
+            backend.arguments, {"offset": 1, "limit": 20, "expected_catalog_revision": None}
         )
         with self.assertRaises(UnsupportedResourceError):
             await DocsSearchTool(backend).call({"query": "agent"})

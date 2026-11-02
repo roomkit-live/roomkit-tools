@@ -39,6 +39,8 @@ fn limit(value: usize, max: usize) -> Result<(), ToolError> {
         Ok(())
     }
 }
+/// A page of `count` results from the one-based `offset`, of `total`; `next`
+/// the one-based offset of the next page.
 fn page(
     offset: usize,
     count: usize,
@@ -46,14 +48,17 @@ fn page(
     next: Option<usize>,
     truncated: bool,
 ) -> Result<(), ToolError> {
-    let end = offset
+    let start = offset
+        .checked_sub(1)
+        .ok_or_else(|| ToolError::InvalidInput("offsets start at one".into()))?;
+    let end = start
         .checked_add(count)
         .ok_or_else(|| ToolError::InvalidInput("invalid pagination".into()))?;
-    if offset > total
+    if start > total
         || end > total
-        || next != (end < total).then_some(end)
+        || next != (end < total).then_some(end + 1)
         || truncated != next.is_some()
-        || (count == 0 && offset < total)
+        || (count == 0 && start < total)
     {
         return Err(ToolError::InvalidInput(
             "inconsistent documentation pagination".into(),
@@ -159,10 +164,9 @@ impl DocsContract for DocsReadResult {
         if self.next_offset == Some(0) {
             return Err(ToolError::InvalidInput("invalid next line".into()));
         }
-        let start = self
-            .offset
-            .checked_sub(1)
-            .ok_or_else(|| ToolError::InvalidInput("invalid source offset".into()))?;
+        if self.offset == 0 {
+            return Err(ToolError::InvalidInput("invalid source offset".into()));
+        }
         if self.lines.len() > 500 {
             return Err(ToolError::LimitExceeded("too many document lines".into()));
         }
@@ -174,10 +178,10 @@ impl DocsContract for DocsReadResult {
             }
         }
         page(
-            start,
+            self.offset,
             self.lines.len(),
             self.document.line_count,
-            self.next_offset.and_then(|v| v.checked_sub(1)),
+            self.next_offset,
             self.truncated,
         )
     }

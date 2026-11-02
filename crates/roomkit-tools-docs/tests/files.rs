@@ -48,11 +48,11 @@ async fn snapshot_refresh_and_revision_checked_pages() {
         .await
         .unwrap();
     assert_eq!(page.total_documents, 2);
-    assert_eq!(page.next_offset, Some(1));
+    assert_eq!(page.next_offset, Some(2));
     let next = backend
         .list(
             &decode(
-                &json!({"offset":1,"expected_catalog_revision":page.catalog_revision}).to_string(),
+                &json!({"offset":2,"expected_catalog_revision":page.catalog_revision}).to_string(),
             )
             .unwrap(),
             &token,

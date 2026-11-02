@@ -128,9 +128,9 @@
   },
   "roomkit_tools.FileDocs": {
     "__init__": ["def", "root", "*", "version=None", "max_documents=None", "max_document_bytes=None", "max_total_bytes=None", "max_entries=None", "max_depth=None", "max_total_lines=None", "max_read_bytes=None"],
-    "list": ["async def", "*", "offset=0", "limit=20", "expected_catalog_revision=None"],
+    "list": ["async def", "*", "offset=1", "limit=20", "expected_catalog_revision=None"],
     "read": ["async def", "*", "document_id", "offset=1", "limit=100", "expected_revision=None"],
-    "search": ["async def", "*", "query", "offset=0", "limit=10", "expected_catalog_revision=None"]
+    "search": ["async def", "*", "query", "offset=1", "limit=10", "expected_catalog_revision=None"]
   },
   "roomkit_tools.ForkedProcessError": {
     "__bases__": ["bases", "roomkit_tools.ToolError"]

@@ -59,6 +59,10 @@ part of an existing published preview.
   when the input is read.
 - `shell` results and process statuses name their `cwd` relative to the
   workspace, `.` for its root, instead of the host's absolute path.
+- `docs_list` and `docs_search` count `offset` and `next_offset` from one, as
+  `list`, `glob` and `grep` do, instead of zero; 0 is refused. Python's
+  `FileDocs.list` and `search` default to `offset=1`, and a host
+  `DocsBackend` receives and returns one-based offsets.
 - Python: the documentation, plan and agent tools split into a tool and its
   RoomKit adapter, as `ReadTool` and `Read`: `DocsList(backend).call(arguments)`
   is `DocsListTool(backend).call(arguments)`, `DocsList(backend)` in RoomKit's

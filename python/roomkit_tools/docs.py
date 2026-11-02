@@ -83,7 +83,7 @@ class FileDocs:
             token.cancel()
 
     async def list(
-        self, *, offset: int = 0, limit: int = 20, expected_catalog_revision: str | None = None
+        self, *, offset: int = 1, limit: int = 20, expected_catalog_revision: str | None = None
     ) -> dict[str, Any]:
         return await self._call(
             "docs_list",
@@ -98,7 +98,7 @@ class FileDocs:
         self,
         *,
         query: str,
-        offset: int = 0,
+        offset: int = 1,
         limit: int = 10,
         expected_catalog_revision: str | None = None,
     ) -> dict[str, Any]:

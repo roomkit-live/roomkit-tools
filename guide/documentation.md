@@ -62,11 +62,12 @@ RoomKit also receives the envelope as structured tool content.
 
 | Tool | Inputs | Result |
 | --- | --- | --- |
-| `docs_list` | `offset=0`, `limit=20`, optional `expected_catalog_revision` | Document IDs, titles, sources, versions, revisions and line counts |
-| `docs_search` | `query`, `offset=0`, `limit=10`, optional `expected_catalog_revision` | One ranked excerpt per matching document, with metadata and original line number |
+| `docs_list` | `offset=1`, `limit=20`, optional `expected_catalog_revision` | Document IDs, titles, sources, versions, revisions and line counts |
+| `docs_search` | `query`, `offset=1`, `limit=10`, optional `expected_catalog_revision` | One ranked excerpt per matching document, with metadata and original line number |
 | `docs_read` | `document_id`, `offset=1`, `limit=100`, optional `expected_revision` | Complete numbered source lines and document metadata |
 
-List/search offsets count results from zero; read offsets count lines from one.
+List/search offsets count results from one, as `list`, `glob` and `grep`'s,
+and read offsets count lines from one; 0 is refused.
 Follow `next_offset` until null. `truncated` means more results/lines remain.
 Offsets immediately after the last result/line produce an empty final page;
 larger offsets are rejected. Search hits have their own excerpt `truncated` and

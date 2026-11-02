@@ -42,7 +42,12 @@ async fn shared_documentation_contracts() {
         });
     }
     assert_eq!(results[0]["data"]["total_documents"], 3);
-    assert_eq!(results[0]["data"]["next_offset"], 2);
+    // Offsets start at one, as list, glob and grep's: the third document.
+    assert_eq!(results[0]["data"]["offset"], 1);
+    assert_eq!(results[0]["data"]["next_offset"], 3);
+    assert_eq!(results[1]["data"]["offset"], 3);
+    assert_eq!(results[1]["data"]["documents"].as_array().unwrap().len(), 1);
+    assert_eq!(results[1]["data"]["next_offset"], Value::Null);
     assert_eq!(results[2]["data"]["matches"][0]["line"], 2);
     assert_eq!(results[3]["data"]["matched_documents"], 0);
     assert_eq!(results[4]["data"]["next_offset"], 3);
@@ -50,4 +55,16 @@ async fn shared_documentation_contracts() {
     if let Ok(path) = std::env::var("ROOMKIT_DOCS_RESULTS") {
         std::fs::write(path, serde_json::to_vec(&results).unwrap()).unwrap();
     }
+}
+
+#[test]
+fn a_result_offset_starts_at_one() {
+    use roomkit_tools_docs::{DocsListInput, DocsSearchInput};
+    assert!(decode::<DocsListInput>(r#"{"offset":0}"#).is_err());
+    assert!(decode::<DocsSearchInput>(r#"{"query":"q","offset":0}"#).is_err());
+    assert_eq!(DocsListInput::default().offset.get(), 1);
+    assert_eq!(DocsSearchInput::new("q").offset.get(), 1);
+    let list = DocsListTool::definition();
+    assert_eq!(list.input_schema["properties"]["offset"]["minimum"], 1);
+    assert_eq!(list.input_schema["properties"]["offset"]["default"], 1);
 }
