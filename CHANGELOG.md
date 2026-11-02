@@ -52,11 +52,12 @@ part of an existing published preview.
 - `process_status` returns `{"processes": [...]}` instead of a bare array, as
   the other list results do; Rust's `ProcessSession::status` returns a
   `ProcessStatusResult`.
-- Every tool's `timeout_ms` is a positive integer, as the process tools'
-  are: the schemas of `code_outline`, `ocr`, `view_image`, `web_search` and
-  `web_fetch` tell the model 0 is invalid, and Rust's inputs hold an
-  `Option<NonZeroU64>` (were `Option<usize>` or `Option<u64>`). A 0 is refused
-  when the input is read.
+- The `timeout_ms` of `code_outline`, `ocr`, `view_image`, `web_search` and
+  `web_fetch` has the process tools' type and minimum: Rust's inputs hold an
+  `Option<NonZeroU64>` (were `Option<usize>` or `Option<u64>`), the schemas
+  tell the model 0 is invalid, and a 0 is refused when the input is read.
+  Above the host maximum these five tools still refuse the call, where
+  `shell` and `process_start` cap it.
 - `shell` results and process statuses name their `cwd` relative to the
   workspace, `.` for its root, instead of the host's absolute path.
 - `docs_list` and `docs_search` page as `list`, `glob` and `grep` do: `offset`
