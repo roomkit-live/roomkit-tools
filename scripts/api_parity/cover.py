@@ -34,13 +34,23 @@ class Report:
         """The features one side lacks, recorded, not ported."""
         return self.covered_by("missing")
 
+    @property
+    def undecided(self) -> list[str]:
+        """The rules and entries whose decision is left to the maintainer."""
+        return self.mapping.undecided()
+
     def covered_by(self, table: str) -> list[Finding]:
         return [finding for entry in self.mapping.of(table) for finding in entry.covered]
 
     def passed(self, strict: bool) -> bool:
-        """No finding without an entry and no dead entry; `strict`, no
-        pending entry either."""
-        return not self.uncovered and not self.dead and not (strict and self.mapping.of("pending"))
+        """No finding without an entry, no dead entry, no decision left to
+        the maintainer; `strict`, no pending entry either."""
+        return (
+            not self.uncovered
+            and not self.dead
+            and not self.undecided
+            and not (strict and self.mapping.of("pending"))
+        )
 
 
 def compare(surface: Surface, python: Python, mapping: Mapping) -> Report:

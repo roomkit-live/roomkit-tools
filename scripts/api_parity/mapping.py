@@ -29,35 +29,58 @@ KINDS = {
     "rules": "a rule names what is gone or never read",
 }
 # Each table's keys: those it requires, and those it may hold. `decision`
-# names where the maintainer decided an entry.
+# names where the maintainer decided an approved entry; a pending one awaits
+# its decision.
 _KEYS = {
-    "map": ({"rust", "python", "approved", "reason"}, {"params", "decision"}),
-    "exception": ({"covers", "approved", "reason"}, {"decision"}),
-    "missing": ({"covers", "approved", "reason"}, {"decision"}),
+    "map": ({"rust", "python", "approved", "reason", "decision"}, {"params"}),
+    "exception": ({"covers", "approved", "reason", "decision"}, set()),
+    "missing": ({"covers", "approved", "reason", "decision"}, set()),
     "pending": ({"covers", "reason"}, {"rust", "python"}),
 }
 # The kinds a `[[missing]]` entry covers: a feature one side lacks.
 _MISSING_KINDS = {"unmatched", "uncompared"}
-_RULES_REQUIRED = {
-    "acronyms",
-    "packages",
-    "options_suffixes",
-    "input_suffix",
-    "arguments",
-    "cancellation",
-    "factory",
-    "builder_prefix",
-    "tool_protocol",
-}
-# The rules a mapping may add as tables, each with its settings.
-_TABLE_RULES = {
+# Each rule of `[rules]`: a table naming in `decision` where the maintainer
+# decided it, with its settings, None for a rule of free keys (a name for a
+# name). A rule with no setting declares one the comparison applies.
+_RULES: dict[str, set[str] | None] = {
+    "acronyms": None,
+    "packages": None,
+    "receivers": set(),
+    "results": set(),
+    "asynchronous": set(),
+    "factory": {"method"},
+    "builder_prefix": {"prefix"},
+    "options_suffixes": {"suffixes"},
+    "input_suffix": {"suffix"},
+    "arguments": {"name"},
+    "cancellation": {"type"},
+    "contract_types": set(),
+    "properties": set(),
+    "traits": set(),
+    "error_families": set(),
+    "tool_protocol": {"trait", "members"},
+    "builtins": None,
+    "builtin_errors": None,
     "optional": {"type", "default"},
     "typed_call": {"method"},
     "named_calls": {"method", "key", "definition", "suffix"},
     "lazy_constructor": {"python"},
     "union_constructor": {"prefix"},
 }
-_RULES = _RULES_REQUIRED | {"builtins", "builtin_errors"} | set(_TABLE_RULES)
+# The rules a mapping may leave out: the comparison then applies none.
+_RULES_OPTIONAL = {
+    "builtins",
+    "builtin_errors",
+    "optional",
+    "typed_call",
+    "named_calls",
+    "lazy_constructor",
+    "union_constructor",
+}
+# The rules whose settings `Rules.setting` reads, the optional tables.
+_TABLE_RULES = _RULES_OPTIONAL - {"builtins", "builtin_errors"}
+# A decision left to the maintainer: the gate fails while one is left.
+UNDECIDED = "TODO: maintainer"
 
 
 def tokens(name: str) -> list[str]:
@@ -93,43 +116,41 @@ class Rules:
     builtins: dict[str, str] = field(default_factory=dict)
     # By the error variant's path: the Python builtin exception it stands for.
     builtin_errors: dict[str, str] = field(default_factory=dict)
-    # By rule: where the maintainer decided it, a rule table's `decision`.
+    # By rule: where the maintainer decided it, its `decision`.
     decisions: dict[str, str] = field(default_factory=dict)
     # The table rules the mapping holds (`_TABLE_RULES`), by name: their settings.
     tables: dict[str, dict[str, str]] = field(default_factory=dict)
 
     @classmethod
     def from_table(cls, table: dict) -> Rules:
-        if not _RULES_REQUIRED <= set(table) <= _RULES:
-            missing = sorted(_RULES_REQUIRED - set(table))
-            unknown = sorted(set(table) - _RULES)
-            raise ParityError(f"[rules]: missing {missing}, unknown {unknown}")
+        rules, decisions = _rule_tables(table)
         acronyms = sorted(
-            ((tokens(rust), python) for rust, python in _plain(table["acronyms"]).items()),
+            ((tokens(rust), python) for rust, python in rules["acronyms"].items()),
             key=lambda pair: -len(pair[0]),
         )
-        protocol = _plain(table["tool_protocol"])
-        if set(protocol) != {"trait", "members"}:
-            raise ParityError("[rules] tool_protocol is { trait = name, members = [...] }")
+        protocol = rules["tool_protocol"]
         for name in ("builtins", "builtin_errors"):
-            for path in _plain(table.get(name, {})):
+            for path in rules.get(name, {}):
                 if "::" not in path:
                     raise ParityError(f"[rules] {name}: {path!r} is no Rust path")
-        packages = _plain(table["packages"])
         return cls(
             acronyms=acronyms,
-            packages={crate: list(modules) for crate, modules in packages.items()},
-            options_suffixes=tuple(table["options_suffixes"]),
-            input_suffix=table["input_suffix"],
-            arguments=table["arguments"],
-            cancellation=table["cancellation"],
-            factory=table["factory"],
-            builder_prefix=table["builder_prefix"],
+            packages={crate: list(modules) for crate, modules in rules["packages"].items()},
+            options_suffixes=tuple(rules["options_suffixes"]["suffixes"]),
+            input_suffix=rules["input_suffix"]["suffix"],
+            arguments=rules["arguments"]["name"],
+            cancellation=rules["cancellation"]["type"],
+            factory=rules["factory"]["method"],
+            builder_prefix=rules["builder_prefix"]["prefix"],
             tool_protocol=ToolProtocol(protocol["trait"], tuple(protocol["members"])),
-            builtins=_plain(table.get("builtins", {})),
-            builtin_errors=_plain(table.get("builtin_errors", {})),
-            decisions=_decisions(table),
-            tables=_table_rules(table),
+            builtins=rules.get("builtins", {}),
+            builtin_errors=rules.get("builtin_errors", {}),
+            decisions=decisions,
+            tables={
+                name: {key: str(value) for key, value in rules[name].items()}
+                for name in _TABLE_RULES
+                if name in rules
+            },
         )
 
     def setting(self, rule: str, name: str) -> str | None:
@@ -204,6 +225,12 @@ class Mapping:
     def of(self, table: str) -> list[Entry]:
         return [entry for entry in self.entries if entry.table == table]
 
+    def undecided(self) -> list[str]:
+        """The rules and entries whose decision is left to the maintainer."""
+        rules = [f"[rules] {name}" for name, d in self.rules.decisions.items() if undecided(d)]
+        entries = [e.name for e in self.entries if e.decision and undecided(e.decision)]
+        return rules + entries
+
     def pairings(self) -> list[Entry]:
         """The entries naming both counterparts: an approved `[[map]]`, or a
         `[[pending]]` whose name difference awaits a decision."""
@@ -236,7 +263,7 @@ def entry(table: str, index: int, raw: dict) -> Entry:
     ):
         raise ParityError(f"{where}: covers {kinds}, not a feature on one side only")
     decision = raw.get("decision")
-    if decision is not None and (not isinstance(decision, str) or not decision.strip()):
+    if "decision" in raw and (not isinstance(decision, str) or not decision.strip()):
         raise ParityError(f"{where}: decision names its source")
     params = raw.get("params", {})
     if not isinstance(params, dict):
@@ -259,29 +286,31 @@ def _plain(rule: dict) -> dict:
     return {key: value for key, value in rule.items() if key != "decision"}
 
 
-def _table_rules(table: dict) -> dict[str, dict[str, str]]:
-    found = {}
-    for name, settings in _TABLE_RULES.items():
-        if name not in table:
-            continue
-        rule = table[name]
-        if not isinstance(rule, dict) or set(_plain(rule)) != settings:
-            raise ParityError(f"[rules] {name} is a table of {', '.join(sorted(settings))}")
-        found[name] = {key: str(value) for key, value in _plain(rule).items()}
-    return found
-
-
-def _decisions(table: dict) -> dict[str, str]:
-    """Each rule table's `decision`: where the maintainer decided the rule."""
-    found = {}
+def _rule_tables(table: dict) -> tuple[dict[str, dict], dict[str, str]]:
+    """Each rule's settings and its `decision`, checked against `_RULES`:
+    every rule is a table naming where the maintainer decided it."""
+    missing = sorted(set(_RULES) - _RULES_OPTIONAL - set(table))
+    unknown = sorted(set(table) - set(_RULES))
+    if missing or unknown:
+        raise ParityError(f"[rules]: missing {missing}, unknown {unknown}")
+    rules, decisions = {}, {}
     for name, rule in table.items():
-        if not isinstance(rule, dict) or "decision" not in rule:
-            continue
-        decision = rule["decision"]
+        if not isinstance(rule, dict):
+            raise ParityError(f"[rules] {name} is a table naming its decision")
+        decision = rule.get("decision")
         if not isinstance(decision, str) or not decision.strip():
             raise ParityError(f"[rules] {name}: decision names its source")
-        found[name] = decision
-    return found
+        settings = _RULES[name]
+        if settings is not None and set(_plain(rule)) != settings:
+            keys = ", ".join(sorted({"decision", *settings}))
+            raise ParityError(f"[rules] {name} is a table of {keys}")
+        rules[name], decisions[name] = _plain(rule), decision
+    return rules, decisions
+
+
+def undecided(decision: str) -> bool:
+    """A decision left to the maintainer, `UNDECIDED`."""
+    return decision.strip().startswith("TODO")
 
 
 def parse_key(key: str) -> tuple[str, str, str]:

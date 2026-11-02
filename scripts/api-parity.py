@@ -9,19 +9,24 @@ before it is written. This script reads the Rust surface `scripts/rs-surface.py`
 wrote, the Python snapshot `tests/python/api_signatures.py` wrote, and the
 mapping, and fails on any difference no entry covers.
 
-The rules, which apply with no entry, each forced by the language:
+The rules, which apply with no entry, each forced by the language. Each is
+a table of `[rules]` naming in `decision` where it was decided, a
+roomkit-rs precedent or the maintainer's decision; one the comparison
+applies with no setting is declared all the same:
 - names: a Rust type's name is Python's with an acronym in Rust's casing
   (`[rules] acronyms`); a function or a constant keeps its name; a Rust
   item is looked for in the Python modules its crate lists in
   `[rules.packages]`;
-- receivers, cancellation, results: `&self` and `self` are no parameter, nor
-  is a `CancellationToken` (`[rules] cancellation`): Python cancels the task
-  that awaits the call; a `Result` stands for a raised exception and an
-  `Output<T>` for the `{"data", "text"}` dict a call returns, the snapshot
-  holding no Python annotation to compare a type with;
-- async: Python's `async def` is an `async fn`, or a function returning a
-  future, a trait object's boxed future alias (`*Future`) included, which
-  has no Python name of its own; async on one side only is a finding;
+- receivers, cancellation, results: `&self` and `self` are no parameter
+  (`[rules] receivers`), nor is a `CancellationToken` (`[rules]
+  cancellation`): Python cancels the task that awaits the call; a `Result`
+  stands for a raised exception (`[rules] results`) and an `Output<T>` for
+  the `{"data", "text"}` dict a call returns, the snapshot holding no
+  Python annotation to compare a type with;
+- async (`[rules] asynchronous`): Python's `async def` is an `async fn`, or
+  a function returning a future, a trait object's boxed future alias
+  (`*Future`) included, which has no Python name of its own; async on one
+  side only is a finding;
 - constructors: Python's constructor is an async factory (`[rules]
   factory`, `create`) when the class has one taking more than `**keywords`,
   since Python cannot await in `__init__`, whose `__init__` then wraps the
@@ -54,20 +59,22 @@ The rules, which apply with no entry, each forced by the language:
   JSON form (`[rules] typed_call`); a name-keyed `call(name, arguments,
   ...)` stands for every typed method and a static `definition(name)` for
   every `<x>_definition()` (`[rules] named_calls`; see `api_parity/calls.py`);
-- contract types: a Rust type deriving `JsonSchema` is the JSON a Python call
-  passes or returns as a dict, and has no Python class. Its fields are the
+- contract types (`[rules] contract_types`): a Rust type deriving
+  `JsonSchema` is the JSON a Python call passes or returns as a dict, and
+  has no Python class. Its fields are the
   properties of the JSON type of its name in the Python snapshot's tool
   contracts, its unit variants the values, its variants with fields the
   tagged variants (see `api_parity/wire.py`);
-- properties: a Python property is a Rust field, or a method of `&self`
-  alone;
-- traits: a Rust trait is the Python class (a protocol) of its name; a type
+- properties (`[rules] properties`): a Python property is a Rust field, or a
+  method of `&self` alone;
+- traits (`[rules] traits`): a Rust trait is the Python class (a protocol)
+  of its name; a type
   implementing a trait of the surface has its methods, and a Python member a
   subclass repeats from its base unchanged is compared on the base. A trait
   against a protocol compares no default: its implementation receives every
   argument;
-- errors: an error enum (one implementing `Error`) is its Python base
-  class, each variant `X` the class `<Stem>XError` or `XError` of the
+- errors (`[rules] error_families`): an error enum (one implementing
+  `Error`) is its Python base class, each variant `X` the class `<Stem>XError` or `XError` of the
   classes deriving from the base (`<Stem>` the base's name without
   `Error`), in Python's acronym casing, or the builtin exception `[rules]
   builtin_errors` names; a class that takes a message alone has its
@@ -106,13 +113,14 @@ and the other lacks, recorded rather than ported (`unmatched` and
 decision, and, naming both counterparts, pairs two items or members whose
 name difference awaits it. An entry covers findings by key,
 `<rust|python> <path> (<kind>)`; a key no finding has, a pairing the rules
-already make, or an entry naming what is gone, is dead. An entry, and a
-rule written as a table, names in `decision` where the maintainer decided
-it.
+already make, or an entry naming what is gone, is dead. Every rule and
+every `[[map]]`, `[[exception]]` and `[[missing]]` entry names in `decision`
+where the maintainer decided it, and the mapping is refused without one; a
+decision that reads `TODO: maintainer` awaits the maintainer.
 
-The gate fails (exit 1) on a finding no entry covers or a dead entry;
-`--strict` also on any `[[pending]]` entry left. An input it cannot read
-whole exits 2.
+The gate fails (exit 1) on a finding no entry covers, a dead entry or a
+decision awaiting the maintainer; `--strict` also on any `[[pending]]`
+entry left. An input it cannot read whole exits 2.
 
 Usage: python3 scripts/api-parity.py SURFACE... [--python DIR]... [--mapping FILE]
                                      [--rules-only] [--strict] [--verbose]

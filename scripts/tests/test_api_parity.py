@@ -25,21 +25,31 @@ from api_parity.sides import Python, Surface  # noqa: E402
 
 RULES = """
 [rules]
-acronyms = { Io = "IO" }
-options_suffixes = ["Limits", "Config", "Policy"]
-input_suffix = "Input"
-arguments = "arguments"
-cancellation = "CancellationToken"
-factory = "create"
-builder_prefix = "with_"
-tool_protocol = { trait = "Tool", members = ["definition", "handler"] }
+acronyms = { Io = "IO", decision = "ref" }
+receivers = { decision = "ref" }
+results = { decision = "ref" }
+asynchronous = { decision = "ref" }
+factory = { method = "create", decision = "ref" }
+builder_prefix = { prefix = "with_", decision = "ref" }
+options_suffixes = { suffixes = ["Limits", "Config", "Policy"], decision = "ref" }
+input_suffix = { suffix = "Input", decision = "ref" }
+arguments = { name = "arguments", decision = "ref" }
+cancellation = { type = "CancellationToken", decision = "ref" }
+contract_types = { decision = "ref" }
+properties = { decision = "ref" }
+traits = { decision = "ref" }
+error_families = { decision = "ref" }
+tool_protocol = { trait = "Tool", members = ["definition", "handler"], decision = "ref" }
 {extra}
 [rules.packages]
+decision = "ref"
 kit = ["pkg"]
 kit_adapter = ["pkg.adapter", "pkg"]
 """
-BUILTINS = 'builtins = { "kit::Output" = "dict" }'
-ERRORS = 'builtin_errors = { "kit::KitError::Cancelled" = "asyncio.CancelledError" }'
+BUILTINS = 'builtins = { "kit::Output" = "dict", decision = "ref" }'
+ERRORS = (
+    'builtin_errors = { "kit::KitError::Cancelled" = "asyncio.CancelledError", decision = "ref" }'
+)
 
 
 def mapping_text(entries: str = "", extra: str = "") -> str:
@@ -800,7 +810,7 @@ covers = ["rust kit::DocsListTool::execute (name)"]
 
     def test_an_approved_map_pairs_without_a_finding(self):
         mapping = self.PAIRS.replace("[[pending]]", "[[map]]").replace(
-            'reason = "name"', 'approved = 2026-11-01\nreason = "forced"'
+            'reason = "name"', 'approved = 2026-11-01\nreason = "forced"\ndecision = "ref"'
         )
         mapping = "\n".join(line for line in mapping.splitlines() if not line.startswith("covers"))
         report = run(self.ITEMS, self.SPECS, contracts=self.CONTRACTS, mapping=mapping)
@@ -825,6 +835,7 @@ python = "pkg.Engine.launch"
 params = { job = "task" }
 approved = 2026-11-01
 reason = "forced"
+decision = "ref"
 """
         self.assertEqual(keys(run(items, specs, mapping=mapping)), set())
         unrenamed = mapping.replace('params = { job = "task" }\n', "")
@@ -880,11 +891,13 @@ covers = ["rust kit::DocsListTool (name)"]
             '[[pending]]\nreason = "r"\ncovers = ["rust kit::X (whatever)"]\n',
             '[[pending]]\nreason = "r"\ncovers = []\n',
             '[[pending]]\nrust = "kit::X"\nreason = "r"\ncovers = ["rust kit::X (name)"]\n',
-            '[[exception]]\napproved = "soon"\nreason = "r"\ncovers = ["rust kit::X (name)"]\n',
+            '[[exception]]\napproved = "soon"\nreason = "r"\ndecision = "ref"\n'
+            'covers = ["rust kit::X (name)"]\n',
             '[[pending]]\nreason = "r"\ncovers = ["rust kit::X (name)"]\nlot = 2\n',
             '[[exception]]\napproved = 2026-11-02\nreason = "r"\ndecision = ""\n'
             'covers = ["rust kit::X (name)"]\n',
-            '[[missing]]\napproved = 2026-11-02\nreason = "r"\ncovers = ["rust kit::X (name)"]\n',
+            '[[missing]]\napproved = 2026-11-02\nreason = "r"\ndecision = "ref"\n'
+            'covers = ["rust kit::X (name)"]\n',
         ):
             with self.subTest(entry=entry), self.assertRaises(ParityError):
                 Mapping.from_table(tomllib.loads(mapping_text(entry)))
@@ -899,12 +912,13 @@ covers = ["rust kit::DocsListTool (name)"]
             '\n[[exception]]\napproved = 2026-11-02\nreason = "r"\ndecision = "ref Q2"\n'
             'covers = ["rust kit::X (name)"]\n'
         )
-        rules = RULES.replace('"handler"] }', '"handler"], decision = "ref Q3" }')
+        rules = RULES.replace('"handler"], decision = "ref" }', '"handler"], decision = "ref Q3" }')
         mapping = Mapping.from_table(tomllib.loads(rules.replace("{extra}", "") + entries))
         self.assertEqual(
             [entry.decision for entry in mapping.entries], ["ref Q1", "ref Q1", "ref Q2"]
         )
-        self.assertEqual(mapping.rules.decisions, {"tool_protocol": "ref Q3"})
+        self.assertEqual(mapping.rules.decisions["tool_protocol"], "ref Q3")
+        self.assertEqual(set(mapping.rules.decisions.values()), {"ref", "ref Q3"})
 
     def test_a_feature_on_one_side_only_is_missing_not_excepted(self):
         """A `[[missing]]` entry covers what one side has and the other lacks."""
@@ -916,6 +930,58 @@ covers = ["rust kit::DocsListTool (name)"]
         self.assertEqual(uncovered(report), set())
         self.assertEqual(len(report.missing), 2)
         self.assertTrue(report.passed(strict=True))
+
+
+class Decisions(unittest.TestCase):
+    """Every rule and every approved entry names where the maintainer
+    decided it; one whose decision is left to the maintainer fails the gate."""
+
+    def test_a_rule_without_a_decision_is_refused(self):
+        rules = tomllib.loads(mapping_text())["rules"]
+        for name in rules:
+            table = tomllib.loads(mapping_text())
+            del table["rules"][name]["decision"]
+            with self.subTest(rule=name), self.assertRaises(ParityError):
+                Mapping.from_table(table)
+        table = tomllib.loads(mapping_text())
+        table["rules"]["factory"] = "create"
+        with self.assertRaises(ParityError):
+            Mapping.from_table(table)
+
+    def test_each_base_rule_is_declared(self):
+        """The rules the comparison applies with no setting are declared,
+        each naming its decision: none is applied unwritten."""
+        for name in ("receivers", "results", "asynchronous", "contract_types", "properties"):
+            table = tomllib.loads(mapping_text())
+            del table["rules"][name]
+            with self.subTest(rule=name), self.assertRaises(ParityError):
+                Mapping.from_table(table)
+
+    def test_an_approved_entry_without_a_decision_is_refused(self):
+        for entry in (
+            '[[map]]\nrust = "kit::A"\npython = "pkg.B"\napproved = 2026-11-02\nreason = "r"\n',
+            '[[exception]]\napproved = 2026-11-02\nreason = "r"\ncovers = ["rust kit::X (name)"]\n',
+            '[[missing]]\napproved = 2026-11-02\nreason = "r"\n'
+            'covers = ["rust kit::X (unmatched)"]\n',
+        ):
+            with self.subTest(entry=entry), self.assertRaises(ParityError):
+                Mapping.from_table(tomllib.loads(mapping_text(entry)))
+        pending = '[[pending]]\nreason = "r"\ncovers = ["rust kit::X (name)"]\n'
+        self.assertEqual(len(Mapping.from_table(tomllib.loads(mapping_text(pending))).entries), 1)
+
+    def test_a_decision_left_to_the_maintainer_fails_the_gate(self):
+        rules = 'optional = { type = "Option", default = "None", decision = "TODO: maintainer" }'
+        report = run(Entries.ITEMS, Entries.SPECS, contracts=Entries.CONTRACTS, rules=rules)
+        self.assertEqual(report.undecided, ["[rules] optional"])
+        self.assertFalse(report.passed(strict=False))
+        missing = (
+            '[[missing]]\napproved = 2026-11-02\nreason = "r"\ndecision = "TODO: maintainer"\n'
+            'covers = ["rust kit::DocsListTool (unmatched)", "python pkg.DocsList (unmatched)"]\n'
+        )
+        report = run(Entries.ITEMS, Entries.SPECS, contracts=Entries.CONTRACTS, mapping=missing)
+        self.assertEqual(uncovered(report), set())
+        self.assertEqual(report.undecided, ["[[missing]] #1 (rust kit::DocsListTool (unmatched))"])
+        self.assertFalse(report.passed(strict=False))
 
 
 class Command(unittest.TestCase):
@@ -937,7 +1003,10 @@ class Command(unittest.TestCase):
         self._tmp.cleanup()
 
     def _main(self, mapping: str, *flags: str) -> tuple[int, str]:
-        (self.dir / "mapping.toml").write_text(mapping_text(mapping))
+        return self._run(mapping_text(mapping), *flags)
+
+    def _run(self, text: str, *flags: str) -> tuple[int, str]:
+        (self.dir / "mapping.toml").write_text(text)
         out = io.StringIO()
         status = gate.main(
             [
@@ -974,6 +1043,16 @@ class Command(unittest.TestCase):
         self.assertEqual(
             covered, {"rust kit::DocsListTool (unmatched)", "python pkg.DocsList (unmatched)"}
         )
+
+    def test_a_decision_left_to_the_maintainer_fails(self):
+        text = mapping_text(Entries.PAIRS).replace(
+            'factory = { method = "create", decision = "ref" }',
+            'factory = { method = "create", decision = "TODO: maintainer" }',
+        )
+        status, out = self._run(text)
+        self.assertEqual(status, 1, out)
+        self.assertIn("  [rules] factory", out)
+        self.assertIn("1 awaiting the maintainer's decision", out)
 
     def test_an_input_it_cannot_read(self):
         self.assertEqual(self._main("[[nonsense]]\n")[0], 2)

@@ -6,7 +6,10 @@
 # defaults and behaviour (CONTRIBUTING.md, "One public API"). Only what the
 # language forces may differ, and each such mapping is written here:
 # - [rules]: the mappings that apply with no entry; scripts/api-parity.py's
-#   docstring says what each one does;
+#   docstring says what each one does. Each is a table whose `decision`
+#   names where it was decided: the roomkit-rs precedent it follows (its
+#   names table in docs/architecture.md, or its api/mapping.toml rules), or
+#   the maintainer's decision;
 # - [[map]]: the Python counterpart of a Rust item or member a rule does not
 #   give, approved by the maintainer as forced by the language (`approved`,
 #   a date, and `reason`; `params` renames parameters, Rust to Python).
@@ -26,25 +29,51 @@
 # An entry covers findings by key, `<rust|python> <path> (<kind>)`; the JSON
 # a Python call exchanges is written `json:<Type>.<property>`. A key no
 # finding has, or an entry naming what is gone, is dead and fails the gate.
-# An entry, and a rule written as a table, names in `decision` where the
-# maintainer decided it.
+# Every rule and every [[map]], [[exception]] and [[missing]] entry names in
+# `decision` where the maintainer decided it; the gate refuses one without.
+# A rule with no precedent and no decision yet reads "TODO: maintainer", and
+# the gate fails while one is left.
 
 [rules]
 # Rust's casing of an acronym in a type's name (rust-lang RFC 430), and
 # Python's.
-acronyms = { Io = "IO" }
+acronyms = { Io = "IO", decision = "roomkit-rs names table: SQLiteStore(path='roomkit.db') | SqliteStore::new(SqliteStoreOptions { path }); roomkit-rs api/mapping.toml [rules] acronyms" }
+# `&self` and `self` are no parameter.
+receivers = { decision = "roomkit-rs names table: def m(a, b, *, k=...), a kit's call | m(&self, a, b, MOptions { k, .. })" }
+# A `Result` stands for a raised exception.
+results = { decision = "roomkit-rs names table: OpenAIAIProvider(config) | OpenAiAiProvider::new(config), a Result since building its HTTP client can fail" }
+# Python's `async def` is an `async fn`, or a function returning a future, a
+# trait object's boxed future alias (`*Future`) included.
+asynchronous = { decision = "roomkit-rs names table: await kit.close() | kit.close().await, a Result; InboundRoomRouter.route(...) | InboundRoomRouter::route(...), a boxed RouterFuture" }
+# Python's async factory, the constructor of a class that resolves its
+# root: Python cannot await in __init__. Rust's is `new`.
+factory = { method = "create", decision = "TODO: maintainer" }
+# A builder, `with_<x>(self, value)`: one of a constructor's keywords.
+builder_prefix = { prefix = "with_", decision = "roomkit-rs names table: RoomKit(store=SomeStore()) | RoomKitOptions::with_store(store)" }
 # A struct whose name ends with one of these stands for keyword arguments:
 # a struct of named fields, the Rust form of Python's keywords.
-options_suffixes = ["Limits", "Config", "Policy", "Env"]
+options_suffixes = { suffixes = ["Limits", "Config", "Policy", "Env"], decision = "roomkit-rs names table: RoomKit(store=None, inbound_router=None, max_chain_depth=5, ..., process_timeout=30.0) | RoomKit::new(RoomKitOptions { .. }), Python's defaults in its Default" }
 # A struct whose name ends with this stands for a call's arguments: its
-# fields are the Python method's parameters.
-input_suffix = "Input"
+# fields are the Python method's parameters, `new` taking the required ones.
+input_suffix = { suffix = "Input", decision = "roomkit-rs names table: def m(a, b, *, k=...), a kit's call | m(&self, a, b, MOptions { k, .. }); a pydantic model, Room(id=..., ...) | public fields of Python's names, new(<required fields>) setting Python's defaults, struct update for the rest" }
+# Python's schema-shaped dict of a call's arguments, the Input struct whole.
+arguments = { name = "arguments", decision = "luge-hitl:76e988fe Q4" }
+# The cancellation token a Rust call takes; Python cancels the awaiting task.
+cancellation = { type = "CancellationToken", decision = "TODO: maintainer" }
+# A Rust type deriving JsonSchema is the JSON a Python call passes or
+# returns as a dict, and has no Python class.
+contract_types = { decision = "TODO: maintainer" }
+# A Python property is a Rust field, or a method of `&self` alone.
+properties = { decision = "roomkit-rs names table: DeliveryHandle.done (a property) | handle.done()" }
+# A Rust trait is the Python class, a protocol, of its name.
+traits = { decision = "roomkit-rs names table: RealtimeBackend's publish(channel, event), ... | the trait RealtimeBackend; MemoryProvider, an ABC | the trait roomkit_ai::memory::MemoryProvider" }
+# An error enum is its Python base class, each variant a class of the
+# family deriving from it.
+error_families = { decision = "roomkit-rs names table: KitClosedError and ShutdownCancelledError, both RoomKitErrors | RoomKitError::KitClosed and RoomKitError::ShutdownCancelled, the variant of each class; roomkit-rs api/mapping.toml [rules.error_families]" }
 # Rust has no optional call arguments: an Option<T> parameter stands for
 # Python's `=None`, as roomkit-rs's SkillRegistry::copy(names: Option<&[String]>)
 # stands for Python's copy(names=None).
 optional = { type = "Option", default = "None", decision = "roomkit-rs names table: SkillRegistry::copy(names: Option<&[String]>), Rust has no optional call arguments (approved 2026-10-30)" }
-# Python's schema-shaped dict of a call's arguments, the Input struct whole.
-arguments = "arguments"
 # On a tool with a typed method (`ReadTool::read(input)`), Python's
 # `call(arguments)` is the JSON form of that method's Input; Rust adds no
 # `call` there.
@@ -53,11 +82,6 @@ typed_call = { method = "call", decision = "luge-hitl:76e988fe Q4" }
 # `definition(name)`, and OutputStore's, stand for Rust's per-tool methods
 # and their `<x>_definition()` functions.
 named_calls = { method = "call", key = "name", definition = "definition", suffix = "_definition", decision = "luge-hitl:76e988fe Q5" }
-# The cancellation token a Rust call takes; Python cancels the awaiting task.
-cancellation = "CancellationToken"
-# Python's async factory, the constructor of a class that resolves its
-# root: Python cannot await in __init__.
-factory = "create"
 # A class without that factory resolves its root at first use: Python's
 # synchronous __init__ (ProcessSession(root), Workspace(root),
 # OutputStore(...)) stands for Rust's async new, which reports an invalid
@@ -67,21 +91,20 @@ lazy_constructor = { python = "__init__", decision = "luge-hitl:76e988fe Q6" }
 # new(root) and from_workspace(workspace), an associated from_<x> building
 # the type from a type Python names.
 union_constructor = { prefix = "from_", decision = "luge-hitl:76e988fe Q6" }
-# A builder, `with_<x>(self, value)`: one of a constructor's keywords.
-builder_prefix = "with_"
 # The RoomKit engine's tool protocol: Python's `definition` property and
 # `handler` are the Rust adapter's implementation of roomkit_ai's `Tool`, the
 # Rust form of that protocol. Each adapter has the name of its Python
 # RoomKit tool.
-tool_protocol = { trait = "Tool", members = ["definition", "handler"] }
+tool_protocol = { trait = "Tool", members = ["definition", "handler"], decision = "roomkit-rs names table: the Tool protocol, a definition property and async handler(name, arguments) | the Tool trait, definition() -> AiTool and handler(name, arguments) -> ToolFuture; luge-hitl:588ea590 (the adapters take Python's names)" }
 # The Rust types a Python builtin stands for: the envelope a call returns
 # and a tool definition, which Python returns as dicts.
-builtins = { "roomkit_tools_core::Output" = "dict", "roomkit_tools_core::Definition" = "dict" }
+builtins = { "roomkit_tools_core::Output" = "dict", "roomkit_tools_core::Definition" = "dict", decision = "roomkit-rs api/mapping.toml [rules.builtins]: \"roomkit::model::Metadata\" = { python = \"dict\" }" }
 # The error variants a Python builtin exception stands for, by path.
-builtin_errors = { "roomkit_tools_core::ToolError::Cancelled" = "asyncio.CancelledError" }
+builtin_errors = { "roomkit_tools_core::ToolError::Cancelled" = "asyncio.CancelledError", decision = "roomkit-rs api/mapping.toml [rules] builtin_errors: \"roomkit::RoomKitError::Cancelled\" = \"asyncio.CancelledError\"" }
 
 # The Python modules a Rust crate's items are looked for in, in order.
 [rules.packages]
+decision = "roomkit-rs api/mapping.toml [rules.packages]: the Python packages a Rust module's items are looked for in"
 roomkit_tools_core = ["roomkit_tools"]
 roomkit_tools_fs = ["roomkit_tools", "roomkit_tools.fs", "roomkit_tools.workspace"]
 roomkit_tools_process = ["roomkit_tools", "roomkit_tools.process", "roomkit_tools.output"]

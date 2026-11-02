@@ -6,6 +6,7 @@ import json
 
 from api_parity.compare import Finding
 from api_parity.cover import Report
+from api_parity.mapping import UNDECIDED
 
 
 def render(report: Report, *, strict: bool, verbose: bool) -> str:
@@ -29,6 +30,11 @@ def render(report: Report, *, strict: bool, verbose: bool) -> str:
     for dead in report.dead:
         out(f"  {dead.entry}: {dead.path}: {dead.why}")
     out("")
+    undecided = len(report.undecided)
+    out(f"== Awaiting the maintainer's decision (decision = {UNDECIDED!r}): {undecided}")
+    for where in report.undecided:
+        out(f"  {where}")
+    out("")
     entries = report.mapping.of("pending")
     out(f"== Pending, awaiting a maintainer's decision: {len(entries)} entries, {pending} findings")
     if verbose:
@@ -43,6 +49,8 @@ def render(report: Report, *, strict: bool, verbose: bool) -> str:
         why.append(f"{len(report.uncovered)} findings without an entry")
     if report.dead:
         why.append(f"{len(report.dead)} dead entries")
+    if report.undecided:
+        why.append(f"{len(report.undecided)} awaiting the maintainer's decision")
     if strict and entries:
         why.append(f"{len(entries)} pending entries (--strict)")
     out(f"Gate: {verdict}" + (f": {'; '.join(why)}." if why else "."))
@@ -108,6 +116,7 @@ def as_json(report: Report) -> dict:
         "findings": [finding(f) for f in report.findings],
         "uncovered": [finding(f) for f in report.uncovered],
         "dead": [{"entry": d.entry, "path": d.path, "why": d.why} for d in report.dead],
+        "undecided": report.undecided,
         **{
             table: [
                 {"entry": e.name, "reason": e.reason, "covered": [finding(f) for f in e.covered]}
