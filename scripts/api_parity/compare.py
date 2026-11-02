@@ -45,7 +45,12 @@ class Member:
     owner: str  # the Rust item, or the trait a method comes from
     data: dict
     inherited: bool
-    field: bool
+    kind: str  # "method", "field", "constant" or "variant"
+    implementor: str | None = None  # the item implementing the trait, if inherited
+
+    @property
+    def field(self) -> bool:
+        return self.kind == "field"
 
 
 class Comparison:
@@ -206,7 +211,7 @@ class Comparison:
                 self._protocol_member(python, member, items)
             elif member == constructor:
                 constructors.compare(self, python, member, member_spec, items, used)
-            elif calls.compare(self, python, member, spec, pool, used):
+            elif calls.compare(self, python, member, spec, pool, used, primary):
                 continue
             else:
                 self._member(python, member, member_spec, pool, used, interface, primary)
@@ -239,17 +244,19 @@ class Comparison:
                 for method in item.get(kind, []):
                     own.add(method["name"])
                     pool.setdefault(method["name"], []).append(
-                        Member(item["path"], method, False, False)
+                        Member(item["path"], method, False, "method")
                     )
             for field in item.get("fields", []):
                 if not field["name"].isdigit():
                     own.add(field["name"])
                     pool.setdefault(field["name"], []).append(
-                        Member(item["path"], field, False, True)
+                        Member(item["path"], field, False, "field")
                     )
             for name, (trait, method) in self.rust.trait_members(item).items():
                 if name not in own:
-                    pool.setdefault(name, []).append(Member(trait, method, True, False))
+                    pool.setdefault(name, []).append(
+                        Member(trait, method, True, "method", item["path"])
+                    )
         return pool
 
     def _protocol_member(self, python: str, member: str, items: list[dict]) -> None:
@@ -273,7 +280,8 @@ class Comparison:
         if entry is not None and self.rust.member(entry.rust) is not None:
             item, data = self.rust.member(entry.rust)
             self.paired_member(entry, python, item["path"])
-            candidates = [Member(item["path"], data, False, "params" not in data)]
+            kind = "method" if "params" in data else "field"
+            candidates = [Member(item["path"], data, False, kind)]
         else:
             candidates = pool.get(member, [])
         if spec[0] == "property":

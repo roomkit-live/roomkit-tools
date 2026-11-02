@@ -66,8 +66,10 @@ applies with no setting is declared all the same:
 - calls: on a tool with a typed method (one taking an `<X>Input` and
   returning an `Output<T>`), Python's `call(arguments)` is that method's
   JSON form (`[rules] typed_call`); a name-keyed `call(name, arguments,
-  ...)` stands for every typed method and a static `definition(name)` for
-  every `<x>_definition()` (`[rules] named_calls`; see `api_parity/calls.py`);
+  ...)` stands for the typed methods of the tool contracts its class
+  serves, one to one by input type, and a static `definition(name)` for
+  each one's `<method>_definition()` (`[rules] named_calls`; see
+  `api_parity/calls.py`);
 - contract types (`[rules] contract_types`): a Rust type deriving
   `JsonSchema` is the JSON a Python call passes or returns as a dict, and
   has no Python class. Its fields are the
@@ -108,8 +110,8 @@ and none silenced:
 - a Rust constructor taking a built tool, where Python takes that tool's
   constructor parameters, is one `form` finding; a constructor returning
   another type than its own is a `result` finding, and so is a tool call
-  taking or returning another type than its contract's, for a Python class
-  serving one contract;
+  returning another type than the contract of its class taking its input,
+  or taking an input no contract of its class takes;
 - a contract type named as a Python class is a `meaning` finding, and one no
   tool contract holds an `uncompared` one.
 

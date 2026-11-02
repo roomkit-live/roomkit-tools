@@ -288,7 +288,9 @@ class Tools(unittest.TestCase):
         contracts["tools"]["read"]["output"] = "ReadResult"
         contracts["types"]["ReadResult"] = {"fields": ["lines"]}
         report = run(read_tool(), READ_SPEC, contracts=contracts)
-        self.assertIn("rust kit::ReadTool::read (result)", keys(report))
+        self.assertIn(
+            "rust kit::ReadTool::read (result) [read: ReadPage, contract ReadResult]", keys(report)
+        )
 
     def test_the_cancellation_token_and_self_are_no_parameter(self):
         report = run(read_tool(), READ_SPEC, contracts=READ_CONTRACTS)
@@ -371,6 +373,66 @@ OPTIONAL = 'optional = { type = "Option", default = "None", decision = "ref" }\n
 
 
 class NamedCalls(unittest.TestCase):
+    RULES = (
+        OPTIONAL + 'named_calls = { method = "call", key = "name", definition = "definition", '
+        'suffix = "_definition", decision = "ref" }'
+    )
+
+    @staticmethod
+    def _session(*, drop=(), returns=None, extra=()):
+        """SESSION_ITEMS with Rust members dropped, a call's output changed
+        and members added."""
+        items = json.loads(json.dumps(SESSION_ITEMS))
+        methods = [m for m in items[0]["methods"] if m["name"] not in drop]
+        for found in methods:
+            if returns and found["name"] in returns:
+                found["returns"] = f"Result<Output<{returns[found['name']]}>, Error>"
+        items[0]["methods"] = methods + list(extra)
+        return items
+
+    def _keys(self, items, contracts=SESSION_CONTRACTS):
+        return keys(run(items, SESSION_SPECS, contracts=contracts, rules=self.RULES))
+
+    def test_a_typed_method_no_contract_of_the_class_takes_is_unmatched(self):
+        restart = method(
+            "restart",
+            ("owner", "Option<&str>"),
+            ("input", "RestartInput"),
+            CANCEL,
+            returns="Result<Output<Job>, Error>",
+            is_async=True,
+        )
+        items = self._session(extra=[restart]) + [
+            struct("kit::RestartInput", fields=[("id", "String")], impls=["JsonSchema"])
+        ]
+        self.assertIn("rust kit::Session::restart (unmatched)", self._keys(items))
+
+    def test_each_contract_has_its_typed_method_and_its_definition(self):
+        self.assertEqual(
+            self._keys(self._session(drop=("stop_definition",))),
+            {"python pkg.Session.definition (unmatched) [stop]"},
+        )
+        self.assertEqual(
+            self._keys(self._session(drop=("stop", "stop_definition"))),
+            {
+                "python pkg.Session.call (unmatched) [stop]",
+                "python pkg.Session.stop (unmatched)",
+                "rust kit::StopInput::new (unmatched)",  # no call compared builds it
+            },
+        )
+
+    def test_each_typed_method_returns_its_contracts_output(self):
+        items = self._session(returns={"stop": "Other"})
+        self.assertEqual(
+            self._keys(items), {"rust kit::Session::stop (result) [stop: Other, contract Job]"}
+        )
+
+    def test_a_list_output_is_the_contracts_array(self):
+        items = self._session(returns={"stop": "Vec<Job>"})
+        contracts = json.loads(json.dumps(SESSION_CONTRACTS))
+        contracts["tools"]["stop"]["output"] = "Array_of_Job"
+        self.assertEqual(self._keys(items, contracts), set())
+
     def test_a_name_keyed_call_and_definition_stand_for_each_typed_method(self):
         """`[rules] named_calls`: `call(name, arguments, ...)` stands for
         each typed method, and the static `definition(name)` for each

@@ -199,40 +199,81 @@ def _what(shape: dict) -> str:
     return "an array"
 
 
-def call_types(comparison: Comparison, python: str, items: list[dict]) -> None:
-    """The types of a tool's call: for a Python class serving one tool
-    contract, the one Rust method returning an `Output<T>` takes the
-    contract's input type and returns its output type."""
-    tools = [
-        tool
-        for tool in comparison.python.contracts["tools"].values()
+def tools_of(comparison: Comparison, python: str) -> dict[str, dict]:
+    """The tool contracts a Python class serves, by name."""
+    return {
+        name: tool
+        for name, tool in comparison.python.contracts["tools"].items()
         if tool.get("class") == python
-    ]
+    }
+
+
+def call_types(comparison: Comparison, python: str, items: list[dict]) -> None:
+    """The types of a class's tool calls. Each Rust method returning an
+    `Output<T>` serves the contract of the class taking its input type, and
+    returns that contract's output type; a class serving one contract with
+    one such method compares its input with the contract's too."""
+    tools = tools_of(comparison, python)
     calls = [
         (item, method)
         for item in items
         for method in item.get("methods", [])
         if output_of(method.get("returns") or "") is not None
     ]
-    if len(tools) != 1 or len(calls) != 1:
+    if not tools or not calls:
         return
-    (tool,), ((item, method),) = tools, calls
-    where = f"{item['path']}::{method['name']}"
-    returned = output_of(method["returns"])
-    if returned != tool["output"]:
-        detail = f"returns Output<{returned}>; the contract's output is {tool['output']}"
-        comparison.find("rust", where, "result", detail, item["path"], python)
+    single = len(tools) == 1 and len(calls) == 1
+    for item, method in calls:
+        taken = _inputs(comparison, method)
+        name = next(
+            (name for name, tool in sorted(tools.items()) if tool["input"] in taken),
+            next(iter(tools)) if single else None,
+        )
+        where = f"{item['path']}::{method['name']}"
+        if name is None or taken != [tools[name]["input"]]:
+            _foreign_input(comparison, where, item, python, taken, tools, name)
+            continue
+        returned = output_of(method["returns"])
+        if returned != tools[name]["output"]:
+            detail = f"returns Output<{returned}>; the contract's output is {tools[name]['output']}"
+            qualifier = f"{name}: {returned}, contract {tools[name]['output']}"
+            comparison.find(
+                "rust", where, "result", detail, item["path"], python, qualifier=qualifier
+            )
+
+
+def _inputs(comparison: Comparison, method: dict) -> list[str]:
     suffix = comparison.rules.input_suffix
-    inputs = [
-        base_type(p["type"]) for p in method["params"] if base_type(p["type"]).endswith(suffix)
-    ]
-    if inputs != [tool["input"]]:
-        taken = ", ".join(inputs) or "no input struct"
-        detail = f"takes {taken}; the contract's input is {tool['input']}"
-        comparison.find("rust", where, "result", detail, item["path"], python)
+    return [base_type(p["type"]) for p in method["params"] if base_type(p["type"]).endswith(suffix)]
+
+
+def _foreign_input(
+    comparison: Comparison,
+    where: str,
+    item: dict,
+    python: str,
+    taken: list[str],
+    tools: dict[str, dict],
+    name: str | None,
+) -> None:
+    """A call taking another input than its contract's, or than any
+    contract of its class."""
+    shown = ", ".join(taken) or "no input struct"
+    if name is not None:
+        detail = f"takes {shown}; the contract's input is {tools[name]['input']}"
+        qualifier = f"{name}: {shown}, contract {tools[name]['input']}"
+    else:
+        detail = f"takes {shown}; no tool contract of {python} takes it"
+        qualifier = shown
+    comparison.find("rust", where, "result", detail, item["path"], python, qualifier=qualifier)
 
 
 def output_of(returns: str) -> str | None:
-    """The `T` of a return type holding an `Output<T>`, by its name."""
-    found = re.search(r"\bOutput<\s*([A-Za-z_][\w:]*)", returns)
-    return found.group(1).rpartition("::")[2] if found else None
+    """The `T` of a return type holding an `Output<T>`, by its name; a
+    `Vec<T>` is the contracts' `Array_of_T`."""
+    found = re.search(r"\bOutput<\s*(?:Vec<\s*([A-Za-z_][\w:]*)|([A-Za-z_][\w:]*))", returns)
+    if found is None:
+        return None
+    if found.group(1):
+        return "Array_of_" + found.group(1).rpartition("::")[2]
+    return found.group(2).rpartition("::")[2]
