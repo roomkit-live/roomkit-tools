@@ -153,7 +153,8 @@ class RustSide:
         """A struct's fields as parameters. One its `new` takes is required;
         any other is set by struct update, which needs `new` or `Default`;
         a struct with neither is built by a literal setting every field.
-        A builder's struct is optional whole, when it has `Default`."""
+        A builder's struct is optional whole, when it has `Default`. A
+        parameter of `new` that is no field is a required one too."""
         self.expanded.add(struct["path"])
         new = self.method(struct, "new", receiver=False)
         default = "Default" in struct.get("impls", [])
@@ -174,7 +175,24 @@ class RustSide:
             found.append(
                 RustParam(name, required, path, via=struct["path"], group=group, type=field["type"])
             )
-        return found
+        return found + self._new_only(struct, new, group)
+
+    def _new_only(self, struct: dict, new: dict | None, group: str | None) -> list[RustParam]:
+        """The parameters a struct's `new` takes that are no field of it:
+        required, and each a parameter of its own."""
+        fields = {python_name(field["name"]) for field in struct.get("fields", [])}
+        return [
+            RustParam(
+                python_name(param["name"]),
+                True,
+                f"{struct['path']}::new({param['name']})",
+                via=struct["path"],
+                group=group,
+                type=param["type"],
+            )
+            for param in (new or {}).get("params", [])
+            if python_name(param["name"]) not in fields and not self.is_cancellation(param)
+        ]
 
     def trait_members(self, item: dict) -> dict[str, tuple[str, dict]]:
         """The methods of the surface's traits the item implements, by name,

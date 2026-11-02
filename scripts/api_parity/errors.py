@@ -41,7 +41,7 @@ def compare(comparison: Comparison, item: dict, python: str) -> None:
             comparison.find("python", path, "unmatched", detail, item["path"], python)
     for path in [python, *family]:
         _members(comparison, item, python, path)
-    for method in item.get("methods", []):
+    for method in item.get("methods", []) + item.get("constants", []):
         comparison.find(
             "rust",
             f"{item['path']}::{method['name']}",

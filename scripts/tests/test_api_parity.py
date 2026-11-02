@@ -756,6 +756,62 @@ class Members(unittest.TestCase):
         report = run(items, {"pkg.Other": {}}, rules=BUILTINS)
         self.assertIn("rust kit::Output::new (unmatched)", keys(report))
 
+    def test_an_associated_constant_and_its_value(self):
+        items = [struct("kit::Kit", methods=[method("new", receiver=None, returns="Self")])]
+        items[0]["constants"] = [
+            {"name": "MAX", "type": "usize", "value": "1_024"},
+            {"name": "NAME", "type": "&str", "value": '"kit"'},
+            {"name": "SHAPE", "type": "Shape", "value": None},
+        ]
+        spec = {"pkg.Kit": {"__init__": ["def"], "MAX": ["member", "1024"]}}
+        self.assertEqual(
+            keys(run(items, spec)),
+            {"rust kit::Kit::NAME (unmatched)", "rust kit::Kit::SHAPE (unmatched)"},
+        )
+        spec["pkg.Kit"].update(MAX=["member", "2048"], SHAPE=["member", "'round'"])
+        spec["pkg.Kit"]["NAME"] = ["member", "'kit'"]
+        self.assertEqual(
+            keys(run(items, spec)),
+            {
+                "rust kit::Kit::MAX (value) [pkg.Kit.MAX=2048, Rust 1_024]",
+                "rust kit::Kit::SHAPE (value) [pkg.Kit.SHAPE='round', Rust None]",
+            },
+        )
+
+    def test_the_variants_of_an_enum_no_contract_holds(self):
+        """An enum that is neither a contract type nor an error is a Python
+        enum: each variant a member of its name."""
+        items = [enum("kit::Mode", [("Fast", ()), ("Safe", ())])]
+        spec = {"pkg.Mode": {"Fast": ["member", "1"], "Slow": ["member", "2"]}}
+        self.assertEqual(
+            keys(run(items, spec)),
+            {"rust kit::Mode::Safe (unmatched)", "python pkg.Mode.Slow (unmatched)"},
+        )
+
+    def test_a_new_parameter_that_is_no_field(self):
+        items = [
+            struct(
+                "kit::Tool",
+                methods=[method("new", ("input", "ReadInput"), receiver=None, returns="Self")],
+            ),
+            struct(
+                "kit::ReadInput",
+                fields=[("path", "String")],
+                methods=[
+                    method(
+                        "new", ("path", "String"), ("strict", "bool"), receiver=None, returns="Self"
+                    )
+                ],
+                impls=["JsonSchema"],
+            ),
+        ]
+        contracts = {"tools": {}, "types": {"ReadInput": {"fields": ["path"]}}}
+        spec = {"pkg.Tool": {"__init__": ["def", "path"]}}
+        self.assertEqual(
+            keys(run(items, spec, contracts=contracts)),
+            {"rust kit::ReadInput::new(strict) (unmatched) [pkg.Tool.__init__]"},
+        )
+
 
 class Traits(unittest.TestCase):
     """A Rust type implementing a trait of the surface has its members on

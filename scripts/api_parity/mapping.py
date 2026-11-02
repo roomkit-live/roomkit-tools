@@ -29,6 +29,7 @@ KINDS = {
     "result": "a call takes or returns another type than its contract or its class",
     "rules": "a rule names what is gone or never read",
     "default": "both default it, to another value",
+    "value": "a constant of another value, or of a value rustdoc does not show",
     "dump": "a struct or field the Rust defaults dump lacks",
 }
 # The kinds no entry covers: what the gate itself needs is fixed, not excused.

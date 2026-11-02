@@ -64,7 +64,7 @@ def _meaning(comparison: Comparison, item: dict, name: str) -> None:
 
 
 def _own_members(comparison: Comparison, item: dict) -> None:
-    for method in item.get("methods", []):
+    for method in item.get("methods", []) + item.get("constants", []):
         member = f"{item['path']}::{method['name']}"
         if member not in comparison.rust.consumed:
             detail = "a contract type's own member: no Python counterpart"

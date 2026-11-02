@@ -18,12 +18,11 @@ a `dump` finding, which no entry covers: the dump grows with the surface.
 
 from __future__ import annotations
 
-import ast
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from api_parity import ParityError
+from api_parity import ParityError, values
 from api_parity.rust import RustParam, base_type
 from api_parity.sides import PythonParam
 
@@ -32,7 +31,7 @@ if TYPE_CHECKING:
 
 DUMP = "examples/tests/api_defaults.rs"
 # A Python default no literal reads (`<class 'list'>`).
-_UNREAD = object()
+_UNREAD = values.UNREAD
 
 
 class Defaults:
@@ -66,8 +65,8 @@ def compare(
     rust = _dumped(comparison, found, pairs)
     if rust is _UNREAD:
         return
-    python = _python_value(param.default)
-    if python is not _UNREAD and _same(python, rust):
+    python = values.python_value(param.default)
+    if python is not _UNREAD and values.same(python, rust):
         return
     if python is None and _deferred(comparison, param, found):
         return
@@ -120,27 +119,3 @@ def _detail(param: PythonParam, found: RustParam, rust: Any, python: Any) -> str
             "at execution: to what is not read"
         )
     return f"Python defaults it to {param.default}; Rust to {json.dumps(rust)}"
-
-
-def _python_value(default: str | None) -> Any:
-    """A Python default's repr as the JSON value it stands for."""
-    try:
-        return _as_json(ast.literal_eval(default or ""))
-    except (ValueError, SyntaxError, TypeError):
-        return _UNREAD
-
-
-def _as_json(value: Any) -> Any:
-    if isinstance(value, tuple | list):
-        return [_as_json(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _as_json(item) for key, item in value.items()}
-    return value
-
-
-def _same(python: Any, rust: Any) -> bool:
-    """The same JSON: `True` is no `1`, nor `1` a `1.0`."""
-    try:
-        return json.dumps(python, sort_keys=True) == json.dumps(rust, sort_keys=True)
-    except TypeError:
-        return False

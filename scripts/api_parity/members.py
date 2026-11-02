@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from api_parity import calls, constructors, wire
+from api_parity import calls, constructors, values, wire
 from api_parity.sides import python_params
 
 if TYPE_CHECKING:
@@ -29,7 +29,7 @@ class Member:
     owner: str  # the Rust item, or the trait a method comes from
     data: dict
     inherited: bool
-    kind: str  # "method" or "field"
+    kind: str  # "method", "field", "constant" or "variant"
     implementor: str | None = None  # the item implementing the trait, if inherited
 
     @property
@@ -55,7 +55,9 @@ def compare(comparison: Comparison, python: str, spec: dict, items: list[dict]) 
             continue
         if any(comparison.python.specs[base].get(member) == member_spec for base in trait_bases):
             continue  # compared on the base, which stands for a trait the items implement
-        if member in rules.tool_protocol.members and not static(member_spec):
+        if member_spec[0] == "member":
+            _constant(comparison, python, member, member_spec, pool, used, primary)
+        elif member in rules.tool_protocol.members and not static(member_spec):
             _protocol_member(comparison, python, member, items)
         elif member == constructor:
             constructors.compare(comparison, python, member, member_spec, items, used)
@@ -105,6 +107,12 @@ def _pool(comparison: Comparison, items: list[dict]) -> dict[str, list[Member]]:
                 pool.setdefault(field["name"], []).append(
                     Member(item["path"], field, False, "field")
                 )
+        for kind, found in (("constant", item.get("constants", [])), ("variant", _variants(item))):
+            for member in found:
+                own.add(member["name"])
+                pool.setdefault(member["name"], []).append(
+                    Member(item["path"], member, False, kind)
+                )
         for name, (trait, method) in comparison.rust.trait_members(item).items():
             if name not in own:
                 pool.setdefault(name, []).append(
@@ -127,7 +135,7 @@ def _leftovers(
             if (found.owner, name) in used or f"{found.owner}::{name}" in comparison.rust.consumed:
                 continue
             if not found.inherited:
-                what = "field" if found.field else "member"
+                what = {"field": "field", "constant": "constant"}.get(found.kind, "member")
                 path = f"{found.owner}::{name}"
                 comparison.find("rust", path, "unmatched", f"no Python {what}", primary, python)
             elif comparison.counterparts.get(found.owner) not in trait_bases:
@@ -138,6 +146,40 @@ def _leftovers(
                 )
                 path = f"{found.implementor}::{name}"
                 comparison.find("rust", path, "unmatched", detail, found.implementor, python)
+
+
+def _variants(item: dict) -> list[dict]:
+    """An enum's variants: one standing for a Python class, neither a
+    contract type nor an error, is a Python enum of the same members."""
+    return item.get("variants", []) if item["kind"] == "enum" else []
+
+
+def _constant(
+    comparison: Comparison,
+    python: str,
+    member: str,
+    spec: list,
+    pool: dict,
+    used: set,
+    primary: str,
+) -> None:
+    """A Python enum member or class constant: a Rust variant, or an
+    associated constant of the same value."""
+    where = f"{python}.{member}"
+    found = next((m for m in pool.get(member, []) if m.kind in ("constant", "variant")), None)
+    if found is None:
+        detail = "no Rust associated constant or variant"
+        comparison.find("python", where, "unmatched", detail, primary, python)
+        return
+    used.add((found.owner, member))
+    if found.kind == "variant":
+        return
+    rust = found.data.get("value")
+    if not values.same_literal(spec[1] if len(spec) > 1 else None, rust):
+        detail = f"Python's value is {spec[1:2]}; Rust's {rust or 'is not shown'}"
+        qualifier = f"{where}={spec[1] if len(spec) > 1 else ''}, Rust {rust}"
+        path = f"{found.owner}::{member}"
+        comparison.find("rust", path, "value", detail, found.owner, python, qualifier=qualifier)
 
 
 def _protocol_member(comparison: Comparison, python: str, member: str, items: list[dict]) -> None:

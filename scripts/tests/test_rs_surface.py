@@ -105,8 +105,18 @@ class ReadsTheFixtureCrate(unittest.TestCase):
 
     def test_reads_associated_constants(self) -> None:
         code = self.items["fixture::model::Code"]
-        self.assertEqual(code["constants"], [{"name": "SMS", "type": "Code"}])
+        self.assertEqual(code["constants"], [{"name": "SMS", "type": "Code", "value": None}])
         self.assertEqual(_names(code["methods"]), ["as_str"])
+
+    def test_reads_an_associated_constants_literal_value(self) -> None:
+        for header, value in (
+            ("pub const MAX: usize = 1_024", ("usize", "1_024")),
+            ('pub const NAME: &\'static str = "a=b"', ("&'static str", '"a=b"')),
+            ("pub const MAP: Map<K = u8>", ("Map<K = u8>", None)),
+        ):
+            with self.subTest(header=header):
+                found = surface._constant(header, "page", "associatedconstant.X")
+                self.assertEqual((found["type"], found["value"]), value)
 
     def test_reads_required_and_provided_trait_methods(self) -> None:
         store = self.items["fixture::Store"]

@@ -3,8 +3,9 @@
 
 `make doc` builds the HTML on the pinned toolchain. For each crate in scope
 this reads `<doc>/<crate>/all.html`, then each item's page: its fields,
-variants, inherent methods and associated constants, a trait's required and
-provided methods, with their signatures, and the traits an item implements.
+variants, inherent methods and associated constants (with the literal value
+rustdoc shows, if any), a trait's required and provided methods, with their
+signatures, and the traits an item implements.
 `scripts/api-parity.py` compares the result with the Python package's
 snapshot through `api/mapping.toml`.
 
@@ -344,10 +345,7 @@ def _members(block: str, where: str) -> tuple[list[dict], list[dict], list[dict]
             parsed = _parse_member(header, where, anchor)
             methods.append(parsed)
         elif kind == "associatedconstant":
-            const = re.fullmatch(r"(?:pub\s+)?const\s+(\w+)\s*:\s*(.+?)(?:\s*=\s*.*)?", header)
-            if const is None:
-                raise SurfaceError(f"{where}: {anchor}: not a constant: {header!r}")
-            constants.append({"name": const.group(1), "type": const.group(2)})
+            constants.append(_constant(header, where, anchor))
         else:
             if not re.fullmatch(rf"type\s+{re.escape(name)}\b.*", header):
                 raise SurfaceError(f"{where}: {anchor}: not a type: {header!r}")
@@ -356,6 +354,23 @@ def _members(block: str, where: str) -> tuple[list[dict], list[dict], list[dict]
     if written != len(entries):
         raise SurfaceError(f"{where}: {written} member entries, of which {len(entries)} read")
     return methods, constants, types
+
+
+def _constant(header: str, where: str, anchor: str) -> dict:
+    """An associated constant: its name, its type and the value rustdoc
+    shows, a literal as written, or None when it shows none."""
+    const = re.fullmatch(r"(?:pub\s+)?const\s+(\w+)\s*:\s*(.+)", header)
+    if const is None:
+        raise SurfaceError(f"{where}: {anchor}: not a constant: {header!r}")
+    rest, depth = const.group(2), 0
+    for index, char in enumerate(rest):
+        if char in "<([{":
+            depth += 1
+        elif char in ">)]}" and not (char == ">" and index > 0 and rest[index - 1] == "-"):
+            depth -= 1
+        elif char == "=" and depth == 0:
+            return {"name": const.group(1), "type": rest[:index].strip(), "value": rest[index + 1 :].strip()}
+    return {"name": const.group(1), "type": rest.strip(), "value": None}
 
 
 def _parse_member(header: str, where: str, anchor: str) -> dict:

@@ -47,7 +47,8 @@ applies with no setting is declared all the same:
   Python parameter of its name. A field its struct's `new` takes is
   required; any other is defaulted, set by struct update, which needs `new`
   or `Default` (a struct with neither is built by a literal setting every
-  field). A Python required parameter is a required Rust one, a defaulted
+  field); a parameter of `new` that is no field is a required parameter of
+  its own. A Python required parameter is a required Rust one, a defaulted
   one a defaulted one, whatever its position: a required keyword-only
   parameter is a positional Rust one. A struct a caller builds keeps no
   `#[non_exhaustive]` (roomkit-rs convention 9): that refuses struct update
@@ -80,6 +81,11 @@ applies with no setting is declared all the same:
   tagged variants (see `api_parity/wire.py`);
 - properties (`[rules] properties`): a Python property is a Rust field, or a
   method of `&self` alone;
+- constants: a Python enum member or class constant is a Rust variant of
+  its name, or an associated constant of the same value, read from the
+  literal rustdoc shows (none for an expression: a `value` finding); a Rust
+  associated constant, or a variant of an enum that is neither a contract
+  type nor an error, with no Python member is unmatched;
 - traits (`[rules] traits`): a Rust trait is the Python class (a protocol)
   of its name; a type implementing a trait of the surface has its methods,
   each on its Python class or on the Python base standing for that trait,
