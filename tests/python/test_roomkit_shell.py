@@ -177,7 +177,7 @@ class RoomKitShellLifecycleTests(unittest.TestCase):
             shell = Shell(asyncio.run(ShellTool.create(root)))
             for _ in range(2):
                 result = asyncio.run(shell.handler("shell", {"command": "pwd"}))
-                self.assertEqual(json.loads(result)["data"]["cwd"], str(root))
+                self.assertEqual(json.loads(result)["data"]["cwd"], ".")
 
 
 if __name__ == "__main__":

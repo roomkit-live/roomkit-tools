@@ -53,13 +53,16 @@ async fn cwd_is_per_call_canonical_and_does_not_change_the_host_directory() {
         result.stdout.text.trim(),
         root.path().join("menus").to_str().unwrap()
     );
+    // The model sees the directory relative to the workspace, never the host's.
+    assert_eq!(result.cwd, "menus");
     assert_eq!(std::env::current_dir().unwrap(), before);
     let token = CancellationToken::new();
     let (a, b) = tokio::join!(
         tool.shell(ShellInput::new("pwd"), &token),
         tool.shell(ShellInput::new("pwd"), &token)
     );
-    assert_eq!(a.unwrap().data.cwd, b.unwrap().data.cwd);
+    assert_eq!(a.unwrap().data.cwd, ".");
+    assert_eq!(b.unwrap().data.cwd, ".");
 }
 
 #[tokio::test]

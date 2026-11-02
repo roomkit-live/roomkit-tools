@@ -65,14 +65,11 @@ def pointer(value, path):
 
 
 def normalize(value, root: Path, key: str | None = None):
-    """Replace the host root in `cwd`, a command's working directory and the
-    only result that names a host path. Anywhere else the root fails the test,
-    and `path` and `to` must be relative: results name files relative to the
-    workspace."""
+    """No result names a host path: the root anywhere fails the test, and
+    `path`, `to` and `cwd` must be relative: results name files and
+    directories relative to the workspace."""
     if isinstance(value, str):
-        if key == "cwd":
-            return value.replace(str(root), "$ROOT")
-        if str(root) in value or (key in ("path", "to") and os.path.isabs(value)):
+        if str(root) in value or (key in ("path", "to", "cwd") and os.path.isabs(value)):
             raise AssertionError(f"host path in a result at {key!r}: {value!r}")
         return value
     if isinstance(value, dict):

@@ -1103,3 +1103,29 @@ async fn reading_cat_preserves_stdin_and_reports_newline_and_normal_eof_exactly(
     assert_eq!(status.stdout_bytes, 8);
     manager.close().await;
 }
+
+#[tokio::test]
+async fn the_initial_directory_is_named_relative_to_the_root() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("sub")).unwrap();
+    let session = ProcessSession::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let at_root = session
+        .start(None, ProcessStartInput::new("true"), &token)
+        .await
+        .unwrap();
+    assert_eq!(at_root.data.cwd, ".");
+    let input = ProcessStartInput {
+        cwd: Some("sub".into()),
+        ..ProcessStartInput::new("true")
+    };
+    let below = session.start(None, input, &token).await.unwrap();
+    assert_eq!(below.data.cwd, "sub");
+    let listed = session.status(None, ProcessStatusInput::default(), &token);
+    let cwds: Vec<_> = listed.await.unwrap().data.processes;
+    assert_eq!(
+        cwds.iter().map(|p| p.cwd.as_str()).collect::<Vec<_>>(),
+        [".", "sub"]
+    );
+    assert!(session.close().await);
+}

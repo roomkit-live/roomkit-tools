@@ -57,6 +57,8 @@ part of an existing published preview.
   `web_fetch` tell the model 0 is invalid, and Rust's inputs hold an
   `Option<NonZeroU64>` (were `Option<usize>` or `Option<u64>`). A 0 is refused
   when the input is read.
+- `shell` results and process statuses name their `cwd` relative to the
+  workspace, `.` for its root, instead of the host's absolute path.
 - Python: the documentation, plan and agent tools split into a tool and its
   RoomKit adapter, as `ReadTool` and `Read`: `DocsList(backend).call(arguments)`
   is `DocsListTool(backend).call(arguments)`, `DocsList(backend)` in RoomKit's

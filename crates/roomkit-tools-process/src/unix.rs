@@ -139,6 +139,8 @@ fn missing_pipe(operation: &'static str) -> ToolError {
 pub(crate) struct Foreground {
     pub(crate) command: String,
     pub(crate) cwd: PathBuf,
+    /// The working directory relative to the workspace, as the result names it.
+    pub(crate) shown_cwd: String,
     pub(crate) env: Arc<CommandEnv>,
     pub(crate) limits: ShellLimits,
     pub(crate) timeout_ms: u64,
@@ -206,7 +208,7 @@ async fn supervise(
         return Err(ToolError::Cancelled);
     }
     Ok(render(ShellResult {
-        cwd: foreground.cwd.to_string_lossy().into_owned(),
+        cwd: foreground.shown_cwd.clone(),
         exit_code: status.and_then(|status| status.code()),
         signal: status.and_then(|status| status.signal()),
         timed_out,
@@ -305,6 +307,7 @@ mod tests {
         let foreground = Foreground {
             command: "printf done; printf warning >&2; exit 3".into(),
             cwd: root.path().to_owned(),
+            shown_cwd: ".".into(),
             env: Arc::default(),
             limits: ShellLimits::default(),
             timeout_ms: 10_000,
@@ -340,6 +343,7 @@ mod tests {
         let foreground = Foreground {
             command: command.into(),
             cwd: root.path().to_owned(),
+            shown_cwd: ".".into(),
             env: Arc::default(),
             limits: ShellLimits::default(),
             timeout_ms,

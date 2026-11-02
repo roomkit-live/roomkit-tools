@@ -41,6 +41,17 @@ pub use persistent::{ObservedProcess, ProcessSession};
 pub use process_types::*;
 pub use shell::{ShellInput, ShellLimits, ShellResult, ShellTool};
 
+/// A working directory below `root` as the model sees it: relative to the
+/// workspace, `.` for the root, never the host's path.
+fn relative_cwd(root: &std::path::Path, cwd: &std::path::Path) -> String {
+    let relative = cwd.strip_prefix(root).unwrap_or(cwd).to_string_lossy();
+    if relative.is_empty() {
+        ".".into()
+    } else {
+        relative.replace(std::path::MAIN_SEPARATOR, "/")
+    }
+}
+
 // The README's example is compiled and run as a doctest.
 #[cfg(doctest)]
 #[doc = include_str!("../README.md")]

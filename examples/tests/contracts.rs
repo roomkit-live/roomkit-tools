@@ -111,15 +111,14 @@ fn error_name(error: &ToolError) -> &str {
     }
 }
 
-/// Replace the host root in `cwd`, a command's working directory and the
-/// only result that names a host path. Anywhere else the root fails the
-/// test, and `path` and `to` must be relative: results name files relative
-/// to the workspace.
+/// No result names a host path: the root anywhere fails the test, and
+/// `path`, `to` and `cwd` must be relative: results name files and
+/// directories relative to the workspace.
 fn normalize(value: &mut Value, root: &str, key: Option<&str>) {
     match value {
-        Value::String(text) if key == Some("cwd") => *text = text.replace(root, "$ROOT"),
         Value::String(text) => {
-            let absolute = matches!(key, Some("path" | "to")) && Path::new(text).is_absolute();
+            let absolute =
+                matches!(key, Some("path" | "to" | "cwd")) && Path::new(text).is_absolute();
             assert!(
                 !absolute && !text.contains(root),
                 "host path in a result at {key:?}: {text}"

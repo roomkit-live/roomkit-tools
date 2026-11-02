@@ -192,7 +192,7 @@ def verify_trace(events: list[ToolCallEvent], root: Path) -> None:
         return os.path.normpath(path if path.is_absolute() else root / path) == str(root / name)
 
     def is_test(event: ToolCallEvent, data: dict[str, Any]) -> bool:
-        if event.name != "shell" or data.get("cwd") != str(root):
+        if event.name != "shell" or data.get("cwd") != ".":
             return False
         try:
             return shlex.split(event.arguments.get("command", "")) == shlex.split(test_command())

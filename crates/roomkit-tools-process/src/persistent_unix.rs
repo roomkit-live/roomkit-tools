@@ -302,7 +302,7 @@ mod tests {
         let pid = group.pid().unwrap();
         // A shell under other credentials refuses every signal.
         group.refuse_all();
-        let status = crate::persistent::initial_status("p1".into(), root.path(), 60_000);
+        let status = crate::persistent::initial_status("p1".into(), ".".into(), 60_000);
         let limits = ProcessLimits::default();
         let stop = CancellationToken::new();
         let (entry, _) = adopt((child, group), &request, status, limits, stop, None).unwrap();

@@ -187,7 +187,8 @@ pub enum ProcessEnd {
 pub struct ProcessStatus {
     /// Scope-local identifier, never an OS PID or an authorization token.
     pub process_id: String,
-    /// Canonical initial working directory (not confinement).
+    /// Initial working directory, relative to the workspace (`.` for its
+    /// root); the host's path is never shown. Not confinement.
     pub cwd: String,
     /// Running includes cleanup; finished means final output is available.
     pub state: ProcessState,

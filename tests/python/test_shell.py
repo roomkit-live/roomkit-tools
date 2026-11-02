@@ -68,9 +68,9 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
         (self.root / "sub").mkdir()
         before = Path.cwd()
         a, b = await asyncio.gather(self.tool.shell("pwd", cwd=Path("sub")), self.tool.shell("pwd"))
-        self.assertEqual(a["data"]["cwd"], str(self.root / "sub"))
+        self.assertEqual(a["data"]["cwd"], "sub")
         self.assertEqual(a["data"]["stdout"]["text"], str(self.root / "sub") + "\n")
-        self.assertEqual(b["data"]["cwd"], str(self.root))
+        self.assertEqual(b["data"]["cwd"], ".")
         self.assertEqual(Path.cwd(), before)
         absolute = await self.tool.shell("pwd", cwd=self.root / "sub")
         self.assertEqual(absolute["data"], a["data"])
@@ -289,7 +289,7 @@ class ShellLifecycleTests(unittest.TestCase):
                 asyncio.run(ShellTool.create(root))
             root.mkdir()
             tool = asyncio.run(ShellTool.create(root))
-            self.assertEqual(asyncio.run(tool.shell("pwd"))["data"]["cwd"], str(root))
+            self.assertEqual(asyncio.run(tool.shell("pwd"))["data"]["cwd"], ".")
             self.assertEqual(
                 asyncio.run(tool.shell("printf reuse"))["data"]["stdout"]["text"], "reuse"
             )

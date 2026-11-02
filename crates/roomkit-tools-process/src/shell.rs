@@ -63,7 +63,8 @@ impl Default for ShellLimits {
 /// A completed command, including nonzero exits and timeouts.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct ShellResult {
-    /// Canonical initial working directory.
+    /// Initial working directory, relative to the workspace (`.` for its
+    /// root); the host's path is never shown.
     pub cwd: String,
     /// Exit code when the shell exited normally; nonzero is a command result.
     /// Both this and `signal` are null only after a timeout when the shell
@@ -262,6 +263,7 @@ impl ShellTool {
         {
             let foreground = crate::unix::Foreground {
                 command: input.command,
+                shown_cwd: crate::relative_cwd(&self.root, &cwd),
                 cwd,
                 env: Arc::clone(&self.env),
                 limits: self.limits,
