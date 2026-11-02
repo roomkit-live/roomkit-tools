@@ -726,14 +726,13 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async (2), defaulted (6), unmatched (4)"
+reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async, defaulted (6), unmatched (4)"
 covers = [
   "rust roomkit_tools_process::OutputStore::new (async)",  # async in Rust, not in Python
   "rust roomkit_tools_process::OutputStore::new(parent) (defaulted)",  # Python defaults it (parent=None); Rust requires it
   "python roomkit_tools.OutputStore.call (unmatched)",  # no Rust method
   "python roomkit_tools.OutputStore.definition (unmatched)",  # no Rust method
   "rust roomkit_tools_process::OutputStore::forget(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::OutputStore::list (async)",  # async in Python, not in Rust
   "rust roomkit_tools_process::OutputStore::list(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::OutputReadInput::offset (defaulted)",  # Python defaults it (offset=0); Rust requires it
   "rust roomkit_tools_process::OutputReadInput::max_bytes (defaulted)",  # Python defaults it (max_bytes=None); Rust requires it

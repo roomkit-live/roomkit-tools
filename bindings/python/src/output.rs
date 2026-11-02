@@ -161,6 +161,7 @@ impl PythonOutputStore {
                     let store = state.resolve().await.map_err(|e| tool_error(&e))?;
                     let entries = store
                         .list(owner.as_deref(), &token)
+                        .await
                         .map_err(|e| tool_error(&e))?;
                     serde_json::to_string(&entries)
                         .map_err(|_| ToolError::new_err("Unable to serialize output list"))

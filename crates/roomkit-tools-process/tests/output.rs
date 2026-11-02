@@ -63,7 +63,7 @@ async fn recover_full_binary_output_without_rerunning_a_command() {
     }
     assert_eq!(recovered, original);
     assert_eq!(std::fs::read(root.path().join("runs")).unwrap(), b"run");
-    assert_eq!(store.list(None, &cancel).unwrap().len(), 2);
+    assert_eq!(store.list(None, &cancel).await.unwrap().len(), 2);
     assert!(store.close().await);
     assert_eq!(std::fs::read_dir(storage.path()).unwrap().count(), 0);
 }
@@ -85,6 +85,7 @@ async fn listing_follows_creation_order_past_nine_archives() {
     }
     let listed: Vec<String> = store
         .list(None, &cancel)
+        .await
         .unwrap()
         .into_iter()
         .map(|archive| archive.archive_id.unwrap())
@@ -117,8 +118,8 @@ async fn no_owner_is_the_standalone_owner_of_shell_archives() {
     let mine = standalone.data.stdout.archive.unwrap().archive_id.unwrap();
     let theirs = named.data.stdout.archive.unwrap().archive_id.unwrap();
     // Standalone commands file stdout and stderr under the owner None names.
-    assert_eq!(store.list(None, &cancel).unwrap().len(), 2);
-    assert_eq!(store.list(Some("a"), &cancel).unwrap().len(), 2);
+    assert_eq!(store.list(None, &cancel).await.unwrap().len(), 2);
+    assert_eq!(store.list(Some("a"), &cancel).await.unwrap().len(), 2);
     let page_of_mine = store.read(None, page(&mine, 0, 64), &cancel).await;
     assert_eq!(page_of_mine.unwrap().data.text, "mine");
     assert!(matches!(
@@ -258,7 +259,7 @@ async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
             .await,
         Err(ToolError::AccessRefused(_))
     ));
-    assert_eq!(store.list(Some("unknown"), &cancel).unwrap(), []);
+    assert_eq!(store.list(Some("unknown"), &cancel).await.unwrap(), []);
     store
         .forget(Some("one"), OutputForgetInput { archive_id: id }, &cancel)
         .await
@@ -389,6 +390,6 @@ async fn closing_store_keeps_the_process_running_and_refuses_reads() {
         .await
         .unwrap();
     assert!(sent.data.complete);
-    assert!(store.list(Some("owner"), &cancel).is_err());
+    assert!(store.list(Some("owner"), &cancel).await.is_err());
     assert!(manager.close().await);
 }

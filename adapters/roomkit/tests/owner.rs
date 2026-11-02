@@ -94,7 +94,7 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
         .await
         .unwrap();
     assert_eq!(listed.data.len(), 0);
-    let archives = store.list(Some(&owner), &cancel).unwrap();
+    let archives = store.list(Some(&owner), &cancel).await.unwrap();
     assert_eq!(archives.len(), 2);
     for archive in archives {
         let archive_id = archive.archive_id.unwrap();
@@ -103,7 +103,7 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
             .await
             .unwrap();
     }
-    assert_eq!(store.list(Some(&owner), &cancel).unwrap().len(), 0);
+    assert_eq!(store.list(Some(&owner), &cancel).await.unwrap().len(), 0);
     assert!(manager.close().await);
     assert!(store.close().await);
 }

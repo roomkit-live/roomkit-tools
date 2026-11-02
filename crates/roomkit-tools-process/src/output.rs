@@ -240,14 +240,24 @@ impl OutputStore {
     /// List only the trusted owner's retained copies, including failed/active
     /// ones, in creation order.
     ///
+    /// Async as Python's `OutputStore.list`; the listing itself waits for
+    /// nothing, so the future is ready when the call returns.
+    ///
     /// # Errors
     /// Returns cancellation or refusal after close.
     pub fn list(
         &self,
         owner: Option<&str>,
         cancel: &CancellationToken,
+    ) -> impl Future<Output = Result<Vec<OutputArchive>, ToolError>> {
+        std::future::ready(self.snapshots(crate::owner_key(owner), cancel))
+    }
+
+    fn snapshots(
+        &self,
+        owner: &str,
+        cancel: &CancellationToken,
     ) -> Result<Vec<OutputArchive>, ToolError> {
-        let owner = crate::owner_key(owner);
         if cancel.is_cancelled() {
             return Err(ToolError::Cancelled);
         }

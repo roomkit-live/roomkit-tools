@@ -57,6 +57,7 @@ part of an existing published preview.
   `OutputStore` (`read`, `forget`, `list`) take `owner: Option<&str>`; `None`
   is the standalone owner, the one `ShellTool::shell` files archives under,
   as Python's `owner=None`.
+- Rust: `OutputStore::list` is async, as Python's `OutputStore.list`.
 
 ### Added
 
