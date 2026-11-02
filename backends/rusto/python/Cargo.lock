@@ -760,7 +760,7 @@ dependencies = [
 
 [[package]]
 name = "roomkit-tools-core"
-version = "0.1.0"
+version = "0.1.0-alpha.16"
 dependencies = [
  "schemars",
  "serde",
@@ -770,7 +770,7 @@ dependencies = [
 
 [[package]]
 name = "roomkit-tools-image"
-version = "0.1.0"
+version = "0.1.0-alpha.16"
 dependencies = [
  "base64",
  "image",
@@ -784,7 +784,7 @@ dependencies = [
 
 [[package]]
 name = "roomkit-tools-ocr"
-version = "0.1.0"
+version = "0.1.0-alpha.16"
 dependencies = [
  "roomkit-tools-core",
  "roomkit-tools-image",
@@ -798,7 +798,7 @@ dependencies = [
 
 [[package]]
 name = "roomkit-tools-ocr-rusto"
-version = "0.1.0"
+version = "0.1.0-alpha.16"
 dependencies = [
  "ndarray",
  "rayon",
@@ -815,7 +815,7 @@ dependencies = [
 
 [[package]]
 name = "roomkit-tools-ocr-rusto-python"
-version = "0.1.0"
+version = "0.1.0-alpha.16"
 dependencies = [
  "pyo3",
  "pyo3-async-runtimes",

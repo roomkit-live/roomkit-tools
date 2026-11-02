@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "roomkit-tools"
-version = "0.1.0a16.dev0"
+version = "0.1.0a16"
 description = "Composable Rust tools for coding agents, Python and RoomKit"
 readme = "README.md"
 requires-python = ">=3.12"

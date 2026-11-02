@@ -6,6 +6,8 @@ part of an existing published preview.
 
 ## Unreleased
 
+## 0.1.0a16
+
 ### Breaking changes
 
 - Commands from `shell` and the process tools no longer inherit the host's whole
@@ -298,6 +300,10 @@ part of an existing published preview.
   search and RustO ones, which need the network or local models. The
   examples, the Python native modules and the RoomKit adapter stay
   unpublished.
+- The Rust library crates are published to crates.io as `0.1.0-alpha.16`. A
+  pre-release matches no plain `"0.1"` requirement: depend on that exact
+  version, such as `roomkit-tools-fs = "0.1.0-alpha.16"`. The RoomKit Rust
+  adapter stays unpublished and is used through Git.
 
 
 ## 0.1.0a15
