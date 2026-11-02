@@ -48,7 +48,8 @@ asynchronous = { decision = "roomkit-rs names table: await kit.close() | kit.clo
 # Python's async factory, the constructor of a class that resolves its
 # root: Python cannot await in __init__. Rust's is `new`.
 factory = { method = "create", decision = "TODO: maintainer" }
-# A builder, `with_<x>(self, value)`: one of a constructor's keywords.
+# A builder, `with_<x>(self, value)`: one of a constructor's keywords, not
+# calling it being Python's None.
 builder_prefix = { prefix = "with_", decision = "roomkit-rs names table: RoomKit(store=SomeStore()) | RoomKitOptions::with_store(store)" }
 # A struct whose name ends with one of these stands for keyword arguments:
 # a struct of named fields, the Rust form of Python's keywords.

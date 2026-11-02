@@ -14,7 +14,8 @@ cargo install cargo-deny --locked
 make hooks
 ```
 
-`make hooks` enables the optional commit-message hook. Python development also
+`make hooks` enables the optional commit-message and pre-push hooks (see
+[One public API](#one-public-api) for the latter). Python development also
 requires CPython 3.12+ and [uv](https://docs.astral.sh/uv/). Build/install locally
 with `uv venv` and `uv pip install '.[roomkit]'`. See
 [installation](guide/installation.md) for supported platforms and provider extras.
@@ -25,7 +26,7 @@ with `uv venv` and `uv pip install '.[roomkit]'`. See
 | --- | --- |
 | `make fmt` | Format the standalone Rust workspace |
 | `make all` | Formatting, Clippy, tests, rustdoc, dependency policy, core dependency allow list, executable Rust examples and the public API parity gate |
-| `make api-test api-parity` | The parity gate's own tests, then the gate: the Rust public API against the Python snapshots (see [One public API](#one-public-api)) |
+| `make api-test api-parity` | The parity gate's own tests, then the gate: the Rust public API and its defaults against the Python snapshots (see [One public API](#one-public-api)) |
 | `make api-snapshot` | Rewrite the Python API snapshots from freshly built wheels |
 | `make api-adapter-surface` | Rewrite the RoomKit adapter's committed Rust surface; requires access to its pinned engine source |
 | `make msrv-toolchain msrv` | Install/check the minimum Rust toolchain |
@@ -103,15 +104,37 @@ Python is the reference.
   whatever the reason. The decision either changes the code (Python first
   when Python changes, then Rust) or records the difference as approved in
   `api/mapping.toml`: a rule, a `[[map]]` or `[[exception]]` entry, or a
-  `[[missing]]` entry for a feature only one side has. Each names its source
-  in `decision`. A difference is never shipped undiscussed.
+  `[[missing]]` entry for a feature only one side has. A difference is never
+  shipped undiscussed.
+- Every rule and every `[[map]]`, `[[exception]]` and `[[missing]]` entry
+  names its source in `decision`: the roomkit-rs precedent it follows (a row
+  of the names table in its `docs/architecture.md`, or a rule of its
+  `api/mapping.toml`), or the maintainer's decision. The gate refuses one
+  without. A rule with neither reads `decision = "TODO: maintainer"`, and
+  the gate fails until the maintainer decides it.
 - `make api-parity` enforces this: it reads the crates' public surface from
   rustdoc and fails on any difference no entry of `api/mapping.toml` covers,
-  and on an entry that no longer covers anything. The differences found
-  before the gate existed are the `[[pending]]` entries at the end of the
-  mapping; each awaits a decision, and none is approved. `make api-parity
-  API_PARITY_FLAGS=--strict` fails while one is left. The gate and its tests
-  need only `python3` (3.11 or newer) and its standard library.
+  and on an entry that no longer covers anything. Defaults are compared by
+  value: rustdoc shows none, so `examples/tests/api_defaults.rs` dumps the
+  defaults of each struct a call's keywords stand for, and a parameter both
+  sides default has the same value on both. Python's `None` for a Rust field
+  that is no `Option` is the Rust default (`[rules] deferred_default`); any
+  other difference, an `Option` Rust resolves at execution included, is a
+  finding. A new such struct, or field, goes into that test: the gate fails
+  on one the dump lacks, and a field it does not list fails to compile. The
+  differences found before the gate existed are the `[[pending]]` entries at
+  the end of the mapping; each awaits a decision, and none is approved.
+  `make api-parity API_PARITY_FLAGS=--strict` fails while one is left. The
+  gate and its tests need only `python3` (3.11 or newer) and its standard
+  library.
+- `make hooks` enables a pre-push hook that runs `make api-test api-parity`
+  when the pushed commits change what the gate reads: `crates/`,
+  `adapters/`, `python/roomkit_tools/`, `api/`, `scripts/`, the defaults
+  test and the Python snapshots. It checks the checked-out tree, so it
+  refuses to push another commit, or with uncommitted changes there. It
+  builds no wheel: CI checks the snapshots. It takes about a second on a
+  built target directory and under a minute on an empty one on a large
+  machine; `git push --no-verify` skips it.
 - A change to the Python public API rewrites the snapshot with
   `make api-snapshot` in the same commit; the Python tests fail while the
   snapshot differs from the code. A change to the RoomKit adapter's public API
