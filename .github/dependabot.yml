@@ -12,7 +12,8 @@ updates:
     ignore:
       # The engine is pinned to one validated revision and updated by hand.
       - dependency-name: "roomkit*"
-      # The OCR engine is pinned exactly and checked against real models.
+      # The OCR engine's requirement accepts compatible releases; the lock
+      # file is moved by hand, after a check against real models.
       - dependency-name: "rusto-rs"
       # Must stay at the version rusto-rs builds against; it moves with it.
       - dependency-name: "ndarray"
