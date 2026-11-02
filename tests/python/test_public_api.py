@@ -90,6 +90,31 @@ class DescribeTests(unittest.TestCase):
             },
         )
 
+    def test_a_parameter_taking_a_native_object_is_marked(self):
+        """An ``__init__`` parameter annotated with private native types only
+        is the native object an async factory built: ``__native__`` names it."""
+
+        class Tool:
+            def __init__(self, native, root: str) -> None: ...
+
+        class Other:
+            def __init__(self, implementation, path) -> None: ...
+
+        # Postponed annotations, as the package writes them.
+        Tool.__init__.__annotations__["native"] = "_native._ReadTool | _native._ListTool"
+        Other.__init__.__annotations__.update(
+            implementation="BoundBackend", path="str | _native._X"
+        )
+        Tool.__module__ = Other.__module__ = __name__
+        self.assertEqual(
+            api_signatures.describe(Tool, self.package, {}),
+            {"__init__": ["def", "native", "root"], "__native__": ["native", "native"]},
+        )
+        self.assertEqual(
+            api_signatures.describe(Other, self.package, {}),
+            {"__init__": ["def", "implementation", "path"]},
+        )
+
     def test_a_public_base_of_the_package_is_written(self):
         class Base(Exception):
             pass

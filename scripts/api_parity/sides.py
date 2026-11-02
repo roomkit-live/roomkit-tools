@@ -11,6 +11,9 @@ from api_parity import ParityError
 NAMES = "public_api_names.json"
 SIGNATURES = "public_api_signatures.json"
 CONTRACTS = "public_api_contracts.json"
+# The entries of a class's spec that are no member: its public bases, and the
+# `__init__` parameters annotated with private native types only.
+MARKERS = ("__bases__", "__native__")
 
 
 def strip_param(path: str) -> tuple[str, str | None]:
@@ -137,6 +140,12 @@ class Python:
         variant, _, field = rest.partition(".")
         fields = shape.get("variants", {}).get(variant)
         return fields is not None and (not field or field in fields)
+
+
+def native_params(spec: dict) -> list[str]:
+    """The `__init__` parameters of a class's spec that take a native object:
+    annotated with private native types only (`__native__`)."""
+    return list(spec.get("__native__", ["native"])[1:])
 
 
 class Surface:

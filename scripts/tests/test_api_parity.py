@@ -212,6 +212,7 @@ def read_tool(*, limits=(("max_lines", "usize"),), input_new=True, extra_methods
 READ_SPEC = {
     "pkg.ReadTool": {
         "__init__": ["def", "native"],
+        "__native__": ["native", "native"],
         "create": ["async classmethod", "root", "*", "max_lines=None"],
         "definition": ["staticmethod"],
         "read": ["async def", "path", "*", "offset=1"],
@@ -693,6 +694,7 @@ class Members(unittest.TestCase):
         specs = {
             "pkg.EditTool": {
                 "__init__": ["def", "native"],
+                "__native__": ["native", "native"],
                 "create": ["async classmethod", "root"],
             },
             "pkg.Workspace": {"__init__": ["def", "root"]},
@@ -712,6 +714,7 @@ class Members(unittest.TestCase):
         specs = {
             "pkg.EditTool": {
                 "__init__": ["def", "native"],
+                "__native__": ["native", "native"],
                 "create": ["async classmethod", "root"],
             },
             "pkg.Store": {"__init__": ["def", "root"]},
@@ -723,10 +726,18 @@ class Members(unittest.TestCase):
 
     def test_a_factory_classs_init_is_compared_unless_it_wraps_the_native_object(self):
         """With an async factory, Python's `__init__` taking only the native
-        object it built is not compared; one taking parameters is, as a
-        constructor."""
+        object it built (`__native__` names it: its annotation is a private
+        native type) is not compared; any other is, as a constructor."""
         specs = {"pkg.ReadTool": dict(READ_SPEC["pkg.ReadTool"])}
         self.assertEqual(keys(run(read_tool(), specs, contracts=READ_CONTRACTS)), set())
+        for init in (["def", "native"], ["def", "root"]):
+            with self.subTest(init=init):
+                unmarked = {"pkg.ReadTool": {**specs["pkg.ReadTool"], "__init__": init}}
+                del unmarked["pkg.ReadTool"]["__native__"]
+                found = keys(run(read_tool(), unmarked, contracts=READ_CONTRACTS, rules=self.LAZY))
+                self.assertIn(
+                    "rust kit::ReadLimits::max_lines (unmatched) [pkg.ReadTool.__init__]", found
+                )
         specs["pkg.ReadTool"]["__init__"] = ["def", "root", "*", "max_lines=None", "strict=False"]
         self.assertEqual(
             keys(run(read_tool(), specs, contracts=READ_CONTRACTS, rules=self.LAZY)),

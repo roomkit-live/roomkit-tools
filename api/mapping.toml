@@ -323,3 +323,19 @@ covers = [
   "rust roomkit_tools_process::CommandEnv::inherit_env (unmatched) [roomkit_tools.ShellTool.__init__]",
   "rust roomkit_tools_process::CommandEnv::env (unmatched) [roomkit_tools.ShellTool.__init__]",
 ]
+
+[[pending]]
+reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool.__init__: unmatched (11); Python's public OcrTool(implementation) takes a BoundOcrBackend, the object OcrBackend.bind returns and a host may implement, not a private native object: the OCR backend protocol excepted for this release, on the tool's constructor"
+covers = [
+  "python roomkit_tools.OcrTool.__init__(implementation) (unmatched) [roomkit_tools_ocr::OcrTool::new]",
+  "rust roomkit_tools_ocr::OcrTool::new(root) (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrTool::new(backend) (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_file_bytes (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_dimension (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_pixels (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_decode_bytes (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_output_bytes (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_blocks (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::default_timeout_ms (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_timeout_ms (unmatched) [roomkit_tools.OcrTool.__init__]",
+]

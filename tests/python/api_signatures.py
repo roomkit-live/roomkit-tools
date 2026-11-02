@@ -16,7 +16,11 @@ the snapshot's directory:
   annotation: ``name``, ``name=default``, ``*args``, ``**kwargs``, and the
   ``/`` and ``*`` markers. A member's first item says what it is: ``def``,
   ``async def``, ``classmethod``, ``staticmethod`` (each possibly ``async``),
-  ``property``, ``member`` or ``bases``. A protocol has no constructor.
+  ``property``, ``member`` or ``bases``. A protocol has no constructor. The
+  annotations are read for one thing only: ``__native__``, ``["native",
+  ...]``, names the constructor's parameters annotated with private native
+  types only (``_native._ReadTool``), the native object an async factory
+  built.
 - ``public_api_contracts.json`` (the base package only): the JSON shape of
   every tool contract a public class returns from ``definition()``. The
   schemas are derived from the Rust types; each named type is kept as its
@@ -55,6 +59,8 @@ CONTRACTS = "public_api_contracts.json"
 
 _P = inspect.Parameter
 _ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")
+# A private type of a package's native module, as an annotation names it.
+_NATIVE = re.compile(r"(?:[\w.]*\.)?_native\._\w+")
 
 # The tool definitions a static `definition(name)` serves, by class name: the
 # names are not discoverable from the signature.
@@ -138,9 +144,14 @@ def describe(obj: Any, package: Package, paths: dict[int, str]) -> dict[str, Spe
         members.update({name: ["member", _repr(m.value)] for name, m in obj.__members__.items()})
     elif _builds_itself(obj, package):
         try:
-            members["__init__"] = ["def", *_tokens(inspect.signature(obj), drop_first=False)]
+            signature = inspect.signature(obj)
         except (TypeError, ValueError):
-            pass
+            signature = None
+        if signature is not None:
+            members["__init__"] = ["def", *_tokens(signature, drop_first=False)]
+            native = [p.name for p in signature.parameters.values() if _native(p.annotation)]
+            if native:
+                members["__native__"] = ["native", *native]
     for klass in obj.__mro__:
         if not package.owns(klass):
             continue
@@ -306,6 +317,17 @@ def _exports(module: ModuleType, package: Package) -> list[str]:
         for name, value in vars(module).items()
         if not name.startswith("_") and package.owns(value) and value.__module__ == module.__name__
     ]
+
+
+def _native(annotation: Any) -> bool:
+    """An annotation naming private native types only: ``_native._ReadTool``,
+    or a union of such types. The parameter takes the native object an
+    async factory built, which no caller builds."""
+    if annotation is _P.empty:
+        return False
+    text = annotation if isinstance(annotation, str) else inspect.formatannotation(annotation)
+    parts = [part.strip() for part in text.split("|")]
+    return all(_NATIVE.fullmatch(part) for part in parts)
 
 
 def _builds_itself(cls: type, package: Package) -> bool:

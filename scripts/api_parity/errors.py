@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from api_parity.sides import python_params
+from api_parity.sides import MARKERS, python_params
 
 if TYPE_CHECKING:
     from api_parity.compare import Comparison
@@ -55,7 +55,7 @@ def compare(comparison: Comparison, item: dict, python: str) -> None:
 def _members(comparison: Comparison, item: dict, python: str, path: str) -> None:
     """A family class's own members: an error variant has none."""
     for member, spec in comparison.python.specs.get(path, {}).items():
-        if member == "__bases__" or (member == "__init__" and _message_alone(spec)):
+        if member in MARKERS or (member == "__init__" and _message_alone(spec)):
             continue
         detail = f"a member of an exception of the {python} family: a Rust variant has none"
         comparison.find("python", f"{path}.{member}", "unmatched", detail, item["path"], python)

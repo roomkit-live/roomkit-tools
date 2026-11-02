@@ -4,8 +4,10 @@ The pool of a class's Rust members holds the items' own members and the
 methods of the surface's traits they implement. Each Python member is
 compared with the pool's member of its name, or the one an entry pairs; a
 member a Python base repeats unchanged is compared on that base when the
-base stands for a trait the Rust items implement. What the comparison left
-in the pool is a finding: an own member with no Python one, and a trait
+base stands for a trait the Rust items implement. An async factory's
+`__init__` is compared as a constructor too, unless it takes only the native
+object the factory built, which the snapshot marks `__native__`. What the
+comparison left in the pool is a finding: an own member with no Python one, and a trait
 member the Python class lacks, unless a Python base stands for that trait
 (the trait's own comparison then reports it).
 """
@@ -16,7 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from api_parity import calls, constructors, values, wire
-from api_parity.sides import python_params
+from api_parity.sides import MARKERS, native_params, python_params
 
 if TYPE_CHECKING:
     from api_parity.compare import Comparison
@@ -47,10 +49,10 @@ def compare(comparison: Comparison, python: str, spec: dict, items: list[dict]) 
     trait_bases = _trait_bases(comparison, python, items)
     rules = comparison.rules
     for member, member_spec in spec.items():
-        if member == "__bases__":
+        if member in MARKERS:
             continue
         if member == "__init__" and constructor == rules.factory:
-            if not _wraps_native(member_spec):
+            if not _wraps_native(spec):
                 constructors.compare(comparison, python, member, member_spec, items, used)
             continue
         if any(comparison.python.specs[base].get(member) == member_spec for base in trait_bases):
@@ -69,11 +71,17 @@ def compare(comparison: Comparison, python: str, spec: dict, items: list[dict]) 
     _leftovers(comparison, python, pool, used, primary, trait_bases)
 
 
-def _wraps_native(spec: list) -> bool:
+def _wraps_native(spec: dict) -> bool:
     """An async factory's `__init__` taking only the native object the
-    factory built: not compared."""
-    params = python_params(spec)
-    return len(params) == 1 and params[0].required and not params[0].variadic
+    factory built, its one parameter annotated with private native types
+    (`__native__`): not compared."""
+    params = python_params(spec["__init__"])
+    return (
+        len(params) == 1
+        and params[0].required
+        and not params[0].variadic
+        and params[0].name in native_params(spec)
+    )
 
 
 def _trait_bases(comparison: Comparison, python: str, items: list[dict]) -> list[str]:
