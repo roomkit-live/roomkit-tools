@@ -54,6 +54,8 @@ _TABLE_RULES = {
     "optional": {"type", "default"},
     "typed_call": {"method"},
     "named_calls": {"method", "key", "definition", "suffix"},
+    "lazy_constructor": {"python"},
+    "union_constructor": {"prefix"},
 }
 _RULES = _RULES_REQUIRED | {"builtins", "builtin_errors"} | set(_TABLE_RULES)
 

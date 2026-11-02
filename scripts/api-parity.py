@@ -29,7 +29,11 @@ The rules, which apply with no entry, each forced by the language:
   Rust's is `new` and the builders (`[rules] builder_prefix`, `with_<x>(self,
   value)`), a builder standing for the keyword of its parameter's name, or
   for its struct's fields; a struct with public fields and no `new` is
-  built from its fields, as a dataclass;
+  built from its fields, as a dataclass. A synchronous `__init__` stands
+  for an async `new`: Python resolves the root at first use, Rust at once
+  (`[rules] lazy_constructor`). An associated `from_<x>(x)` building the
+  type from a type Python names is the constructor given that type for its
+  first parameter, Python's union `root | X` (`[rules] union_constructor`);
 - keywords as a struct of named fields: a Rust parameter whose type is an
   `<X>Input` (`[rules] input_suffix`) or an options struct (a name ending
   with one of `[rules] options_suffixes`) stands for its fields, each the

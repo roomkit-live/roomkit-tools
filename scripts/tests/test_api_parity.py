@@ -561,6 +561,43 @@ class Members(unittest.TestCase):
         report = run(items, {"pkg.Backend": {"__init__": ["def"]}})
         self.assertEqual(keys(report), {"rust kit::Backend::new (result)"})
 
+    LAZY = 'lazy_constructor = { python = "__init__", decision = "ref" }\n'
+    UNION = 'union_constructor = { prefix = "from_", decision = "ref" }\n'
+    ROOTED = method(
+        "new", ("root", "impl AsRef<Path>"), receiver=None, returns="Result<Self, E>", is_async=True
+    )
+
+    def test_a_lazy_constructor_stands_for_an_async_new(self):
+        """`[rules] lazy_constructor`: Python's synchronous `__init__`
+        resolves the root at first use, Rust's async `new` at once."""
+        items = [struct("kit::Session", methods=[self.ROOTED])]
+        specs = {"pkg.Session": {"__init__": ["def", "root"]}}
+        self.assertEqual(keys(run(items, specs, rules=self.LAZY)), set())
+        self.assertEqual(keys(run(items, specs)), {"rust kit::Session::new (async)"})
+
+    def test_from_a_paired_type_is_the_constructors_union_parameter(self):
+        """`[rules] union_constructor`: Python's `create(root | Workspace)`
+        is Rust's `new(root)` and `from_workspace(workspace)`."""
+        from_workspace = method(
+            "from_workspace", ("workspace", "Workspace"), receiver=None, returns="Self"
+        )
+        items = [
+            struct("kit::EditTool", methods=[self.ROOTED, from_workspace]),
+            struct("kit::Workspace", methods=[self.ROOTED]),
+        ]
+        specs = {
+            "pkg.EditTool": {
+                "__init__": ["def", "native"],
+                "create": ["async classmethod", "root"],
+            },
+            "pkg.Workspace": {"__init__": ["def", "root"]},
+        }
+        self.assertEqual(keys(run(items, specs, rules=self.LAZY + self.UNION)), set())
+        self.assertEqual(
+            keys(run(items, specs, rules=self.LAZY)),
+            {"rust kit::EditTool::from_workspace (unmatched)"},
+        )
+
     def test_items_and_names_on_one_side_only(self):
         items = [function("kit::helper", ("value", "&str"))]
         report = run(items, {"pkg.Extra": {"__init__": ["def"]}})

@@ -58,6 +58,15 @@ cancellation = "CancellationToken"
 # Python's async factory, the constructor of a class that resolves its
 # root: Python cannot await in __init__.
 factory = "create"
+# A class without that factory resolves its root at first use: Python's
+# synchronous __init__ (ProcessSession(root), Workspace(root),
+# OutputStore(...)) stands for Rust's async new, which reports an invalid
+# root earlier.
+lazy_constructor = { python = "__init__", decision = "luge-hitl:76e988fe Q6" }
+# Rust has no union parameter: Python's create(root | Workspace) is Rust's
+# new(root) and from_workspace(workspace), an associated from_<x> building
+# the type from a type Python names.
+union_constructor = { prefix = "from_", decision = "luge-hitl:76e988fe Q6" }
 # A builder, `with_<x>(self, value)`: one of a constructor's keywords.
 builder_prefix = "with_"
 # The RoomKit engine's tool protocol: Python's `definition` property and
@@ -353,30 +362,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::EditTool / roomkit_tools.EditTool: unmatched"
-covers = [
-  "rust roomkit_tools_fs::EditTool::from_workspace (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::Workspace / roomkit_tools.Workspace: async"
-covers = [
-  "rust roomkit_tools_fs::Workspace::new (async)",  # async in Rust, not in Python
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::PatchTool / roomkit_tools.PatchTool: unmatched"
-covers = [
-  "rust roomkit_tools_fs::PatchTool::from_workspace (unmatched)",  # no Python member
-]
-
-[[pending]]
-reason = "roomkit_tools_fs::WriteTool / roomkit_tools.WriteTool: unmatched"
-covers = [
-  "rust roomkit_tools_fs::WriteTool::from_workspace (unmatched)",  # no Python member
-]
-
-[[pending]]
 reason = "roomkit_tools_image::DecodedImage / no Python name: unmatched"
 covers = [
   "rust roomkit_tools_image::DecodedImage (unmatched)",  # no Python name
@@ -436,15 +421,8 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async"
+reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: unmatched (2)"
 covers = [
-  "rust roomkit_tools_process::OutputStore::new (async)",  # async in Rust, not in Python
-]
-
-[[pending]]
-reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: async, unmatched (2)"
-covers = [
-  "rust roomkit_tools_process::ProcessSession::new (async)",  # async in Rust, not in Python
   "rust roomkit_tools_process::ProcessSession::subscribe (unmatched)",  # no Python member
   "rust roomkit_tools_process::ProcessSession::observe (unmatched)",  # no Python member
 ]

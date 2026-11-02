@@ -43,7 +43,8 @@ def compare(
                 comparison.non_exhaustive(item, python)
         else:
             rust_path = f"{item['path']}::{method['name']}"
-            comparison.check_async(method, item["path"], spec, pairs, where=rust_path)
+            if not _lazy(comparison, member, spec, method, item):
+                comparison.check_async(method, item["path"], spec, pairs, where=rust_path)
             _returns(comparison, item, method, pairs)
             if _wraps(comparison, item, method, spec, pairs):
                 continue
@@ -84,6 +85,7 @@ def _targets(
         if new is not None:
             targets.append((item, new))
             used.add((item["path"], "new"))
+            used.update((item["path"], name) for name in _alternates(comparison, item))
         elif item["kind"] == "struct" and item.get("fields"):
             targets.append((item, None))
         elif python_params(spec):
@@ -92,6 +94,44 @@ def _targets(
                 "python", f"{python}.{member}", "unmatched", detail, item["path"], python
             )
     return targets
+
+
+def _lazy(comparison: Comparison, member: str, spec: list, method: dict, item: dict) -> bool:
+    """`[rules] lazy_constructor`: Python cannot await in `__init__`, so its
+    synchronous constructor resolves the root at first use and stands for
+    Rust's async `new`, which reports an invalid root earlier."""
+    return (
+        member == comparison.rules.setting("lazy_constructor", "python")
+        and not spec[0].startswith("async")
+        and comparison.rust.is_async(method, item["path"])
+    )
+
+
+def _alternates(comparison: Comparison, item: dict) -> list[str]:
+    """`[rules] union_constructor`: Rust has no union parameter, so Python's
+    `create(root | Workspace)` is `new(root)` and an associated
+    `from_workspace(workspace)` building the same type from a type Python
+    names."""
+    prefix = comparison.rules.setting("union_constructor", "prefix")
+    builds = re.compile(rf"\b(?:Self|{re.escape(item['path'].rpartition('::')[2])})\b")
+    found = []
+    for method in item.get("methods", []):
+        params = [p for p in method["params"] if not comparison.rust.is_cancellation(p)]
+        if (
+            prefix is None
+            or method["receiver"] is not None
+            or not method["name"].startswith(prefix)
+            or not builds.search(method.get("returns") or "")
+        ):
+            continue
+        source = (
+            comparison.surface.named("struct", base_type(params[0]["type"]), item["path"])
+            if len(params) == 1
+            else None
+        )
+        if source is not None and source["path"] in comparison.counterparts:
+            found.append(method["name"])
+    return found
 
 
 def _returns(comparison: Comparison, item: dict, method: dict, pairs: tuple) -> None:
