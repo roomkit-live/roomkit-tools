@@ -12,7 +12,10 @@ from unittest.mock import AsyncMock, patch
 from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
 from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
 from roomkit.tools.compose import extract_tools
-from roomkit_tools import WebSearch
+from roomkit_tools import (
+    WebSearch,
+    WebSearchTool,
+)
 from roomkit_tools.search import ExaSearch
 from search_helpers import SearchServer
 
@@ -167,8 +170,10 @@ class RoomKitSearchTests(unittest.IsolatedAsyncioTestCase):
     async def test_selected_tool_preserves_failures_and_does_not_register_fetch(self):
         async with SearchServer() as server:
             tool = WebSearch(
-                backend=ExaSearch(
-                    endpoint=server.origin + "/tool-error", private_origins=[server.origin]
+                WebSearchTool(
+                    backend=ExaSearch(
+                        endpoint=server.origin + "/tool-error", private_origins=[server.origin]
+                    )
                 )
             )
             definitions, handler = extract_tools([tool])

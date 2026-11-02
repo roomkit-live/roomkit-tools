@@ -43,7 +43,7 @@
     "definition": ["classmethod"]
   },
   "roomkit_tools.CodeOutline": {
-    "__init__": ["def", "root", "*", "max_file_bytes=None", "max_output_bytes=None", "max_symbols=None", "max_scan_symbols=None", "max_scan_nodes=None", "max_depth=None", "max_signature_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -65,7 +65,7 @@
     "definition": ["classmethod"]
   },
   "roomkit_tools.Diff": {
-    "__init__": ["def", "root", "*", "max_file_bytes=None", "max_lines=None", "max_comparison_cells=None", "max_output_bytes=None", "max_context_lines=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -112,7 +112,7 @@
     "definition": ["classmethod"]
   },
   "roomkit_tools.Edit": {
-    "__init__": ["def", "root", "*", "max_file_bytes=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -133,7 +133,7 @@
     "__bases__": ["bases", "roomkit_tools.ToolError"]
   },
   "roomkit_tools.Glob": {
-    "__init__": ["def", "root", "*", "max_matches=None", "max_output_bytes=None", "max_scan_entries=None", "max_depth=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -145,7 +145,7 @@
     "glob": ["async def", "pattern", "*", "path='.'", "offset=1", "limit=None"]
   },
   "roomkit_tools.Grep": {
-    "__init__": ["def", "root", "*", "max_matches=None", "max_output_bytes=None", "max_scan_entries=None", "max_depth=None", "max_file_bytes=None", "max_total_bytes=None", "max_context_lines=None", "max_line_bytes=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -163,7 +163,7 @@
     "__bases__": ["bases", "roomkit_tools.ToolError"]
   },
   "roomkit_tools.List": {
-    "__init__": ["def", "root", "*", "max_entries=None", "max_output_bytes=None", "max_scan_entries=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -183,7 +183,7 @@
     "update": ["async def", "scope", "*", "plan_id", "expected_revision", "title=None", "objective=None", "steps=None"]
   },
   "roomkit_tools.Ocr": {
-    "__init__": ["def", "root", "*", "backend", "max_file_bytes=None", "max_dimension=None", "max_pixels=None", "max_decode_bytes=None", "max_output_bytes=None", "max_blocks=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -218,7 +218,7 @@
     "read": ["async def", "archive_id", "*", "offset=0", "max_bytes=None", "owner=None"]
   },
   "roomkit_tools.Patch": {
-    "__init__": ["def", "root", "*", "max_changes=None", "max_input_bytes=None", "max_file_bytes=None", "max_lines=None", "max_comparison_cells=None", "max_output_bytes=None", "max_context_lines=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -328,7 +328,7 @@
     "handler": ["async def", "name", "arguments"]
   },
   "roomkit_tools.Read": {
-    "__init__": ["def", "root", "*", "max_file_bytes=None", "max_output_bytes=None", "max_lines=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -340,7 +340,7 @@
     "read": ["async def", "path", "*", "offset=1", "limit=None"]
   },
   "roomkit_tools.Shell": {
-    "__init__": ["def", "root", "*", "outputs=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_command_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -369,7 +369,7 @@
     "__bases__": ["bases", "roomkit_tools.ToolError"]
   },
   "roomkit_tools.ViewImage": {
-    "__init__": ["def", "root", "*", "max_file_bytes=None", "max_dimension=None", "max_pixels=None", "max_decode_bytes=None", "max_edge=None", "max_image_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -381,7 +381,7 @@
     "view": ["async def", "path", "*", "timeout_ms=None"]
   },
   "roomkit_tools.WebFetch": {
-    "__init__": ["def", "**configuration"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -393,7 +393,7 @@
     "fetch": ["async def", "url", "*", "format='markdown'", "timeout_ms=None"]
   },
   "roomkit_tools.WebSearch": {
-    "__init__": ["def", "*", "backend", "**configuration"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -408,7 +408,7 @@
     "__init__": ["def", "root"]
   },
   "roomkit_tools.Write": {
-    "__init__": ["def", "root", "*", "max_file_bytes=None"],
+    "__init__": ["def", "tool"],
     "definition": ["property"],
     "handler": ["async def", "name", "arguments"]
   },
@@ -421,11 +421,6 @@
   },
   "roomkit_tools.ocr.BoundOcrBackend": {
     "call": ["async def", "arguments"]
-  },
-  "roomkit_tools.roomkit.ReadToolAdapter": {
-    "__init__": ["def", "tool"],
-    "definition": ["property"],
-    "handler": ["async def", "name", "arguments"]
   },
   "roomkit_tools.roomkit_agents.AgentConfig": {
     "__init__": ["def", "provider_factory", "system_prompt", "tools_factory=<class 'list'>", "max_tool_rounds=12", "tool_timeout_seconds=30", "tool_loop_timeout_seconds=180"]

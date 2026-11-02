@@ -9,7 +9,10 @@ from pathlib import Path
 
 from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
 from roomkit.tools.compose import extract_tools
-from roomkit_tools import WebFetch
+from roomkit_tools import (
+    WebFetch,
+    WebFetchTool,
+)
 from web_helpers import WebServer
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples/roomkit_web.py"
@@ -27,7 +30,9 @@ class RoomKitWebTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_selected_tool_preserves_refusals_failures_and_http_status(self):
         async with WebServer() as server:
-            tool = WebFetch(allowed_origins=[server.origin], private_origins=[server.origin])
+            tool = WebFetch(
+                WebFetchTool(allowed_origins=[server.origin], private_origins=[server.origin])
+            )
             definitions, handler = extract_tools([tool])
             self.assertEqual([d.name for d in definitions], ["web_fetch"])
             with self.assertRaises(UnservedToolCallError):

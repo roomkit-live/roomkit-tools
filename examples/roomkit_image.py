@@ -31,7 +31,10 @@ from roomkit.providers.ai import (
     AIToolResultPart,
     MockAIProvider,
 )
-from roomkit_tools import ViewImage
+from roomkit_tools import (
+    ViewImage,
+    ViewImageTool,
+)
 
 
 def make_fixture(path):
@@ -136,7 +139,7 @@ async def run(root, *, live=False):
             AIChannel(
                 "assistant",
                 provider=live_provider() if live else ScriptedVision(),
-                tools=[ViewImage(root=root, max_edge=600)],
+                tools=[ViewImage(await ViewImageTool.create(root, max_edge=600))],
                 system_prompt="Use view_image to inspect the actual pixels before answering.",
             )
         )

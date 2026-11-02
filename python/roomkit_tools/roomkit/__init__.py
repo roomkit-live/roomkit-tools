@@ -13,7 +13,7 @@ from .commands import (
     roomkit_owner,
 )
 from .docs import DocsList, DocsRead, DocsSearch
-from .files import CodeOutline, Diff, Glob, Grep, List, Read, ReadToolAdapter
+from .files import CodeOutline, Diff, Glob, Grep, List, Read
 from .images import Ocr, ViewImage
 from .mutations import Edit, Patch, Write
 from .plans import PlanCreate, PlanDelete, PlanList, PlanRead, PlanUpdate
@@ -48,7 +48,6 @@ __all__ = [
     "ProcessStop",
     "ProcessWrite",
     "Read",
-    "ReadToolAdapter",
     "Shell",
     "TaskStatus",
     "ViewImage",

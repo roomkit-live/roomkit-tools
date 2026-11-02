@@ -44,7 +44,7 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
         (self.root / ".gitignore").write_text("catalog/\n")
         (self.root / "binary.dat").write_bytes(b"blue\0")
 
-    def test_schemas_and_configuration_need_no_roomkit(self) -> None:
+    async def test_schemas_and_adapters_need_no_roomkit(self) -> None:
         self.assertIsNone(importlib.util.find_spec("roomkit"))
         for wrapper, facade, native, name in [
             (ListTool, List, _native._ListTool, "list"),
@@ -57,12 +57,12 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(definition["name"], name)
                 self.assertFalse(definition["input_schema"]["additionalProperties"])
                 self.assertEqual(definition["input_schema"]["properties"]["offset"]["minimum"], 1)
-                configured = facade(self.root / "not-created")
+                configured = facade(await wrapper.create(self.root))
                 self.assertEqual(configured.definition["parameters"], definition["input_schema"])
                 definition["name"] = "changed"
                 self.assertEqual(configured.definition["name"], name)
-                with self.assertRaises(InvalidInputError):
-                    facade("")
+                with self.assertRaises(TypeError):
+                    facade(self.root)
 
     async def test_list_sorted_pages_include_hidden_entries_and_types(self) -> None:
         tool = await ListTool.create(self.root, max_entries=2)

@@ -15,10 +15,10 @@ encodings and binary resources produce an explicit unsupported-content error.
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import WebFetch
+from roomkit_tools import WebFetch, WebFetchTool
 
 # Add just this capability to an existing RoomKit agent.
-agent = AIChannel("agent", provider=provider, tools=[WebFetch()])
+agent = AIChannel("agent", provider=provider, tools=[WebFetch(WebFetchTool())])
 
 # Standalone async Python, with the same native implementation:
 from roomkit_tools import WebFetchTool
@@ -93,16 +93,16 @@ For RoomKit Python:
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import WebSearch, WebFetch
+from roomkit_tools import WebFetch, WebFetchTool, WebSearch, WebSearchTool
 from roomkit_tools.search import ExaSearch, OllamaSearch
 
 agent = AIChannel(
     "agent",
     provider=vllm_provider,  # Your existing model/provider.
-    tools=[WebSearch(backend=ExaSearch()), WebFetch()],
+    tools=[WebSearch(WebSearchTool(backend=ExaSearch())), WebFetch(WebFetchTool())],
 )
 # Or select the hosted Ollama search API with an explicit account key:
-# tools=[WebSearch(backend=OllamaSearch(api_key=search_key))]
+# tools=[WebSearch(WebSearchTool(backend=OllamaSearch(api_key=search_key)))]
 ```
 
 `ExaSearch` uses [Exa's hosted MCP endpoint](https://exa.ai/mcp) with optional `api_key`; anonymous
@@ -149,15 +149,15 @@ clipping citations. Optional `usage` contains provider-reported counters only.
 [Responses web-search request](https://developers.openai.com/api/docs/guides/tools-web-search):
 
 ```python
-from roomkit_tools import WebSearch
+from roomkit_tools import WebSearch, WebSearchTool
 from roomkit_tools.search import OpenAISearch
 
-tools = [WebSearch(backend=OpenAISearch(
+tools = [WebSearch(WebSearchTool(backend=OpenAISearch(
     api_key=search_key,
     model=search_model,          # Explicit model supporting Responses web search.
     max_tool_calls=1,
     max_output_tokens=2048,
-))]
+)))]
 ```
 
 The model performs a required web search and generates an answer. The adapter

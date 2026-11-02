@@ -19,7 +19,17 @@ from roomkit.models.room import Room
 from roomkit.providers.ai.base import AIResponse, AIToolCall, AIToolResultPart
 from roomkit.providers.ai.mock import MockAIProvider
 from roomkit.tools.compose import extract_tools
-from roomkit_tools import Edit, EditTool, Read, ToolIOError, Workspace, Write, WriteTool
+from roomkit_tools import (
+    Edit,
+    EditTool,
+    InvalidInputError,
+    Read,
+    ReadTool,
+    ToolIOError,
+    Workspace,
+    Write,
+    WriteTool,
+)
 
 
 class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
@@ -30,7 +40,12 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
         self.workspace = Workspace(self.root)
 
     async def test_selection_schema_error_mapping_and_revision_chaining(self) -> None:
-        definitions, handler = extract_tools([Write(self.workspace), Edit(self.workspace)])
+        definitions, handler = extract_tools(
+            [
+                Write(await WriteTool.create(self.workspace)),
+                Edit(await EditTool.create(self.workspace)),
+            ]
+        )
         self.assertEqual([definition.name for definition in definitions], ["write", "edit"])
         self.assertEqual(definitions[0].parameters, WriteTool.definition()["input_schema"])
         self.assertEqual(definitions[1].parameters, EditTool.definition()["input_schema"])
@@ -70,20 +85,21 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ToolIOError):
             await handler("edit", {"path": "missing", "old_text": "a", "new_text": "b"})
         with self.assertRaises(ToolFailedError):
-            await Write(self.workspace, max_file_bytes=1).handler(
+            await Write(await WriteTool.create(self.workspace, max_file_bytes=1)).handler(
                 "write", {"path": "large.txt", "content": "ab"}
             )
-        with self.assertRaises(ToolRefusedError):
-            await Write(self.workspace, max_file_bytes=0).handler(
-                "write", {"path": "invalid.txt", "content": "a"}
-            )
+        with self.assertRaises(InvalidInputError):
+            await WriteTool.create(self.workspace, max_file_bytes=0)
         self.assertEqual((self.root / "orders.txt").read_text(), "value: 3\n")
 
     async def test_concurrent_first_calls_share_one_mutation_scope(self) -> None:
         before = b"old\n"
         (self.root / "file.txt").write_bytes(before)
         revision = "sha256:" + hashlib.sha256(before).hexdigest()
-        write, edit = Write(self.workspace), Edit(self.workspace)
+        write, edit = (
+            Write(await WriteTool.create(self.workspace)),
+            Edit(await EditTool.create(self.workspace)),
+        )
         results = await asyncio.gather(
             write.handler(
                 "write",
@@ -109,13 +125,16 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sum(isinstance(result, ToolRefusedError) for result in results), 1)
         self.assertIn((self.root / "file.txt").read_text(), {"written\n", "edited\n"})
 
-    async def test_missing_root_initialization_can_be_retried(self) -> None:
+    async def test_a_missing_root_can_be_retried_with_the_same_workspace(self) -> None:
         root = self.root / "later"
         workspace = Workspace(root)
-        write, edit = Write(workspace), Edit(workspace)
         with self.assertRaises(ToolIOError):
-            await write.handler("write", {"path": "file.txt", "content": "old"})
+            await WriteTool.create(workspace)
         root.mkdir()
+        write, edit = (
+            Write(await WriteTool.create(workspace)),
+            Edit(await EditTool.create(workspace)),
+        )
         await write.handler("write", {"path": "file.txt", "content": "old"})
         await edit.handler("edit", {"path": "file.txt", "old_text": "old", "new_text": "new"})
         self.assertEqual((root / "file.txt").read_text(), "new")
@@ -154,9 +173,9 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
             "agent",
             provider=provider,
             tools=[
-                Read(self.workspace),
-                Write(self.workspace),
-                Edit(self.workspace),
+                Read(await ReadTool.create(self.workspace)),
+                Write(await WriteTool.create(self.workspace)),
+                Edit(await EditTool.create(self.workspace)),
             ],
         )
         binding = ChannelBinding(
@@ -199,10 +218,11 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
 
 
 class MutationLifecycleTests(unittest.TestCase):
-    def test_synchronous_facades_and_shared_workspace_work_across_event_loops(self) -> None:
+    def test_adapters_and_shared_workspace_work_across_event_loops(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             workspace = Workspace(directory)
-            write, edit = Write(workspace), Edit(workspace)
+            write = Write(asyncio.run(WriteTool.create(workspace)))
+            edit = Edit(asyncio.run(EditTool.create(workspace)))
             asyncio.run(write.handler("write", {"path": "file.txt", "content": "old"}))
             asyncio.run(
                 edit.handler("edit", {"path": "file.txt", "old_text": "old", "new_text": "new"})

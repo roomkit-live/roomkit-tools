@@ -29,7 +29,12 @@ from roomkit import (
 )
 from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
 from roomkit.providers.ai.base import AIContext, AIToolResultPart
-from roomkit_tools import OutputRead, OutputStore, Shell
+from roomkit_tools import (
+    OutputRead,
+    OutputStore,
+    Shell,
+    ShellTool,
+)
 
 MIDDLE = "\nBuild error: missing dependency\n"
 OFFSET = 65_536
@@ -102,7 +107,10 @@ async def run(root: Path, provider) -> list[ToolCallEvent]:
             "agent",
             provider=provider,
             max_tool_rounds=6,
-            tools=[Shell(root, outputs=outputs, max_output_bytes=16), OutputRead(outputs)],
+            tools=[
+                Shell(await ShellTool.create(root, outputs=outputs, max_output_bytes=16)),
+                OutputRead(outputs),
+            ],
             system_prompt=f"You inspect a prepared diagnostic log in {root}. {TASK}",
         )
         kit.register_channel(agent)

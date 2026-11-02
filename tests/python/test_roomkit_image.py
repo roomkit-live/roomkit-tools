@@ -23,7 +23,10 @@ from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedT
 from roomkit.providers.ai import AIImagePart, AITextPart
 from roomkit.providers.vllm import VLLMConfig, create_vllm_provider
 from roomkit.tools.compose import extract_tools
-from roomkit_tools import ViewImage
+from roomkit_tools import (
+    ViewImage,
+    ViewImageTool,
+)
 from test_image import FIXTURE
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples/roomkit_image.py"
@@ -39,17 +42,15 @@ class RoomKitImageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([e.name for e in calls], ["view_image"])
         self.assertIn("actual image part", replies[-1])
 
-    async def test_selection_failures_and_concurrent_initialization(self):
+    async def test_selection_and_failures(self):
         with tempfile.TemporaryDirectory() as root:
             await asyncio.to_thread(
                 Path(root, "picture.png").write_bytes,
                 base64.b64decode(FIXTURE["files"]["colors.png"]),
             )
-            tool = ViewImage(root)
+            tool = ViewImage(await ViewImageTool.create(root))
             definitions, handler = extract_tools([tool])
             self.assertEqual([d.name for d in definitions], ["view_image"])
-            instances = await asyncio.gather(*(tool._get_tool() for _ in range(4)))
-            self.assertTrue(all(t is instances[0] for t in instances))
             parts = await handler("view_image", {"path": "picture.png"})
             self.assertIsInstance(parts[0], AITextPart)
             self.assertIsInstance(parts[1], AIImagePart)
@@ -60,7 +61,7 @@ class RoomKitImageTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ToolRefusedError):
                 await handler("view_image", {"path": ""})
             with self.assertRaises(ToolFailedError):
-                await ViewImage(root, max_image_bytes=1).handler(
+                await ViewImage(await ViewImageTool.create(root, max_image_bytes=1)).handler(
                     "view_image", {"path": "picture.png"}
                 )
 
@@ -126,7 +127,11 @@ class RoomKitImageTests(unittest.IsolatedAsyncioTestCase):
                 )
                 await kit.create_room(room_id="vision")
                 kit.register_channel(
-                    AIChannel("assistant", provider=provider, tools=[ViewImage(root)])
+                    AIChannel(
+                        "assistant",
+                        provider=provider,
+                        tools=[ViewImage(await ViewImageTool.create(root))],
+                    )
                 )
                 user = WebSocketChannel("user")
 

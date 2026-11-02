@@ -13,7 +13,13 @@ from pathlib import Path
 
 from roomkit.core.exceptions import ToolRefusedError
 from roomkit.tools.compose import extract_tools
-from roomkit_tools import AccessRefusedError, InvalidInputError, LimitExceededError, Ocr, OcrTool
+from roomkit_tools import (
+    AccessRefusedError,
+    InvalidInputError,
+    LimitExceededError,
+    Ocr,
+    OcrTool,
+)
 from roomkit_tools_ocr_rusto import RustoOcr
 
 ROOT = Path(os.environ["ROOMKIT_OCR_SOURCE"])
@@ -46,7 +52,9 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
             task.cancel()
             with self.assertRaises(asyncio.CancelledError):
                 await task
-            definitions, handler = extract_tools([Ocr(FIXTURES, backend=backend)])
+            definitions, handler = extract_tools(
+                [Ocr(await OcrTool.create(FIXTURES, backend=backend))]
+            )
             self.assertEqual([d.name for d in definitions], ["ocr"])
             with self.assertRaises(ToolRefusedError):
                 await handler("ocr", {"path": "page.png", "rotation_degrees": 45})
@@ -77,7 +85,7 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(small["data"]["blocks"]), 1)
         self.assertEqual(small["data"]["omitted_blocks"], 4)
         self.assertTrue(small["data"]["truncated"])
-        _, handler = extract_tools([Ocr(FIXTURES, backend=backend)])
+        _, handler = extract_tools([Ocr(await OcrTool.create(FIXTURES, backend=backend))])
         self.assertEqual(json.loads(await handler("ocr", {"path": "page.png"})), result)
         self.assertEqual(await asyncio.to_thread((FIXTURES / "page.png").read_bytes), original)
 

@@ -18,8 +18,9 @@ function and an existing `./workspace` directory.
 
 ## Shared mutation scope
 
-`Workspace` is an explicit shared root and mutation scope. Passing the same
-object to `Write`, `Edit` and `Patch` serializes their read/prepare/commit operations,
+`Workspace` is an explicit shared root and mutation scope. Building `WriteTool`,
+`EditTool` and `PatchTool`, and their RoomKit `Write`, `Edit` and `Patch`, from
+the same object serializes their read/prepare/commit operations,
 including concurrent first calls and reuse across event loops. Read-only tools
 accept it as a path and do not acquire that lock. A plain path also works, but
 each mutation tool then owns an independent scope; equal path strings do not

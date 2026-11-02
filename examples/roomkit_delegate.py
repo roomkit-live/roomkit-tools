@@ -29,6 +29,7 @@ from roomkit_tools import (
     DelegateTask,
     DelegateTaskTool,
     Read,
+    ReadTool,
 )
 from roomkit_tools.roomkit_agents import AgentConfig, RoomKitAgentBackend
 
@@ -68,6 +69,7 @@ async def main(root, *, live=False):
             if event.name == "read" and not event.is_error:
                 reads.append(json.loads(event.result))
 
+        reader = await ReadTool.create(root)
         async with RoomKitAgentBackend(
             kit,
             scope=scope,
@@ -81,7 +83,7 @@ async def main(root, *, live=False):
                         ],
                     ),
                     system_prompt="Read notes.txt with read, then report its actual contents.",
-                    tools_factory=lambda: [Read(root=root)],
+                    tools_factory=lambda: [Read(reader)],
                 )
             },
         ) as agents:

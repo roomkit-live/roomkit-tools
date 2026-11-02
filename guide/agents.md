@@ -37,12 +37,14 @@ child rooms and `kit.deliver()` relay. Configure it once and select tools:
 from roomkit import AIChannel
 from roomkit_tools import (
     AgentFollowup, AgentFollowupTool, AgentScope, AgentSend, AgentSendTool, CancelTask,
-    CancelTaskTool, DelegateTask, DelegateTaskTool, Read, TaskStatus, TaskStatusTool,
+    CancelTaskTool, DelegateTask, DelegateTaskTool, Read, ReadTool, TaskStatus,
+    TaskStatusTool,
 )
 from roomkit_tools.roomkit_agents import AgentConfig, RoomKitAgentBackend
 
 # kit and its "conversation" room already exist. The host supplies factories
 # returning fresh AIProvider instances, configured with its model/credentials.
+reader = await ReadTool.create("./project")  # Built once; each agent gets an adapter.
 async with RoomKitAgentBackend(
     kit,
     scope=AgentScope("conversation", "assistant"),
@@ -50,7 +52,7 @@ async with RoomKitAgentBackend(
         "researcher": AgentConfig(
             provider_factory=make_worker_provider,
             system_prompt="Analyze source using the supplied tools. Do not modify files.",
-            tools_factory=lambda: [Read(root="./project")],
+            tools_factory=lambda: [Read(reader)],
         ),
     },
 ) as agents:
@@ -116,7 +118,7 @@ async def resolve_agent(request):
     return AgentConfig(
         provider_factory=make_worker_provider,
         system_prompt="Inspect the requested source and report observed facts.",
-        tools_factory=lambda: [Read(root="./project")],
+        tools_factory=lambda: [Read(reader)],  # A ReadTool the host built once.
     )
 
 agents = RoomKitAgentBackend(

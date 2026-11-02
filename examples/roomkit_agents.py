@@ -40,10 +40,13 @@ from roomkit_tools import (
     CancelTask,
     CancelTaskTool,
     CodeOutline,
+    CodeOutlineTool,
     DelegateTask,
     DelegateTaskTool,
     Grep,
+    GrepTool,
     Read,
+    ReadTool,
     TaskStatus,
     TaskStatusTool,
     ToolError,
@@ -182,8 +185,8 @@ class TurnDiagnostics:
 class PausedRead:
     """An instance-owned demo gate; the actual Read tool stays unchanged."""
 
-    def __init__(self, root, *, held):
-        self.read = Read(root=root)
+    def __init__(self, tool, *, held):
+        self.read = Read(tool)
         self.release = asyncio.Event()
         self.entered = asyncio.Event()
         self.agent_id = None
@@ -377,9 +380,13 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False, parall
     provider_factory = live_provider if live or chat else ScriptedWorker
     held = held or parallel
     parallel_result = None
+    # The host builds each tool once; every agent instance gets its own adapters.
+    reader = await ReadTool.create(root)
+    outliner = await CodeOutlineTool.create(root)
+    searcher = await GrepTool.create(root)
 
     def paused_read():
-        pause = PausedRead(root, held=held)
+        pause = PausedRead(reader, held=held)
         pauses.append(pause)
         return pause
 
@@ -395,7 +402,7 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False, parall
                 "You have no mutation or delegation tools."
             ),
             tools_factory=(
-                (lambda: [paused_read(), CodeOutline(root=root), Grep(root=root)])
+                (lambda: [paused_read(), CodeOutline(outliner), Grep(searcher)])
                 if profile == "researcher"
                 else (lambda: [paused_read()])
             ),

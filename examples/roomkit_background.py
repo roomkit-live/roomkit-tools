@@ -31,7 +31,15 @@ from roomkit import (
 from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
 from roomkit.providers.ai.base import AIToolResultPart
 from roomkit.tools.context import current_tool_room_id
-from roomkit_tools import CodeOutline, Grep, Read, Workspace
+from roomkit_tools import (
+    CodeOutline,
+    CodeOutlineTool,
+    Grep,
+    GrepTool,
+    Read,
+    ReadTool,
+    Workspace,
+)
 
 ROOM = "background-demo"
 SOURCE = '''class ShippingService:
@@ -189,13 +197,21 @@ class BackgroundDemo:
         self.reservation = None
         self.closing = False
         self.changed = asyncio.Event()
-        workspace = Workspace(root)
-        self.gate = OutlineGate(CodeOutline(workspace), held, self.changed)
-        self.worker_tools = [self.gate, Grep(workspace), Read(workspace)]
+        self.held = held
+        self.gate = None
+        self.worker_tools = []
 
     async def open(self):
         require(not any(self.root.iterdir()), "the temporary project must be empty")
         (self.root / "shipping.py").write_text(SOURCE)
+        workspace = Workspace(self.root)
+        outline = CodeOutline(await CodeOutlineTool.create(workspace))
+        self.gate = OutlineGate(outline, self.held, self.changed)
+        self.worker_tools = [
+            self.gate,
+            Grep(await GrepTool.create(workspace)),
+            Read(await ReadTool.create(workspace)),
+        ]
         assistant = AIChannel(
             "assistant",
             provider=self.speaker,

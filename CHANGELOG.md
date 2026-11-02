@@ -92,6 +92,15 @@ part of an existing published preview.
   `DocsListTool.definition()`; likewise `DocsSearch`, `DocsRead`, `PlanCreate`,
   `PlanRead`, `PlanList`, `PlanUpdate`, `PlanDelete`, `DelegateTask`,
   `TaskStatus`, `CancelTask`, `AgentFollowup` and `AgentSend`.
+- Python: the RoomKit adapters take a built tool, as Rust's do:
+  `Read(root, max_lines=200)` is `Read(await ReadTool.create(root,
+  max_lines=200))`, and likewise `List`, `Glob`, `Grep`, `Diff`, `Edit`,
+  `Write`, `Patch`, `CodeOutline`, `Shell`, `ViewImage`, `Ocr`
+  (`Ocr(await OcrTool.create(root, backend=backend))`), `WebFetch`
+  (`WebFetch(WebFetchTool(...))`) and `WebSearch`
+  (`WebSearch(WebSearchTool(backend=...))`). A root or limit is checked when
+  the tool is built rather than at the first call; `ReadToolAdapter`, which
+  took a built `ReadTool`, is `Read`.
 - Rust RoomKit adapter: each adapter takes the name of its Python RoomKit
   tool, `<X>Toolset` becoming `<X>`: `ReadToolset::new(tool)` is
   `Read::new(tool)`, and likewise `List`, `Glob`, `Grep`, `Diff`, `Edit`,

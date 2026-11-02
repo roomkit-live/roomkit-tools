@@ -43,9 +43,8 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(definition["input_schema"]["additionalProperties"])
         self.assertIn("output_complete", definition["output_schema"]["properties"])
-        facade = Shell(Workspace(self.root / "later"))
+        facade = Shell(self.tool)
         self.assertEqual(facade.definition["parameters"], definition["input_schema"])
-        self.assertFalse((self.root / "later").exists())
         definition["name"] = "changed"
         self.assertEqual(ShellTool.definition()["name"], "shell")
 
@@ -276,8 +275,6 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(options=options):
                 with self.assertRaises(InvalidInputError):
                     await ShellTool.create(self.root, **options)
-                with self.assertRaises(InvalidInputError):
-                    Shell(self.root, **options)
         for options in [{"inherit_env": "PATH"}, {"env": {"NAME": 1}}, {"env": [("A", "B")]}]:
             with self.subTest(options=options):
                 with self.assertRaises(TypeError):
@@ -285,21 +282,14 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ShellLifecycleTests(unittest.TestCase):
-    def test_root_retry_relative_capture_and_reuse_across_loops(self) -> None:
+    def test_root_retry_and_reuse_across_loops(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "later"
-            cwd = Path.cwd()
-            try:
-                os.chdir(directory)
-                facade = Shell("later")
-            finally:
-                os.chdir(cwd)
             with self.assertRaises(ToolIOError):
                 asyncio.run(ShellTool.create(root))
             root.mkdir()
             tool = asyncio.run(ShellTool.create(root))
             self.assertEqual(asyncio.run(tool.shell("pwd"))["data"]["cwd"], str(root))
-            self.assertEqual(facade._root, str(root))
             self.assertEqual(
                 asyncio.run(tool.shell("printf reuse"))["data"]["stdout"]["text"], "reuse"
             )

@@ -8,12 +8,12 @@ Select it directly in a RoomKit Python agent with a vision-capable provider:
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import ViewImage
+from roomkit_tools import ViewImage, ViewImageTool
 
 agent = AIChannel(
     "assistant",
     provider=vision_provider,  # A configured RoomKit provider/model accepting images.
-    tools=[ViewImage(root="./workspace", max_edge=2048)],
+    tools=[ViewImage(await ViewImageTool.create("./workspace", max_edge=2048))],
 )
 ```
 

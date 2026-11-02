@@ -28,7 +28,10 @@ from roomkit import (
     WebSocketChannel,
 )
 from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
-from roomkit_tools import WebFetch
+from roomkit_tools import (
+    WebFetch,
+    WebFetchTool,
+)
 
 PAGE = (
     "<html><head><title>Shipping guide</title></head><body>"
@@ -122,7 +125,7 @@ async def run(provider=None):
                 "agent",
                 provider=provider,
                 max_tool_rounds=4,
-                tools=[WebFetch(allowed_origins=[origin], private_origins=[origin])],
+                tools=[WebFetch(WebFetchTool(allowed_origins=[origin], private_origins=[origin]))],
                 system_prompt="You inspect documentation using web_fetch. " + prompt,
             )
         )

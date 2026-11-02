@@ -35,7 +35,19 @@ from roomkit import (
 )
 from roomkit.providers.ai import AIProvider, AIResponse, AIToolCall, MockAIProvider
 from roomkit.providers.ai.base import AIContext, AIToolResultPart
-from roomkit_tools import Diff, Edit, Grep, Read, Shell, ShellTool, Workspace
+from roomkit_tools import (
+    Diff,
+    DiffTool,
+    Edit,
+    EditTool,
+    Grep,
+    GrepTool,
+    Read,
+    ReadTool,
+    Shell,
+    ShellTool,
+    Workspace,
+)
 
 SOURCE = '''def shipping_fee(subtotal: int) -> int:
     """Shipping is free for orders of 50 units or more."""
@@ -282,11 +294,11 @@ async def run(
         temperature=0,
         max_tool_rounds=16,
         tools=[
-            Grep(workspace),
-            Read(workspace),
-            Edit(workspace),
-            Diff(workspace),
-            Shell(workspace),
+            Grep(await GrepTool.create(workspace)),
+            Read(await ReadTool.create(workspace)),
+            Edit(await EditTool.create(workspace)),
+            Diff(await DiffTool.create(workspace)),
+            Shell(await ShellTool.create(workspace)),
         ],
         system_prompt=(
             f"Your project root is {root}; all four fixture files are directly inside it. "

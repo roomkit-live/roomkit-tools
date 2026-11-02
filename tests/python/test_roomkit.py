@@ -9,7 +9,6 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from roomkit import AIChannel
 from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
@@ -33,6 +32,7 @@ from roomkit_tools import (
     GlobTool,
     Grep,
     GrepTool,
+    InvalidInputError,
     List,
     ListTool,
     Patch,
@@ -45,16 +45,6 @@ from roomkit_tools import (
     Write,
     WriteTool,
 )
-from roomkit_tools.roomkit import ReadToolAdapter
-
-
-def keyword_options(function) -> list[str]:
-    """Keyword-only parameter names; a catch-all appears as **name."""
-    return [
-        f"**{p.name}" if p.kind is inspect.Parameter.VAR_KEYWORD else p.name
-        for p in inspect.signature(function).parameters.values()
-        if p.kind in (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD)
-    ]
 
 
 class RoomKitTests(unittest.IsolatedAsyncioTestCase):
@@ -64,7 +54,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         self.root = Path(directory.name)
         (self.root / "source.txt").write_text("first\nsecond\n")
         self.tool = await ReadTool.create(self.root)
-        self.adapter = ReadToolAdapter(self.tool)
+        self.adapter = Read(self.tool)
 
     async def test_protocol_selection_schema_and_structured_result(self) -> None:
         self.assertIsInstance(self.adapter, Tool)
@@ -80,7 +70,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
     async def test_refusal_failure_and_io_are_distinct(self) -> None:
         child = self.root / "child"
         child.mkdir()
-        adapter = ReadToolAdapter(await ReadTool.create(child))
+        adapter = Read(await ReadTool.create(child))
         with self.assertRaises(ToolRefusedError):
             await adapter.handler("read", {"path": "../source.txt"})
         for arguments in [{"path": "source.txt", "offset": 0}]:
@@ -92,7 +82,9 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ToolIOError):
             await self.adapter.handler("read", {"path": "missing"})
 
-    def test_adapters_take_the_standalone_limits_by_keyword(self) -> None:
+    async def test_adapters_take_a_built_tool(self) -> None:
+        """Each adapter wraps a built tool, as Rust's `Read::new(tool)`: the
+        tool takes the root and limits, never the adapter."""
         for adapter, standalone in [
             (ViewImage, ViewImageTool),
             (CodeOutline, CodeOutlineTool),
@@ -106,13 +98,19 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
             (Patch, PatchTool),
         ]:
             with self.subTest(adapter=adapter.__name__):
-                self.assertEqual(keyword_options(adapter), keyword_options(standalone.create))
-                # A misspelled limit fails at construction, not on every model call.
-                with self.assertRaises(TypeError):
-                    adapter(self.root, max_pixel=1)
+                self.assertEqual(list(inspect.signature(adapter).parameters), ["tool"])
+                built = adapter(await standalone.create(self.root))
+                self.assertEqual(built.definition["name"], standalone.definition()["name"])
+                for wrong in (
+                    self.root,
+                    str(self.root),
+                    self.tool if adapter is not Read else None,
+                ):
+                    with self.assertRaises(TypeError):
+                        adapter(wrong)
 
     async def test_direct_tool_protocol_schema_and_limits(self) -> None:
-        tool = Read(self.root, max_lines=1)
+        tool = Read(await ReadTool.create(self.root, max_lines=1))
         self.assertIsInstance(tool, Tool)
         definitions, handler = extract_tools([tool])
         self.assertEqual(definitions[0].parameters, ReadTool.definition()["input_schema"])
@@ -120,32 +118,18 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["text"], "1: first\n")
         self.assertEqual(result["data"]["next_offset"], 2)
         with self.assertRaises(ToolFailedError):
-            await Read(self.root, max_file_bytes=1).handler("read", {"path": "source.txt"})
-        with self.assertRaises(ToolRefusedError):
-            await Read(self.root, max_lines=0).handler("read", {"path": "source.txt"})
-
-    async def test_initialization_failure_can_be_retried(self) -> None:
-        child = self.root / "later"
-        tool = Read(child)
-        with self.assertRaises(UnservedToolCallError):
-            await tool.handler("write", {})
-        with self.assertRaises(ToolIOError):
-            await tool.handler("read", {"path": "source.txt"})
-        child.mkdir()
-        (child / "source.txt").write_text("ready\n")
-        self.assertEqual(
-            json.loads(await tool.handler("read", {"path": "source.txt"}))["text"], "1: ready\n"
-        )
-        with self.assertRaises(ToolRefusedError):
-            await tool.handler("read", {"path": "../source.txt"})
-        with self.assertRaises(ToolRefusedError):
-            await Read(child / "source.txt").handler("read", {"path": "source.txt"})
+            await Read(await ReadTool.create(self.root, max_file_bytes=1)).handler(
+                "read", {"path": "source.txt"}
+            )
+        # Invalid limits fail when the tool is built, before any adapter.
+        with self.assertRaises(InvalidInputError):
+            await ReadTool.create(self.root, max_lines=0)
 
     async def test_relative_root_is_captured_before_first_call(self) -> None:
         cwd = Path.cwd()
         try:
             os.chdir(self.root)
-            tool = Read(".")
+            tool = Read(await ReadTool.create("."))
         finally:
             os.chdir(cwd)
         self.assertEqual(
@@ -153,39 +137,6 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
             "1: first\n2: second\n",
         )
         self.assertEqual(Path.cwd(), cwd)
-
-    async def test_cancelled_initialization_does_not_poison_concurrent_calls(self) -> None:
-        tool = Read(self.root)
-        original_create = ReadTool.create
-        started = asyncio.Event()
-        proceed = asyncio.Event()
-
-        async def delayed_create(*args, **kwargs):
-            started.set()
-            await proceed.wait()
-            return await original_create(*args, **kwargs)
-
-        with patch.object(ReadTool, "create", side_effect=delayed_create):
-            first = asyncio.create_task(tool.handler("read", {"path": "source.txt"}))
-            second = None
-            try:
-                await asyncio.wait_for(started.wait(), 5)
-                second = asyncio.create_task(tool.handler("read", {"path": "source.txt"}))
-                await asyncio.sleep(0)
-                first.cancel()
-                with self.assertRaises(asyncio.CancelledError):
-                    await first
-                proceed.set()
-                result = json.loads(await asyncio.wait_for(second, 5))
-                self.assertEqual(result["text"], "1: first\n2: second\n")
-            finally:
-                first.cancel()
-                tasks = [first]
-                if second is not None:
-                    second.cancel()
-                    tasks.append(second)
-                await asyncio.gather(*tasks, return_exceptions=True)
-        self.assertEqual(json.loads(await tool.handler("read", {"path": "source.txt"})), result)
 
     async def test_real_agent_turn_receives_the_native_result(self) -> None:
         provider = MockAIProvider(
@@ -201,7 +152,9 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
             ],
             streaming=False,
         )
-        channel = AIChannel("agent", provider=provider, tools=[Read(root=self.root)])
+        channel = AIChannel(
+            "agent", provider=provider, tools=[Read(await ReadTool.create(self.root))]
+        )
         binding = ChannelBinding(
             room_id="test-room",
             channel_id="agent",
@@ -236,7 +189,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_handler_preserves_asyncio_cancellation(self) -> None:
         (self.root / "large.txt").write_bytes(b"line\n" * (6 * 1024 * 1024))
-        adapter = Read(self.root, max_file_bytes=32 * 1024 * 1024)
+        adapter = Read(await ReadTool.create(self.root, max_file_bytes=32 * 1024 * 1024))
         task = asyncio.create_task(adapter.handler("read", {"path": "large.txt"}))
         await asyncio.sleep(0)
         self.assertFalse(task.done())
@@ -254,7 +207,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
             (Grep, GrepTool, "grep", {"pattern": "second", "context_before": 1}),
         ]:
             with self.subTest(tool=name):
-                definitions, handler = extract_tools([facade(self.root)])
+                definitions, handler = extract_tools([facade(await standalone.create(self.root))])
                 self.assertEqual([definition.name for definition in definitions], [name])
                 self.assertEqual(definitions[0].parameters, standalone.definition()["input_schema"])
                 native = await standalone.create(self.root)
@@ -269,29 +222,31 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
                     await handler(name, {**arguments, "path": ".."})
                 with self.assertRaises(ToolIOError):
                     await handler(name, {**arguments, "path": "missing"})
+                limited = facade(await standalone.create(self.root, max_output_bytes=1))
                 with self.assertRaises(ToolFailedError):
-                    await facade(self.root, max_output_bytes=1).handler(name, arguments)
-                with self.assertRaises(ToolRefusedError):
-                    await facade(self.root, max_output_bytes=0).handler(name, arguments)
+                    await limited.handler(name, arguments)
+                with self.assertRaises(InvalidInputError):
+                    await standalone.create(self.root, max_output_bytes=0)
         with self.assertRaises(ToolFailedError):
-            await Grep(self.root, max_context_lines=0).handler(
+            await Grep(await GrepTool.create(self.root, max_context_lines=0)).handler(
                 "grep", {"pattern": "second", "context_before": 1}
             )
 
-    async def test_discovery_roots_are_independent_and_initialization_is_retryable(self) -> None:
+    async def test_discovery_roots_are_independent(self) -> None:
         child = self.root / "later"
-        for facade, name, arguments in [
-            (List, "list", {}),
-            (Glob, "glob", {"pattern": "*.txt"}),
-            (Grep, "grep", {"pattern": "second"}),
+        for facade, standalone, name, arguments in [
+            (List, ListTool, "list", {}),
+            (Glob, GlobTool, "glob", {"pattern": "*.txt"}),
+            (Grep, GrepTool, "grep", {"pattern": "second"}),
         ]:
-            tool = facade(child)
             with self.assertRaises(ToolIOError):
-                await tool.handler(name, arguments)
+                await standalone.create(child)
             child.mkdir()
             try:
+                tool = facade(await standalone.create(child))
+                outer = facade(await standalone.create(self.root))
                 nested = json.loads(await tool.handler(name, arguments))
-                outer = json.loads(await facade(self.root).handler(name, arguments))
+                outer = json.loads(await outer.handler(name, arguments))
                 key = "matches" if name == "grep" else "entries"
                 self.assertEqual(nested["data"][key], [])
                 self.assertNotEqual(outer["data"][key], [])
@@ -323,10 +278,10 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
             "agent",
             provider=provider,
             tools=[
-                Read(self.root),
-                List(self.root),
-                Glob(self.root),
-                Grep(self.root),
+                Read(await ReadTool.create(self.root)),
+                List(await ListTool.create(self.root)),
+                Glob(await GlobTool.create(self.root)),
+                Grep(await GrepTool.create(self.root)),
             ],
         )
         binding = ChannelBinding(
@@ -370,10 +325,10 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ReadLifecycleTests(unittest.TestCase):
-    def test_sync_construction_and_reuse_across_event_loops(self) -> None:
+    def test_an_adapter_is_reused_across_event_loops(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "source.txt"
-            tool = Read(root=directory)
+            tool = Read(asyncio.run(ReadTool.create(directory)))
             for index in range(3):
                 source.write_text(f"value {index}\n")
                 result = json.loads(asyncio.run(tool.handler("read", {"path": "source.txt"})))
@@ -382,12 +337,12 @@ class ReadLifecycleTests(unittest.TestCase):
     def test_discovery_facades_can_be_used_across_event_loops(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "source.txt").write_text("value\n")
-            for facade, name, arguments in [
-                (List, "list", {}),
-                (Glob, "glob", {"pattern": "*.txt"}),
-                (Grep, "grep", {"pattern": "value"}),
+            for facade, standalone, name, arguments in [
+                (List, ListTool, "list", {}),
+                (Glob, GlobTool, "glob", {"pattern": "*.txt"}),
+                (Grep, GrepTool, "grep", {"pattern": "value"}),
             ]:
-                tool = facade(directory)
+                tool = facade(asyncio.run(standalone.create(directory)))
                 first = asyncio.run(tool.handler(name, arguments))
                 second = asyncio.run(tool.handler(name, arguments))
                 self.assertEqual(first, second)

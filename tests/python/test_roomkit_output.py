@@ -12,7 +12,13 @@ from pathlib import Path
 from roomkit.core.exceptions import ToolRefusedError, UnservedToolCallError
 from roomkit.tools.compose import extract_tools
 from roomkit_helpers import in_call
-from roomkit_tools import OutputForget, OutputRead, OutputStore, Shell
+from roomkit_tools import (
+    OutputForget,
+    OutputRead,
+    OutputStore,
+    Shell,
+    ShellTool,
+)
 
 EXAMPLE_PATH = Path(__file__).resolve().parents[2] / "examples/roomkit_output.py"
 
@@ -33,7 +39,7 @@ class RoomKitOutputTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory, in_call("room", "agent"):
             async with OutputStore(directory) as store, OutputStore(directory) as other:
                 definitions, handler = extract_tools(
-                    [Shell(directory, outputs=store), OutputRead(store)]
+                    [Shell(await ShellTool.create(directory, outputs=store)), OutputRead(store)]
                 )
                 self.assertEqual([d.name for d in definitions], ["shell", "output_read"])
                 result = json.loads(await handler("shell", {"command": "printf saved"}))
@@ -52,7 +58,11 @@ class RoomKitOutputTests(unittest.IsolatedAsyncioTestCase):
     async def test_rooms_sharing_a_store_only_reach_their_own_archives(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             async with OutputStore(directory) as store:
-                tools = [Shell(directory, outputs=store), OutputRead(store), OutputForget(store)]
+                tools = [
+                    Shell(await ShellTool.create(directory, outputs=store)),
+                    OutputRead(store),
+                    OutputForget(store),
+                ]
                 _, handler = extract_tools(tools)
                 with in_call("room-a", "agent"):
                     result = json.loads(await handler("shell", {"command": "printf private"}))
@@ -76,7 +86,10 @@ class RoomKitOutputTests(unittest.IsolatedAsyncioTestCase):
     async def test_parallel_first_calls_share_one_store(self) -> None:
         with tempfile.TemporaryDirectory() as directory, in_call("room", "agent"):
             async with OutputStore(directory) as store:
-                first, second = Shell(directory, outputs=store), Shell(directory, outputs=store)
+                first, second = (
+                    Shell(await ShellTool.create(directory, outputs=store)),
+                    Shell(await ShellTool.create(directory, outputs=store)),
+                )
                 results = await asyncio.gather(
                     first.handler("shell", {"command": "printf first"}),
                     second.handler("shell", {"command": "printf second"}),

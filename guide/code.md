@@ -9,11 +9,12 @@ Inside an async function, with an existing workspace:
 ```python
 from roomkit_tools import CodeOutline, CodeOutlineTool
 
+outline = await CodeOutlineTool.create("./workspace")
+
 # Select it in a RoomKit agent alongside Read/Edit as needed.
-tools = [CodeOutline(root="./workspace")]
+tools = [CodeOutline(outline)]
 
 # Or use the standalone async API.
-outline = await CodeOutlineTool.create("./workspace")
 result = await outline.outline("shipping.py")
 for symbol in result["data"]["symbols"]:
     print(symbol["name"], symbol["start_line"], symbol["end_line"])

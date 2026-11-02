@@ -114,24 +114,27 @@ Pass the tools you choose to an AI channel:
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import Edit, Grep, Read, Workspace, Write
+from roomkit_tools import (
+    Edit, EditTool, Grep, GrepTool, Read, ReadTool, Workspace, Write, WriteTool,
+)
 
 workspace = Workspace("./project")  # An existing directory.
 agent = AIChannel(
     "assistant",
     provider=provider,  # Your configured RoomKit AI provider.
     tools=[
-        Read(root=workspace),
-        Grep(root=workspace),
-        Write(root=workspace),
-        Edit(root=workspace),
+        Read(await ReadTool.create(workspace)),
+        Grep(await GrepTool.create(workspace)),
+        Write(await WriteTool.create(workspace)),
+        Edit(await EditTool.create(workspace)),
     ],
 )
 ```
 
-The agent gets these four tools and nothing else. Each tool checks its
+The agent gets these four tools and nothing else. Each RoomKit adapter
+(`Read`, `Grep`, ...) takes a built tool, as in Rust. Each tool checks its
 arguments against its Rust input type; RoomKit runs the calls inside its turns,
-hooks and policies. Passing the same `Workspace` to `Write` and `Edit` makes
+hooks and policies. Building `Write` and `Edit` from the same `Workspace` makes
 their changes to the project happen one at a time.
 
 ## Use it without RoomKit

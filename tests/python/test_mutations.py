@@ -42,11 +42,11 @@ class MutationTests(unittest.IsolatedAsyncioTestCase):
         self.edit = await EditTool.create(self.workspace)
         self.read = await ReadTool.create(self.workspace)
 
-    def test_import_configuration_and_schemas_do_not_require_roomkit(self) -> None:
+    async def test_import_configuration_and_schemas_do_not_require_roomkit(self) -> None:
         self.assertIsNone(importlib.util.find_spec("roomkit"))
         workspace = Workspace(self.root / "later")
         self.assertEqual(os.fspath(workspace), str(self.root / "later"))
-        self.assertFalse(Path(workspace).exists())
+        self.assertFalse(await asyncio.to_thread(Path(workspace).exists))
         for facade, standalone, native, name in [
             (Write, WriteTool, _native._WriteTool, "write"),
             (Edit, EditTool, _native._EditTool, "edit"),
@@ -57,7 +57,8 @@ class MutationTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(definition["input_schema"]["additionalProperties"])
             self.assertIn("expected_revision", definition["input_schema"]["properties"])
             self.assertIn("revision", definition["output_schema"]["properties"])
-            self.assertEqual(facade(workspace).definition["parameters"], definition["input_schema"])
+            adapter = facade(await standalone.create(self.root))
+            self.assertEqual(adapter.definition["parameters"], definition["input_schema"])
             definition["name"] = "changed"
             self.assertEqual(standalone.definition()["name"], name)
         with self.assertRaises(InvalidInputError):

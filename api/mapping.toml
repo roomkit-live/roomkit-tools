@@ -270,12 +270,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "no Rust item / roomkit_tools.roomkit.ReadToolAdapter: unmatched"
-covers = [
-  "python roomkit_tools.roomkit.ReadToolAdapter (unmatched)",  # no Rust item
-]
-
-[[pending]]
 reason = "no Rust item / roomkit_tools.roomkit_agents.AgentConfig: unmatched"
 covers = [
   "python roomkit_tools.roomkit_agents.AgentConfig (unmatched)",  # no Rust item
@@ -299,80 +293,3 @@ covers = [
   "rust roomkit_tools_process::ShellTool::has_output_store (unmatched)",  # no Python member: added for hosts with the adapter's move to the Tool protocol
 ]
 
-[[pending]]
-reason = "roomkit_tools_roomkit::CodeOutline / roomkit_tools.CodeOutline: form"
-covers = [
-  "rust roomkit_tools_roomkit::CodeOutline::new(tool) (form)",  # takes a built CodeOutlineTool; Python's roomkit_tools.CodeOutline takes roomkit_tools.CodeOutlineTool.create's parameters (root, max_file_bytes, max_output_bytes, max_symbols, max_scan_symbols, max_scan_nodes, max_depth, max_signature_bytes, default_timeout_ms, max_timeout_ms)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::Diff / roomkit_tools.Diff: form"
-covers = [
-  "rust roomkit_tools_roomkit::Diff::new(tool) (form)",  # takes a built DiffTool; Python's roomkit_tools.Diff takes roomkit_tools.DiffTool.create's parameters (root, max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::Edit / roomkit_tools.Edit: form"
-covers = [
-  "rust roomkit_tools_roomkit::Edit::new(tool) (form)",  # takes a built EditTool; Python's roomkit_tools.Edit takes roomkit_tools.EditTool.create's parameters (root, max_file_bytes)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::Glob / roomkit_tools.Glob: form"
-covers = [
-  "rust roomkit_tools_roomkit::Glob::new(tool) (form)",  # takes a built GlobTool; Python's roomkit_tools.Glob takes roomkit_tools.GlobTool.create's parameters (root, max_matches, max_output_bytes, max_scan_entries, max_depth)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::Grep / roomkit_tools.Grep: form"
-covers = [
-  "rust roomkit_tools_roomkit::Grep::new(tool) (form)",  # takes a built GrepTool; Python's roomkit_tools.Grep takes roomkit_tools.GrepTool.create's parameters (root, max_matches, max_output_bytes, max_scan_entries, max_depth, max_file_bytes, max_total_bytes, max_context_lines, max_line_bytes)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::List / roomkit_tools.List: form"
-covers = [
-  "rust roomkit_tools_roomkit::List::new(tool) (form)",  # takes a built ListTool; Python's roomkit_tools.List takes roomkit_tools.ListTool.create's parameters (root, max_entries, max_output_bytes, max_scan_entries)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::Ocr / roomkit_tools.Ocr: form"
-covers = [
-  "rust roomkit_tools_roomkit::Ocr::new(tool) (form)",  # takes a built OcrTool; Python's roomkit_tools.Ocr takes roomkit_tools.OcrTool.create's parameters (root, backend, max_file_bytes, max_dimension, max_pixels, max_decode_bytes, max_output_bytes, max_blocks, default_timeout_ms, max_timeout_ms)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::Patch / roomkit_tools.Patch: form"
-covers = [
-  "rust roomkit_tools_roomkit::Patch::new(tool) (form)",  # takes a built PatchTool; Python's roomkit_tools.Patch takes roomkit_tools.PatchTool.create's parameters (root, max_changes, max_input_bytes, max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::Read / roomkit_tools.Read: form"
-covers = [
-  "rust roomkit_tools_roomkit::Read::new(tool) (form)",  # takes a built ReadTool; Python's roomkit_tools.Read takes roomkit_tools.ReadTool.create's parameters (root, max_file_bytes, max_output_bytes, max_lines)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::Shell / roomkit_tools.Shell: form"
-covers = [
-  "rust roomkit_tools_roomkit::Shell::new(tool) (form)",  # takes a built ShellTool; Python's roomkit_tools.Shell takes roomkit_tools.ShellTool.create's parameters (root, outputs, inherit_env, env, max_command_bytes, max_output_bytes, default_timeout_ms, max_timeout_ms)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::WebFetch / roomkit_tools.WebFetch: form"
-covers = [
-  "rust roomkit_tools_roomkit::WebFetch::new(tool) (form)",  # takes a built WebFetchTool; Python's roomkit_tools.WebFetch takes roomkit_tools.WebFetchTool.__init__'s parameters (**configuration)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::WebSearch / roomkit_tools.WebSearch: form"
-covers = [
-  "rust roomkit_tools_roomkit::WebSearch::new(tool) (form)",  # takes a built WebSearchTool; Python's roomkit_tools.WebSearch takes roomkit_tools.WebSearchTool.__init__'s parameters (backend, **configuration)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::Write / roomkit_tools.Write: form"
-covers = [
-  "rust roomkit_tools_roomkit::Write::new(tool) (form)",  # takes a built WriteTool; Python's roomkit_tools.Write takes roomkit_tools.WriteTool.create's parameters (root, max_file_bytes)
-]

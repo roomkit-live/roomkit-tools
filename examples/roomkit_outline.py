@@ -28,7 +28,19 @@ from roomkit import (
 )
 from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
 from roomkit.providers.ai.base import AIToolResultPart
-from roomkit_tools import CodeOutline, Diff, Edit, Read, Shell, ShellTool, Workspace
+from roomkit_tools import (
+    CodeOutline,
+    CodeOutlineTool,
+    Diff,
+    DiffTool,
+    Edit,
+    EditTool,
+    Read,
+    ReadTool,
+    Shell,
+    ShellTool,
+    Workspace,
+)
 
 SOURCE = '''class ShippingService:
     def label(self, order_id: int) -> str:
@@ -229,11 +241,11 @@ async def run(root, provider=None):
                 temperature=0,
                 max_tool_rounds=16,
                 tools=[
-                    CodeOutline(workspace),
-                    Read(workspace),
-                    Edit(workspace),
-                    Diff(workspace),
-                    Shell(workspace),
+                    CodeOutline(await CodeOutlineTool.create(workspace)),
+                    Read(await ReadTool.create(workspace)),
+                    Edit(await EditTool.create(workspace)),
+                    Diff(await DiffTool.create(workspace)),
+                    Shell(await ShellTool.create(workspace)),
                 ],
                 system_prompt="Use the tools and report actual observations. " + prompt,
             )

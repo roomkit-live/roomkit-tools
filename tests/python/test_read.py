@@ -17,6 +17,7 @@ from roomkit_tools import (
     AccessRefusedError,
     InvalidInputError,
     LimitExceededError,
+    ListTool,
     Read,
     ReadTool,
     ToolError,
@@ -39,13 +40,14 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(importlib.util.find_spec("roomkit"))
         self.assertIn("site-packages", _native.__file__)
         self.assertTrue(_native.__file__.endswith((".so", ".pyd")))
-        # Configuration and schema discovery need neither RoomKit nor an
-        # existing workspace. Resolution happens in the first async handler.
-        tool = Read(self.root / "not-created-yet", max_lines=1)
+        # The RoomKit adapter takes a built tool; its definition needs no RoomKit.
+        tool = Read(self.tool)
         self.assertEqual(tool.definition["parameters"], ReadTool.definition()["input_schema"])
-        self.assertFalse((self.root / "not-created-yet").exists())
-        with self.assertRaises(InvalidInputError):
-            Read("")
+
+    async def test_a_roomkit_adapter_takes_a_built_tool_not_its_root(self) -> None:
+        for wrong in (self.root, str(self.root), await ListTool.create(self.root)):
+            with self.assertRaises(TypeError):
+                Read(wrong)
 
     def test_notices_for_native_dependencies_are_installed(self) -> None:
         notices = (

@@ -25,12 +25,16 @@ from roomkit_tools import (
     Diff,
     DiffTool,
     Edit,
+    EditTool,
+    InvalidInputError,
     Patch,
     PatchTool,
     Read,
+    ReadTool,
     ToolIOError,
     Workspace,
     Write,
+    WriteTool,
 )
 
 
@@ -43,12 +47,15 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_selection_schema_and_error_mapping(self) -> None:
         for facade, cls, name in [(Diff, DiffTool, "diff"), (Patch, PatchTool, "patch")]:
-            definitions, handler = extract_tools([facade(self.workspace)])
+            definitions, handler = extract_tools([facade(await cls.create(self.workspace))])
             self.assertEqual([d.name for d in definitions], [name])
             self.assertEqual(definitions[0].parameters, cls.definition()["input_schema"])
             with self.assertRaises(UnservedToolCallError):
                 await handler("write", {"path": "file", "content": "x"})
-        diff, patch = Diff(self.workspace), Patch(self.workspace)
+        diff, patch = (
+            Diff(await DiffTool.create(self.workspace)),
+            Patch(await PatchTool.create(self.workspace)),
+        )
         (self.root / "old").write_text("old")
         (self.root / "new").write_text("new")
         with self.assertRaises(ToolRefusedError):
@@ -63,21 +70,19 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
             await diff.handler("diff", {"old_path": "old", "new_path": ".."})
         with self.assertRaises(ToolIOError):
             await diff.handler("diff", {"old_path": "old", "new_path": "missing"})
-        for facade, args in [
-            (Diff, {"old_path": "old", "new_path": "new"}),
+        for facade, cls, args in [
+            (Diff, DiffTool, {"old_path": "old", "new_path": "new"}),
             (
                 Patch,
+                PatchTool,
                 {"changes": [{"op": "add", "path": "added", "content": "large"}], "dry_run": False},
             ),
         ]:
+            limited = facade(await cls.create(self.workspace, max_file_bytes=1))
             with self.assertRaises(ToolFailedError):
-                await facade(self.workspace, max_file_bytes=1).handler(
-                    facade.__name__.lower(), args
-                )
-            with self.assertRaises(ToolRefusedError):
-                await facade(self.workspace, max_file_bytes=0).handler(
-                    facade.__name__.lower(), args
-                )
+                await limited.handler(facade.__name__.lower(), args)
+            with self.assertRaises(InvalidInputError):
+                await cls.create(self.workspace, max_file_bytes=0)
         self.assertEqual((self.root / "old").read_text(), "old")
         self.assertFalse((self.root / "added").exists())
 
@@ -85,7 +90,7 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
         (self.root / "file").write_text("old")
         rev = "sha256:" + hashlib.sha256(b"old").hexdigest()
         results = await asyncio.gather(
-            Patch(self.workspace).handler(
+            Patch(await PatchTool.create(self.workspace)).handler(
                 "patch",
                 {
                     "changes": [
@@ -99,11 +104,11 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
                     "dry_run": False,
                 },
             ),
-            Write(self.workspace).handler(
+            Write(await WriteTool.create(self.workspace)).handler(
                 "write",
                 {"path": "file", "content": "written", "overwrite": True, "expected_revision": rev},
             ),
-            Edit(self.workspace).handler(
+            Edit(await EditTool.create(self.workspace)).handler(
                 "edit",
                 {"path": "file", "old_text": "old", "new_text": "edited", "expected_revision": rev},
             ),
@@ -147,7 +152,11 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
         channel = AIChannel(
             "agent",
             provider=provider,
-            tools=[Diff(self.workspace), Patch(self.workspace), Read(self.workspace)],
+            tools=[
+                Diff(await DiffTool.create(self.workspace)),
+                Patch(await PatchTool.create(self.workspace)),
+                Read(await ReadTool.create(self.workspace)),
+            ],
         )
         binding = ChannelBinding(
             room_id="test-room",
@@ -205,8 +214,7 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
             "text": "partial application",
         }
         native = SimpleNamespace(call=AsyncMock(return_value=json.dumps(partial)))
-        facade = Patch(self.workspace)
-        facade._resolved = PatchTool(native)
+        facade = Patch(PatchTool(native))
         result = await facade.handler("patch", {"changes": [], "dry_run": False})
         self.assertEqual(json.loads(result), partial)
         native.call.side_effect = asyncio.CancelledError
@@ -216,18 +224,19 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
 
 
 class DiffPatchLifecycleTests(unittest.TestCase):
-    def test_lazy_root_retry_and_cross_loop_use(self) -> None:
+    def test_root_retry_and_cross_loop_use(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "later"
             workspace = Workspace(root)
-            patch, diff = Patch(workspace), Diff(workspace)
+            with self.assertRaises(ToolIOError):
+                asyncio.run(PatchTool.create(workspace))
+            root.mkdir()
+            patch = Patch(asyncio.run(PatchTool.create(workspace)))
+            diff = Diff(asyncio.run(DiffTool.create(workspace)))
             batch = {
                 "changes": [{"op": "add", "path": "file", "content": "value"}],
                 "dry_run": False,
             }
-            with self.assertRaises(ToolIOError):
-                asyncio.run(patch.handler("patch", batch))
-            root.mkdir()
             asyncio.run(patch.handler("patch", batch))
             result = asyncio.run(diff.handler("diff", {"old_path": "file", "new_path": "file"}))
             self.assertFalse(json.loads(result)["data"]["changed"])

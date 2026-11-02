@@ -37,7 +37,7 @@ class DiffPatchTests(unittest.IsolatedAsyncioTestCase):
         self.diff = await DiffTool.create(self.workspace)
         self.patch = await PatchTool.create(self.workspace)
 
-    def test_configuration_and_rust_schemas_without_roomkit(self) -> None:
+    async def test_adapters_and_rust_schemas_without_roomkit(self) -> None:
         self.assertIsNone(importlib.util.find_spec("roomkit"))
         for facade, cls, native, name in [
             (Diff, DiffTool, _native._DiffTool, "diff"),
@@ -47,13 +47,12 @@ class DiffPatchTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(definition, json.loads(native.definition_json()))
             self.assertEqual(definition["name"], name)
             self.assertFalse(definition["input_schema"]["additionalProperties"])
-            configured = facade(self.root / "later")
+            configured = facade(await cls.create(self.root))
             self.assertEqual(configured.definition["parameters"], definition["input_schema"])
             definition["name"] = "changed"
             self.assertEqual(cls.definition()["name"], name)
         self.assertTrue(PatchTool.definition()["input_schema"]["properties"]["dry_run"]["default"])
         self.assertIn("failure", PatchTool.definition()["output_schema"]["properties"])
-        self.assertFalse((self.root / "later").exists())
 
     async def test_diff_preserves_exact_lines_and_does_not_mutate(self) -> None:
         old, new = "\ufefftitle\r\nold\r\nlast", "\ufefftitle\r\nnew\nlast"

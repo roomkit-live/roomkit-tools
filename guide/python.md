@@ -8,10 +8,11 @@ name is `roomkit-tools`; the import name is `roomkit_tools`.
 | Use | Example | Result |
 | --- | --- | --- |
 | Standalone async API | `await read.read("notes.txt")` on a `ReadTool` | Rust `data`/`text` envelope as a Python dictionary |
-| RoomKit tool selection | `tools=[Read(root="./project")]` | RoomKit calls the tool with the same Rust-derived input schema |
+| RoomKit tool selection | `tools=[Read(await ReadTool.create("./project"))]` | RoomKit calls the tool with the same Rust-derived input schema |
 
 Most tools have a short RoomKit class (`Read`, `Grep`, `ViewImage`) and a
-standalone implementation wrapper (`ReadTool`, `GrepTool`, `ViewImageTool`).
+standalone tool (`ReadTool`, `GrepTool`, `ViewImageTool`). The RoomKit class
+takes the built tool, as the Rust adapter does: `Read(tool)`.
 Process tools share a `ProcessSession`; output tools share an `OutputStore`.
 Agent tools use an injected backend and are described in [their own guide](agents.md).
 
@@ -45,23 +46,27 @@ those fields before treating a preview as complete.
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import Edit, Read, Workspace, Write
+from roomkit_tools import Edit, EditTool, Read, ReadTool, Workspace, Write, WriteTool
 
 workspace = Workspace("./project")
 agent = AIChannel(
     "assistant",
     provider=provider,  # A RoomKit provider configured by your application.
-    tools=[Read(workspace), Write(workspace), Edit(workspace)],
+    tools=[
+        Read(await ReadTool.create(workspace)),
+        Write(await WriteTool.create(workspace)),
+        Edit(await EditTool.create(workspace)),
+    ],
 )
 ```
 
 This is a fragment for an existing host. For room creation, channel attachment,
 input delivery and cleanup, run the complete [read example](../examples/roomkit_read.py).
 
-Tool construction captures an absolute root. The first call resolves it and
-validates bounds asynchronously in Rust; the directory must exist by then.
-Failed or cancelled initialization can be retried. Each tool is selected
-explicitly. RoomKit retains argument validation, policies, hooks and turn
+`create` resolves the root and validates bounds asynchronously in Rust; the
+directory must exist by then. A `Workspace` captures an absolute root and
+resolves it at first use, so a failed `create` can be retried with it. Each
+tool is selected explicitly. RoomKit retains argument validation, policies, hooks and turn
 cancellation. No RoomKit Rust checkout or extra tool server is required.
 
 Sharing `Workspace` coordinates `Write`, `Edit` and `Patch` with one native
@@ -116,10 +121,9 @@ image parts instead of embedding pixels in ordinary text. Refusal and resource f
 distinct: every RoomKit adapter raises `ToolRefusedError` for `InvalidInputError` and
 `AccessRefusedError`, `ToolFailedError` for `LimitExceededError` and
 `UnsupportedResourceError`, and lets `ToolIOError` and other errors propagate for
-RoomKit to report without their message. The lower-level `roomkit_tools.roomkit.ReadToolAdapter` remains
-available for an already-created `ReadTool`. Importing `roomkit_tools` and
-configuring these tools does not import or require RoomKit; calling their
-RoomKit handlers does.
+RoomKit to report without their message. Importing `roomkit_tools` and
+building these tools and adapters does not import or require RoomKit; calling
+their RoomKit handlers does.
 
 ## Owning resources
 

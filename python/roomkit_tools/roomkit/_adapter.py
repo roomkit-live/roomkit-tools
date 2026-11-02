@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Awaitable
 from typing import Any, ClassVar
 
@@ -12,30 +11,6 @@ from .._native import (
     InvalidInputError,
     LimitExceededError,
     UnsupportedResourceError,
-)
-from ..code import CodeOutlineTool
-from ..fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
-from ..image import ViewImageTool
-from ..ocr import OcrTool
-from ..process import ShellTool
-from ..search import WebSearchTool
-from ..web import WebFetchTool
-
-type _BoundTool = (
-    CodeOutlineTool
-    | ViewImageTool
-    | ReadTool
-    | ListTool
-    | GlobTool
-    | GrepTool
-    | WriteTool
-    | EditTool
-    | DiffTool
-    | PatchTool
-    | ShellTool
-    | WebFetchTool
-    | WebSearchTool
-    | OcrTool
 )
 
 
@@ -69,11 +44,7 @@ class _ToolAdapter[T]:
         return json.dumps(result, ensure_ascii=False)
 
     async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        tool = await self._get_tool()
-        return await tool.call(arguments)
-
-    async def _get_tool(self) -> Any:
-        return self._tool
+        return await self._tool.call(arguments)
 
 
 async def _mapped[T](call: Awaitable[T]) -> T:
@@ -112,21 +83,3 @@ def _structured(result: dict[str, Any]) -> str:
     if context is not None:
         context.structured_content = result
     return json.dumps(result, ensure_ascii=False)
-
-
-class _ConfiguredTool(_ToolAdapter):
-    def _configure(self, root: str | os.PathLike[str], **limits: int | None) -> None:
-        path = os.fspath(root)
-        if not path:
-            raise InvalidInputError("root must not be empty")
-        self._root = os.path.abspath(path)
-        self._limits = limits
-        self._resolved: _BoundTool | None = None
-
-    async def _get_tool(self) -> _BoundTool:
-        if self._resolved is None:
-            # Each first caller owns its initialization: cancellation cannot
-            # poison another call, and no task/lock is tied to an event loop.
-            tool = await self._tool_type.create(self._root, **self._limits)
-            self._resolved = tool
-        return self._resolved

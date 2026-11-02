@@ -166,7 +166,6 @@
     "ProcessStop",
     "ProcessWrite",
     "Read",
-    "ReadToolAdapter",
     "Shell",
     "TaskStatus",
     "ViewImage",
@@ -204,8 +203,7 @@
     "Glob",
     "Grep",
     "List",
-    "Read",
-    "ReadToolAdapter"
+    "Read"
   ],
   "roomkit_tools.roomkit.images": [
     "Ocr",

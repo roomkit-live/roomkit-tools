@@ -6,11 +6,12 @@ never downloads them automatically. The host supplies matching PP-OCRv6
 `det.onnx`, `rec.onnx` and `dict.txt` files.
 
 ```python
-from roomkit_tools import Ocr
+from roomkit_tools import Ocr, OcrTool
 from roomkit_tools_ocr_rusto import RustoOcr
 
-tools = [Ocr(root="./documents", backend=RustoOcr("./models"))]
-# Pass tools to RoomKit's AIChannel, or use OcrTool.create for standalone calls.
+ocr = await OcrTool.create("./documents", backend=RustoOcr("./models"))
+tools = [Ocr(ocr)]
+# Pass tools to RoomKit's AIChannel, or call ocr.ocr(...) directly.
 ```
 
 Prebuilt wheels and source archives are distributed through

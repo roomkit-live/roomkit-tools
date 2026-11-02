@@ -358,7 +358,7 @@ class InterpreterShutdownTests(unittest.TestCase):
             import asyncio
             import multiprocessing
             import sys
-            from roomkit_tools import Read, ReadTool
+            from roomkit_tools import ReadTool
 
             async def read_once():
                 tool = await ReadTool.create(sys.argv[1])
@@ -367,8 +367,7 @@ class InterpreterShutdownTests(unittest.TestCase):
             def child(queue):
                 queue.put(asyncio.run(asyncio.wait_for(read_once(), 5)))
 
-            # Importing and configuring tools makes no native call.
-            Read(sys.argv[1])
+            # Importing the package makes no native call.
             context = multiprocessing.get_context('fork')
             queue = context.Queue()
             process = context.Process(target=child, args=(queue,))

@@ -32,7 +32,12 @@ from roomkit import (
     WebSocketChannel,
 )
 from roomkit.providers.ai import AIResponse, AIToolCall, MockAIProvider
-from roomkit_tools import WebFetch, WebSearch
+from roomkit_tools import (
+    WebFetch,
+    WebFetchTool,
+    WebSearch,
+    WebSearchTool,
+)
 from roomkit_tools.search import ExaSearch, OllamaSearch, OpenAISearch
 
 PAGE = (
@@ -261,7 +266,7 @@ async def run(provider=None, service="fixture"):
                     endpoint=origin + "/responses",
                     private_origins=[origin],
                 )
-            fetch = WebFetch(allowed_origins=[origin], private_origins=[origin])
+            fetch = WebFetch(WebFetchTool(allowed_origins=[origin], private_origins=[origin]))
             source = origin + "/guide"
             if service == "fixture-openai":
                 source += "?utm_source=openai"
@@ -279,7 +284,7 @@ async def run(provider=None, service="fixture"):
                 )
             else:
                 raise ValueError("Unknown search service")
-            fetch = WebFetch()
+            fetch = WebFetch(WebFetchTool())
             question = (
                 "Find the official Serde Rust documentation and explain what the library does."
             )
@@ -301,7 +306,7 @@ async def run(provider=None, service="fixture"):
                 "agent",
                 provider=provider,
                 max_tool_rounds=6,
-                tools=[WebSearch(backend=backend), fetch],
+                tools=[WebSearch(WebSearchTool(backend=backend)), fetch],
                 system_prompt="You search and inspect documentation using tools. " + prompt,
             )
         )

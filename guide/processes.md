@@ -17,7 +17,7 @@ print(result["data"]["stderr"]["text"])  # warning
 print(result["data"]["exit_code"])       # 7: a command result, not a tool error.
 ```
 
-`Shell(root=...)` is the direct RoomKit form. The standalone method is
+`Shell(await ShellTool.create(root))` is the RoomKit form. The standalone method is
 `ShellTool.shell(command, cwd=None, timeout_ms=None)`; `.call(arguments)` accepts
 the Rust schema. The root and per-call cwd select the initial working directory.
 Commands run with `/bin/sh -c` and the host's permissions, and can access paths
@@ -195,14 +195,14 @@ select `OutputForget` only if the agent should also release completed logs.
 
 ```python
 from roomkit import AIChannel, RoomKit
-from roomkit_tools import OutputStore, OutputRead, OutputForget, Shell
+from roomkit_tools import OutputStore, OutputRead, OutputForget, Shell, ShellTool
 
 async with OutputStore() as outputs, RoomKit() as kit:
     agent = AIChannel(
         "agent",
         provider=provider,
         tools=[
-            Shell("./workspace", outputs=outputs),
+            Shell(await ShellTool.create("./workspace", outputs=outputs)),
             OutputRead(outputs),
             OutputForget(outputs),
         ],

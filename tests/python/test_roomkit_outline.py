@@ -11,7 +11,10 @@ from pathlib import Path
 
 from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
 from roomkit.tools.compose import extract_tools
-from roomkit_tools import CodeOutline
+from roomkit_tools import (
+    CodeOutline,
+    CodeOutlineTool,
+)
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples/roomkit_outline.py"
 
@@ -36,7 +39,7 @@ class RoomKitOutlineTests(unittest.IsolatedAsyncioTestCase):
     async def test_individual_selection_and_error_mapping(self):
         with tempfile.TemporaryDirectory() as root:
             await asyncio.to_thread(Path(root, "source.py").write_text, "def example(): pass\n")
-            definitions, handler = extract_tools([CodeOutline(root)])
+            definitions, handler = extract_tools([CodeOutline(await CodeOutlineTool.create(root))])
             self.assertEqual([d.name for d in definitions], ["code_outline"])
             with self.assertRaises(UnservedToolCallError):
                 await handler("shell", {"command": "true"})
@@ -44,6 +47,8 @@ class RoomKitOutlineTests(unittest.IsolatedAsyncioTestCase):
                 await handler("code_outline", {"path": "source.py", "offset": 0})
             result = json.loads(await handler("code_outline", {"path": "source.py"}))
             self.assertEqual(result["data"]["symbols"][0]["name"], "example")
-            _, limited = extract_tools([CodeOutline(root, max_file_bytes=1)])
+            _, limited = extract_tools(
+                [CodeOutline(await CodeOutlineTool.create(root, max_file_bytes=1))]
+            )
             with self.assertRaises(ToolFailedError):
                 await limited("code_outline", {"path": "source.py"})

@@ -26,14 +26,15 @@ Small model sets have been exercised; Tiny is the initial lightweight choice.
 
 ```python
 from roomkit import AIChannel
-from roomkit_tools import Ocr
+from roomkit_tools import Ocr, OcrTool
 from roomkit_tools_ocr_rusto import RustoOcr
 
 backend = RustoOcr("./models", model_name="ppocrv6-tiny", threads=2)
+ocr = await OcrTool.create("./documents", backend=backend, max_blocks=128)
 agent = AIChannel(
     "assistant",
     provider=provider,  # Your configured RoomKit AI provider.
-    tools=[Ocr(root="./documents", backend=backend, max_blocks=128)],
+    tools=[Ocr(ocr)],
 )
 ```
 

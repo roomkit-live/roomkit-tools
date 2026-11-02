@@ -39,6 +39,7 @@ from roomkit_tools import (
     ProcessStop,
     ProcessWrite,
     Shell,
+    ShellTool,
     ToolIOError,
     roomkit_owner,
 )
@@ -283,7 +284,11 @@ class RoomKitProcessTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(room=room, agent=agent), self.assertRaises(InvalidInputError):
                 roomkit_owner(room, agent)
         async with OutputStore(self.root) as outputs, ProcessSession(self.root) as session:
-            tools = [ProcessStart(session), OutputRead(outputs), Shell(self.root, outputs=outputs)]
+            tools = [
+                ProcessStart(session),
+                OutputRead(outputs),
+                Shell(await ShellTool.create(self.root, outputs=outputs)),
+            ]
             calls = [
                 ("process_start", {"command": "true"}),
                 ("output_read", {"archive_id": "o1"}),
@@ -413,7 +418,7 @@ class RoomKitTwoRoomsTests(unittest.IsolatedAsyncioTestCase):
             RoomKit() as kit,
         ):
             tools = [adapter(session) for adapter in ADAPTERS]
-            tools += [Shell(root, outputs=outputs), OutputRead(outputs)]
+            tools += [Shell(await ShellTool.create(root, outputs=outputs)), OutputRead(outputs)]
             provider = MockAIProvider(ai_responses=responses, streaming=False)
             kit.register_channel(AIChannel("agent", provider=provider, tools=tools))
             kit.register_channel(WebSocketChannel("user"))
