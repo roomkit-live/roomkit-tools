@@ -12,20 +12,8 @@ from api_parity.mapping import UNDECIDED
 def render(report: Report, *, strict: bool, verbose: bool) -> str:
     lines: list[str] = []
     out = lines.append
-    tables = ("map", "exception", "missing", "hidden", "pending")
-    counts = ", ".join(f"{len(report.mapping.of(t))} [[{t}]]" for t in tables)
-    rustdoc = ", ".join(version for version in report.surface.rustdoc if version) or "unknown"
-    out(f"API parity: Rust crates (rustdoc {rustdoc}) against the Python snapshot")
-    out(f"Rust: {len(report.surface.items)} items. Python: {len(report.python.names())} names.")
-    out(f"Mapping: {counts}.")
-    pending, missing = len(report.pending), len(report.missing)
-    excepted = len(report.covered_by("exception"))
-    out(
-        f"Findings: {len(report.findings)}; {pending} pending, {excepted} excepted, "
-        f"{missing} on one side only, {len(report.hidden)} hidden, "
-        f"{len(report.uncovered)} without an entry."
-    )
-    out("")
+    _counts(out, report)
+    pending = len(report.pending)
     _findings(out, "Findings without an entry", report.uncovered)
     out(f"== Dead entries: {len(report.dead)}")
     for dead in report.dead:
@@ -56,6 +44,23 @@ def render(report: Report, *, strict: bool, verbose: bool) -> str:
         why.append(f"{len(entries)} pending entries (--strict)")
     out(f"Gate: {verdict}" + (f": {'; '.join(why)}." if why else "."))
     return "\n".join(lines) + "\n"
+
+
+def _counts(out, report: Report) -> None:
+    """The surfaces, the mapping and the findings, counted."""
+    tables = ("map", "exception", "missing", "hidden", "pending")
+    counts = ", ".join(f"{len(report.mapping.of(t))} [[{t}]]" for t in tables)
+    rustdoc = ", ".join(version for version in report.surface.rustdoc if version) or "unknown"
+    out(f"API parity: Rust crates (rustdoc {rustdoc}) against the Python snapshot")
+    out(f"Rust: {len(report.surface.items)} items. Python: {len(report.python.names())} names.")
+    out(f"Mapping: {counts}.")
+    excepted = len(report.covered_by("exception"))
+    out(
+        f"Findings: {len(report.findings)}; {len(report.pending)} pending, {excepted} excepted, "
+        f"{len(report.missing)} on one side only, {len(report.hidden)} hidden, "
+        f"{len(report.uncovered)} without an entry."
+    )
+    out("")
 
 
 def _findings(out, title: str, findings: list[Finding]) -> None:

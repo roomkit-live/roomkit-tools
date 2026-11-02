@@ -259,21 +259,7 @@ def entry(table: str, index: int, raw: dict) -> Entry:
         raise ParityError(f"{where}: approved is a date, YYYY-MM-DD")
     if ("rust" in raw) != ("python" in raw):
         raise ParityError(f"{where}: names both counterparts, rust and python, or neither")
-    covers = list(raw.get("covers", []))
-    for key in covers:
-        found = _KEY.fullmatch(key)
-        if not found or found.group(3) not in KINDS:
-            raise ParityError(
-                f"{where}: {key!r} is no finding key, `<rust|python> <path> (<kind>) [<with>]`"
-            )
-    if table != "map" and not covers:
-        raise ParityError(f"{where}: covers no finding")
-    kinds = {parse_key(key)[2] for key in covers}
-    allowed = TABLE_KINDS.get(table)
-    if allowed is not None and kinds - allowed:
-        raise ParityError(f"{where}: covers {sorted(kinds - allowed)}, not {sorted(allowed)}")
-    if allowed is None and "hidden" in kinds:
-        raise ParityError(f"{where}: covers a hidden item; a [[hidden]] entry lists it")
+    covers = _covers(table, where, list(raw.get("covers", [])))
     decision = raw.get("decision")
     if "decision" in raw and (not isinstance(decision, str) or not decision.strip()):
         raise ParityError(f"{where}: decision names its source")
@@ -291,6 +277,26 @@ def entry(table: str, index: int, raw: dict) -> Entry:
         approved=str(raw["approved"]) if "approved" in raw else None,
         decision=decision,
     )
+
+
+def _covers(table: str, where: str, covers: list[str]) -> list[str]:
+    """An entry's finding keys, each well formed and of a kind its table
+    covers."""
+    for key in covers:
+        found = _KEY.fullmatch(key)
+        if not found or found.group(3) not in KINDS:
+            raise ParityError(
+                f"{where}: {key!r} is no finding key, `<rust|python> <path> (<kind>) [<with>]`"
+            )
+    if table != "map" and not covers:
+        raise ParityError(f"{where}: covers no finding")
+    kinds = {parse_key(key)[2] for key in covers}
+    allowed = TABLE_KINDS.get(table)
+    if allowed is not None and kinds - allowed:
+        raise ParityError(f"{where}: covers {sorted(kinds - allowed)}, not {sorted(allowed)}")
+    if allowed is None and "hidden" in kinds:
+        raise ParityError(f"{where}: covers a hidden item; a [[hidden]] entry lists it")
+    return covers
 
 
 def _plain(rule: dict) -> dict:
