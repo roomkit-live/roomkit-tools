@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use roomkit_tools_agents::*;
 use roomkit_tools_core::ToolError;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Default)]
 struct Backend(Mutex<Vec<String>>);
@@ -26,8 +27,13 @@ impl AgentBackend for Backend {
         &'a self,
         scope: &'a AgentScope,
         input: &'a DelegateInput,
+        cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, TaskInfo> {
         Box::pin(async move {
+            if input.profile == "waits" {
+                cancel.cancelled().await;
+                return Err(ToolError::Cancelled);
+            }
             self.0
                 .lock()
                 .map_err(|_| ToolError::AccessRefused("test backend poisoned".into()))?
@@ -35,7 +41,12 @@ impl AgentBackend for Backend {
             Ok(receipt())
         })
     }
-    fn status<'a>(&'a self, _: &'a AgentScope, _: &'a StatusInput) -> AgentFuture<'a, TaskList> {
+    fn status<'a>(
+        &'a self,
+        _: &'a AgentScope,
+        _: &'a StatusInput,
+        _: &'a CancellationToken,
+    ) -> AgentFuture<'a, TaskList> {
         Box::pin(async {
             Ok(TaskList {
                 tasks: vec![receipt()],
@@ -47,6 +58,7 @@ impl AgentBackend for Backend {
         &'a self,
         _: &'a AgentScope,
         _: &'a CancelInput,
+        _: &'a CancellationToken,
     ) -> AgentFuture<'a, CancelResult> {
         Box::pin(async {
             Ok(CancelResult {
@@ -74,17 +86,25 @@ async fn selected_tools_validate_before_backend_and_share_scope() {
         profile: "reader".into(),
         task: " ".into(),
     };
+    let cancel = CancellationToken::new();
     assert!(matches!(
-        tool.call(&scope, &input).await,
+        tool.call(&scope, input.clone(), &cancel).await,
         Err(ToolError::InvalidInput(_))
     ));
     assert!(backend.0.lock().unwrap().is_empty());
     input.task = "Read the source".into();
-    assert_eq!(tool.call(&scope, &input).await.unwrap().data.task_id, "t1");
+    assert_eq!(
+        tool.call(&scope, input, &cancel)
+            .await
+            .unwrap()
+            .data
+            .task_id,
+        "t1"
+    );
     assert_eq!(backend.0.lock().unwrap().as_slice(), ["room:reader"]);
     assert_eq!(
         TaskStatusTool::new(Arc::clone(&shared))
-            .call(&scope, &StatusInput::default())
+            .call(&scope, StatusInput::default(), &cancel)
             .await
             .unwrap()
             .data
@@ -96,15 +116,56 @@ async fn selected_tools_validate_before_backend_and_share_scope() {
         CancelTaskTool::new(shared)
             .call(
                 &scope,
-                &CancelInput {
+                CancelInput {
                     task_id: "t1".into()
-                }
+                },
+                &cancel
             )
             .await
             .unwrap()
             .data
             .cancelled
     );
+}
+
+#[tokio::test]
+async fn a_cancelled_call_refuses_before_reaching_the_backend() {
+    let backend = Arc::new(Backend::default());
+    let tool = DelegateTaskTool::new(Arc::<Backend>::clone(&backend));
+    let scope = AgentScope {
+        room_id: "room".into(),
+        caller_id: "assistant".into(),
+    };
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+    let input = DelegateInput {
+        profile: "reader".into(),
+        task: "Read the source".into(),
+    };
+    assert!(matches!(
+        tool.call(&scope, input, &cancel).await,
+        Err(ToolError::Cancelled)
+    ));
+    assert!(backend.0.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn the_backend_observes_the_callers_cancellation() {
+    let tool = DelegateTaskTool::new(Arc::new(Backend::default()));
+    let scope = AgentScope {
+        room_id: "room".into(),
+        caller_id: "assistant".into(),
+    };
+    let cancel = CancellationToken::new();
+    let input = DelegateInput {
+        profile: "waits".into(),
+        task: "Read the source".into(),
+    };
+    // The call is polled first and waits on the token; cancelling it ends the call.
+    let (result, ()) = tokio::join!(tool.call(&scope, input, &cancel), async {
+        cancel.cancel();
+    });
+    assert!(matches!(result, Err(ToolError::Cancelled)));
 }
 
 #[test]
@@ -150,10 +211,11 @@ async fn extensions_fail_explicitly_for_older_backends() {
         AgentFollowupTool::new(Arc::clone(&backend))
             .call(
                 &scope,
-                &FollowupInput {
+                FollowupInput {
                     agent_id: "a1".into(),
                     task: "Continue".into()
-                }
+                },
+                &CancellationToken::new()
             )
             .await,
         Err(ToolError::UnsupportedResource(_))
@@ -162,10 +224,11 @@ async fn extensions_fail_explicitly_for_older_backends() {
         AgentSendTool::new(backend)
             .call(
                 &scope,
-                &SendInput {
+                SendInput {
                     agent_id: "a1".into(),
                     message: "Clarify".into()
-                }
+                },
+                &CancellationToken::new()
             )
             .await,
         Err(ToolError::UnsupportedResource(_))

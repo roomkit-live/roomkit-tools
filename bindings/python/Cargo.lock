@@ -1162,6 +1162,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "tokio-util",
 ]
 
 [[package]]

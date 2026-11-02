@@ -4,8 +4,10 @@
 are independently selectable.
 Their Rust crate, `roomkit-tools-agents`, derives schemas from its actual input
 and output types and exposes an open `AgentBackend` trait with boxed futures.
-It has no runtime, model provider or RoomKit dependency. Tool objects only hold
-the injected backend; the backend owns execution and state. A native RoomKit
+It runs no async runtime and has no model provider or RoomKit dependency. Tool
+objects only hold the injected backend; the backend owns execution and state.
+Each Rust call takes a `CancellationToken`, as every tool's does, and passes it
+to the backend; Python cancels by cancelling the awaiting task. A native RoomKit
 Rust backend is not implemented yet.
 
 | Tool | Model arguments | Purpose |

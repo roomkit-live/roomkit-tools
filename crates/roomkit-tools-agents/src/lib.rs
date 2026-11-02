@@ -2,6 +2,8 @@
 //!
 //! This crate neither runs models nor schedules tasks. Backends own profiles,
 //! execution, scope checks, cancellation and cleanup. No runtime is required.
+//! Each call takes a [`CancellationToken`], as every tool's does, and hands it
+//! to the backend.
 
 #![forbid(unsafe_code)]
 
@@ -10,6 +12,7 @@ use std::{fmt::Debug, future::Future, pin::Pin, sync::Arc};
 use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use tokio_util::sync::CancellationToken;
 
 /// Trusted host context, never accepted as a model argument.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -169,6 +172,8 @@ pub type AgentFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ToolError>> 
 
 /// Host extension point. Implementations must check scope on every operation,
 /// bound their registries, and own cleanup independently of caller cancellation.
+/// `cancel` is the caller's token: a backend may stop waiting when it fires, but
+/// a task it already launched keeps running until `cancel_task` cancels it.
 /// Dropping a delegate future can lose its receipt: recover with status before
 /// retrying. A backend must document its own shutdown and persistence contract.
 pub trait AgentBackend: Debug + Send + Sync {
@@ -177,24 +182,28 @@ pub trait AgentBackend: Debug + Send + Sync {
         &'a self,
         scope: &'a AgentScope,
         input: &'a DelegateInput,
+        cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, TaskInfo>;
     /// Read one or all retained task records in this scope.
     fn status<'a>(
         &'a self,
         scope: &'a AgentScope,
         input: &'a StatusInput,
+        cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, TaskList>;
     /// Cancel an owned task, preserving cleanup if the caller goes away.
     fn cancel<'a>(
         &'a self,
         scope: &'a AgentScope,
         input: &'a CancelInput,
+        cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, CancelResult>;
     /// Start a new mission in a retained, idle agent conversation.
     fn followup<'a>(
         &'a self,
         _scope: &'a AgentScope,
         _input: &'a FollowupInput,
+        _cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, TaskInfo> {
         Box::pin(async {
             Err(ToolError::UnsupportedResource(
@@ -207,6 +216,7 @@ pub trait AgentBackend: Debug + Send + Sync {
         &'a self,
         _scope: &'a AgentScope,
         _input: &'a SendInput,
+        _cancel: &'a CancellationToken,
     ) -> AgentFuture<'a, SendResult> {
         Box::pin(async {
             Err(ToolError::UnsupportedResource(
@@ -384,17 +394,22 @@ macro_rules! tool {
             pub fn definition() -> Definition {
                 Definition::new::<$input, $output>($wire, $description)
             }
-            /// Execute within a host-provided scope.
+            /// Execute within a host-provided scope, as Python's
+            /// `call(arguments, scope=...)`.
             /// # Errors
-            /// Validation, access, limits and backend execution failures.
+            /// Validation, cancellation, access, limits and backend execution failures.
             pub async fn call(
                 &self,
                 scope: &AgentScope,
-                input: &$input,
+                input: $input,
+                cancel: &CancellationToken,
             ) -> Result<Output<$output>, ToolError> {
                 scope.validate()?;
                 input.validate()?;
-                render(self.backend.$method(scope, input).await?)
+                if cancel.is_cancelled() {
+                    return Err(ToolError::Cancelled);
+                }
+                render(self.backend.$method(scope, &input, cancel).await?)
             }
         }
     };

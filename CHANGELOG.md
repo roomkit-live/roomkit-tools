@@ -36,6 +36,10 @@ part of an existing published preview.
   host closes the `ProcessManager`, `OutputStore` and backends it shares.
   Owner-scoped adapters (process, output, plans, and the shell with an output
   store) refuse a call made outside a RoomKit tool call, as Python's do.
+- Rust: the agent tools' `call` takes its input by value and a
+  `&CancellationToken`, as every other tool's, and each `AgentBackend` method
+  receives that token. A call cancelled before it reaches the backend returns
+  `ToolError::Cancelled`.
 
 ### Changed
 
