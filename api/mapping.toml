@@ -70,3 +70,1084 @@ roomkit_tools_docs = ["roomkit_tools", "roomkit_tools.docs"]
 roomkit_tools_plans = ["roomkit_tools", "roomkit_tools.plans"]
 roomkit_tools_agents = ["roomkit_tools", "roomkit_tools.agents"]
 roomkit_tools_roomkit = ["roomkit_tools.roomkit", "roomkit_tools"]
+
+# ---------------------------------------------------------------------------
+# PENDING: the differences found on 2026-11-01, awaiting the maintainer's
+# decision. None is approved. The first entries pair counterparts named
+# differently, so their members are compared while the name waits; the
+# others cover the findings of each pair of counterparts, or of an item on
+# one side only.
+# ---------------------------------------------------------------------------
+
+[[pending]]
+rust = "roomkit_tools_core::Error"
+python = "roomkit_tools.ToolError"
+reason = "The error type: Rust's Error, Python's ToolError"
+covers = ["rust roomkit_tools_core::Error (name)"]
+
+[[pending]]
+rust = "roomkit_tools_fs::MutationWorkspace"
+python = "roomkit_tools.Workspace"
+reason = "The shared mutation scope: Rust's MutationWorkspace, Python's Workspace"
+covers = ["rust roomkit_tools_fs::MutationWorkspace (name)"]
+
+[[pending]]
+rust = "roomkit_tools_process::ProcessManager"
+python = "roomkit_tools.ProcessSession"
+reason = "The persistent processes: Rust's ProcessManager, Python's ProcessSession"
+covers = ["rust roomkit_tools_process::ProcessManager (name)"]
+
+[[pending]]
+rust = "roomkit_tools_process::OutputStore::is_closed"
+python = "roomkit_tools.OutputStore.closed"
+reason = "Rust's is_closed(), Python's closed property"
+covers = ["rust roomkit_tools_process::OutputStore::is_closed (name)"]
+
+[[pending]]
+rust = "roomkit_tools_docs::DocsListTool"
+python = "roomkit_tools.DocsList"
+reason = "Rust's DocsListTool, Python's DocsList (no Tool suffix)"
+covers = ["rust roomkit_tools_docs::DocsListTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_docs::DocsListTool::execute"
+python = "roomkit_tools.DocsList.call"
+reason = "Rust's execute(), Python's call()"
+covers = ["rust roomkit_tools_docs::DocsListTool::execute (name)"]
+
+[[pending]]
+rust = "roomkit_tools_docs::DocsListTool::definition"
+python = "roomkit_tools.DocsList.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_docs::DocsListTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_docs::DocsSearchTool"
+python = "roomkit_tools.DocsSearch"
+reason = "Rust's DocsSearchTool, Python's DocsSearch (no Tool suffix)"
+covers = ["rust roomkit_tools_docs::DocsSearchTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_docs::DocsSearchTool::execute"
+python = "roomkit_tools.DocsSearch.call"
+reason = "Rust's execute(), Python's call()"
+covers = ["rust roomkit_tools_docs::DocsSearchTool::execute (name)"]
+
+[[pending]]
+rust = "roomkit_tools_docs::DocsSearchTool::definition"
+python = "roomkit_tools.DocsSearch.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_docs::DocsSearchTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_docs::DocsReadTool"
+python = "roomkit_tools.DocsRead"
+reason = "Rust's DocsReadTool, Python's DocsRead (no Tool suffix)"
+covers = ["rust roomkit_tools_docs::DocsReadTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_docs::DocsReadTool::execute"
+python = "roomkit_tools.DocsRead.call"
+reason = "Rust's execute(), Python's call()"
+covers = ["rust roomkit_tools_docs::DocsReadTool::execute (name)"]
+
+[[pending]]
+rust = "roomkit_tools_docs::DocsReadTool::definition"
+python = "roomkit_tools.DocsRead.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_docs::DocsReadTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanCreateTool"
+python = "roomkit_tools.PlanCreate"
+reason = "Rust's PlanCreateTool, Python's PlanCreate (no Tool suffix)"
+covers = ["rust roomkit_tools_plans::PlanCreateTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanCreateTool::execute"
+python = "roomkit_tools.PlanCreate.call"
+reason = "Rust's execute(), Python's call()"
+covers = ["rust roomkit_tools_plans::PlanCreateTool::execute (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanCreateTool::definition"
+python = "roomkit_tools.PlanCreate.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_plans::PlanCreateTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanReadTool"
+python = "roomkit_tools.PlanRead"
+reason = "Rust's PlanReadTool, Python's PlanRead (no Tool suffix)"
+covers = ["rust roomkit_tools_plans::PlanReadTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanReadTool::execute"
+python = "roomkit_tools.PlanRead.call"
+reason = "Rust's execute(), Python's call()"
+covers = ["rust roomkit_tools_plans::PlanReadTool::execute (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanReadTool::definition"
+python = "roomkit_tools.PlanRead.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_plans::PlanReadTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanListTool"
+python = "roomkit_tools.PlanList"
+reason = "Rust's PlanListTool, Python's PlanList (no Tool suffix)"
+covers = ["rust roomkit_tools_plans::PlanListTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanListTool::execute"
+python = "roomkit_tools.PlanList.call"
+reason = "Rust's execute(), Python's call()"
+covers = ["rust roomkit_tools_plans::PlanListTool::execute (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanListTool::definition"
+python = "roomkit_tools.PlanList.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_plans::PlanListTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanUpdateTool"
+python = "roomkit_tools.PlanUpdate"
+reason = "Rust's PlanUpdateTool, Python's PlanUpdate (no Tool suffix)"
+covers = ["rust roomkit_tools_plans::PlanUpdateTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanUpdateTool::execute"
+python = "roomkit_tools.PlanUpdate.call"
+reason = "Rust's execute(), Python's call()"
+covers = ["rust roomkit_tools_plans::PlanUpdateTool::execute (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanUpdateTool::definition"
+python = "roomkit_tools.PlanUpdate.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_plans::PlanUpdateTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanDeleteTool"
+python = "roomkit_tools.PlanDelete"
+reason = "Rust's PlanDeleteTool, Python's PlanDelete (no Tool suffix)"
+covers = ["rust roomkit_tools_plans::PlanDeleteTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanDeleteTool::execute"
+python = "roomkit_tools.PlanDelete.call"
+reason = "Rust's execute(), Python's call()"
+covers = ["rust roomkit_tools_plans::PlanDeleteTool::execute (name)"]
+
+[[pending]]
+rust = "roomkit_tools_plans::PlanDeleteTool::definition"
+python = "roomkit_tools.PlanDelete.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_plans::PlanDeleteTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::DelegateTaskTool"
+python = "roomkit_tools.DelegateTask"
+reason = "Rust's DelegateTaskTool, Python's DelegateTask (no Tool suffix)"
+covers = ["rust roomkit_tools_agents::DelegateTaskTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::DelegateTaskTool::definition"
+python = "roomkit_tools.DelegateTask.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_agents::DelegateTaskTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::TaskStatusTool"
+python = "roomkit_tools.TaskStatus"
+reason = "Rust's TaskStatusTool, Python's TaskStatus (no Tool suffix)"
+covers = ["rust roomkit_tools_agents::TaskStatusTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::TaskStatusTool::definition"
+python = "roomkit_tools.TaskStatus.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_agents::TaskStatusTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::CancelTaskTool"
+python = "roomkit_tools.CancelTask"
+reason = "Rust's CancelTaskTool, Python's CancelTask (no Tool suffix)"
+covers = ["rust roomkit_tools_agents::CancelTaskTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::CancelTaskTool::definition"
+python = "roomkit_tools.CancelTask.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_agents::CancelTaskTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::AgentFollowupTool"
+python = "roomkit_tools.AgentFollowup"
+reason = "Rust's AgentFollowupTool, Python's AgentFollowup (no Tool suffix)"
+covers = ["rust roomkit_tools_agents::AgentFollowupTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::AgentFollowupTool::definition"
+python = "roomkit_tools.AgentFollowup.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_agents::AgentFollowupTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::AgentSendTool"
+python = "roomkit_tools.AgentSend"
+reason = "Rust's AgentSendTool, Python's AgentSend (no Tool suffix)"
+covers = ["rust roomkit_tools_agents::AgentSendTool (name)"]
+
+[[pending]]
+rust = "roomkit_tools_agents::AgentSendTool::definition"
+python = "roomkit_tools.AgentSend.contract"
+reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
+covers = ["rust roomkit_tools_agents::AgentSendTool::definition (name)"]
+
+[[pending]]
+rust = "roomkit_tools_ocr_rusto::RustoBackend"
+python = "roomkit_tools_ocr_rusto.RustoOcr"
+reason = "The RustO engine: Rust's RustoBackend, Python's RustoOcr"
+covers = ["rust roomkit_tools_ocr_rusto::RustoBackend (name)"]
+
+[[pending]]
+rust = "roomkit_tools_ocr_rusto::RustoBackend::lazy"
+python = "roomkit_tools_ocr_rusto.RustoOcr.__init__"
+reason = "Rust builds the lazy engine with RustoBackend::lazy(RustoConfig); Python with RustoOcr(models, ...)"
+covers = ["rust roomkit_tools_ocr_rusto::RustoBackend::lazy (name)"]
+
+[[pending]]
+reason = "roomkit_tools_agents::AgentContract / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_agents::AgentContract (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_agents::AgentFollowupTool / roomkit_tools.AgentFollowup: unmatched (2)"
+covers = [
+  "python roomkit_tools.AgentFollowup.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.AgentFollowup.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+]
+
+[[pending]]
+reason = "roomkit_tools_agents::AgentScope / roomkit_tools.AgentScope: unmatched"
+covers = [
+  "rust roomkit_tools_agents::AgentScope::validate (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_agents::AgentSendTool / roomkit_tools.AgentSend: unmatched (2)"
+covers = [
+  "python roomkit_tools.AgentSend.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.AgentSend.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+]
+
+[[pending]]
+reason = "roomkit_tools_agents::CancelTaskTool / roomkit_tools.CancelTask: unmatched (2)"
+covers = [
+  "python roomkit_tools.CancelTask.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.CancelTask.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+]
+
+[[pending]]
+reason = "roomkit_tools_agents::DelegateTaskTool / roomkit_tools.DelegateTask: unmatched (2)"
+covers = [
+  "python roomkit_tools.DelegateTask.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.DelegateTask.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+]
+
+[[pending]]
+reason = "roomkit_tools_agents::TaskStatusTool / roomkit_tools.TaskStatus: unmatched (2)"
+covers = [
+  "python roomkit_tools.TaskStatus.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.TaskStatus.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+]
+
+[[pending]]
+reason = "roomkit_tools_agents::decode / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_agents::decode (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_agents::render / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_agents::render (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_code::CodeOutlineLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_code::CodeOutlineLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_code::CodeOutlineTool / roomkit_tools.CodeOutlineTool: unmatched"
+covers = [
+  "python roomkit_tools.CodeOutlineTool.call (unmatched)",  # no Rust method
+]
+
+[[pending]]
+reason = "roomkit_tools_core::Definition / dict: unmatched"
+covers = [
+  "rust roomkit_tools_core::Definition::new (unmatched)",  # a member of a type standing for Python's dict: no Python counterpart
+]
+
+[[pending]]
+reason = "roomkit_tools_core::Error / roomkit_tools.ToolError: unmatched (5)"
+covers = [
+  "rust roomkit_tools_core::Error::Refused (unmatched)",  # an error variant: no Python exception class of the roomkit_tools.ToolError family
+  "rust roomkit_tools_core::Error::Unsupported (unmatched)",  # an error variant: no Python exception class of the roomkit_tools.ToolError family
+  "python roomkit_tools.AccessRefusedError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::Error
+  "python roomkit_tools.ForkedProcessError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::Error
+  "python roomkit_tools.UnsupportedResourceError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::Error
+]
+
+[[pending]]
+reason = "roomkit_tools_core::Output / dict: unmatched"
+covers = [
+  "rust roomkit_tools_core::Output::new (unmatched)",  # a member of a type standing for Python's dict: no Python counterpart
+]
+
+[[pending]]
+reason = "roomkit_tools_core::WorkspaceRoot / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_core::WorkspaceRoot (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_core::identifiers::creation_order / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_core::identifiers::creation_order (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_core::revision::sha256 / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_core::revision::sha256 (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_docs::DocsBackend / roomkit_tools.FileDocs: defaulted (9)"
+covers = [
+  "rust roomkit_tools_docs::DocsListInput::offset (defaulted)",  # Python defaults it (offset=0); Rust requires it
+  "rust roomkit_tools_docs::DocsListInput::limit (defaulted)",  # Python defaults it (limit=20); Rust requires it
+  "rust roomkit_tools_docs::DocsListInput::expected_catalog_revision (defaulted)",  # Python defaults it (expected_catalog_revision=None); Rust requires it
+  "rust roomkit_tools_docs::DocsReadInput::offset (defaulted)",  # Python defaults it (offset=1); Rust requires it
+  "rust roomkit_tools_docs::DocsReadInput::limit (defaulted)",  # Python defaults it (limit=100); Rust requires it
+  "rust roomkit_tools_docs::DocsReadInput::expected_revision (defaulted)",  # Python defaults it (expected_revision=None); Rust requires it
+  "rust roomkit_tools_docs::DocsSearchInput::offset (defaulted)",  # Python defaults it (offset=0); Rust requires it
+  "rust roomkit_tools_docs::DocsSearchInput::limit (defaulted)",  # Python defaults it (limit=10); Rust requires it
+  "rust roomkit_tools_docs::DocsSearchInput::expected_catalog_revision (defaulted)",  # Python defaults it (expected_catalog_revision=None); Rust requires it
+]
+
+[[pending]]
+reason = "roomkit_tools_docs::DocsContract / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_docs::DocsContract (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_docs::FileDocs / roomkit_tools.FileDocs: defaulted, variadic"
+covers = [
+  "rust roomkit_tools_docs::FileDocs::new(version) (defaulted)",  # Python defaults it (version=None); Rust requires it
+  "python roomkit_tools.FileDocs.__init__(limits) (variadic)",  # takes **limits; Rust's FileDocsLimits names max_documents, max_document_bytes, max_total_bytes, max_entries, max_depth, max_total_lines, max_read_bytes
+]
+
+[[pending]]
+reason = "roomkit_tools_docs::FileDocsLimits / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_docs::FileDocsLimits::validate (unmatched)",  # an options struct's own member: no Python counterpart
+]
+
+[[pending]]
+reason = "roomkit_tools_docs::decode / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_docs::decode (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_docs::render / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_docs::render (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::DiffLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_fs::DiffLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::DiffTool / roomkit_tools.DiffTool: unmatched"
+covers = [
+  "python roomkit_tools.DiffTool.call (unmatched)",  # no Rust method
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::EditLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_fs::EditLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::EditTool / roomkit_tools.EditTool: unmatched (2)"
+covers = [
+  "python roomkit_tools.EditTool.call (unmatched)",  # no Rust method
+  "rust roomkit_tools_fs::EditTool::from_workspace (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::GlobLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_fs::GlobLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::GlobTool / roomkit_tools.GlobTool: unmatched"
+covers = [
+  "python roomkit_tools.GlobTool.call (unmatched)",  # no Rust method
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::GrepLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_fs::GrepLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::GrepTool / roomkit_tools.GrepTool: unmatched"
+covers = [
+  "python roomkit_tools.GrepTool.call (unmatched)",  # no Rust method
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::ListLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_fs::ListLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::ListTool / roomkit_tools.ListTool: unmatched, defaulted"
+covers = [
+  "python roomkit_tools.ListTool.call (unmatched)",  # no Rust method
+  "rust roomkit_tools_fs::ListInput::path (defaulted)",  # Python defaults it (path='.'); Rust requires it
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::MutationWorkspace / roomkit_tools.Workspace: async"
+covers = [
+  "rust roomkit_tools_fs::MutationWorkspace::new (async)",  # async in Rust, not in Python
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::PatchLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_fs::PatchLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::PatchTool / roomkit_tools.PatchTool: unmatched (2), form"
+covers = [
+  "python roomkit_tools.PatchTool.call (unmatched)",  # no Rust method
+  "rust roomkit_tools_fs::PatchLimits::diff (form)",  # nests max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines in a DiffLimits; Python takes them flat
+  "rust roomkit_tools_fs::PatchTool::from_workspace (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::ReadLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_fs::ReadLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::ReadTool / roomkit_tools.ReadTool: unmatched"
+covers = [
+  "python roomkit_tools.ReadTool.call (unmatched)",  # no Rust method
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::WriteLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_fs::WriteLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_fs::WriteTool / roomkit_tools.WriteTool: unmatched (2)"
+covers = [
+  "python roomkit_tools.WriteTool.call (unmatched)",  # no Rust method
+  "rust roomkit_tools_fs::WriteTool::from_workspace (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_http::NetworkPolicy / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_http::NetworkPolicy (unmatched)",  # no Python name: no compared call takes it
+]
+
+[[pending]]
+reason = "roomkit_tools_http::checked_client / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_http::checked_client (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_http::io_error / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_http::io_error (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_http::normalize_policy / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_http::normalize_policy (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_http::parse_url / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_http::parse_url (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_http::read_body / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_http::read_body (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_image::DecodedImage / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_image::DecodedImage (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_image::ImageMime / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_image::ImageMime::as_str (unmatched)",  # a contract type's own member: no Python counterpart
+]
+
+[[pending]]
+reason = "roomkit_tools_image::ImagePayload / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_image::ImagePayload::data_url (unmatched)",  # a contract type's own member: no Python counterpart
+]
+
+[[pending]]
+reason = "roomkit_tools_image::ImageWorkspace / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_image::ImageWorkspace (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_image::ViewImageTool / roomkit_tools.ViewImageTool: unmatched, required"
+covers = [
+  "python roomkit_tools.ViewImageTool.call (unmatched)",  # no Rust method
+  "rust roomkit_tools_image::ViewImageInput::path (required)",  # Python requires it; Rust defaults it
+]
+
+[[pending]]
+reason = "roomkit_tools_image::decode_rgb / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_image::decode_rgb (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_ocr::DecodedImage / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_ocr::DecodedImage (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_ocr::OcrBackend / roomkit_tools.OcrBackend: unmatched (3)"
+covers = [
+  "python roomkit_tools.OcrBackend.bind (unmatched)",  # no Rust method
+  "rust roomkit_tools_ocr::OcrBackend::identity (unmatched)",  # no Python member
+  "rust roomkit_tools_ocr::OcrBackend::recognize (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_ocr::OcrEngine / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_ocr::OcrEngine (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool: unmatched, variadic, name, defaulted (3)"
+covers = [
+  "python roomkit_tools.OcrTool.call (unmatched)",  # no Rust method
+  "python roomkit_tools.OcrTool.create(limits) (variadic)",  # takes **limits; Rust's OcrLimits names max_file_bytes, max_dimension, max_pixels, max_decode_bytes, max_output_bytes, max_blocks, default_timeout_ms, max_timeout_ms
+  "rust roomkit_tools_ocr::OcrTool::new(engine) (name)",  # the one parameter left on each side: named backend in Python
+  "rust roomkit_tools_ocr::OcrInput::rotation_degrees (defaulted)",  # Python defaults it (rotation_degrees=0); Rust requires it
+  "rust roomkit_tools_ocr::OcrInput::expected_revision (defaulted)",  # Python defaults it (expected_revision=None); Rust requires it
+  "rust roomkit_tools_ocr::OcrInput::timeout_ms (defaulted)",  # Python defaults it (timeout_ms=None); Rust requires it
+]
+
+[[pending]]
+reason = "roomkit_tools_ocr_rusto::RustoBackend / roomkit_tools_ocr_rusto.RustoOcr: result, defaulted (3), unmatched (6)"
+covers = [
+  "rust roomkit_tools_ocr_rusto::RustoBackend::lazy (result)",  # returns Result<OcrEngine, Error>, not a RustoBackend
+  "rust roomkit_tools_ocr_rusto::RustoConfig::model_name (defaulted)",  # Python defaults it (model_name='ppocrv6'); Rust requires it
+  "rust roomkit_tools_ocr_rusto::RustoConfig::threads (defaulted)",  # Python defaults it (threads=2); Rust requires it
+  "rust roomkit_tools_ocr_rusto::RustoConfig::detection_max_edge (defaulted)",  # Python defaults it (detection_max_edge=960); Rust requires it
+  "python roomkit_tools_ocr_rusto.RustoOcr.__init__(models) (unmatched)",  # no Rust parameter
+  "rust roomkit_tools_ocr_rusto::RustoConfig::detection_model (unmatched)",  # no Python parameter
+  "rust roomkit_tools_ocr_rusto::RustoConfig::recognition_model (unmatched)",  # no Python parameter
+  "rust roomkit_tools_ocr_rusto::RustoConfig::dictionary (unmatched)",  # no Python parameter
+  "python roomkit_tools_ocr_rusto.RustoOcr.bind (unmatched)",  # no Rust method
+  "rust roomkit_tools_ocr_rusto::RustoBackend::load (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_plans::MemoryPlanBackend / roomkit_tools.MemoryPlanBackend: defaulted (2)"
+covers = [
+  "rust roomkit_tools_plans::MemoryPlanBackend::new(max_plans) (defaulted)",  # Python defaults it (max_plans=256); Rust requires it
+  "rust roomkit_tools_plans::MemoryPlanBackend::new(max_plans_per_scope) (defaulted)",  # Python defaults it (max_plans_per_scope=64); Rust requires it
+]
+
+[[pending]]
+reason = "roomkit_tools_plans::PlanBackend / roomkit_tools.MemoryPlanBackend: defaulted (3)"
+covers = [
+  "rust roomkit_tools_plans::PlanUpdateInput::title (defaulted)",  # Python defaults it (title=None); Rust requires it
+  "rust roomkit_tools_plans::PlanUpdateInput::objective (defaulted)",  # Python defaults it (objective=None); Rust requires it
+  "rust roomkit_tools_plans::PlanUpdateInput::steps (defaulted)",  # Python defaults it (steps=None); Rust requires it
+]
+
+[[pending]]
+reason = "roomkit_tools_plans::PlanContract / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_plans::PlanContract (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_plans::PlanScope / roomkit_tools.PlanScope: unmatched"
+covers = [
+  "rust roomkit_tools_plans::PlanScope::validate (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_plans::decode / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_plans::decode (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_plans::render / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_plans::render (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_process::CommandEnv / no Python name: non_exhaustive, unmatched"
+covers = [
+  "rust roomkit_tools_process::CommandEnv (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+  "rust roomkit_tools_process::CommandEnv::validate (unmatched)",  # an options struct's own member: no Python counterpart
+]
+
+[[pending]]
+reason = "roomkit_tools_process::ObservedProcess / no Python name: unmatched"
+covers = [
+  "rust roomkit_tools_process::ObservedProcess (unmatched)",  # no Python name
+]
+
+[[pending]]
+reason = "roomkit_tools_process::OutputLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_process::OutputLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async (2), defaulted (6), unmatched (4)"
+covers = [
+  "rust roomkit_tools_process::OutputStore::new (async)",  # async in Rust, not in Python
+  "rust roomkit_tools_process::OutputStore::new(parent) (defaulted)",  # Python defaults it (parent=None); Rust requires it
+  "python roomkit_tools.OutputStore.call (unmatched)",  # no Rust method
+  "python roomkit_tools.OutputStore.definition (unmatched)",  # no Rust method
+  "rust roomkit_tools_process::OutputStore::forget(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::OutputStore::list (async)",  # async in Python, not in Rust
+  "rust roomkit_tools_process::OutputStore::list(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::OutputReadInput::offset (defaulted)",  # Python defaults it (offset=0); Rust requires it
+  "rust roomkit_tools_process::OutputReadInput::max_bytes (defaulted)",  # Python defaults it (max_bytes=None); Rust requires it
+  "rust roomkit_tools_process::OutputStore::read(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::OutputStore::read_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::OutputStore::forget_definition (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_process::ProcessLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_process::ProcessLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_process::ProcessManager / roomkit_tools.ProcessSession: async, unmatched (10), defaulted (8)"
+covers = [
+  "rust roomkit_tools_process::ProcessManager::new (async)",  # async in Rust, not in Python
+  "python roomkit_tools.ProcessSession.call (unmatched)",  # no Rust method
+  "python roomkit_tools.ProcessSession.closed (unmatched)",  # a property: no Rust method or field
+  "python roomkit_tools.ProcessSession.definition (unmatched)",  # no Rust method
+  "rust roomkit_tools_process::ProcessManager::read(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessManager::start(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessManager::status(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessStopInput::forget (defaulted)",  # Python defaults it (forget=False); Rust requires it
+  "rust roomkit_tools_process::ProcessManager::stop(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessWriteInput::text (defaulted)",  # Python defaults it (text=''); Rust requires it
+  "rust roomkit_tools_process::ProcessWriteInput::close_stdin (defaulted)",  # Python defaults it (close_stdin=False); Rust requires it
+  "rust roomkit_tools_process::ProcessManager::write(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
+  "rust roomkit_tools_process::ProcessManager::start_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessManager::status_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessManager::read_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessManager::write_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessManager::stop_definition (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessManager::subscribe (unmatched)",  # no Python member
+  "rust roomkit_tools_process::ProcessManager::observe (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_process::ProcessStatus / roomkit_tools.ProcessStatus: meaning"
+covers = [
+  "rust roomkit_tools_process::ProcessStatus (meaning)",  # a contract type; Python's roomkit_tools.ProcessStatus of the same name is another thing, a class
+]
+
+[[pending]]
+reason = "roomkit_tools_process::ShellLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_process::ShellLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool: unmatched (2)"
+covers = [
+  "python roomkit_tools.ShellTool.call (unmatched)",  # no Rust method
+  "rust roomkit_tools_process::ShellTool::shell_owned (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::CodeOutlineToolset / roomkit_tools.CodeOutline: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::CodeOutlineToolset (name)",  # named CodeOutline in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::CodeOutlineToolset::new(tool) (form)",  # takes a built CodeOutlineTool; Python's roomkit_tools.CodeOutline takes roomkit_tools.CodeOutlineTool.create's parameters (root, max_file_bytes, max_output_bytes, max_symbols, max_scan_symbols, max_scan_nodes, max_depth, max_signature_bytes, default_timeout_ms, max_timeout_ms)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::DiffToolset / roomkit_tools.Diff: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::DiffToolset (name)",  # named Diff in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::DiffToolset::new(tool) (form)",  # takes a built DiffTool; Python's roomkit_tools.Diff takes roomkit_tools.DiffTool.create's parameters (root, max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::DocsListToolset / roomkit_tools.DocsList: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::DocsListToolset (name)",  # named DocsList in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::DocsListToolset::new(tool) (form)",  # takes a built DocsListTool; Python's roomkit_tools.DocsList is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::DocsReadToolset / roomkit_tools.DocsRead: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::DocsReadToolset (name)",  # named DocsRead in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::DocsReadToolset::new(tool) (form)",  # takes a built DocsReadTool; Python's roomkit_tools.DocsRead is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::DocsSearchToolset / roomkit_tools.DocsSearch: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::DocsSearchToolset (name)",  # named DocsSearch in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::DocsSearchToolset::new(tool) (form)",  # takes a built DocsSearchTool; Python's roomkit_tools.DocsSearch is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::EditToolset / roomkit_tools.Edit: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::EditToolset (name)",  # named Edit in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::EditToolset::new(tool) (form)",  # takes a built EditTool; Python's roomkit_tools.Edit takes roomkit_tools.EditTool.create's parameters (root, max_file_bytes)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::GlobToolset / roomkit_tools.Glob: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::GlobToolset (name)",  # named Glob in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::GlobToolset::new(tool) (form)",  # takes a built GlobTool; Python's roomkit_tools.Glob takes roomkit_tools.GlobTool.create's parameters (root, max_matches, max_output_bytes, max_scan_entries, max_depth)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::GrepToolset / roomkit_tools.Grep: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::GrepToolset (name)",  # named Grep in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::GrepToolset::new(tool) (form)",  # takes a built GrepTool; Python's roomkit_tools.Grep takes roomkit_tools.GrepTool.create's parameters (root, max_matches, max_output_bytes, max_scan_entries, max_depth, max_file_bytes, max_total_bytes, max_context_lines, max_line_bytes)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::ListToolset / roomkit_tools.List: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::ListToolset (name)",  # named List in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::ListToolset::new(tool) (form)",  # takes a built ListTool; Python's roomkit_tools.List takes roomkit_tools.ListTool.create's parameters (root, max_entries, max_output_bytes, max_scan_entries)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::OcrToolset / roomkit_tools.Ocr: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::OcrToolset (name)",  # named Ocr in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::OcrToolset::new(tool) (form)",  # takes a built OcrTool; Python's roomkit_tools.Ocr takes roomkit_tools.OcrTool.create's parameters (root, backend, max_file_bytes, max_dimension, max_pixels, max_decode_bytes, max_output_bytes, max_blocks, default_timeout_ms, max_timeout_ms)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::OutputForgetToolset / roomkit_tools.OutputForget: name (2)"
+covers = [
+  "rust roomkit_tools_roomkit::OutputForgetToolset (name)",  # named OutputForget in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::OutputForgetToolset::new(tool) (name)",  # the one parameter left on each side: named store in Python
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::OutputReadToolset / roomkit_tools.OutputRead: name (2)"
+covers = [
+  "rust roomkit_tools_roomkit::OutputReadToolset (name)",  # named OutputRead in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::OutputReadToolset::new(tool) (name)",  # the one parameter left on each side: named store in Python
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PatchToolset / roomkit_tools.Patch: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::PatchToolset (name)",  # named Patch in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::PatchToolset::new(tool) (form)",  # takes a built PatchTool; Python's roomkit_tools.Patch takes roomkit_tools.PatchTool.create's parameters (root, max_changes, max_input_bytes, max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanCreateToolset / roomkit_tools.PlanCreate: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanCreateToolset (name)",  # named PlanCreate in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::PlanCreateToolset::new(tool) (form)",  # takes a built PlanCreateTool; Python's roomkit_tools.PlanCreate is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanDeleteToolset / roomkit_tools.PlanDelete: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanDeleteToolset (name)",  # named PlanDelete in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::PlanDeleteToolset::new(tool) (form)",  # takes a built PlanDeleteTool; Python's roomkit_tools.PlanDelete is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanListToolset / roomkit_tools.PlanList: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanListToolset (name)",  # named PlanList in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::PlanListToolset::new(tool) (form)",  # takes a built PlanListTool; Python's roomkit_tools.PlanList is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanReadToolset / roomkit_tools.PlanRead: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanReadToolset (name)",  # named PlanRead in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::PlanReadToolset::new(tool) (form)",  # takes a built PlanReadTool; Python's roomkit_tools.PlanRead is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanUpdateToolset / roomkit_tools.PlanUpdate: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanUpdateToolset (name)",  # named PlanUpdate in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::PlanUpdateToolset::new(tool) (form)",  # takes a built PlanUpdateTool; Python's roomkit_tools.PlanUpdate is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::ProcessReadToolset / roomkit_tools.ProcessRead: name (2)"
+covers = [
+  "rust roomkit_tools_roomkit::ProcessReadToolset (name)",  # named ProcessRead in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::ProcessReadToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::ProcessStartToolset / roomkit_tools.ProcessStart: name (2)"
+covers = [
+  "rust roomkit_tools_roomkit::ProcessStartToolset (name)",  # named ProcessStart in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::ProcessStartToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::ProcessStatusToolset / roomkit_tools.ProcessStatus: name (2)"
+covers = [
+  "rust roomkit_tools_roomkit::ProcessStatusToolset (name)",  # named ProcessStatus in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::ProcessStatusToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::ProcessStopToolset / roomkit_tools.ProcessStop: name (2)"
+covers = [
+  "rust roomkit_tools_roomkit::ProcessStopToolset (name)",  # named ProcessStop in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::ProcessStopToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::ProcessWriteToolset / roomkit_tools.ProcessWrite: name (2)"
+covers = [
+  "rust roomkit_tools_roomkit::ProcessWriteToolset (name)",  # named ProcessWrite in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::ProcessWriteToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::ReadToolset / roomkit_tools.Read: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::ReadToolset (name)",  # named Read in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::ReadToolset::new(tool) (form)",  # takes a built ReadTool; Python's roomkit_tools.Read takes roomkit_tools.ReadTool.create's parameters (root, max_file_bytes, max_output_bytes, max_lines)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::ShellToolset / roomkit_tools.Shell: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::ShellToolset (name)",  # named Shell in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::ShellToolset::new(tool) (form)",  # takes a built ShellTool; Python's roomkit_tools.Shell takes roomkit_tools.ShellTool.create's parameters (root, outputs, inherit_env, env, max_command_bytes, max_output_bytes, default_timeout_ms, max_timeout_ms)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::WebFetchToolset / roomkit_tools.WebFetch: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::WebFetchToolset (name)",  # named WebFetch in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::WebFetchToolset::new(tool) (form)",  # takes a built WebFetchTool; Python's roomkit_tools.WebFetch takes roomkit_tools.WebFetchTool.__init__'s parameters (**configuration)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::WebSearchToolset / roomkit_tools.WebSearch: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::WebSearchToolset (name)",  # named WebSearch in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::WebSearchToolset::new(tool) (form)",  # takes a built WebSearchTool; Python's roomkit_tools.WebSearch takes roomkit_tools.WebSearchTool.__init__'s parameters (backend, **configuration)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::WriteToolset / roomkit_tools.Write: name, form"
+covers = [
+  "rust roomkit_tools_roomkit::WriteToolset (name)",  # named Write in Python: the Toolset suffix
+  "rust roomkit_tools_roomkit::WriteToolset::new(tool) (form)",  # takes a built WriteTool; Python's roomkit_tools.Write takes roomkit_tools.WriteTool.create's parameters (root, max_file_bytes)
+]
+
+[[pending]]
+reason = "roomkit_tools_search::BackendOutput / no Python name: unmatched, uncompared"
+covers = [
+  "rust roomkit_tools_search::BackendOutput::results (unmatched)",  # a contract type's own member: no Python counterpart
+  "rust roomkit_tools_search::BackendOutput (uncompared)",  # a contract type no tool contract holds: its JSON is compared with nothing
+]
+
+[[pending]]
+reason = "roomkit_tools_search::ExaSearch / roomkit_tools.search.ExaSearch: defaulted, form"
+covers = [
+  "rust roomkit_tools_search::ExaSearch::new(api_key) (defaulted)",  # Python defaults it (api_key=None); Rust requires it
+  "rust roomkit_tools_search::SearchHttpConfig::policy (form)",  # nests allowed_origins, private_origins in a NetworkPolicy; Python takes them flat
+]
+
+[[pending]]
+reason = "roomkit_tools_search::NetworkPolicy / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_search::NetworkPolicy (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_search::OpenAISearchConfig / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_search::OpenAISearchConfig (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_search::SearchBackend / roomkit_tools.search.SearchBackend: unmatched (2)"
+covers = [
+  "rust roomkit_tools_search::SearchBackend::name (unmatched)",  # no Python member
+  "rust roomkit_tools_search::SearchBackend::search (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_search::SearchCapabilities / no Python name: unmatched, uncompared"
+covers = [
+  "rust roomkit_tools_search::SearchCapabilities::direct (unmatched)",  # a contract type's own member: no Python counterpart
+  "rust roomkit_tools_search::SearchCapabilities (uncompared)",  # a contract type no tool contract holds: its JSON is compared with nothing
+]
+
+[[pending]]
+reason = "roomkit_tools_search::SearchHttpConfig / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_search::SearchHttpConfig (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_search::SearchKind / no Python name: uncompared"
+covers = [
+  "rust roomkit_tools_search::SearchKind (uncompared)",  # a contract type no tool contract holds: its JSON is compared with nothing
+]
+
+[[pending]]
+reason = "roomkit_tools_search::SearchLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_search::SearchLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_search::SearchResult / json:SearchResult: unmatched (5)"
+covers = [
+  "rust roomkit_tools_search::SearchResult::response (unmatched)",  # a field with no JSON property in SearchResult
+  "python json:SearchResult.notices (unmatched)",  # a JSON property: no Rust field of roomkit_tools_search::SearchResult
+  "python json:SearchResult.partial (unmatched)",  # a JSON property: no Rust field of roomkit_tools_search::SearchResult
+  "python json:SearchResult.payload (unmatched)",  # a JSON property: no Rust field of roomkit_tools_search::SearchResult
+  "python json:SearchResult.usage (unmatched)",  # a JSON property: no Rust field of roomkit_tools_search::SearchResult
+]
+
+[[pending]]
+reason = "roomkit_tools_search::WebSearchTool / roomkit_tools.WebSearchTool: unmatched (3)"
+covers = [
+  "python roomkit_tools.WebSearchTool.call (unmatched)",  # no Rust method
+  "python roomkit_tools.WebSearchTool.create (unmatched)",  # no Rust method
+  "rust roomkit_tools_search::WebSearchTool::capabilities (unmatched)",  # no Python member
+]
+
+[[pending]]
+reason = "roomkit_tools_web::WebFetchLimits / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_web::WebFetchLimits (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_web::WebFetchPolicy / no Python name: non_exhaustive"
+covers = [
+  "rust roomkit_tools_web::WebFetchPolicy (non_exhaustive)",  # #[non_exhaustive]: a caller outside the crate cannot build it by struct update
+]
+
+[[pending]]
+reason = "roomkit_tools_web::WebFetchTool / roomkit_tools.WebFetchTool: unmatched (2)"
+covers = [
+  "python roomkit_tools.WebFetchTool.call (unmatched)",  # no Rust method
+  "python roomkit_tools.WebFetchTool.create (unmatched)",  # no Rust method
+]
+
+[[pending]]
+reason = "no Rust item / roomkit_tools.ViewImage: unmatched"
+covers = [
+  "python roomkit_tools.ViewImage (unmatched)",  # no Rust item
+]
+
+[[pending]]
+reason = "no Rust item / roomkit_tools.ocr.BoundOcrBackend: unmatched"
+covers = [
+  "python roomkit_tools.ocr.BoundOcrBackend (unmatched)",  # no Rust item
+]
+
+[[pending]]
+reason = "no Rust item / roomkit_tools.roomkit.ReadToolAdapter: unmatched"
+covers = [
+  "python roomkit_tools.roomkit.ReadToolAdapter (unmatched)",  # no Rust item
+]
+
+[[pending]]
+reason = "no Rust item / roomkit_tools.roomkit_agents.AgentConfig: unmatched"
+covers = [
+  "python roomkit_tools.roomkit_agents.AgentConfig (unmatched)",  # no Rust item
+]
+
+[[pending]]
+reason = "no Rust item / roomkit_tools.roomkit_agents.AgentRequest: unmatched"
+covers = [
+  "python roomkit_tools.roomkit_agents.AgentRequest (unmatched)",  # no Rust item
+]
+
+[[pending]]
+reason = "no Rust item / roomkit_tools.roomkit_agents.RoomKitAgentBackend: unmatched"
+covers = [
+  "python roomkit_tools.roomkit_agents.RoomKitAgentBackend (unmatched)",  # no Rust item
+]
