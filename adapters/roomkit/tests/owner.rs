@@ -4,6 +4,8 @@
 
 mod call;
 
+use std::time::Duration;
+
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_process::{
@@ -53,6 +55,27 @@ async fn start(toolset: &ProcessStart, room: &str, agent: &str, command: &str) -
     started["data"].clone()
 }
 
+/// Wait until the running job `id` of `owner` has printed `text`.
+async fn wait_for_stdout(session: &ProcessSession, owner: &str, id: &str, text: &str) {
+    let cancel = CancellationToken::new();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let page = session
+                .read(Some(owner), ProcessReadInput::new(id), &cancel)
+                .await
+                .unwrap()
+                .data;
+            if page.stdout.text == text {
+                assert_eq!(page.status.state, ProcessState::Running);
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+}
+
 #[tokio::test]
 async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
     let root = tempfile::tempdir().unwrap();
@@ -77,6 +100,9 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].process_id, id);
     assert_eq!(listed[0].state, ProcessState::Running);
+    // Stop kills the job at once: wait for the shell to print first, or a
+    // stop before `printf` runs leaves nothing to keep.
+    wait_for_stdout(&session, &owner, id, "saved").await;
     let stop = ProcessStopInput::new(id);
     let stopped = session.stop(Some(&owner), stop, &cancel).await.unwrap();
     assert_eq!(stopped.data.status.state, ProcessState::Finished);
