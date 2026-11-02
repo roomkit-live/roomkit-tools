@@ -149,11 +149,13 @@ other side's call; one named twice, its Python name; a `required`,
 `defaulted` or `default` finding, the Python parameter with its default and,
 for `default`, Rust's; a `variadic` or `form` finding, the struct and the
 fields or parameters it stands for; a constructor's `result` finding, the
-type it returns; a call's, its contract and both types. A key no finding has, a pairing the
-rules already make, or an entry naming what is gone, is dead. Every rule and
-every `[[map]]`, `[[exception]]`, `[[missing]]` and `[[hidden]]` entry names in `decision`
-where the maintainer decided it, and the mapping is refused without one; a
-decision that reads `TODO: maintainer` awaits the maintainer.
+type it returns; a call's, its contract and both types. A key no finding
+has, a pairing the rules already make, or an entry naming what is gone, is
+dead. Every rule and every `[[map]]`, `[[exception]]`, `[[missing]]` and
+`[[hidden]]` entry names in `decision` where the maintainer decided it, and
+the mapping is refused without one; a decision that reads `TODO: maintainer`
+awaits the maintainer, and its entry carries no `approved` date until it is
+decided.
 
 The gate fails (exit 1) on a finding no entry covers, a dead entry or a
 decision awaiting the maintainer; `--strict` also on any `[[pending]]`

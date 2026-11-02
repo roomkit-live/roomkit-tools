@@ -114,8 +114,9 @@ Python is the reference.
   names its source in `decision`: the roomkit-rs precedent it follows (a row
   of the names table in its `docs/architecture.md`, or a rule of its
   `api/mapping.toml`), or the maintainer's decision. The gate refuses one
-  without. A rule with neither reads `decision = "TODO: maintainer"`, and
-  the gate fails until the maintainer decides it.
+  without. A rule or an entry with neither reads
+  `decision = "TODO: maintainer"`, an entry then carrying no `approved`
+  date, and the gate fails until the maintainer decides it.
 - `make api-parity` enforces this: it reads the crates' public surface from
   rustdoc and fails on any difference no entry of `api/mapping.toml` covers,
   and on an entry that no longer covers anything. Defaults are compared by

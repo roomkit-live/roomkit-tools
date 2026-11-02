@@ -1584,13 +1584,30 @@ class Decisions(unittest.TestCase):
         pending = '[[pending]]\nreason = "r"\ncovers = ["rust kit::X (name)"]\n'
         self.assertEqual(len(Mapping.from_table(tomllib.loads(mapping_text(pending))).entries), 1)
 
+    def test_an_approved_date_comes_with_a_decision_only(self):
+        """An entry awaiting the maintainer carries no approved date; one
+        naming its decision carries the date it was approved."""
+        todo = (
+            '[[missing]]\nreason = "r"\ndecision = "TODO: maintainer"\n'
+            'covers = ["rust kit::X (unmatched)"]\n'
+        )
+        self.assertEqual(len(Mapping.from_table(tomllib.loads(mapping_text(todo))).entries), 1)
+        for entry in (
+            todo.replace('reason = "r"', 'approved = 2026-11-02\nreason = "r"'),
+            todo.replace("TODO: maintainer", "ref"),
+            '[[hidden]]\napproved = 2026-11-02\nreason = "r"\ndecision = "TODO: maintainer"\n'
+            'covers = ["rust kit::X (hidden)"]\n',
+        ):
+            with self.subTest(entry=entry), self.assertRaises(ParityError):
+                Mapping.from_table(tomllib.loads(mapping_text(entry)))
+
     def test_a_decision_left_to_the_maintainer_fails_the_gate(self):
         rules = 'optional = { type = "Option", default = "None", decision = "TODO: maintainer" }'
         report = run(Entries.ITEMS, Entries.SPECS, contracts=Entries.CONTRACTS, rules=rules)
         self.assertEqual(report.undecided, ["[rules] optional"])
         self.assertFalse(report.passed(strict=False))
         missing = (
-            '[[missing]]\napproved = 2026-11-02\nreason = "r"\ndecision = "TODO: maintainer"\n'
+            '[[missing]]\nreason = "r"\ndecision = "TODO: maintainer"\n'
             'covers = ["rust kit::DocsListTool (unmatched)", "python pkg.DocsList (unmatched)"]\n'
         )
         report = run(Entries.ITEMS, Entries.SPECS, contracts=Entries.CONTRACTS, mapping=missing)

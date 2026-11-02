@@ -38,8 +38,9 @@
 # Every rule and every [[map]], [[exception]], [[missing]] and [[hidden]]
 # entry names in `decision` where the maintainer decided it; the gate refuses
 # one without.
-# A rule with no precedent and no decision yet reads "TODO: maintainer", and
-# the gate fails while one is left.
+# A rule or an entry with no precedent and no decision yet reads
+# "TODO: maintainer", carries no `approved` date, and the gate fails while one
+# is left; once decided, an entry carries the date it was approved.
 
 [rules]
 # Rust's casing of an acronym in a type's name (rust-lang RFC 430), and
@@ -159,7 +160,6 @@ covers = [
 ]
 
 [[exception]]
-approved = 2026-11-02
 decision = "TODO: maintainer"
 reason = "forced by the language: ForkedProcessError is Python's guard against using the native extension in a child forked after the parent used it; a Rust host has no such interpreter state"
 covers = [
@@ -216,7 +216,6 @@ covers = [
 ]
 
 [[missing]]
-approved = 2026-11-02
 decision = "TODO: maintainer"
 reason = "Rust only: WebSearchTool::capabilities, the capabilities of the tool's backend; Python's WebSearchTool has none"
 covers = [

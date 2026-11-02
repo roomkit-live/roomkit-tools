@@ -39,12 +39,15 @@ UNCOVERED_KINDS = {"rules", "dump"}
 # names where the maintainer decided an approved entry; a pending one awaits
 # its decision.
 _KEYS = {
-    "map": ({"rust", "python", "approved", "reason", "decision"}, {"params"}),
-    "exception": ({"covers", "approved", "reason", "decision"}, {"rust", "python"}),
-    "missing": ({"covers", "approved", "reason", "decision"}, set()),
+    "map": ({"rust", "python", "reason", "decision"}, {"approved", "params"}),
+    "exception": ({"covers", "reason", "decision"}, {"approved", "rust", "python"}),
+    "missing": ({"covers", "reason", "decision"}, {"approved"}),
     "hidden": ({"covers", "reason", "decision"}, {"approved"}),
     "pending": ({"covers", "reason"}, {"rust", "python"}),
 }
+# The tables whose entry, once its decision is set, carries the date the
+# maintainer approved it (`approved`); none carries one before.
+_DATED = {"map", "exception", "missing"}
 # The kinds a table's entry may cover, for the tables limited to some: a
 # `[[missing]]` entry covers a feature one side lacks, a `[[hidden]]` one a
 # public item hidden from the documentation, which no other table covers.
@@ -255,8 +258,7 @@ def entry(table: str, index: int, raw: dict) -> Entry:
         raise ParityError(f"{where}: {', '.join(sorted(missing))} missing")
     if unknown := set(raw) - required - optional:
         raise ParityError(f"{where}: unknown {', '.join(sorted(unknown))}")
-    if "approved" in raw and not _DATE.fullmatch(str(raw["approved"])):
-        raise ParityError(f"{where}: approved is a date, YYYY-MM-DD")
+    _approved(table, where, raw)
     if ("rust" in raw) != ("python" in raw):
         raise ParityError(f"{where}: names both counterparts, rust and python, or neither")
     covers = _covers(table, where, list(raw.get("covers", [])))
@@ -277,6 +279,21 @@ def entry(table: str, index: int, raw: dict) -> Entry:
         approved=str(raw["approved"]) if "approved" in raw else None,
         decision=decision,
     )
+
+
+def _approved(table: str, where: str, raw: dict) -> None:
+    """An approved date, a YYYY-MM-DD, comes with a decision only: required
+    once the decision is set in the tables `_DATED` names, refused while it
+    awaits the maintainer."""
+    if "approved" in raw and not _DATE.fullmatch(str(raw["approved"])):
+        raise ParityError(f"{where}: approved is a date, YYYY-MM-DD")
+    decision = raw.get("decision")
+    if not isinstance(decision, str):
+        return
+    if undecided(decision) and "approved" in raw:
+        raise ParityError(f"{where}: awaits the maintainer's decision, so carries no approved date")
+    if not undecided(decision) and table in _DATED and "approved" not in raw:
+        raise ParityError(f"{where}: approved missing, the date of its decision")
 
 
 def _covers(table: str, where: str, covers: list[str]) -> list[str]:
