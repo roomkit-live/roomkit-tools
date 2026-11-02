@@ -28,8 +28,8 @@
 #   (`rust` and `python`) also pairs them, so their members are compared
 #   while the name difference waits. Each decision removes its findings
 #   from the list: the code changes, or an approved [[map]], [[exception]]
-#   or rule replaces the entry. `make api-parity API_PARITY_FLAGS=--strict`
-#   fails while one is left.
+#   or rule replaces the entry. The gate fails while one is left: a new
+#   difference is a red gate until the maintainer decides it.
 # An entry covers findings by key, `<rust|python> <path> (<kind>) [<with>]`,
 # `<with>` naming what the finding was compared with when the path alone does
 # not say (the other side's call or name, a struct's fields, both defaults);
@@ -55,7 +55,7 @@ results = { decision = "roomkit-rs names table: OpenAIAIProvider(config) | OpenA
 asynchronous = { decision = "roomkit-rs names table: await kit.close() | kit.close().await, a Result; InboundRoomRouter.route(...) | InboundRoomRouter::route(...), a boxed RouterFuture" }
 # Python's async factory, the constructor of a class that resolves its
 # root: Python cannot await in __init__. Rust's is `new`.
-factory = { method = "create", decision = "TODO: maintainer" }
+factory = { method = "create", decision = "luge-hitl:d39daaa4 Q13" }
 # A builder, `with_<x>(self, value)`: one of a constructor's keywords, not
 # calling it being Python's None.
 builder_prefix = { prefix = "with_", decision = "roomkit-rs names table: RoomKit(store=SomeStore()) | RoomKitOptions::with_store(store)" }
@@ -68,10 +68,10 @@ input_suffix = { suffix = "Input", decision = "roomkit-rs names table: def m(a, 
 # Python's schema-shaped dict of a call's arguments, the Input struct whole.
 arguments = { name = "arguments", decision = "luge-hitl:76e988fe Q4" }
 # The cancellation token a Rust call takes; Python cancels the awaiting task.
-cancellation = { type = "CancellationToken", decision = "TODO: maintainer" }
+cancellation = { type = "CancellationToken", decision = "luge-hitl:d39daaa4 Q14" }
 # A Rust type deriving JsonSchema is the JSON a Python call passes or
 # returns as a dict, and has no Python class.
-contract_types = { decision = "TODO: maintainer" }
+contract_types = { decision = "luge-hitl:d39daaa4 Q15" }
 # A Python property is a Rust field, or a method of `&self` alone.
 properties = { decision = "roomkit-rs names table: DeliveryHandle.done (a property) | handle.done()" }
 # A Rust trait is the Python class, a protocol, of its name.
@@ -99,7 +99,7 @@ lazy_constructor = { python = "__init__", decision = "luge-hitl:76e988fe Q6" }
 # A Python `None` for a Rust field that is no Option stands for the Rust
 # default: Python passes no value, and the field keeps Rust's (the binding
 # overrides only the values a host supplies).
-deferred_default = { python = "None", decision = "TODO: maintainer" }
+deferred_default = { python = "None", decision = "luge-hitl:d39daaa4 Q16" }
 # Rust has no union parameter: Python's create(root | Workspace) is Rust's
 # new(root) and from_workspace(workspace), an associated from_<x> building
 # the type from one of `types`, which Python names too.
@@ -108,6 +108,10 @@ union_constructor = { prefix = "from_", types = ["Workspace"], decision = "luge-
 # (WebFetchTool.create, WebSearchTool.create) is Python's uniform async
 # constructor and is not compared: __init__ is, with Rust's new.
 uniform_factory = { python = "__init__", decision = "luge-hitl:c9eeeeb3 Q12" }
+# An __init__ whose first parameter is the native object its async factory
+# built (`__native__`) is a wrapper, not a constructor, and is not compared,
+# whatever else it takes (ShellTool(native, outputs=None)).
+native_wrapper = { python = "__init__", decision = "luge-hitl:f13c7655 Q28" }
 # The RoomKit engine's tool protocol: Python's `definition` property and
 # `handler` are the Rust adapter's implementation of roomkit_ai's `Tool`, the
 # Rust form of that protocol. Each adapter has the name of its Python
@@ -149,7 +153,7 @@ roomkit_tools_roomkit = ["roomkit_tools.roomkit", "roomkit_tools"]
 rust = "roomkit_tools_ocr_rusto::RustoOcr::lazy"
 python = "roomkit_tools_ocr_rusto.RustoOcr.__init__"
 approved = 2026-11-02
-decision = "luge-hitl:76e988fe Q7"
+decision = "luge-hitl:76e988fe Q7; luge-hitl:f13c7655 Q27; luge-hitl:53c5b36c Q29"
 reason = "for this release, the OCR backend protocol differs: Python's OcrBackend.bind(root, limits) returns a BoundOcrBackend whose call(arguments) runs the tool; Rust's OcrBackend has identity() and recognize(&DecodedImage), wrapped in an OcrEngine that RustoOcr::lazy and load build. The OcrTool surface and the tool contract are the same; Python will adopt Rust's recognizer model later"
 covers = [
   "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (name) [roomkit_tools_ocr_rusto.RustoOcr.__init__]",
@@ -163,10 +167,24 @@ covers = [
   "rust roomkit_tools_image::DecodedImage (unmatched)",  # the same type, re-exported by roomkit_tools_ocr
   "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (result) [Result<OcrEngine, ToolError>]",
   "rust roomkit_tools_ocr_rusto::RustoOcr::load (unmatched)",
+  "rust roomkit_tools_ocr_rusto::RustoOcr::identity (unmatched)",  # implements OcrBackend's identity; Python's RustoOcr has bind
+  "rust roomkit_tools_ocr_rusto::RustoOcr::recognize (unmatched)",  # implements OcrBackend's recognize
+  "python roomkit_tools.OcrTool.__init__(implementation) (unmatched) [roomkit_tools_ocr::OcrTool::new]",
+  "rust roomkit_tools_ocr::OcrTool::new(root) (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrTool::new(backend) (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_file_bytes (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_dimension (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_pixels (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_decode_bytes (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_output_bytes (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_blocks (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::default_timeout_ms (unmatched) [roomkit_tools.OcrTool.__init__]",
+  "rust roomkit_tools_ocr::OcrLimits::max_timeout_ms (unmatched) [roomkit_tools.OcrTool.__init__]",
 ]
 
 [[exception]]
-decision = "TODO: maintainer"
+approved = 2026-11-02
+decision = "luge-hitl:92eb3fde Q24"
 reason = "forced by the language: ForkedProcessError is Python's guard against using the native extension in a child forked after the parent used it; a Rust host has no such interpreter state"
 covers = [
   "python roomkit_tools.ForkedProcessError (unmatched)",
@@ -248,7 +266,8 @@ covers = [
 
 # ---------------------------------------------------------------------------
 # HIDDEN: the public items #[doc(hidden)] hides from the documentation, which
-# rustdoc shows on no page; each is listed with its decision.
+# rustdoc shows on no page; each is listed with its decision. An item only
+# sibling crates use is hidden and listed here, so a new one shows in the diff.
 # ---------------------------------------------------------------------------
 
 [[hidden]]
@@ -277,8 +296,8 @@ covers = [
 ]
 
 [[hidden]]
-decision = "TODO: maintainer"
-reason = "hidden rather than given a Python counterpart: ShellTool::has_output_store, which only the RoomKit adapter reads, and ImageMime::as_str and ImagePayload::data_url, which nothing outside the image crate uses"
+decision = "luge-hitl:92eb3fde Q26"
+reason = "an item only sibling crates use is hidden and listed here: ShellTool::has_output_store, which only the RoomKit adapter reads, and ImageMime::as_str and ImagePayload::data_url, which nothing outside the image crate uses"
 covers = [
   "rust roomkit_tools_process::ShellTool::has_output_store (hidden)",
   "rust roomkit_tools_image::ImageMime::as_str (hidden)",
@@ -286,43 +305,7 @@ covers = [
 ]
 
 # ---------------------------------------------------------------------------
-# PENDING: the differences awaiting the maintainer's decision. None is
-# approved. Each covers the findings of a pair of counterparts, or of an item
-# on one side only.
+# PENDING: the differences awaiting the maintainer's decision, none today.
+# Each would cover the findings of a pair of counterparts, or of an item on
+# one side only, and the gate fails while one is left.
 # ---------------------------------------------------------------------------
-
-[[pending]]
-reason = "roomkit_tools_ocr_rusto::RustoOcr / roomkit_tools_ocr_rusto.RustoOcr: unmatched (2); the OCR backend protocol excepted for this release, on its Rust implementor, which the gate now reads"
-covers = [
-  "rust roomkit_tools_ocr_rusto::RustoOcr::identity (unmatched)",  # implements OcrBackend's identity; Python's RustoOcr has bind
-  "rust roomkit_tools_ocr_rusto::RustoOcr::recognize (unmatched)",  # implements OcrBackend's recognize
-]
-
-[[pending]]
-reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool.__init__: unmatched (8); Python's public ShellTool(native, outputs=None) wraps the native tool create built and the OutputStore, a constructor Rust has not; the gate compares a factory class's __init__ taking more than the native object"
-covers = [
-  "python roomkit_tools.ShellTool.__init__(native) (unmatched) [roomkit_tools_process::ShellTool::new]",
-  "rust roomkit_tools_process::ShellTool::new(root) (unmatched) [roomkit_tools.ShellTool.__init__]",
-  "rust roomkit_tools_process::ShellLimits::max_command_bytes (unmatched) [roomkit_tools.ShellTool.__init__]",
-  "rust roomkit_tools_process::ShellLimits::max_output_bytes (unmatched) [roomkit_tools.ShellTool.__init__]",
-  "rust roomkit_tools_process::ShellLimits::default_timeout_ms (unmatched) [roomkit_tools.ShellTool.__init__]",
-  "rust roomkit_tools_process::ShellLimits::max_timeout_ms (unmatched) [roomkit_tools.ShellTool.__init__]",
-  "rust roomkit_tools_process::CommandEnv::inherit_env (unmatched) [roomkit_tools.ShellTool.__init__]",
-  "rust roomkit_tools_process::CommandEnv::env (unmatched) [roomkit_tools.ShellTool.__init__]",
-]
-
-[[pending]]
-reason = "roomkit_tools_ocr::OcrTool / roomkit_tools.OcrTool.__init__: unmatched (11); Python's public OcrTool(implementation) takes a BoundOcrBackend, the object OcrBackend.bind returns and a host may implement, not a private native object: the OCR backend protocol excepted for this release, on the tool's constructor"
-covers = [
-  "python roomkit_tools.OcrTool.__init__(implementation) (unmatched) [roomkit_tools_ocr::OcrTool::new]",
-  "rust roomkit_tools_ocr::OcrTool::new(root) (unmatched) [roomkit_tools.OcrTool.__init__]",
-  "rust roomkit_tools_ocr::OcrTool::new(backend) (unmatched) [roomkit_tools.OcrTool.__init__]",
-  "rust roomkit_tools_ocr::OcrLimits::max_file_bytes (unmatched) [roomkit_tools.OcrTool.__init__]",
-  "rust roomkit_tools_ocr::OcrLimits::max_dimension (unmatched) [roomkit_tools.OcrTool.__init__]",
-  "rust roomkit_tools_ocr::OcrLimits::max_pixels (unmatched) [roomkit_tools.OcrTool.__init__]",
-  "rust roomkit_tools_ocr::OcrLimits::max_decode_bytes (unmatched) [roomkit_tools.OcrTool.__init__]",
-  "rust roomkit_tools_ocr::OcrLimits::max_output_bytes (unmatched) [roomkit_tools.OcrTool.__init__]",
-  "rust roomkit_tools_ocr::OcrLimits::max_blocks (unmatched) [roomkit_tools.OcrTool.__init__]",
-  "rust roomkit_tools_ocr::OcrLimits::default_timeout_ms (unmatched) [roomkit_tools.OcrTool.__init__]",
-  "rust roomkit_tools_ocr::OcrLimits::max_timeout_ms (unmatched) [roomkit_tools.OcrTool.__init__]",
-]

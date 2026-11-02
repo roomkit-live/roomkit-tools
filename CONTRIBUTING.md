@@ -136,7 +136,9 @@ Python is the reference.
   gate lists them from the JSON rustdoc writes with
   `--document-hidden-items`, unstable options the pinned toolchain takes
   for that build only (`RUSTC_BOOTSTRAP=1`, `make api-hidden`), and each
-  needs a `[[hidden]]` entry naming its decision. The RoomKit adapter's
+  needs a `[[hidden]]` entry naming its decision: an item only sibling
+  crates use is hidden and listed there, so a new one shows in the diff.
+  The RoomKit adapter's
   hidden items are committed in `api/roomkit-adapter-hidden.json`, written
   and checked with its surface. The internal `roomkit-tools-http` crate is
   out of scope and must show no public item.
