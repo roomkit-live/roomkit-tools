@@ -13,7 +13,7 @@ API_PARITY_FLAGS ?=
 
 .PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-parity api-adapter-surface api-adapter-check
 
-all: fmt-check clippy test doc deny check-core-deps examples
+all: fmt-check clippy test doc deny check-core-deps examples api-test api-parity
 
 fmt:
 	$(CARGO) fmt --all

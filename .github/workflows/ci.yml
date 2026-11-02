@@ -61,6 +61,29 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
       - run: make fmt-check clippy test examples doc check-core-deps
 
+  api-parity:
+    name: Public API parity with the Python reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+      # The tests of the rustdoc reader and of the gate, then the gate itself:
+      # the crates' rustdoc and the adapter's committed surface against the
+      # committed Python snapshots, through api/mapping.toml. The python jobs
+      # check that the snapshots are those of the code.
+      - run: make api-test api-parity
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: api-parity
+          path: target/api-parity/
+
   msrv:
     name: Minimum supported Rust version
     runs-on: ubuntu-latest
