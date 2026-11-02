@@ -410,7 +410,7 @@
   "roomkit_tools.WebSearchTool": {
     "__init__": ["def", "*", "backend", "max_query_bytes=None", "max_results=None", "max_content_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
     "call": ["async def", "arguments"],
-    "capabilities": ["def"],
+    "capabilities": ["property"],
     "create": ["async classmethod", "*", "backend", "max_query_bytes=None", "max_results=None", "max_content_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
     "definition": ["staticmethod"],
     "search": ["async def", "query", "*", "limit=5", "timeout_ms=None"]

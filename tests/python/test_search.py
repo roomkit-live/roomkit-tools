@@ -212,14 +212,18 @@ class WebSearchTests(unittest.IsolatedAsyncioTestCase):
 
 class CapabilitiesTests(unittest.TestCase):
     def test_the_tool_reports_its_backends_capabilities(self):
-        """WebSearchTool.capabilities(), as Rust's WebSearchTool::capabilities()."""
+        """WebSearchTool.capabilities, a property as the backend's, for Rust's
+        WebSearchTool::capabilities()."""
         for backend in (
             ExaSearch(allowed_origins=[]),
             OpenAISearch(api_key="fixture-key", model="fixture-model"),
         ):
             with self.subTest(backend=type(backend).__name__):
                 tool = WebSearchTool(backend=backend)
-                self.assertEqual(tool.capabilities(), backend.capabilities)
+                self.assertIsInstance(
+                    inspect.getattr_static(WebSearchTool, "capabilities"), property
+                )
+                self.assertEqual(tool.capabilities, backend.capabilities)
 
 
 class SearchLoopTests(unittest.TestCase):

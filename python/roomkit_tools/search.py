@@ -192,6 +192,7 @@ class WebSearchTool:
         """Rust-derived schema without credentials, provider or endpoint arguments."""
         return json.loads(_native._WebSearchTool.definition_json())
 
+    @property
     def capabilities(self) -> dict[str, Any]:
         """The selected backend's result kinds and service limits, for host inspection."""
         return json.loads(self._native.capabilities_json())
