@@ -38,7 +38,7 @@ macro_rules! toolset {
                     caller,
                     move |(room_id, caller_id), input, cancel| async move {
                         let scope = PlanScope { room_id, caller_id };
-                        tool.execute(&scope, input, &cancel)
+                        tool.call(&scope, input, &cancel)
                             .await
                             .map_err(|e| tool_error(&e))
                     },

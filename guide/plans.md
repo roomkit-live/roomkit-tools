@@ -112,7 +112,7 @@ is delivered. It does not roll back that mutation. Recover with `plan_read` or
 
 Use the `roomkit-tools-plans` crate and an `Arc<dyn PlanBackend>`. Each
 `Plan*Tool::new(backend)` exposes `definition()` and
-`execute(&scope, input, &cancellation_token)`. `MemoryPlanBackend` clones share
+`call(&scope, input, &cancellation_token)`. `MemoryPlanBackend` clones share
 one store; independent instances do not. The crate has no RoomKit, Python or
 filesystem dependency and does not require a particular async runtime.
 

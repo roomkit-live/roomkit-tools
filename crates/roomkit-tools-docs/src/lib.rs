@@ -99,10 +99,11 @@ macro_rules! tool {
             pub fn definition() -> Definition {
                 Definition::new::<$input, $output>($wire, $description)
             }
-            /// Validate inputs and results around the backend call.
+            /// Validate inputs and results around the backend call, as
+            /// Python's `call(arguments)`.
             /// # Errors
             /// Returns validation, cancellation, access, limit or backend failures.
-            pub async fn execute(
+            pub async fn call(
                 &self,
                 input: $input,
                 cancel: &CancellationToken,

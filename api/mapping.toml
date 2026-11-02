@@ -111,12 +111,6 @@ reason = "Rust's DocsListTool, Python's DocsList (no Tool suffix)"
 covers = ["rust roomkit_tools_docs::DocsListTool (name)"]
 
 [[pending]]
-rust = "roomkit_tools_docs::DocsListTool::execute"
-python = "roomkit_tools.DocsList.call"
-reason = "Rust's execute(), Python's call()"
-covers = ["rust roomkit_tools_docs::DocsListTool::execute (name)"]
-
-[[pending]]
 rust = "roomkit_tools_docs::DocsListTool::definition"
 python = "roomkit_tools.DocsList.contract"
 reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
@@ -127,12 +121,6 @@ rust = "roomkit_tools_docs::DocsSearchTool"
 python = "roomkit_tools.DocsSearch"
 reason = "Rust's DocsSearchTool, Python's DocsSearch (no Tool suffix)"
 covers = ["rust roomkit_tools_docs::DocsSearchTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_docs::DocsSearchTool::execute"
-python = "roomkit_tools.DocsSearch.call"
-reason = "Rust's execute(), Python's call()"
-covers = ["rust roomkit_tools_docs::DocsSearchTool::execute (name)"]
 
 [[pending]]
 rust = "roomkit_tools_docs::DocsSearchTool::definition"
@@ -147,12 +135,6 @@ reason = "Rust's DocsReadTool, Python's DocsRead (no Tool suffix)"
 covers = ["rust roomkit_tools_docs::DocsReadTool (name)"]
 
 [[pending]]
-rust = "roomkit_tools_docs::DocsReadTool::execute"
-python = "roomkit_tools.DocsRead.call"
-reason = "Rust's execute(), Python's call()"
-covers = ["rust roomkit_tools_docs::DocsReadTool::execute (name)"]
-
-[[pending]]
 rust = "roomkit_tools_docs::DocsReadTool::definition"
 python = "roomkit_tools.DocsRead.contract"
 reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
@@ -163,12 +145,6 @@ rust = "roomkit_tools_plans::PlanCreateTool"
 python = "roomkit_tools.PlanCreate"
 reason = "Rust's PlanCreateTool, Python's PlanCreate (no Tool suffix)"
 covers = ["rust roomkit_tools_plans::PlanCreateTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanCreateTool::execute"
-python = "roomkit_tools.PlanCreate.call"
-reason = "Rust's execute(), Python's call()"
-covers = ["rust roomkit_tools_plans::PlanCreateTool::execute (name)"]
 
 [[pending]]
 rust = "roomkit_tools_plans::PlanCreateTool::definition"
@@ -183,12 +159,6 @@ reason = "Rust's PlanReadTool, Python's PlanRead (no Tool suffix)"
 covers = ["rust roomkit_tools_plans::PlanReadTool (name)"]
 
 [[pending]]
-rust = "roomkit_tools_plans::PlanReadTool::execute"
-python = "roomkit_tools.PlanRead.call"
-reason = "Rust's execute(), Python's call()"
-covers = ["rust roomkit_tools_plans::PlanReadTool::execute (name)"]
-
-[[pending]]
 rust = "roomkit_tools_plans::PlanReadTool::definition"
 python = "roomkit_tools.PlanRead.contract"
 reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
@@ -199,12 +169,6 @@ rust = "roomkit_tools_plans::PlanListTool"
 python = "roomkit_tools.PlanList"
 reason = "Rust's PlanListTool, Python's PlanList (no Tool suffix)"
 covers = ["rust roomkit_tools_plans::PlanListTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanListTool::execute"
-python = "roomkit_tools.PlanList.call"
-reason = "Rust's execute(), Python's call()"
-covers = ["rust roomkit_tools_plans::PlanListTool::execute (name)"]
 
 [[pending]]
 rust = "roomkit_tools_plans::PlanListTool::definition"
@@ -219,12 +183,6 @@ reason = "Rust's PlanUpdateTool, Python's PlanUpdate (no Tool suffix)"
 covers = ["rust roomkit_tools_plans::PlanUpdateTool (name)"]
 
 [[pending]]
-rust = "roomkit_tools_plans::PlanUpdateTool::execute"
-python = "roomkit_tools.PlanUpdate.call"
-reason = "Rust's execute(), Python's call()"
-covers = ["rust roomkit_tools_plans::PlanUpdateTool::execute (name)"]
-
-[[pending]]
 rust = "roomkit_tools_plans::PlanUpdateTool::definition"
 python = "roomkit_tools.PlanUpdate.contract"
 reason = "Rust's definition(), Python's contract() (Python's definition is the RoomKit one)"
@@ -235,12 +193,6 @@ rust = "roomkit_tools_plans::PlanDeleteTool"
 python = "roomkit_tools.PlanDelete"
 reason = "Rust's PlanDeleteTool, Python's PlanDelete (no Tool suffix)"
 covers = ["rust roomkit_tools_plans::PlanDeleteTool (name)"]
-
-[[pending]]
-rust = "roomkit_tools_plans::PlanDeleteTool::execute"
-python = "roomkit_tools.PlanDelete.call"
-reason = "Rust's execute(), Python's call()"
-covers = ["rust roomkit_tools_plans::PlanDeleteTool::execute (name)"]
 
 [[pending]]
 rust = "roomkit_tools_plans::PlanDeleteTool::definition"

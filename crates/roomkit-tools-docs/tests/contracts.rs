@@ -28,7 +28,7 @@ async fn shared_documentation_contracts() {
             ($tool:ident) => {
                 serde_json::to_value(
                     $tool::new(Arc::clone(&backend))
-                        .execute(decode(&input).unwrap(), &token)
+                        .call(decode(&input).unwrap(), &token)
                         .await
                         .unwrap(),
                 )

@@ -125,7 +125,8 @@ checks assume a host-controlled tree; they are not a hostile-filesystem sandbox.
 Select `roomkit-tools-docs` with feature `files` for `FileDocs`. Default features
 are empty: the contracts and `DocsBackend` need neither file I/O nor the SHA-256
 implementation dependency. Supply `Arc<dyn DocsBackend>` to `DocsListTool`,
-`DocsSearchTool` and `DocsReadTool`, then call `execute(input, &cancel)`.
+`DocsSearchTool` and `DocsReadTool`, then `call(input, &cancel)`, Python's
+`call(arguments)`.
 
 The separate RoomKit Rust adapter's optional `docs` feature exposes
 `DocsListToolset`, `DocsSearchToolset` and `DocsReadToolset`. Construct each from its

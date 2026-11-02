@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let cancel = CancellationToken::new();
     let mut plan = PlanCreateTool::new(Arc::clone(&store))
-        .execute(
+        .call(
             &scope,
             PlanCreateInput {
                 title: "Review shipping".into(),
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .data;
     let read = PlanReadTool::new(Arc::clone(&store))
-        .execute(
+        .call(
             &scope,
             PlanReadInput {
                 plan_id: plan.plan_id.clone(),
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         step.status = StepStatus::InProgress;
     }
     let edited = PlanUpdateTool::new(Arc::clone(&store))
-        .execute(
+        .call(
             &scope,
             PlanUpdateInput {
                 steps: Some(plan.steps),
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(edited.revision, 2);
     assert_eq!(
         PlanListTool::new(Arc::clone(&store))
-            .execute(&scope, PlanListInput {}, &cancel)
+            .call(&scope, PlanListInput {}, &cancel)
             .await?
             .data
             .plans
@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         1
     );
     PlanDeleteTool::new(Arc::clone(&store))
-        .execute(
+        .call(
             &scope,
             PlanDeleteInput {
                 plan_id: edited.plan_id,
@@ -80,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     assert!(
         PlanListTool::new(store)
-            .execute(&scope, PlanListInput {}, &cancel)
+            .call(&scope, PlanListInput {}, &cancel)
             .await?
             .data
             .plans

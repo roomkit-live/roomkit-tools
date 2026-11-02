@@ -24,7 +24,7 @@ async fn shared_crud_scenario() {
             ($tool:ident) => {
                 serde_json::to_value(
                     $tool::new(backend.clone())
-                        .execute(&scope, decode(&input).unwrap(), &cancel)
+                        .call(&scope, decode(&input).unwrap(), &cancel)
                         .await
                         .unwrap(),
                 )

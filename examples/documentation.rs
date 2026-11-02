@@ -19,12 +19,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(FileDocs::new(root.path(), FileDocsLimits::default())?.with_version("demo-v1")?);
     let cancel = CancellationToken::new();
     let catalogue = DocsListTool::new(Arc::clone(&backend))
-        .execute(DocsListInput::default(), &cancel)
+        .call(DocsListInput::default(), &cancel)
         .await?
         .data;
     assert_eq!(catalogue.total_documents, 1);
     let matches = DocsSearchTool::new(Arc::clone(&backend))
-        .execute(
+        .call(
             DocsSearchInput {
                 expected_catalog_revision: Some(catalogue.catalog_revision),
                 ..DocsSearchInput::new("agent_followup idle")
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("missing expected documentation")?;
     assert_eq!(hit.line, Some(5));
     let page = DocsReadTool::new(backend)
-        .execute(
+        .call(
             DocsReadInput {
                 offset: 5,
                 limit: 2,

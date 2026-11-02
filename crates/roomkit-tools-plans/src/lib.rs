@@ -120,10 +120,11 @@ macro_rules! tool {
             pub fn definition() -> Definition {
                 Definition::new::<$input, $output>($wire, $description)
             }
-            /// Validate, execute and return a structured receipt.
+            /// Validate, execute and return a structured receipt, as
+            /// Python's `call(arguments, scope=...)`.
             /// # Errors
             /// Propagates invalid inputs, access/revision refusals, limits and backend errors.
-            pub async fn execute(
+            pub async fn call(
                 &self,
                 scope: &PlanScope,
                 input: $input,

@@ -85,6 +85,9 @@ part of an existing published preview.
   `rec.onnx` and `dict.txt`, as Python's `RustoOcr(models)`, instead of the
   three paths; `RustoConfig::new(models)` defaults `model_name`
   (`ppocrv6`), `threads` (2) and `detection_max_edge` (960).
+- Rust: the documentation and plan tools' `execute` is `call`, as Python's:
+  `DocsListTool::call(input, &cancel)`, `PlanCreateTool::call(&scope, input,
+  &cancel)`.
 - Rust: the plumbing the tool crates share leaves the public API, hidden from
   the documentation: `roomkit-tools-http` is internal, as are core's
   `WorkspaceRoot`, `identifiers`, `revision`, `Output::new` and

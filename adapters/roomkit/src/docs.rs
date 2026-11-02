@@ -34,9 +34,7 @@ macro_rules! toolset {
                     arguments,
                     anyone,
                     move |(), input, cancel| async move {
-                        tool.execute(input, &cancel)
-                            .await
-                            .map_err(|e| tool_error(&e))
+                        tool.call(input, &cancel).await.map_err(|e| tool_error(&e))
                     },
                 )
             }
