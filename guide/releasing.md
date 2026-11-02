@@ -97,15 +97,17 @@ crates.io refuses. Internal dependencies give both `path` and `version`, so a
 packaged crate depends on the published version of its siblings; change those
 versions together with `workspace.package.version`.
 
-From the candidate's checkout, build every package against the others in a
-local registry, then list the files a package ships:
+From the candidate's checkout, package every published crate, build each
+against the others in a local registry and stop before the upload, then list
+the files one package ships:
 
 ```sh
-cargo package --workspace --locked
+cargo publish --workspace --dry-run --locked
 cargo package --list --package roomkit-tools-fs
 ```
 
-`cargo publish --workspace --dry-run` runs the same checks in dependency order.
+The dry run skips the crates with `publish = false`. A fixture a crate's own
+tests read lives in that crate, so its tests also pass from the packaged files.
 Publishing itself is a maintainer's step, from the tested commit.
 
 ## Proposed first PyPI publication
