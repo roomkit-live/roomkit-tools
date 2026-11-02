@@ -9,6 +9,7 @@ single parameter left on each side, which is one parameter named twice.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from api_parity.rust import RustParam, base_type
@@ -60,6 +61,12 @@ def compare(
         )
     for param in rust_left:
         comparison.find("rust", param.path, "unmatched", "no Python parameter", *pairs)
+
+
+def renamed(rust_side: list[RustParam], renames: dict[str, str]) -> list[RustParam]:
+    """Rust parameters under the Python names an approved `[[map]]` entry's
+    `params` gives them."""
+    return [replace(param, name=renames.get(param.name, param.name)) for param in rust_side]
 
 
 def _requiredness(

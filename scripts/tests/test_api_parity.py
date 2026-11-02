@@ -636,6 +636,32 @@ covers = ["rust kit::DocsListTool::execute (name)"]
         self.assertEqual(keys(report), set())
         self.assertTrue(report.passed(strict=True))
 
+    def test_an_approved_map_renames_parameters(self):
+        items = [
+            struct(
+                "kit::Engine",
+                methods=[
+                    method("start", ("job", "&str"), is_async=True),
+                    method("new", receiver=None, returns="Self"),
+                ],
+            )
+        ]
+        specs = {"pkg.Engine": {"__init__": ["def"], "launch": ["async def", "task"]}}
+        mapping = """
+[[map]]
+rust = "kit::Engine::start"
+python = "pkg.Engine.launch"
+params = { job = "task" }
+approved = 2026-11-01
+reason = "forced"
+"""
+        self.assertEqual(keys(run(items, specs, mapping=mapping)), set())
+        unrenamed = mapping.replace('params = { job = "task" }\n', "")
+        self.assertEqual(
+            keys(run(items, specs, mapping=unrenamed)),
+            {"rust kit::Engine::start(job) (name)"},
+        )
+
     def test_dead_entries(self):
         mapping = (
             self.PAIRS

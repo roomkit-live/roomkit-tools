@@ -293,6 +293,8 @@ class Comparison:
         python_side = python_params(spec)
         arguments = any(param.name == self.rules.arguments for param in python_side)
         rust_side = self.rust.params(found.data, found.owner, arguments=arguments)
+        if entry is not None and entry.table == "map":
+            rust_side = parameters.renamed(rust_side, entry.params)
         parameters.compare(self, where, python_side, rust_side, pairs, concrete=not interface)
 
     def _property(

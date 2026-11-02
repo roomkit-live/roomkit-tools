@@ -48,7 +48,20 @@ def compare(
             if _wraps(comparison, item, method, spec, pairs):
                 continue
             rust_side = comparison.rust.constructor(item, method)
+        rust_side = parameters.renamed(rust_side, _renames(comparison, python, member, item))
         parameters.compare(comparison, where, python_params(spec), rust_side, pairs, concrete=True)
+
+
+def _renames(comparison: Comparison, python: str, member: str, item: dict) -> dict[str, str]:
+    """The parameter names an approved `[[map]]` entry gives, of the
+    constructor or else of the whole item."""
+    for entry in (
+        comparison.member_entries.get((python, member)),
+        comparison.item_entries.get(item["path"]),
+    ):
+        if entry is not None and entry.table == "map":
+            return entry.params
+    return {}
 
 
 def _targets(
