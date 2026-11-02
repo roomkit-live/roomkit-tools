@@ -94,9 +94,9 @@ api-hidden:
 # keywords, which a test dumps since rustdoc shows none. The public items
 # #[doc(hidden)] hides, the crates' and the adapter's committed ones, are each
 # listed in the mapping with their decision. It
-# fails on a difference no entry covers; pass API_PARITY_FLAGS=--strict to fail
-# on a pending one too. The report, the surface, the hidden items, the defaults
-# and the findings as JSON stay in $(API_REPORT).
+# fails on a difference no entry covers, and on one awaiting the maintainer (a
+# [[pending]] entry or a TODO decision). The report, the surface, the hidden
+# items, the defaults and the findings as JSON stay in $(API_REPORT).
 api-parity: doc api-hidden
 	@mkdir -p $(API_REPORT)
 	@rm -f $(API_REPORT)/rs-defaults.json

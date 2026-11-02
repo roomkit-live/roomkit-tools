@@ -109,7 +109,9 @@ Python is the reference.
   when Python changes, then Rust) or records the difference as approved in
   `api/mapping.toml`: a rule, a `[[map]]` or `[[exception]]` entry, or a
   `[[missing]]` entry for a feature only one side has. A difference is never
-  shipped undiscussed.
+  shipped undiscussed: until the maintainer decides, it is a red gate. It
+  may be recorded meanwhile as a `[[pending]]` entry, which pairs names and
+  documents the question, but the gate fails while one is left.
 - Every rule and every `[[map]]`, `[[exception]]` and `[[missing]]` entry
   names its source in `decision`: the roomkit-rs precedent it follows (a row
   of the names table in its `docs/architecture.md`, or a rule of its
@@ -126,12 +128,10 @@ Python is the reference.
   that is no `Option` is the Rust default (`[rules] deferred_default`); any
   other difference, an `Option` Rust resolves at execution included, is a
   finding. A new such struct, or field, goes into that test: the gate fails
-  on one the dump lacks, and a field it does not list fails to compile. The
-  differences found before the gate existed are the `[[pending]]` entries at
-  the end of the mapping; each awaits a decision, and none is approved.
-  `make api-parity API_PARITY_FLAGS=--strict` fails while one is left. The
-  gate and its tests need only `python3` (3.11 or newer) and its standard
-  library.
+  on one the dump lacks, and a field it does not list fails to compile.
+  `make api-parity`, CI and the pre-push hook fail on any `[[pending]]`
+  entry and any `TODO: maintainer` decision. The gate and its tests need
+  only `python3` (3.11 or newer) and its standard library.
 - A public item hidden with `#[doc(hidden)]` is on no rustdoc page. The
   gate lists them from the JSON rustdoc writes with
   `--document-hidden-items`, unstable options the pinned toolchain takes

@@ -769,6 +769,27 @@ class Members(unittest.TestCase):
         found = keys(run(self.FETCH, specs, rules=self.UNIFORM))
         self.assertIn(create, found)
 
+    WRAPPER = 'native_wrapper = { python = "__init__", decision = "ref" }\n'
+
+    def test_an_init_wrapping_the_native_object_first_is_no_constructor(self):
+        """`[rules] native_wrapper`: an `__init__` whose first parameter is the
+        native object (`__native__`) is a wrapper, skipped whatever else it
+        takes; one whose first parameter is no native object is compared."""
+        rules = self.LAZY + self.WRAPPER
+        specs = {"pkg.ReadTool": dict(READ_SPEC["pkg.ReadTool"])}
+        specs["pkg.ReadTool"]["__init__"] = ["def", "native", "outputs=None"]
+        self.assertEqual(
+            keys(run(read_tool(), specs, contracts=READ_CONTRACTS, rules=rules)), set()
+        )
+        compared = "rust kit::ReadLimits::max_lines (unmatched) [pkg.ReadTool.__init__]"
+        found = keys(run(read_tool(), specs, contracts=READ_CONTRACTS, rules=self.LAZY))
+        self.assertIn(compared, found)
+        for init in (["def", "path"], ["def", "root"], ["def", "outputs", "native"]):
+            with self.subTest(init=init):
+                specs["pkg.ReadTool"]["__init__"] = init
+                found = keys(run(read_tool(), specs, contracts=READ_CONTRACTS, rules=rules))
+                self.assertIn(compared, found)
+
     def test_a_factory_classs_init_is_compared_unless_it_wraps_the_native_object(self):
         """With an async factory, Python's `__init__` taking only the native
         object it built (`__native__` names it: its annotation is a private
@@ -1133,8 +1154,7 @@ covers = ["rust kit::DocsListTool::execute (name) [pkg.DocsList.call]"]
         self.assertEqual(uncovered(report), set())
         self.assertEqual(report.dead, [])
         self.assertEqual(len(report.pending), 2)
-        self.assertTrue(report.passed(strict=False))
-        self.assertFalse(report.passed(strict=True))
+        self.assertFalse(report.passed())
 
     def test_an_approved_map_pairs_without_a_finding(self):
         mapping = self.PAIRS.replace("[[pending]]", "[[map]]").replace(
@@ -1143,7 +1163,7 @@ covers = ["rust kit::DocsListTool::execute (name) [pkg.DocsList.call]"]
         mapping = "\n".join(line for line in mapping.splitlines() if not line.startswith("covers"))
         report = run(self.ITEMS, self.SPECS, contracts=self.CONTRACTS, mapping=mapping)
         self.assertEqual(keys(report), set())
-        self.assertTrue(report.passed(strict=True))
+        self.assertTrue(report.passed())
 
     def test_an_exception_naming_both_counterparts_pairs_them(self):
         """An approved difference that is no language-forced mapping pairs
@@ -1211,7 +1231,7 @@ covers = ["rust kit::Gone (name)"]
                 "names nothing of the rust side",
             ],
         )
-        self.assertFalse(report.passed(strict=False))
+        self.assertFalse(report.passed())
 
     def test_a_pairing_the_rules_make_is_dead(self):
         mapping = """
@@ -1244,6 +1264,15 @@ covers = ["rust kit::DocsListTool (name)"]
             with self.subTest(entry=entry), self.assertRaises(ParityError):
                 Mapping.from_table(tomllib.loads(mapping_text(entry)))
 
+    def test_a_decision_may_cite_several_sources(self):
+        entry = (
+            '[[exception]]\napproved = 2026-11-02\nreason = "r"\n'
+            'decision = "luge-hitl:aa Q7; luge-hitl:bb Q27"\ncovers = ["rust kit::X (name)"]\n'
+        )
+        (found,) = Mapping.from_table(tomllib.loads(mapping_text(entry))).entries
+        self.assertEqual(found.decision, "luge-hitl:aa Q7; luge-hitl:bb Q27")
+        self.assertEqual(Mapping.from_table(tomllib.loads(mapping_text(entry))).undecided(), [])
+
     def test_an_entry_and_a_rule_name_their_decision(self):
         """`decision` names where an entry or a rule was decided."""
         pairs = self.PAIRS.replace("[[pending]]", "[[map]]").replace(
@@ -1271,7 +1300,7 @@ covers = ["rust kit::DocsListTool (name)"]
         report = run(self.ITEMS, self.SPECS, contracts=self.CONTRACTS, mapping=missing)
         self.assertEqual(uncovered(report), set())
         self.assertEqual(len(report.missing), 2)
-        self.assertTrue(report.passed(strict=True))
+        self.assertTrue(report.passed())
 
 
 def pending(*covers: str) -> str:
@@ -1436,7 +1465,7 @@ class DefaultValues(unittest.TestCase):
         )
         (finding,) = report.findings
         self.assertEqual(finding.detail, "Python defaults it to 20; Rust to 10")
-        self.assertFalse(report.passed(strict=False))
+        self.assertFalse(report.passed())
         dump["kit::ReadInput"]["limit"] = 20
         report = run(items, spec, contracts=contracts, rules=self.DEFERRED, defaults=dump)
         self.assertEqual(keys(report), set())
@@ -1486,7 +1515,7 @@ class DefaultValues(unittest.TestCase):
             defaults=dump,
         )
         self.assertEqual(uncovered(report), {"rust kit::ReadLimits (dump)"})
-        self.assertFalse(report.passed(strict=False))
+        self.assertFalse(report.passed())
 
     def test_a_builder_rust_does_not_call_is_pythons_none(self):
         items = [
@@ -1552,7 +1581,7 @@ class Hidden(unittest.TestCase):
         report = run(self.ITEMS, self.SPECS, mapping=self.LISTED, hidden=["kit::Tool::check"])
         self.assertEqual(uncovered(report), set())
         self.assertEqual(len(report.hidden), 1)
-        self.assertTrue(report.passed(strict=True))
+        self.assertTrue(report.passed())
 
     def test_an_item_no_longer_hidden_leaves_its_entry_dead(self):
         report = run(self.ITEMS, self.SPECS, mapping=self.LISTED, hidden=[])
@@ -1573,7 +1602,7 @@ class Hidden(unittest.TestCase):
         entry = self.LISTED.replace('decision = "ref"', 'decision = "TODO: maintainer"')
         report = run(self.ITEMS, self.SPECS, mapping=entry, hidden=["kit::Tool::check"])
         self.assertEqual(uncovered(report), set())
-        self.assertFalse(report.passed(strict=False))
+        self.assertFalse(report.passed())
 
 
 class Decisions(unittest.TestCase):
@@ -1634,7 +1663,7 @@ class Decisions(unittest.TestCase):
         rules = 'optional = { type = "Option", default = "None", decision = "TODO: maintainer" }'
         report = run(Entries.ITEMS, Entries.SPECS, contracts=Entries.CONTRACTS, rules=rules)
         self.assertEqual(report.undecided, ["[rules] optional"])
-        self.assertFalse(report.passed(strict=False))
+        self.assertFalse(report.passed())
         missing = (
             '[[missing]]\nreason = "r"\ndecision = "TODO: maintainer"\n'
             'covers = ["rust kit::DocsListTool (unmatched)", "python pkg.DocsList (unmatched)"]\n'
@@ -1642,7 +1671,7 @@ class Decisions(unittest.TestCase):
         report = run(Entries.ITEMS, Entries.SPECS, contracts=Entries.CONTRACTS, mapping=missing)
         self.assertEqual(uncovered(report), set())
         self.assertEqual(report.undecided, ["[[missing]] #1 (rust kit::DocsListTool (unmatched))"])
-        self.assertFalse(report.passed(strict=False))
+        self.assertFalse(report.passed())
 
 
 class Command(unittest.TestCase):
@@ -1690,12 +1719,18 @@ class Command(unittest.TestCase):
         return status, out.getvalue()
 
     def test_green_with_every_finding_covered(self):
-        status, out = self._main(Entries.PAIRS)
+        mapped = Entries.PAIRS.replace("[[pending]]", "[[exception]]").replace(
+            'reason = "name"', 'approved = 2026-11-02\nreason = "name"\ndecision = "ref"'
+        )
+        status, out = self._main(mapped)
         self.assertEqual(status, 0, out)
         self.assertIn("Gate: passed.", out)
 
-    def test_strict_fails_while_a_pending_entry_is_left(self):
-        self.assertEqual(self._main(Entries.PAIRS, "--strict")[0], 1)
+    def test_a_pending_entry_fails_the_gate(self):
+        """A difference awaiting the maintainer is a red gate."""
+        status, out = self._main(Entries.PAIRS)
+        self.assertEqual(status, 1, out)
+        self.assertIn("2 pending entries", out)
 
     def test_a_finding_without_an_entry_fails(self):
         status, out = self._main("")

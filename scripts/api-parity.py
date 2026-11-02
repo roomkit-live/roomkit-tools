@@ -142,9 +142,9 @@ and the other lacks, recorded rather than ported (`unmatched` and
 `uncompared` findings only); `[[hidden]]` lists the public items
 `#[doc(hidden)]` hides, which rustdoc shows on no page (`hidden` findings,
 from `rs-surface.py --hidden`, and no other table covers them); `[[pending]]`
-covers the findings awaiting a
-decision, and, naming both counterparts, pairs two items or members whose
-name difference awaits it. An entry covers findings by key,
+records the findings awaiting a decision, and, naming both counterparts,
+pairs two items or members whose name difference awaits it: the gate fails
+while one is left. An entry covers findings by key,
 `<rust|python> <path> (<kind>) [<with>]`: `<with>` names what the finding
 was compared with when the path alone does not say, so that an entry covers
 what was approved and nothing more. A parameter on one side only names the
@@ -160,13 +160,14 @@ the mapping is refused without one; a decision that reads `TODO: maintainer`
 awaits the maintainer, and its entry carries no `approved` date until it is
 decided.
 
-The gate fails (exit 1) on a finding no entry covers, a dead entry or a
-decision awaiting the maintainer; `--strict` also on any `[[pending]]`
-entry left. An input it cannot read whole exits 2.
+The gate fails (exit 1) on a finding no entry covers, a dead entry, a
+decision awaiting the maintainer, or a `[[pending]]` entry: a new difference
+is a red gate until the maintainer decides it. An input it cannot read whole
+exits 2.
 
 Usage: python3 scripts/api-parity.py SURFACE... --defaults FILE --hidden FILE [--hidden FILE]...
                                      [--python DIR]...
-                                     [--mapping FILE] [--rules-only] [--strict]
+                                     [--mapping FILE] [--rules-only]
                                      [--verbose] [--json OUT] [--pending]
 """
 
@@ -216,9 +217,6 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     parser.add_argument(
         "--rules-only", action="store_true", help="apply the rules, none of the entries"
     )
-    parser.add_argument(
-        "--strict", action="store_true", help="also fail while a [[pending]] entry is left"
-    )
     parser.add_argument("--verbose", action="store_true", help="also list the pending findings")
     parser.add_argument("--json", type=Path, help="also write the findings as JSON there")
     parser.add_argument(
@@ -242,12 +240,12 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     if args.pending:
         out.write(pending_toml(report.uncovered))
         return 0
-    out.write(render(report, strict=args.strict, verbose=args.verbose))
+    out.write(render(report, verbose=args.verbose))
     if args.json:
         args.json.write_text(
             json.dumps(as_json(report), indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
         )
-    return 0 if report.passed(args.strict) else 1
+    return 0 if report.passed() else 1
 
 
 if __name__ == "__main__":

@@ -54,7 +54,7 @@ def compare(comparison: Comparison, python: str, spec: dict, items: list[dict]) 
         if member == rules.factory and constructors.uniform_factory(comparison, spec):
             continue  # Python's uniform async constructor; __init__ is compared
         if member == "__init__" and constructor == rules.factory:
-            if not _wraps_native(spec):
+            if not _wraps_native(comparison, spec):
                 constructors.compare(comparison, python, member, member_spec, items, used)
             continue
         if any(comparison.python.specs[base].get(member) == member_spec for base in trait_bases):
@@ -73,17 +73,17 @@ def compare(comparison: Comparison, python: str, spec: dict, items: list[dict]) 
     _leftovers(comparison, python, pool, used, primary, trait_bases)
 
 
-def _wraps_native(spec: dict) -> bool:
-    """An async factory's `__init__` taking only the native object the
-    factory built, its one parameter annotated with private native types
-    (`__native__`): not compared."""
+def _wraps_native(comparison: Comparison, spec: dict) -> bool:
+    """An async factory's `__init__` wrapping the native object the factory
+    built, a parameter annotated with private native types (`__native__`):
+    not compared when it takes that object alone, nor, by `[rules]
+    native_wrapper`, when that object is its first parameter, whatever else
+    it takes."""
     params = python_params(spec["__init__"])
-    return (
-        len(params) == 1
-        and params[0].required
-        and not params[0].variadic
-        and params[0].name in native_params(spec)
-    )
+    if not params or params[0].variadic or params[0].name not in native_params(spec):
+        return False
+    wrapper = comparison.rules.setting("native_wrapper", "python") == "__init__"
+    return len(params) == 1 or wrapper
 
 
 def _trait_bases(comparison: Comparison, python: str, items: list[dict]) -> list[str]:

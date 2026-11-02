@@ -81,6 +81,7 @@ _RULES: dict[str, set[str] | None] = {
     "union_constructor": {"prefix", "types"},
     "deferred_default": {"python"},
     "uniform_factory": {"python"},
+    "native_wrapper": {"python"},
 }
 # The rules a mapping may leave out: the comparison then applies none.
 _RULES_OPTIONAL = {
@@ -93,6 +94,7 @@ _RULES_OPTIONAL = {
     "union_constructor",
     "deferred_default",
     "uniform_factory",
+    "native_wrapper",
 }
 # The rules whose settings `Rules.setting` reads, the optional tables.
 _TABLE_RULES = _RULES_OPTIONAL - {"builtins", "builtin_errors"}

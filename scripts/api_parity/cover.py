@@ -48,14 +48,14 @@ class Report:
     def covered_by(self, table: str) -> list[Finding]:
         return [finding for entry in self.mapping.of(table) for finding in entry.covered]
 
-    def passed(self, strict: bool) -> bool:
-        """No finding without an entry, no dead entry, no decision left to
-        the maintainer; `strict`, no pending entry either."""
+    def passed(self) -> bool:
+        """No finding without an entry, no dead entry, and nothing awaiting
+        the maintainer: no decision left to them, no pending entry."""
         return (
             not self.uncovered
             and not self.dead
             and not self.undecided
-            and not (strict and self.mapping.of("pending"))
+            and not self.mapping.of("pending")
         )
 
 

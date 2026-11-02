@@ -9,7 +9,7 @@ from api_parity.cover import Report
 from api_parity.mapping import UNDECIDED
 
 
-def render(report: Report, *, strict: bool, verbose: bool) -> str:
+def render(report: Report, *, verbose: bool) -> str:
     lines: list[str] = []
     out = lines.append
     _counts(out, report)
@@ -31,7 +31,7 @@ def render(report: Report, *, strict: bool, verbose: bool) -> str:
     else:
         out("  (--verbose lists them)")
         out("")
-    passed = report.passed(strict)
+    passed = report.passed()
     verdict = "passed" if passed else "failed"
     why = []
     if report.uncovered:
@@ -40,8 +40,8 @@ def render(report: Report, *, strict: bool, verbose: bool) -> str:
         why.append(f"{len(report.dead)} dead entries")
     if report.undecided:
         why.append(f"{len(report.undecided)} awaiting the maintainer's decision")
-    if strict and entries:
-        why.append(f"{len(entries)} pending entries (--strict)")
+    if entries:
+        why.append(f"{len(entries)} pending entries")
     out(f"Gate: {verdict}" + (f": {'; '.join(why)}." if why else "."))
     return "\n".join(lines) + "\n"
 
