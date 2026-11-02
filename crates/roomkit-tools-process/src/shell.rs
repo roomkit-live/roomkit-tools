@@ -174,7 +174,8 @@ impl ShellTool {
     /// Select the environment commands receive; see [`CommandEnv`].
     ///
     /// # Errors
-    /// Rejects invalid variable names or values, as [`CommandEnv::validate`].
+    /// Rejects an empty variable name, a name containing `=` or NUL, and a
+    /// value containing NUL.
     pub fn with_env(mut self, env: CommandEnv) -> Result<Self, ToolError> {
         env.validate()?;
         self.env = Arc::new(env);

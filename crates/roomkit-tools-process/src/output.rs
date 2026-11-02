@@ -148,8 +148,10 @@ pub(crate) fn append_metadata(
 
 impl OutputStore {
     /// Create a private temporary subdirectory (mode 0700) beneath a host-selected
-    /// parent, or the system temporary directory for `None`, as Python's
-    /// `OutputStore(parent=None)`.
+    /// parent, or, for `None`, beneath [`std::env::temp_dir`]: `TMPDIR` on Unix,
+    /// else `/tmp`. Python's `OutputStore(parent=None)` passes the directory
+    /// `tempfile.gettempdir()` names, which also reads `TEMP` and `TMP` and
+    /// skips a directory it cannot write to.
     ///
     /// # Errors
     /// Rejects invalid bounds, inaccessible parents and unsupported platforms.

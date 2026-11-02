@@ -402,7 +402,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
 }
 
 #[tokio::test]
-async fn no_owner_is_one_standalone_owner_with_its_own_quota() {
+async fn no_owner_files_its_jobs_under_the_default_owner_key() {
     let root = tempfile::tempdir().unwrap();
     let limits = ProcessLimits {
         max_processes: 2,

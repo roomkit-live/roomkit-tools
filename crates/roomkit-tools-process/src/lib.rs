@@ -42,7 +42,8 @@ pub use process_types::*;
 pub use shell::{ShellInput, ShellLimits, ShellResult, ShellTool};
 
 /// The owner of the calls that name none, Python's `owner=None`: the one
-/// standalone owner of a session or store, apart from every named owner.
+/// standalone owner of a session or store, whose key is `default`, so a call
+/// naming the owner `default` reaches its jobs and archives.
 const STANDALONE_OWNER: &str = "default";
 
 /// The trusted owner key a call files its jobs and archives under.

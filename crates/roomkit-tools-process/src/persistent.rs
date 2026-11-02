@@ -193,8 +193,8 @@ impl ProcessSession {
     /// processes; see [`CommandEnv`].
     ///
     /// # Errors
-    /// Rejects invalid variable names or values, as [`CommandEnv::validate`],
-    /// and shared or previously used sessions.
+    /// Rejects an empty variable name, a name containing `=` or NUL, a value
+    /// containing NUL, and shared or previously used sessions.
     pub fn with_env(mut self, env: CommandEnv) -> Result<Self, ToolError> {
         env.validate()?;
         let inner = Arc::get_mut(&mut self.inner).ok_or_else(|| {
@@ -214,7 +214,7 @@ impl ProcessSession {
             return Err(ToolError::Cancelled);
         }
         if self.inner.closed.is_cancelled() {
-            return Err(ToolError::AccessRefused("process manager is closed".into()));
+            return Err(ToolError::AccessRefused("process session is closed".into()));
         }
         if owner.is_empty() || owner.len() > 1024 {
             return Err(ToolError::InvalidInput(

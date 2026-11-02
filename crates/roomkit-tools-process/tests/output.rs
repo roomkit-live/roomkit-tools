@@ -136,28 +136,39 @@ async fn no_owner_is_the_standalone_owner_of_shell_archives() {
     assert!(store.close().await);
 }
 
-#[expect(
-    clippy::unwrap_used,
-    reason = "the temporary directory must be listable"
-)]
-fn temporary_stores() -> std::collections::BTreeSet<std::ffi::OsString> {
-    std::fs::read_dir(std::env::temp_dir())
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name())
-        .filter(|name| name.to_string_lossy().starts_with("roomkit-output-"))
-        .collect()
-}
+/// Set in the child process that checks the system temporary directory.
+const TEMPORARY_CHILD: &str = "ROOMKIT_OUTPUT_TEMPORARY_CHILD";
 
 #[tokio::test]
 async fn no_parent_keeps_the_store_in_the_system_temporary_directory() {
-    let before = temporary_stores();
-    let store = OutputStore::new(None, OutputLimits::default())
-        .await
+    // Other processes share the system temporary directory: the check runs in
+    // a child of this test whose TMPDIR is a directory of its own.
+    if std::env::var_os(TEMPORARY_CHILD).is_some() {
+        let temporary = std::env::temp_dir();
+        let store = OutputStore::new(None, OutputLimits::default())
+            .await
+            .unwrap();
+        let created: Vec<_> = std::fs::read_dir(&temporary)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(created.len(), 1, "{created:?}");
+        assert!(created[0].to_string_lossy().starts_with("roomkit-output-"));
+        assert!(store.close().await);
+        assert!(!temporary.join(&created[0]).exists());
+        return;
+    }
+    let temporary = tempfile::tempdir().unwrap();
+    let name = "no_parent_keeps_the_store_in_the_system_temporary_directory";
+    let child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", name, "--test-threads", "1"])
+        .env("TMPDIR", temporary.path())
+        .env(TEMPORARY_CHILD, "1")
+        .output()
         .unwrap();
-    let created: Vec<_> = temporary_stores().difference(&before).cloned().collect();
-    assert_eq!(created.len(), 1, "{created:?}");
-    assert!(store.close().await);
-    assert!(!std::env::temp_dir().join(&created[0]).exists());
+    let report = String::from_utf8_lossy(&child.stdout);
+    assert!(child.status.success(), "{report}");
+    assert!(report.contains("1 passed"), "{report}");
 }
 
 #[tokio::test]
@@ -304,7 +315,7 @@ async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
 }
 
 #[tokio::test]
-async fn process_archives_remain_readable_after_manager_close() {
+async fn process_archives_remain_readable_after_session_close() {
     let root = tempfile::tempdir().unwrap();
     let store = OutputStore::new(Some(root.path()), OutputLimits::default())
         .await
@@ -313,7 +324,7 @@ async fn process_archives_remain_readable_after_manager_close() {
         max_output_bytes: 2,
         ..ProcessLimits::default()
     };
-    let manager = ProcessSession::new(root.path())
+    let session = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_limits(limits)
@@ -321,13 +332,13 @@ async fn process_archives_remain_readable_after_manager_close() {
         .with_output_store(store.clone())
         .unwrap();
     let cancel = CancellationToken::new();
-    let start = manager
+    let start = session
         .start(Some("owner"), ProcessStartInput::new("cat"), &cancel)
         .await
         .unwrap()
         .data;
     let id = start.stdout_archive.unwrap().archive_id.unwrap();
-    manager
+    session
         .write(
             Some("owner"),
             ProcessWriteInput {
@@ -368,7 +379,7 @@ async fn process_archives_remain_readable_after_manager_close() {
             .await,
         Err(ToolError::AccessRefused(_))
     ));
-    let status = manager
+    let status = session
         .status(
             Some("owner"),
             ProcessStatusInput {
@@ -379,7 +390,7 @@ async fn process_archives_remain_readable_after_manager_close() {
         .await
         .unwrap();
     assert!(!status.data.first().unwrap().stdin_closed);
-    assert!(manager.close().await);
+    assert!(session.close().await);
     let result = store
         .read(Some("owner"), page(&id, 0, 100), &cancel)
         .await
