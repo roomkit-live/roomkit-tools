@@ -1,6 +1,7 @@
 //! Backend independence and shared wire boundaries.
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use roomkit_tools_agents::*;
 use roomkit_tools_core::ToolError;
@@ -161,10 +162,14 @@ async fn the_backend_observes_the_callers_cancellation() {
         profile: "waits".into(),
         task: "Read the source".into(),
     };
-    // The call is polled first and waits on the token; cancelling it ends the call.
-    let (result, ()) = tokio::join!(tool.call(&scope, input, &cancel), async {
+    // The call is polled first and waits on the token; cancelling it ends the
+    // call. A backend handed another token would wait forever: the bound
+    // turns that into a failure.
+    let call = tokio::time::timeout(Duration::from_secs(10), tool.call(&scope, input, &cancel));
+    let (result, ()) = tokio::join!(call, async {
         cancel.cancel();
     });
+    let result = result.expect("the backend did not observe the caller's cancellation");
     assert!(matches!(result, Err(ToolError::Cancelled)));
 }
 
