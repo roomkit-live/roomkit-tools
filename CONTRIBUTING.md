@@ -158,9 +158,10 @@ Python is the reference.
   in `api/roomkit-adapter-hidden.json`. CI cannot check those files: the
   adapter's engine source is not public. `make roomkit-check` checks them,
   and so does the pre-push hook when the pushed commits change `adapters/`,
-  either file or `scripts/rs-surface.py`: it runs `make api-adapter-check`,
-  and refuses the push when the check fails or cannot run without the pinned
-  roomkit-rs source. The check ignores the rustdoc version the files name.
+  either file, `scripts/rs-surface.py` or `rust-toolchain.toml`: it runs
+  `make api-adapter-check`, and refuses the push when the check fails or
+  cannot run without the pinned roomkit-rs source. The check ignores the
+  rustdoc version the files name.
 
 ## Implementation boundaries
 

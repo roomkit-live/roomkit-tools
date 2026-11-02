@@ -226,6 +226,7 @@ class PrePush(unittest.TestCase):
             "api/roomkit-adapter-surface.json",
             "api/roomkit-adapter-hidden.json",
             "scripts/rs-surface.py",
+            "rust-toolchain.toml",
         ):
             with self.subTest(path=path):
                 base = self.git("rev-parse", "HEAD")
