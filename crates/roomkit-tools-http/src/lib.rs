@@ -21,28 +21,30 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
 use reqwest::{Url, redirect::Policy};
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 
 /// Parse an absolute credential-free HTTP(S) URL and remove its fragment.
 ///
 /// # Errors
 /// Rejects invalid URLs, credentials and oversized input.
-pub fn parse_url(value: &str, max_bytes: usize) -> Result<Url, Error> {
+pub fn parse_url(value: &str, max_bytes: usize) -> Result<Url, ToolError> {
     if value.len() > max_bytes {
-        return Err(Error::LimitExceeded("URL is too large".into()));
+        return Err(ToolError::LimitExceeded("URL is too large".into()));
     }
     let mut url =
-        Url::parse(value).map_err(|_| Error::InvalidInput("invalid absolute URL".into()))?;
+        Url::parse(value).map_err(|_| ToolError::InvalidInput("invalid absolute URL".into()))?;
     if !matches!(url.scheme(), "http" | "https")
         || url.host().is_none()
         || url.port_or_known_default() == Some(0)
     {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "URL requires HTTP or HTTPS and a valid host/port".into(),
         ));
     }
     if !url.username().is_empty() || url.password().is_some() {
-        return Err(Error::Refused("URL credentials are not supported".into()));
+        return Err(ToolError::AccessRefused(
+            "URL credentials are not supported".into(),
+        ));
     }
     url.set_fragment(None);
     Ok(url)
@@ -52,14 +54,17 @@ pub fn parse_url(value: &str, max_bytes: usize) -> Result<Url, Error> {
 ///
 /// # Errors
 /// Returns a URL or origin validation failure.
-pub fn normalize_policy(policy: NetworkPolicy, max_bytes: usize) -> Result<NetworkPolicy, Error> {
-    fn origins(values: Vec<String>, max: usize) -> Result<Vec<String>, Error> {
+pub fn normalize_policy(
+    policy: NetworkPolicy,
+    max_bytes: usize,
+) -> Result<NetworkPolicy, ToolError> {
+    fn origins(values: Vec<String>, max: usize) -> Result<Vec<String>, ToolError> {
         values
             .into_iter()
             .map(|value| {
                 let url = parse_url(&value, max)?;
                 if url.path() != "/" || url.query().is_some() || value.contains('#') {
-                    return Err(Error::InvalidInput(
+                    return Err(ToolError::InvalidInput(
                         "policy entries must be origins without paths, queries or fragments".into(),
                     ));
                 }
@@ -104,7 +109,7 @@ fn public(ip: IpAddr) -> bool {
     }
 }
 
-fn check_addresses(addresses: &[SocketAddr], private: bool) -> Result<(), Error> {
+fn check_addresses(addresses: &[SocketAddr], private: bool) -> Result<(), ToolError> {
     if addresses.is_empty() {
         return Err(io_error(
             "resolve URL host",
@@ -112,7 +117,7 @@ fn check_addresses(addresses: &[SocketAddr], private: bool) -> Result<(), Error>
         ));
     }
     if !private && addresses.iter().any(|address| !public(address.ip())) {
-        return Err(Error::Refused(
+        return Err(ToolError::AccessRefused(
             "destination resolves outside the permitted public network".into(),
         ));
     }
@@ -124,21 +129,26 @@ fn check_addresses(addresses: &[SocketAddr], private: bool) -> Result<(), Error>
 ///
 /// # Errors
 /// Returns refused destinations, resolution or client construction failures.
-pub async fn checked_client(url: &Url, policy: &NetworkPolicy) -> Result<reqwest::Client, Error> {
+pub async fn checked_client(
+    url: &Url,
+    policy: &NetworkPolicy,
+) -> Result<reqwest::Client, ToolError> {
     let origin = url.origin().ascii_serialization();
     if policy
         .allowed_origins
         .as_ref()
         .is_some_and(|allowed| !allowed.contains(&origin))
     {
-        return Err(Error::Refused("destination origin is not allowed".into()));
+        return Err(ToolError::AccessRefused(
+            "destination origin is not allowed".into(),
+        ));
     }
     let port = url
         .port_or_known_default()
-        .ok_or_else(|| Error::InvalidInput("missing URL port".into()))?;
+        .ok_or_else(|| ToolError::InvalidInput("missing URL port".into()))?;
     let host = url
         .host_str()
-        .ok_or_else(|| Error::InvalidInput("missing URL host".into()))?;
+        .ok_or_else(|| ToolError::InvalidInput("missing URL host".into()))?;
     let addresses = match host.trim_matches(['[', ']']).parse::<IpAddr>() {
         Ok(ip) => vec![SocketAddr::new(ip, port)],
         _ => tokio::net::lookup_host((host, port))
@@ -162,7 +172,7 @@ pub async fn checked_client(url: &Url, policy: &NetworkPolicy) -> Result<reqwest
 
 /// TLS with the ring provider and the bundled Mozilla roots, so certificate
 /// trust is the same on every host, including one without a system store.
-fn tls_config() -> Result<rustls::ClientConfig, Error> {
+fn tls_config() -> Result<rustls::ClientConfig, ToolError> {
     let roots = rustls::RootCertStore {
         roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
     };
@@ -179,8 +189,8 @@ fn tls_config() -> Result<rustls::ClientConfig, Error> {
 pub fn io_error(
     operation: &'static str,
     source: impl Into<Box<dyn std::error::Error + Send + Sync>>,
-) -> Error {
-    Error::Io {
+) -> ToolError {
+    ToolError::Io {
         operation,
         source: std::io::Error::other(source),
     }
@@ -193,13 +203,13 @@ pub fn io_error(
 pub async fn read_body(
     response: &mut reqwest::Response,
     max_bytes: usize,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>, ToolError> {
     if response
         .headers()
         .get(reqwest::header::CONTENT_ENCODING)
         .is_some_and(|v| v != "identity")
     {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "unsupported HTTP content encoding".into(),
         ));
     }
@@ -207,7 +217,7 @@ pub async fn read_body(
         .content_length()
         .is_some_and(|n| n > max_bytes as u64)
     {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "HTTP body exceeds host byte limit".into(),
         ));
     }
@@ -218,7 +228,7 @@ pub async fn read_body(
         .map_err(|e| io_error("read HTTP body", e))?
     {
         if chunk.len() > max_bytes.saturating_sub(bytes.len()) {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "HTTP body exceeds host byte limit".into(),
             ));
         }

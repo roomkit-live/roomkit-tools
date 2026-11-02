@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 
 use crate::ProcessChunk;
 
@@ -43,16 +43,16 @@ impl Journal {
         Ok(())
     }
 
-    pub(crate) fn page(&self, requested: u64, limit: usize) -> Result<ProcessChunk, Error> {
+    pub(crate) fn page(&self, requested: u64, limit: usize) -> Result<ProcessChunk, ToolError> {
         if requested > self.total {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "output cursor is past the observed stream end".into(),
             ));
         }
         let offset = requested.max(self.first());
         // offset - first is within the retained buffer's usize-sized length.
         let skip = usize::try_from(offset - self.first())
-            .map_err(|_| Error::InvalidInput("invalid output cursor".into()))?;
+            .map_err(|_| ToolError::InvalidInput("invalid output cursor".into()))?;
         let bytes: Vec<u8> = self.bytes.iter().skip(skip).take(limit).copied().collect();
         let next_offset = offset + bytes.len() as u64;
         Ok(ProcessChunk {

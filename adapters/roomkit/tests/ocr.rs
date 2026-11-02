@@ -2,7 +2,6 @@
 #![cfg(feature = "ocr")]
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError};
-use roomkit_tools_core::Error;
 use roomkit_tools_ocr::{DecodedImage, OcrBackend, OcrBlock, OcrEngine, OcrIdentity, OcrTool};
 use roomkit_tools_roomkit::OcrToolset;
 use serde_json::json;
@@ -21,7 +20,7 @@ impl OcrBackend for Fixture {
         &mut self,
         _: &DecodedImage,
         _: &CancellationToken,
-    ) -> Result<Vec<OcrBlock>, Error> {
+    ) -> Result<Vec<OcrBlock>, roomkit_tools_core::ToolError> {
         Ok(vec![])
     }
 }

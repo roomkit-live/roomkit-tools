@@ -1,6 +1,6 @@
 //! Read-only comparisons and real structured patch effects.
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
     DiffInput, DiffLimits, DiffTool, EditInput, EditTool, MutationWorkspace, PatchChange,
     PatchInput, PatchLimits, PatchOperation, PatchTool,
@@ -101,13 +101,13 @@ async fn diff_enforces_file_line_complexity_and_complete_output_bounds() {
             .unwrap()
             .diff(DiffInput::new("a", "b"), &CancellationToken::new())
             .await;
-        assert!(matches!(result, Err(Error::LimitExceeded(_))));
+        assert!(matches!(result, Err(ToolError::LimitExceeded(_))));
     }
     let cancel = CancellationToken::new();
     cancel.cancel();
     assert!(matches!(
         tool.diff(DiffInput::new("a", "b"), &cancel).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert!(
         serde_json::from_str::<DiffInput>(r#"{"old_path":"a","new_path":"b","unknown":1}"#)
@@ -127,13 +127,13 @@ async fn diff_rejects_binary_directories_missing_files_and_outside_roots() {
         assert!(matches!(
             tool.diff(DiffInput::new("a", name), &CancellationToken::new())
                 .await,
-            Err(Error::Unsupported(_))
+            Err(ToolError::UnsupportedResource(_))
         ));
     }
     assert!(matches!(
         tool.diff(DiffInput::new("a", "missing"), &CancellationToken::new())
             .await,
-        Err(Error::Io { .. })
+        Err(ToolError::Io { .. })
     ));
     assert!(matches!(
         tool.diff(
@@ -141,7 +141,7 @@ async fn diff_rejects_binary_directories_missing_files_and_outside_roots() {
             &CancellationToken::new()
         )
         .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
 }
 
@@ -222,7 +222,7 @@ async fn patch_validates_every_source_before_any_effect_and_rechecks_after_previ
     input.dry_run = false;
     assert!(matches!(
         tool.patch(input, &CancellationToken::new()).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(std::fs::read_to_string(root.path().join("a")).unwrap(), "a");
     let mut input = PatchInput::new(vec![update("a", "a", "A")]);
@@ -233,7 +233,7 @@ async fn patch_validates_every_source_before_any_effect_and_rechecks_after_previ
     input.dry_run = false;
     assert!(matches!(
         tool.patch(input, &CancellationToken::new()).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(
         std::fs::read_to_string(root.path().join("a")).unwrap(),
@@ -280,7 +280,7 @@ async fn patch_accepts_lf_content_for_files_with_uniform_crlf_endings() {
     input.dry_run = false;
     assert!(matches!(
         tool.patch(input, &CancellationToken::new()).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(read("mixed"), "one\r\ntwo\n");
 }
@@ -368,14 +368,14 @@ async fn patch_limits_and_cancellation_prevent_writes() {
                 .unwrap()
                 .patch(input.clone(), &CancellationToken::new())
                 .await,
-            Err(Error::LimitExceeded(_))
+            Err(ToolError::LimitExceeded(_))
         ));
     }
     let cancel = CancellationToken::new();
     cancel.cancel();
     assert!(matches!(
         tool.patch(input, &cancel).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
     let input: PatchInput =
@@ -431,7 +431,7 @@ async fn diff_allows_internal_symlinks_but_patch_refuses_leaf_symlinks_and_prese
     let input = PatchInput::new(vec![update("link", "x", "y")]);
     assert!(matches!(
         patch.patch(input, &CancellationToken::new()).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     std::fs::set_permissions(
         root.path().join("source"),

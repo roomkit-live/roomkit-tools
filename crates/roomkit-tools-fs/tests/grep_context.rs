@@ -2,7 +2,7 @@
 
 use std::num::NonZeroUsize;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{GrepInput, GrepLimits, GrepTool};
 use tokio_util::sync::CancellationToken;
 
@@ -149,7 +149,7 @@ async fn the_host_can_bound_or_disable_context_and_invalid_json_is_refused() {
     input.context_after = 1;
     assert!(matches!(
         tool.grep(input, &cancel).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     for arguments in [
         serde_json::json!({"pattern":"hit", "context_before":-1}),

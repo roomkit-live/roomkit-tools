@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use image::{DynamicImage, metadata::Orientation};
-use roomkit_tools_core::{Error, WorkspaceRoot};
+use roomkit_tools_core::{ToolError, WorkspaceRoot};
 
 use crate::{ImageMime, ViewImageLimits, prepare, source};
 
@@ -16,7 +16,7 @@ impl ImageWorkspace {
     ///
     /// # Errors
     /// Returns an error if the root cannot be resolved to a directory.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self {
             root: source::root(root.as_ref()).await?,
         })
@@ -27,14 +27,14 @@ impl ImageWorkspace {
     ///
     /// # Errors
     /// Rejects invalid paths, escapes, non-files, oversized inputs and I/O failures.
-    pub async fn load(&self, path: &str, maximum: usize) -> Result<(PathBuf, Vec<u8>), Error> {
+    pub async fn load(&self, path: &str, maximum: usize) -> Result<(PathBuf, Vec<u8>), ToolError> {
         if path.is_empty()
             || path.len() > 4096
             || path.contains('\0')
             || maximum == 0
             || maximum == usize::MAX
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "invalid image path or byte limit".into(),
             ));
         }
@@ -46,7 +46,7 @@ impl ImageWorkspace {
     ///
     /// # Errors
     /// Refuses a path outside the root and rejects a non-UTF-8 name.
-    pub fn relative(&self, path: &Path) -> Result<String, Error> {
+    pub fn relative(&self, path: &Path) -> Result<String, ToolError> {
         self.root.relative(path)
     }
 }
@@ -81,16 +81,16 @@ pub fn decode_rgb(
     bytes: &[u8],
     limits: &ViewImageLimits,
     rotation: u16,
-) -> Result<DecodedImage, Error> {
+) -> Result<DecodedImage, ToolError> {
     if !matches!(rotation, 0 | 90 | 180 | 270) {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "rotation_degrees must be 0, 90, 180 or 270".into(),
         ));
     }
     let (mime, mut decoder) = prepare::decoder(bytes, limits)?;
     let (original_width, original_height) = decoder.dimensions();
     if u64::from(original_width) * u64::from(original_height) * 4 > limits.max_decode_bytes as u64 {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "RGB conversion exceeds max_decode_bytes".into(),
         ));
     }

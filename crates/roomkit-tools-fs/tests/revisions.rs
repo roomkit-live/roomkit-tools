@@ -1,6 +1,6 @@
 //! Content revisions protect mutations without hidden per-agent read history.
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
     EditInput, EditTool, MutationWorkspace, ReadInput, ReadTool, WriteInput, WriteTool,
 };
@@ -66,7 +66,7 @@ async fn edits_refuse_stale_revisions_even_when_the_target_text_still_matches() 
     input.expected_revision = Some(original.data.revision);
     assert!(matches!(
         tool.edit(input.clone(), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(
         std::fs::read_to_string(&path).unwrap(),
@@ -94,14 +94,14 @@ async fn guarded_writes_require_both_matching_revision_and_overwrite() {
     input.expected_revision = Some(created.data.revision.clone());
     assert!(matches!(
         tool.write(input.clone(), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     input.overwrite = true;
     let changed = tool.write(input.clone(), &cancel).await.unwrap();
     assert_ne!(changed.data.revision, created.data.revision);
     assert!(matches!(
         tool.write(input.clone(), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     input.expected_revision = Some(changed.data.revision.clone());
     let same = tool.write(input.clone(), &cancel).await.unwrap();
@@ -110,7 +110,7 @@ async fn guarded_writes_require_both_matching_revision_and_overwrite() {
     std::fs::remove_file(root.path().join("notes")).unwrap();
     assert!(matches!(
         tool.write(input, &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(!root.path().join("notes").exists());
 }
@@ -133,14 +133,14 @@ async fn malformed_revisions_are_input_errors_and_never_mutate() {
         input.expected_revision = Some(revision.to_owned());
         assert!(matches!(
             edit.edit(input, &cancel).await,
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
         let mut input = WriteInput::new("notes", "changed");
         input.overwrite = true;
         input.expected_revision = Some(revision.to_owned());
         assert!(matches!(
             write.write(input, &cancel).await,
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "original");
     }
@@ -169,7 +169,7 @@ async fn a_later_independent_writer_refuses_a_revision_invalidated_by_an_edit() 
     overwrite.expected_revision = Some(revision);
     assert!(matches!(
         second.write(overwrite, &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(
         std::fs::read_to_string(root.path().join("notes")).unwrap(),
@@ -200,7 +200,7 @@ async fn shared_mutation_lock_covers_the_revision_check() {
     let (a, b) = tokio::join!(first.edit(a, &cancel), second.edit(b, &cancel));
     assert!(matches!(
         (a, b),
-        (Ok(_), Err(Error::Refused(_))) | (Err(Error::Refused(_)), Ok(_))
+        (Ok(_), Err(ToolError::AccessRefused(_))) | (Err(ToolError::AccessRefused(_)), Ok(_))
     ));
     let contents = std::fs::read_to_string(root.path().join("notes")).unwrap();
     assert!(matches!(

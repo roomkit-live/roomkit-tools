@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use roomkit_tools_core::{Error, Output, WorkspaceRoot};
+use roomkit_tools_core::{Output, ToolError, WorkspaceRoot};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
@@ -72,21 +72,23 @@ impl Root {
         self.0.path()
     }
 
-    pub(crate) async fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
+    pub(crate) async fn new(path: impl AsRef<Path>) -> Result<Self, ToolError> {
         let given = path.as_ref();
-        let path = fs::canonicalize(given).await.map_err(|source| Error::Io {
-            operation: "resolve the workspace root",
-            source,
-        })?;
+        let path = fs::canonicalize(given)
+            .await
+            .map_err(|source| ToolError::Io {
+                operation: "resolve the workspace root",
+                source,
+            })?;
         if !fs::metadata(&path)
             .await
-            .map_err(|source| Error::Io {
+            .map_err(|source| ToolError::Io {
                 operation: "inspect the workspace root",
                 source,
             })?
             .is_dir()
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "workspace root must be a directory".into(),
             ));
         }
@@ -95,37 +97,41 @@ impl Root {
     }
 
     /// Join a model-supplied path lexically; refuses escapes without I/O.
-    pub(crate) fn join(&self, input: &str) -> Result<PathBuf, Error> {
+    pub(crate) fn join(&self, input: &str) -> Result<PathBuf, ToolError> {
         self.0.join(input)
     }
 
     /// Join and canonicalize a model-supplied path, refusing it outside the
     /// root whether or not it exists; see [`WorkspaceRoot::resolve`].
-    pub(crate) async fn resolve(&self, input: &str) -> Result<PathBuf, Error> {
+    pub(crate) async fn resolve(&self, input: &str) -> Result<PathBuf, ToolError> {
         let path = self.join(input)?;
         let root = self.clone();
         worker::blocking(RESOLVE, move || root.canonical(&path, RESOLVE)).await
     }
 
     /// [`Root::resolve`] for blocking workers.
-    pub(crate) fn resolve_blocking(&self, input: &str) -> Result<PathBuf, Error> {
+    pub(crate) fn resolve_blocking(&self, input: &str) -> Result<PathBuf, ToolError> {
         self.canonical(&self.join(input)?, RESOLVE)
     }
 
     /// Canonicalize a joined path or one of its parents; blocking. See
     /// [`WorkspaceRoot::resolve`].
-    pub(crate) fn canonical(&self, path: &Path, operation: &'static str) -> Result<PathBuf, Error> {
+    pub(crate) fn canonical(
+        &self,
+        path: &Path,
+        operation: &'static str,
+    ) -> Result<PathBuf, ToolError> {
         self.0
             .resolve(path, operation, |path| std::fs::canonicalize(path))
     }
 
     /// Workspace-relative form of a resolved path; `.` names the root.
-    pub(crate) fn relative(&self, path: &Path) -> Result<String, Error> {
+    pub(crate) fn relative(&self, path: &Path) -> Result<String, ToolError> {
         self.0.relative(path)
     }
 
     /// Prefix that a workspace-relative path below `path` starts with.
-    pub(crate) fn prefix(&self, path: &Path) -> Result<String, Error> {
+    pub(crate) fn prefix(&self, path: &Path) -> Result<String, ToolError> {
         let relative = self.relative(path)?;
         Ok(if relative == "." {
             String::new()
@@ -162,25 +168,31 @@ pub(crate) async fn directory_entries(
     root: &Root,
     path: &Path,
     maximum: usize,
-) -> Result<Scan, Error> {
-    let info = fs::metadata(path).await.map_err(|source| Error::Io {
+) -> Result<Scan, ToolError> {
+    let info = fs::metadata(path).await.map_err(|source| ToolError::Io {
         operation: "inspect the directory",
         source,
     })?;
     if !info.is_dir() {
-        return Err(Error::Unsupported("expected a directory".into()));
+        return Err(ToolError::UnsupportedResource(
+            "expected a directory".into(),
+        ));
     }
-    let mut directory = fs::read_dir(path).await.map_err(|source| Error::Io {
+    let mut directory = fs::read_dir(path).await.map_err(|source| ToolError::Io {
         operation: "open the directory",
         source,
     })?;
     let mut scan = Scan::default();
-    while let Some(entry) = directory.next_entry().await.map_err(|source| Error::Io {
-        operation: "list the directory",
-        source,
-    })? {
+    while let Some(entry) = directory
+        .next_entry()
+        .await
+        .map_err(|source| ToolError::Io {
+            operation: "list the directory",
+            source,
+        })?
+    {
         if scan.visited() >= maximum {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "directory scan exceeds max_scan_entries".into(),
             ));
         }
@@ -191,7 +203,7 @@ pub(crate) async fn directory_entries(
             scan.skipped += 1;
             continue;
         };
-        let kind = entry.file_type().await.map_err(|source| Error::Io {
+        let kind = entry.file_type().await.map_err(|source| ToolError::Io {
             operation: "inspect the directory entry",
             source,
         })?;
@@ -227,12 +239,12 @@ pub(crate) async fn walk(
     maximum: usize,
     max_depth: usize,
     match_depth: Option<usize>,
-) -> Result<Scan, Error> {
+) -> Result<Scan, ToolError> {
     let mut pending = vec![(path.to_path_buf(), 1)];
     let mut scan = Scan::default();
     while let Some((directory, depth)) = pending.pop() {
         if depth > max_depth {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "directory scan exceeds max_depth".into(),
             ));
         }
@@ -263,14 +275,14 @@ pub(crate) fn match_depth(pattern: &str) -> Option<usize> {
 /// Compile a model-supplied glob. A one-pattern set is built instead of a
 /// single matcher because only the set reports regex compilation failures
 /// (for example deeply nested alternations) as errors rather than panicking.
-pub(crate) fn pattern(pattern: &str) -> Result<globset::GlobSet, Error> {
+pub(crate) fn pattern(pattern: &str) -> Result<globset::GlobSet, ToolError> {
     if pattern.is_empty() || pattern.len() > 4096 {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "glob pattern must contain 1 to 4096 bytes".into(),
         ));
     }
     let invalid =
-        |error: globset::Error| Error::InvalidInput(format!("invalid glob pattern: {error}"));
+        |error: globset::Error| ToolError::InvalidInput(format!("invalid glob pattern: {error}"));
     let glob = globset::GlobBuilder::new(pattern)
         .literal_separator(true)
         .backslash_escape(true)
@@ -288,11 +300,11 @@ pub(crate) fn page(
     offset: NonZeroUsize,
     limit: usize,
     bytes: usize,
-) -> Result<Output<PathPage>, Error> {
+) -> Result<Output<PathPage>, ToolError> {
     let Scan { entries, skipped } = scan;
     let offset = offset.get();
     if offset > entries.len() && !(offset == 1 && entries.is_empty()) {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "offset is beyond the last entry".into(),
         ));
     }
@@ -304,7 +316,7 @@ pub(crate) fn page(
         let rendered = format!("{number}: {} {:?}\n", entry.kind, entry.path);
         if selected.len() >= limit || rendered.len() > bytes - text.len() {
             if selected.is_empty() {
-                return Err(Error::LimitExceeded(
+                return Err(ToolError::LimitExceeded(
                     "one entry exceeds max_output_bytes".into(),
                 ));
             }

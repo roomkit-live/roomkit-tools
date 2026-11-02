@@ -7,7 +7,7 @@
 
 use std::{fmt::Debug, future::Future, pin::Pin, sync::Arc};
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -165,7 +165,7 @@ pub struct CancelResult {
 }
 
 /// Object-safe future without choosing a runtime.
-pub type AgentFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, Error>> + Send + 'a>>;
+pub type AgentFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ToolError>> + Send + 'a>>;
 
 /// Host extension point. Implementations must check scope on every operation,
 /// bound their registries, and own cleanup independently of caller cancellation.
@@ -197,7 +197,7 @@ pub trait AgentBackend: Debug + Send + Sync {
         _input: &'a FollowupInput,
     ) -> AgentFuture<'a, TaskInfo> {
         Box::pin(async {
-            Err(Error::Unsupported(
+            Err(ToolError::UnsupportedResource(
                 "agent continuation is not supported by this backend".into(),
             ))
         })
@@ -209,7 +209,7 @@ pub trait AgentBackend: Debug + Send + Sync {
         _input: &'a SendInput,
     ) -> AgentFuture<'a, SendResult> {
         Box::pin(async {
-            Err(Error::Unsupported(
+            Err(ToolError::UnsupportedResource(
                 "agent messages are not supported by this backend".into(),
             ))
         })
@@ -221,15 +221,17 @@ pub trait AgentContract: Serialize + for<'de> Deserialize<'de> + JsonSchema {
     /// Check semantic limits, in addition to Serde's structural validation.
     /// # Errors
     /// Returns invalid-input or limit errors for unusable values.
-    fn validate(&self) -> Result<(), Error>;
+    fn validate(&self) -> Result<(), ToolError>;
 }
 
-fn bounded(value: &str, name: &str, max: usize) -> Result<(), Error> {
+fn bounded(value: &str, name: &str, max: usize) -> Result<(), ToolError> {
     if value.trim().is_empty() {
-        return Err(Error::InvalidInput(format!("{name} must not be empty")));
+        return Err(ToolError::InvalidInput(format!("{name} must not be empty")));
     }
     if value.len() > max {
-        return Err(Error::LimitExceeded(format!("{name} exceeds {max} bytes")));
+        return Err(ToolError::LimitExceeded(format!(
+            "{name} exceeds {max} bytes"
+        )));
     }
     Ok(())
 }
@@ -238,44 +240,44 @@ impl AgentScope {
     /// Validate trusted identifiers before contacting the backend.
     /// # Errors
     /// Rejects empty or oversized identities.
-    pub fn validate(&self) -> Result<(), Error> {
+    pub fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.room_id, "room_id", 256)?;
         bounded(&self.caller_id, "caller_id", 256)
     }
 }
 
 impl AgentContract for DelegateInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.profile, "profile", 128)?;
         bounded(&self.task, "task", 16_384)
     }
 }
 impl AgentContract for StatusInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         self.task_id
             .as_ref()
             .map_or(Ok(()), |id| bounded(id, "task_id", 256))
     }
 }
 impl AgentContract for CancelInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.task_id, "task_id", 256)
     }
 }
 impl AgentContract for FollowupInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.agent_id, "agent_id", 256)?;
         bounded(&self.task, "task", 16_384)
     }
 }
 impl AgentContract for SendInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.agent_id, "agent_id", 256)?;
         bounded(&self.message, "message", 8192)
     }
 }
 impl AgentContract for SendResult {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.agent_id, "agent_id", 256)?;
         if let Some(id) = &self.task_id {
             bounded(id, "task_id", 256)?;
@@ -288,23 +290,25 @@ impl AgentContract for SendResult {
             || (self.status == SendState::NotRunning
                 && (self.message_id.is_some() || self.history_recorded))
         {
-            return Err(Error::InvalidInput("inconsistent message receipt".into()));
+            return Err(ToolError::InvalidInput(
+                "inconsistent message receipt".into(),
+            ));
         }
         Ok(())
     }
 }
 impl AgentContract for TaskInfo {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.task_id, "task_id", 256)?;
         bounded(&self.agent_id, "agent_id", 256)?;
         bounded(&self.profile, "profile", 128)?;
         if self.result.as_ref().is_some_and(|s| s.len() > 8192) {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "retained result exceeds 8192 bytes".into(),
             ));
         }
         if self.status == TaskState::Running && (self.result.is_some() || self.result_truncated) {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "running task cannot have a final result".into(),
             ));
         }
@@ -312,25 +316,25 @@ impl AgentContract for TaskInfo {
     }
 }
 impl AgentContract for TaskList {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         if self.pending_launches > 64 || self.tasks.len() > 64 - self.pending_launches {
-            return Err(Error::LimitExceeded("at most 64 retained tasks".into()));
+            return Err(ToolError::LimitExceeded("at most 64 retained tasks".into()));
         }
         let mut ids = std::collections::HashSet::new();
         for task in &self.tasks {
             task.validate()?;
             if !ids.insert(&task.task_id) {
-                return Err(Error::InvalidInput("duplicate task_id".into()));
+                return Err(ToolError::InvalidInput("duplicate task_id".into()));
             }
         }
         Ok(())
     }
 }
 impl AgentContract for CancelResult {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         self.task.validate()?;
         if self.cancelled && self.task.status != TaskState::Cancelled {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "cancelled=true requires cancelled state".into(),
             ));
         }
@@ -341,11 +345,12 @@ impl AgentContract for CancelResult {
 /// Decode bounded JSON into the actual implementation type and validate it.
 /// # Errors
 /// Rejects malformed, oversized or semantically invalid input.
-pub fn decode<T: AgentContract>(json: &str) -> Result<T, Error> {
+pub fn decode<T: AgentContract>(json: &str) -> Result<T, ToolError> {
     if json.len() > 1_048_576 {
-        return Err(Error::LimitExceeded("agent JSON exceeds 1 MiB".into()));
+        return Err(ToolError::LimitExceeded("agent JSON exceeds 1 MiB".into()));
     }
-    let value: T = serde_json::from_str(json).map_err(|e| Error::InvalidInput(e.to_string()))?;
+    let value: T =
+        serde_json::from_str(json).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
     value.validate()?;
     Ok(value)
 }
@@ -353,9 +358,9 @@ pub fn decode<T: AgentContract>(json: &str) -> Result<T, Error> {
 /// Render normalized bounded data without a second, divergent text contract.
 /// # Errors
 /// Rejects malformed backend results or serialization failures.
-pub fn render<T: AgentContract>(data: T) -> Result<Output<T>, Error> {
+pub fn render<T: AgentContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
-    let text = serde_json::to_string(&data).map_err(|e| Error::InvalidInput(e.to_string()))?;
+    let text = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
     Ok(Output::new(data, text))
 }
 
@@ -382,7 +387,7 @@ macro_rules! tool {
                 &self,
                 scope: &AgentScope,
                 input: &$input,
-            ) -> Result<Output<$output>, Error> {
+            ) -> Result<Output<$output>, ToolError> {
                 scope.validate()?;
                 input.validate()?;
                 render(self.backend.$method(scope, input).await?)

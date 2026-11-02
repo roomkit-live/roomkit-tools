@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use roomkit_tools_code::{CodeOutlineInput, CodeOutlineLimits, CodeOutlineTool};
-use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     DiffInput, DiffLimits, DiffTool, GlobInput, GlobLimits, GlobTool, GrepInput, GrepLimits,
     GrepTool, ListInput, ListLimits, ListTool, ReadInput, ReadLimits, ReadTool,
@@ -60,15 +59,17 @@ pyo3::create_exception!(
 );
 pyo3::import_exception!(asyncio, CancelledError);
 
-fn tool_error(error: &Error) -> PyErr {
+fn tool_error(error: &roomkit_tools_core::ToolError) -> PyErr {
     let message = error.to_string();
     match error {
-        Error::InvalidInput(_) => InvalidInputError::new_err(message),
-        Error::Refused(_) => AccessRefusedError::new_err(message),
-        Error::LimitExceeded(_) => LimitExceededError::new_err(message),
-        Error::Unsupported(_) => UnsupportedResourceError::new_err(message),
-        Error::Cancelled => CancelledError::new_err(message),
-        Error::Io { .. } => ToolIOError::new_err(message),
+        roomkit_tools_core::ToolError::InvalidInput(_) => InvalidInputError::new_err(message),
+        roomkit_tools_core::ToolError::AccessRefused(_) => AccessRefusedError::new_err(message),
+        roomkit_tools_core::ToolError::LimitExceeded(_) => LimitExceededError::new_err(message),
+        roomkit_tools_core::ToolError::UnsupportedResource(_) => {
+            UnsupportedResourceError::new_err(message)
+        }
+        roomkit_tools_core::ToolError::Cancelled => CancelledError::new_err(message),
+        roomkit_tools_core::ToolError::Io { .. } => ToolIOError::new_err(message),
         _ => ToolError::new_err(message),
     }
 }
@@ -263,14 +264,14 @@ macro_rules! rooted_binding {
                     // Root resolution is async; dropping the bridge future
                     // cancels it. Construction does not execute a tool call.
                     if token.is_cancelled() {
-                        return Err(tool_error(&Error::Cancelled));
+                        return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
                     }
                     let tool = <$tool>::new(root)
                         .await
                         .and_then(|tool| tool.with_limits(options.limits()))
                         .map_err(|error| tool_error(&error))?;
                     if token.is_cancelled() {
-                        return Err(tool_error(&Error::Cancelled));
+                        return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
                     }
                     Ok(Self { tool })
                 })

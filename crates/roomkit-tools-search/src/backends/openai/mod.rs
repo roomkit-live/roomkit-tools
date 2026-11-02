@@ -1,5 +1,5 @@
 use super::{
-    Error, HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, SearchInput, Transport,
+    HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, SearchInput, ToolError, Transport,
     credential, header,
 };
 use crate::{SearchCapabilities, SearchKind};
@@ -56,7 +56,7 @@ impl OpenAISearch {
         api_key: &str,
         config: OpenAISearchConfig,
         http: SearchHttpConfig,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, ToolError> {
         if config.model.trim().is_empty()
             || config.model.trim() != config.model
             || config.model.len() > 256
@@ -66,7 +66,7 @@ impl OpenAISearch {
             || config.max_tool_calls == 0
             || config.max_tool_calls > 16
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "invalid OpenAI search model or budgets".into(),
             ));
         }

@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 
 use globset::GlobSet;
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -80,7 +80,7 @@ impl GlobTool {
     ///
     /// # Errors
     /// Returns an I/O error for an unresolved root, or invalid input for a file.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self {
             root: Root::new(root).await?,
             limits: GlobLimits::default(),
@@ -91,7 +91,7 @@ impl GlobTool {
     ///
     /// # Errors
     /// Returns invalid input if any bound is zero.
-    pub fn with_limits(mut self, limits: GlobLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: GlobLimits) -> Result<Self, ToolError> {
         if [
             limits.max_matches,
             limits.max_output_bytes,
@@ -100,7 +100,9 @@ impl GlobTool {
         ]
         .contains(&0)
         {
-            return Err(Error::InvalidInput("glob limits must be positive".into()));
+            return Err(ToolError::InvalidInput(
+                "glob limits must be positive".into(),
+            ));
         }
         self.limits = limits;
         Ok(self)
@@ -128,7 +130,7 @@ impl GlobTool {
         &self,
         input: GlobInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<PathPage>, Error> {
+    ) -> Result<Output<PathPage>, ToolError> {
         worker::cancellable(cancel, |cancel| self.search(input, cancel)).await
     }
 
@@ -138,7 +140,7 @@ impl GlobTool {
         &self,
         input: GlobInput,
         cancel: CancellationToken,
-    ) -> Result<Output<PathPage>, Error> {
+    ) -> Result<Output<PathPage>, ToolError> {
         let matcher = paths::pattern(&input.pattern)?;
         let path = self.root.resolve(&input.path).await?;
         let prefix = self.root.prefix(&path)?;
@@ -171,7 +173,7 @@ fn matching(
     prefix: &str,
     matcher: &GlobSet,
     cancel: &CancellationToken,
-) -> Result<Scan, Error> {
+) -> Result<Scan, ToolError> {
     let Scan { entries, skipped } = scan;
     let mut kept = Vec::new();
     for entry in entries {

@@ -18,7 +18,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use roomkit_tools_core::{Definition, Error, Output, WorkspaceRoot};
+use roomkit_tools_core::{Definition, Output, ToolError, WorkspaceRoot};
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
@@ -40,7 +40,7 @@ impl ViewImageTool {
     ///
     /// # Errors
     /// Returns I/O errors for inaccessible paths and invalid input for a file root.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self {
             root: source::root(root.as_ref()).await?,
             limits: ViewImageLimits::default(),
@@ -52,7 +52,7 @@ impl ViewImageTool {
     ///
     /// # Errors
     /// Refuses invalid bounds and deadlines over 24 hours.
-    pub fn with_limits(mut self, limits: ViewImageLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: ViewImageLimits) -> Result<Self, ToolError> {
         if [
             limits.max_file_bytes,
             limits.max_dimension,
@@ -75,7 +75,7 @@ impl ViewImageTool {
                 .and_then(|n| (n / 3).checked_mul(4))
                 .is_none()
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "image limits must be positive and representable; deadlines at most 24 hours"
                     .into(),
             ));
@@ -101,15 +101,15 @@ impl ViewImageTool {
         &self,
         input: ViewImageInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<ViewImageResult>, Error> {
+    ) -> Result<Output<ViewImageResult>, ToolError> {
         if input.path.is_empty() || input.path.len() > 4096 || input.path.contains('\0') {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "path must be nonempty, NUL-free and at most 4096 bytes".into(),
             ));
         }
         let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
         if timeout == 0 || timeout > self.limits.max_timeout_ms {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "timeout_ms must be positive and within the host maximum".into(),
             ));
         }
@@ -119,9 +119,9 @@ impl ViewImageTool {
         let deadline = Instant::now() + duration;
         tokio::select! {
             biased;
-            () = token.cancelled() => Err(Error::Cancelled),
+            () = token.cancelled() => Err(ToolError::Cancelled),
             result = tokio::time::timeout(duration, self.run(input, token.clone(), deadline)) =>
-                result.map_err(|_| Error::LimitExceeded("view_image deadline exceeded".into()))?,
+                result.map_err(|_| ToolError::LimitExceeded("view_image deadline exceeded".into()))?,
         }
     }
 
@@ -130,11 +130,11 @@ impl ViewImageTool {
         input: ViewImageInput,
         token: CancellationToken,
         deadline: Instant,
-    ) -> Result<Output<ViewImageResult>, Error> {
+    ) -> Result<Output<ViewImageResult>, ToolError> {
         let permit = Arc::clone(&self.workers)
             .acquire_owned()
             .await
-            .map_err(|_| Error::Cancelled)?;
+            .map_err(|_| ToolError::Cancelled)?;
         let (path, bytes) =
             source::load(&self.root, &input.path, self.limits.max_file_bytes).await?;
         let path = self.root.relative(&path)?;
@@ -144,7 +144,7 @@ impl ViewImageTool {
             prepare::prepare(path, &bytes, limits, &prepare::Control { token, deadline })
         })
         .await
-        .map_err(|_| Error::Unsupported("image worker failed".into()))?
+        .map_err(|_| ToolError::UnsupportedResource("image worker failed".into()))?
     }
 }
 
@@ -163,7 +163,7 @@ mod tests {
         };
         assert!(matches!(
             tool.view(input, &CancellationToken::new()).await,
-            Err(Error::LimitExceeded(_))
+            Err(ToolError::LimitExceeded(_))
         ));
         let cancel = CancellationToken::new();
         let mut call = Box::pin(tool.view(
@@ -179,6 +179,6 @@ mod tests {
             () = tokio::task::yield_now() => (),
         }
         cancel.cancel();
-        assert!(matches!(call.await, Err(Error::Cancelled)));
+        assert!(matches!(call.await, Err(ToolError::Cancelled)));
     }
 }

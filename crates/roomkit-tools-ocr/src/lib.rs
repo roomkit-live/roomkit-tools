@@ -13,7 +13,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 pub use roomkit_tools_image::DecodedImage;
 use roomkit_tools_image::{ImageWorkspace, ViewImageLimits, decode_rgb};
 use sha2::{Digest, Sha256};
@@ -34,7 +34,7 @@ pub trait OcrBackend: Send + 'static {
         &mut self,
         image: &DecodedImage,
         cancel: &CancellationToken,
-    ) -> Result<Vec<OcrBlock>, Error>;
+    ) -> Result<Vec<OcrBlock>, ToolError>;
 }
 
 /// Shared model lifetime and a single in-flight decode/inference slot.
@@ -59,7 +59,7 @@ impl OcrEngine {
     ///
     /// # Errors
     /// Rejects empty or oversized backend identity fields.
-    pub fn new(backend: impl OcrBackend) -> Result<Self, Error> {
+    pub fn new(backend: impl OcrBackend) -> Result<Self, ToolError> {
         let identity = backend.identity();
         if identity.provider.is_empty()
             || identity.provider.len() > 128
@@ -67,7 +67,9 @@ impl OcrEngine {
             || identity.model.len() > 256
             || identity.revision.as_ref().is_some_and(|s| s.len() > 256)
         {
-            return Err(Error::InvalidInput("invalid OCR backend identity".into()));
+            return Err(ToolError::InvalidInput(
+                "invalid OCR backend identity".into(),
+            ));
         }
         Ok(Self {
             backend: Arc::new(Mutex::new(Box::new(backend))),
@@ -90,7 +92,7 @@ impl OcrTool {
     ///
     /// # Errors
     /// Returns an error if the workspace is not an accessible directory.
-    pub async fn new(root: impl AsRef<Path>, engine: OcrEngine) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>, engine: OcrEngine) -> Result<Self, ToolError> {
         Ok(Self {
             workspace: ImageWorkspace::new(root).await?,
             engine,
@@ -102,7 +104,7 @@ impl OcrTool {
     ///
     /// # Errors
     /// Rejects zero, inconsistent or unrepresentable bounds.
-    pub fn with_limits(mut self, limits: OcrLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: OcrLimits) -> Result<Self, ToolError> {
         if [
             limits.max_file_bytes,
             limits.max_dimension,
@@ -119,7 +121,9 @@ impl OcrTool {
             || limits.default_timeout_ms > limits.max_timeout_ms
             || limits.max_timeout_ms > 86_400_000
         {
-            return Err(Error::InvalidInput("invalid OCR resource limits".into()));
+            return Err(ToolError::InvalidInput(
+                "invalid OCR resource limits".into(),
+            ));
         }
         self.limits = limits;
         Ok(self)
@@ -141,9 +145,9 @@ impl OcrTool {
         &self,
         input: OcrInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<OcrResult>, Error> {
+    ) -> Result<Output<OcrResult>, ToolError> {
         if !matches!(input.rotation_degrees, 0 | 90 | 180 | 270) {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "rotation_degrees must be 0, 90, 180 or 270".into(),
             ));
         }
@@ -154,13 +158,13 @@ impl OcrTool {
                         .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
             })
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "expected_revision must be a lowercase sha256 digest".into(),
             ));
         }
         let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
         if timeout == 0 || timeout > self.limits.max_timeout_ms {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "timeout_ms is outside the host bounds".into(),
             ));
         }
@@ -170,9 +174,9 @@ impl OcrTool {
         let deadline = Instant::now() + duration;
         tokio::select! {
             biased;
-            () = token.cancelled() => Err(Error::Cancelled),
+            () = token.cancelled() => Err(ToolError::Cancelled),
             result = tokio::time::timeout(duration, self.run(input, token.clone(), deadline)) =>
-                result.map_err(|_| Error::LimitExceeded("ocr deadline exceeded".into()))?,
+                result.map_err(|_| ToolError::LimitExceeded("ocr deadline exceeded".into()))?,
         }
     }
 
@@ -181,11 +185,11 @@ impl OcrTool {
         input: OcrInput,
         token: CancellationToken,
         deadline: Instant,
-    ) -> Result<Output<OcrResult>, Error> {
+    ) -> Result<Output<OcrResult>, ToolError> {
         let permit = Arc::clone(&self.engine.slot)
             .acquire_owned()
             .await
-            .map_err(|_| Error::Cancelled)?;
+            .map_err(|_| ToolError::Cancelled)?;
         let (path, bytes) = self
             .workspace
             .load(&input.path, self.limits.max_file_bytes)
@@ -197,9 +201,9 @@ impl OcrTool {
             let _permit = permit;
             let check = || {
                 if token.is_cancelled() {
-                    Err(Error::Cancelled)
+                    Err(ToolError::Cancelled)
                 } else if Instant::now() >= deadline {
-                    Err(Error::LimitExceeded("ocr deadline exceeded".into()))
+                    Err(ToolError::LimitExceeded("ocr deadline exceeded".into()))
                 } else {
                     Ok(())
                 }
@@ -211,7 +215,7 @@ impl OcrTool {
                 .as_ref()
                 .is_some_and(|expected| expected != &revision)
             {
-                return Err(Error::Refused(
+                return Err(ToolError::AccessRefused(
                     "image changed since expected_revision".into(),
                 ));
             }
@@ -225,7 +229,9 @@ impl OcrTool {
             check()?;
             let (blocks, identity) = {
                 let mut backend = engine.backend.lock().map_err(|_| {
-                    Error::Unsupported("OCR backend is unavailable after a worker failure".into())
+                    ToolError::UnsupportedResource(
+                        "OCR backend is unavailable after a worker failure".into(),
+                    )
                 })?;
                 let blocks = backend.recognize(&image, &token)?;
                 (blocks, backend.identity())
@@ -249,7 +255,7 @@ impl OcrTool {
             bounded_result(result, blocks, limits, check)
         })
         .await
-        .map_err(|_| Error::Unsupported("OCR worker failed".into()))?
+        .map_err(|_| ToolError::UnsupportedResource("OCR worker failed".into()))?
     }
 }
 
@@ -267,20 +273,20 @@ fn render(result: OcrResult) -> Output<OcrResult> {
     Output::new(result, text)
 }
 
-fn encoded_len(output: &Output<OcrResult>) -> Result<usize, Error> {
+fn encoded_len(output: &Output<OcrResult>) -> Result<usize, ToolError> {
     serde_json::to_vec(output)
         .map(|v| v.len())
-        .map_err(|_| Error::Unsupported("invalid OCR output".into()))
+        .map_err(|_| ToolError::UnsupportedResource("invalid OCR output".into()))
 }
 
 fn bounded_result(
     mut result: OcrResult,
     blocks: Vec<OcrBlock>,
     limits: OcrLimits,
-    check: impl Fn() -> Result<(), Error>,
-) -> Result<Output<OcrResult>, Error> {
+    check: impl Fn() -> Result<(), ToolError>,
+) -> Result<Output<OcrResult>, ToolError> {
     if encoded_len(&render(result.clone()))? > limits.max_output_bytes {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "OCR metadata exceeds max_output_bytes".into(),
         ));
     }
@@ -298,7 +304,7 @@ fn bounded_result(
                     || f64::from(p.y) > f64::from(result.height)
             })
         {
-            return Err(Error::Unsupported(
+            return Err(ToolError::UnsupportedResource(
                 "OCR backend returned invalid geometry or scores".into(),
             ));
         }

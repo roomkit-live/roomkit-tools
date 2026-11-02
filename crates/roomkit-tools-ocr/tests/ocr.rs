@@ -11,7 +11,7 @@ use std::sync::{
     mpsc,
 };
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_image::DecodedImage;
 use roomkit_tools_ocr::*;
 use tokio_util::sync::CancellationToken;
@@ -36,7 +36,7 @@ impl OcrBackend for Fixture {
         &mut self,
         image: &DecodedImage,
         _: &CancellationToken,
-    ) -> Result<Vec<OcrBlock>, Error> {
+    ) -> Result<Vec<OcrBlock>, ToolError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if let Some(entered) = &self.entered {
             entered.notify_one();
@@ -102,7 +102,7 @@ async fn geometry_revisions_limits_and_source_integrity() {
     request.expected_revision = Some(format!("sha256:{}", "0".repeat(64)));
     assert!(matches!(
         tool.ocr(request, &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(calls.load(Ordering::SeqCst), 2);
     let limited = tool
@@ -124,7 +124,7 @@ async fn geometry_revisions_limits_and_source_integrity() {
         .unwrap();
     assert!(matches!(
         tiny.ocr(input("image.png"), &cancel).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     assert_eq!(
         std::fs::read(root.path().join("image.png")).unwrap(),
@@ -146,22 +146,22 @@ async fn path_input_and_backend_failures_remain_explicit() {
             &cancel
         )
         .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         tool.ocr(input("."), &cancel).await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     std::fs::write(root.path().join("bad.png"), b"bad").unwrap();
     assert!(matches!(
         tool.ocr(input("bad.png"), &cancel).await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     let mut request = input("image.png");
     request.rotation_degrees = 45;
     assert!(matches!(
         tool.ocr(request, &cancel).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     let mut invalid = fixture();
     invalid.invalid_score = true;
@@ -170,7 +170,7 @@ async fn path_input_and_backend_failures_remain_explicit() {
         .unwrap();
     assert!(matches!(
         tool.ocr(input("image.png"), &cancel).await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
 }
 
@@ -218,12 +218,12 @@ async fn cancelling_a_caller_keeps_the_shared_slot_until_native_work_ends() {
         .await
         .unwrap();
     cancel.cancel();
-    assert!(matches!(job.await.unwrap(), Err(Error::Cancelled)));
+    assert!(matches!(job.await.unwrap(), Err(ToolError::Cancelled)));
     let mut request = input("image.png");
     request.timeout_ms = Some(20);
     assert!(matches!(
         other.ocr(request, &CancellationToken::new()).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     release.send(()).unwrap();

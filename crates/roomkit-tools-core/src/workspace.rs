@@ -5,7 +5,7 @@
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
-use crate::Error;
+use crate::ToolError;
 
 /// A host-selected workspace root and the path rules tools apply beneath it.
 ///
@@ -59,9 +59,9 @@ impl WorkspaceRoot {
     /// Returns invalid input for an empty path, and an access refusal for an
     /// absolute path that does not start with the root, or a path whose `..`
     /// components go above the root at any point.
-    pub fn join(&self, input: &str) -> Result<PathBuf, Error> {
+    pub fn join(&self, input: &str) -> Result<PathBuf, ToolError> {
         if input.is_empty() {
-            return Err(Error::InvalidInput("path must not be empty".into()));
+            return Err(ToolError::InvalidInput("path must not be empty".into()));
         }
         let input = Path::new(input);
         let below = if input.is_absolute() {
@@ -74,7 +74,7 @@ impl WorkspaceRoot {
     }
 
     /// The part of an absolute path below the canonical root or its alias.
-    fn below_root<'a>(&self, input: &'a Path) -> Result<&'a Path, Error> {
+    fn below_root<'a>(&self, input: &'a Path) -> Result<&'a Path, ToolError> {
         std::iter::once(&self.canonical)
             .chain(&self.alias)
             .find_map(|root| input.strip_prefix(root).ok())
@@ -100,17 +100,17 @@ impl WorkspaceRoot {
         path: &Path,
         operation: &'static str,
         canonicalize: impl Fn(&Path) -> io::Result<PathBuf>,
-    ) -> Result<PathBuf, Error> {
+    ) -> Result<PathBuf, ToolError> {
         match canonicalize(path) {
             Ok(resolved) => self.contain(resolved),
             Err(source) => {
                 self.refuse_outside_ancestor(path, canonicalize)?;
-                Err(Error::Io { operation, source })
+                Err(ToolError::Io { operation, source })
             }
         }
     }
 
-    fn contain(&self, resolved: PathBuf) -> Result<PathBuf, Error> {
+    fn contain(&self, resolved: PathBuf) -> Result<PathBuf, ToolError> {
         if resolved.starts_with(&self.canonical) {
             Ok(resolved)
         } else {
@@ -124,7 +124,7 @@ impl WorkspaceRoot {
         &self,
         path: &Path,
         canonicalize: impl Fn(&Path) -> io::Result<PathBuf>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ToolError> {
         let resolved = path
             .ancestors()
             .skip(1)
@@ -142,13 +142,13 @@ impl WorkspaceRoot {
     /// # Errors
     /// Returns an access refusal outside the root, or unsupported for a path
     /// that is not valid UTF-8.
-    pub fn relative(&self, resolved: &Path) -> Result<String, Error> {
+    pub fn relative(&self, resolved: &Path) -> Result<String, ToolError> {
         let relative = resolved
             .strip_prefix(&self.canonical)
             .map_err(|_| outside())?;
         let relative = relative
             .to_str()
-            .ok_or_else(|| Error::Unsupported("path is not UTF-8".into()))?;
+            .ok_or_else(|| ToolError::UnsupportedResource("path is not UTF-8".into()))?;
         Ok(if relative.is_empty() {
             ".".into()
         } else {
@@ -157,13 +157,13 @@ impl WorkspaceRoot {
     }
 }
 
-fn outside() -> Error {
-    Error::Refused("path is outside the workspace root".into())
+fn outside() -> ToolError {
+    ToolError::AccessRefused("path is outside the workspace root".into())
 }
 
 /// Refuse a path below the root that is not relative, or whose `..`
 /// components go above its start at any point.
-fn stays_below(path: &Path) -> Result<(), Error> {
+fn stays_below(path: &Path) -> Result<(), ToolError> {
     let mut depth = 0_usize;
     for component in path.components() {
         match component {
@@ -209,11 +209,11 @@ mod tests {
             "/etc/../work/root/x",
         ] {
             assert!(
-                matches!(root.join(outside), Err(Error::Refused(_))),
+                matches!(root.join(outside), Err(ToolError::AccessRefused(_))),
                 "{outside}"
             );
         }
-        assert!(matches!(root.join(""), Err(Error::InvalidInput(_))));
+        assert!(matches!(root.join(""), Err(ToolError::InvalidInput(_))));
     }
 
     #[cfg(unix)]
@@ -223,7 +223,7 @@ mod tests {
         assert_eq!(root.alias, None);
         for outside in ["/root/a", "/link/../root/a"] {
             assert!(
-                matches!(root.join(outside), Err(Error::Refused(_))),
+                matches!(root.join(outside), Err(ToolError::AccessRefused(_))),
                 "{outside}"
             );
         }
@@ -263,7 +263,7 @@ mod tests {
         ] {
             let result = resolve(outside);
             assert!(
-                matches!(result, Err(Error::Refused(_))),
+                matches!(result, Err(ToolError::AccessRefused(_))),
                 "{outside}: {result:?}"
             );
         }
@@ -272,7 +272,7 @@ mod tests {
             assert!(
                 matches!(
                     result,
-                    Err(Error::Io {
+                    Err(ToolError::Io {
                         operation: "op",
                         ..
                     })
@@ -295,7 +295,7 @@ mod tests {
                 Err(io::ErrorKind::NotFound.into())
             }
         });
-        assert!(matches!(result, Err(Error::Io { .. })), "{result:?}");
+        assert!(matches!(result, Err(ToolError::Io { .. })), "{result:?}");
     }
 
     #[cfg(unix)]
@@ -306,7 +306,7 @@ mod tests {
         assert_eq!(root.relative(Path::new("/work/root/a/b")).unwrap(), "a/b");
         assert!(matches!(
             root.relative(Path::new("/work/other")),
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
     }
 }

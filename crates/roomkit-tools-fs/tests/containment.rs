@@ -1,15 +1,15 @@
 //! Paths outside the workspace are refused before the filesystem is consulted.
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
     DiffInput, DiffTool, EditInput, EditTool, GlobInput, GlobTool, GrepInput, GrepTool, ListInput,
     ListTool, PatchChange, PatchInput, PatchTool, ReadInput, ReadTool, WriteInput, WriteTool,
 };
 use tokio_util::sync::CancellationToken;
 
-fn refused<T: std::fmt::Debug>(result: &Result<T, Error>, path: &str) {
+fn refused<T: std::fmt::Debug>(result: &Result<T, ToolError>, path: &str) {
     assert!(
-        matches!(result, Err(Error::Refused(_))),
+        matches!(result, Err(ToolError::AccessRefused(_))),
         "{path}: {result:?}"
     );
 }
@@ -305,7 +305,7 @@ async fn paths_beneath_a_symlink_to_outside_are_refused_whether_or_not_they_exis
     for path in ["inner/missing.txt", "inner/missing/child.txt"] {
         let result = read.read(ReadInput::new(path), &cancel).await;
         assert!(
-            matches!(result, Err(Error::Io { .. })),
+            matches!(result, Err(ToolError::Io { .. })),
             "{path}: {result:?}"
         );
     }

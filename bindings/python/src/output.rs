@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use roomkit_tools_core::Error;
 use roomkit_tools_process::{
     OutputForgetInput, OutputLimits, OutputReadInput, OutputStore, ShellInput, ShellTool,
 };
@@ -54,9 +53,11 @@ pub(super) struct State {
 }
 
 impl State {
-    pub(super) async fn resolve(&self) -> Result<OutputStore, Error> {
+    pub(super) async fn resolve(&self) -> Result<OutputStore, roomkit_tools_core::ToolError> {
         if self.closed.is_cancelled() {
-            return Err(Error::Refused("output store is closed".into()));
+            return Err(roomkit_tools_core::ToolError::AccessRefused(
+                "output store is closed".into(),
+            ));
         }
         let store = self
             .store
@@ -64,7 +65,9 @@ impl State {
             .await?;
         if self.closed.is_cancelled() {
             store.close().await;
-            return Err(Error::Refused("output store is closed".into()));
+            return Err(roomkit_tools_core::ToolError::AccessRefused(
+                "output store is closed".into(),
+            ));
         }
         Ok(store.clone())
     }
@@ -139,7 +142,7 @@ impl PythonOutputStore {
         crate::runtime::future_into_py(py, async move {
             let _guard = guard;
             if token.is_cancelled() {
-                return Err(tool_error(&Error::Cancelled));
+                return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
             }
             macro_rules! invoke {
                 ($method:ident, $input:ty) => {{
@@ -209,7 +212,7 @@ impl PythonShellTool {
         crate::runtime::future_into_py(py, async move {
             let _guard = guard;
             if token.is_cancelled() {
-                return Err(tool_error(&Error::Cancelled));
+                return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
             }
             let mut options: ShellOptions = serde_json::from_str(&options_json)
                 .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
@@ -223,7 +226,7 @@ impl PythonShellTool {
                 tool = tool.with_output_store(state.resolve().await.map_err(|e| tool_error(&e))?);
             }
             if token.is_cancelled() {
-                return Err(tool_error(&Error::Cancelled));
+                return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
             }
             Ok(Self { tool })
         })

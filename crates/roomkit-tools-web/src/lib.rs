@@ -12,7 +12,7 @@ mod types;
 pub use types::{FetchFormat, WebFetchInput, WebFetchLimits, WebFetchPolicy, WebFetchResult};
 
 use reqwest::{Response, Url, header};
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
@@ -46,7 +46,7 @@ impl WebFetchTool {
     ///
     /// # Errors
     /// Refuses zero byte/deadline limits, inconsistent deadlines and >32 redirects.
-    pub fn with_limits(mut self, limits: WebFetchLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: WebFetchLimits) -> Result<Self, ToolError> {
         if limits.max_url_bytes == 0
             || limits.max_response_bytes == 0
             || limits.max_converted_bytes == 0
@@ -56,7 +56,7 @@ impl WebFetchTool {
             || limits.default_timeout_ms > limits.max_timeout_ms
             || limits.max_timeout_ms > 86_400_000
         {
-            return Err(Error::InvalidInput("invalid web fetch limits".into()));
+            return Err(ToolError::InvalidInput("invalid web fetch limits".into()));
         }
         self.policy = network::normalize(self.policy, limits.max_url_bytes)?;
         self.limits = limits;
@@ -67,7 +67,7 @@ impl WebFetchTool {
     ///
     /// # Errors
     /// Refuses credentials, non-HTTP schemes and entries containing paths/queries.
-    pub fn with_policy(mut self, policy: WebFetchPolicy) -> Result<Self, Error> {
+    pub fn with_policy(mut self, policy: WebFetchPolicy) -> Result<Self, ToolError> {
         self.policy = network::normalize(policy, self.limits.max_url_bytes)?;
         Ok(self)
     }
@@ -91,13 +91,13 @@ impl WebFetchTool {
         &self,
         input: WebFetchInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<WebFetchResult>, Error> {
+    ) -> Result<Output<WebFetchResult>, ToolError> {
         if cancel.is_cancelled() {
-            return Err(Error::Cancelled);
+            return Err(ToolError::Cancelled);
         }
         let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
         if timeout == 0 || timeout > self.limits.max_timeout_ms {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "timeout_ms must be positive and within the host maximum".into(),
             ));
         }
@@ -106,9 +106,9 @@ impl WebFetchTool {
         let _guard = token.clone().drop_guard();
         tokio::select! {
             biased;
-            () = token.cancelled() => Err(Error::Cancelled),
+            () = token.cancelled() => Err(ToolError::Cancelled),
             result = tokio::time::timeout(Duration::from_millis(timeout), self.run(url, input.format, &token)) =>
-                result.map_err(|_| Error::LimitExceeded("web fetch deadline exceeded".into()))?,
+                result.map_err(|_| ToolError::LimitExceeded("web fetch deadline exceeded".into()))?,
         }
     }
 
@@ -117,7 +117,7 @@ impl WebFetchTool {
         url: Url,
         format: FetchFormat,
         cancel: &CancellationToken,
-    ) -> Result<Output<WebFetchResult>, Error> {
+    ) -> Result<Output<WebFetchResult>, ToolError> {
         let (mut response, final_url, redirects) = self.response(url.clone()).await?;
         let status = response.status().as_u16();
         let content_type = response
@@ -131,9 +131,11 @@ impl WebFetchTool {
             roomkit_tools_http::read_body(&mut response, self.limits.max_response_bytes).await?;
         let response_bytes = bytes.len();
         let source = String::from_utf8(bytes)
-            .map_err(|_| Error::Unsupported("response is not UTF-8 text".into()))?;
+            .map_err(|_| ToolError::UnsupportedResource("response is not UTF-8 text".into()))?;
         if source.contains('\0') {
-            return Err(Error::Unsupported("response contains NUL bytes".into()));
+            return Err(ToolError::UnsupportedResource(
+                "response contains NUL bytes".into(),
+            ));
         }
         let source = source
             .strip_prefix('\u{feff}')
@@ -153,11 +155,11 @@ impl WebFetchTool {
         .await
         .map_err(|e| network::io("join HTML conversion", e))??;
         if cancel.is_cancelled() {
-            return Err(Error::Cancelled);
+            return Err(ToolError::Cancelled);
         }
         let content_bytes = content.len();
         if content_bytes > self.limits.max_converted_bytes {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "converted text exceeds host byte limit".into(),
             ));
         }
@@ -183,7 +185,7 @@ impl WebFetchTool {
         Ok(render(data))
     }
 
-    async fn response(&self, mut url: Url) -> Result<(Response, Url, usize), Error> {
+    async fn response(&self, mut url: Url) -> Result<(Response, Url, usize), ToolError> {
         let mut redirects = 0;
         loop {
             let client = network::client(&url, &self.policy).await?;
@@ -203,24 +205,24 @@ impl WebFetchTool {
                 return Ok((response, url, redirects));
             };
             if redirects >= self.limits.max_redirects {
-                return Err(Error::LimitExceeded("too many HTTP redirects".into()));
+                return Err(ToolError::LimitExceeded("too many HTTP redirects".into()));
             }
             let location = location
                 .to_str()
-                .map_err(|_| Error::InvalidInput("invalid redirect location".into()))?;
+                .map_err(|_| ToolError::InvalidInput("invalid redirect location".into()))?;
             if location.len() > self.limits.max_url_bytes {
-                return Err(Error::LimitExceeded("redirect URL is too large".into()));
+                return Err(ToolError::LimitExceeded("redirect URL is too large".into()));
             }
             let next = url
                 .join(location)
-                .map_err(|_| Error::InvalidInput("invalid redirect URL".into()))?;
+                .map_err(|_| ToolError::InvalidInput("invalid redirect URL".into()))?;
             url = network::parse(next.as_str(), self.limits.max_url_bytes)?;
             redirects += 1;
         }
     }
 }
 
-fn check_type(value: &str, status: u16) -> Result<bool, Error> {
+fn check_type(value: &str, status: u16) -> Result<bool, ToolError> {
     let mut parts = value.split(';');
     let mime = parts.next().unwrap_or("").trim().to_ascii_lowercase();
     if mime.is_empty() && matches!(status, 204 | 304) {
@@ -234,7 +236,7 @@ fn check_type(value: &str, status: u16) -> Result<bool, Error> {
         || (mime.starts_with("application/")
             && (mime.ends_with("+json") || mime.ends_with("+xml"))))
     {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "response content type is not supported text".into(),
         ));
     }
@@ -246,7 +248,7 @@ fn check_type(value: &str, status: u16) -> Result<bool, Error> {
                 "utf-8" | "utf8" | "us-ascii"
             )
         {
-            return Err(Error::Unsupported(
+            return Err(ToolError::UnsupportedResource(
                 "only UTF-8 or ASCII response charsets are supported".into(),
             ));
         }

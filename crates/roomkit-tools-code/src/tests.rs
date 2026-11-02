@@ -14,7 +14,7 @@ async fn queued_calls_obey_deadlines_and_cancellation_without_losing_slots() {
     input.timeout_ms = Some(1);
     assert!(matches!(
         tool.outline(input, &token).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     let pending = tool.outline(CodeOutlineInput::new("source.rs"), &token);
     let stop = async {
@@ -22,7 +22,7 @@ async fn queued_calls_obey_deadlines_and_cancellation_without_losing_slots() {
         token.cancel();
     };
     let (result, ()) = tokio::join!(pending, stop);
-    assert!(matches!(result, Err(Error::Cancelled)));
+    assert!(matches!(result, Err(ToolError::Cancelled)));
     drop(held);
     let result = tool
         .outline(
@@ -51,8 +51,8 @@ fn parser_work_checks_cooperative_deadline_and_cancellation() {
             control,
         )
     };
-    assert!(matches!(run(&control), Err(Error::LimitExceeded(_))));
+    assert!(matches!(run(&control), Err(ToolError::LimitExceeded(_))));
     control.deadline = Instant::now() + Duration::from_secs(5);
     token.cancel();
-    assert!(matches!(run(&control), Err(Error::Cancelled)));
+    assert!(matches!(run(&control), Err(ToolError::Cancelled)));
 }

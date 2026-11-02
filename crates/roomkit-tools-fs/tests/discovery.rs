@@ -2,7 +2,7 @@
 
 use std::num::NonZeroUsize;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
     GlobInput, GlobLimits, GlobTool, GrepInput, GrepLimits, GrepTool, ListInput, ListLimits,
     ListTool, PathKind,
@@ -98,7 +98,7 @@ async fn empty_directory_and_past_end_offset_are_distinct() {
     input.offset = NonZeroUsize::new(2).unwrap();
     assert!(matches!(
         tool.list(input, &CancellationToken::new()).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     assert!(matches!(
         tool.list(
@@ -106,12 +106,12 @@ async fn empty_directory_and_past_end_offset_are_distinct() {
             &CancellationToken::new()
         )
         .await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     assert!(matches!(
         tool.list(ListInput::new("missing"), &CancellationToken::new())
             .await,
-        Err(Error::Io { .. })
+        Err(ToolError::Io { .. })
     ));
 }
 
@@ -138,7 +138,7 @@ async fn names_are_escaped_in_rendering_and_utf8_bytes_count_toward_the_budget()
     input.offset = NonZeroUsize::new(2).unwrap();
     assert!(matches!(
         tool.list(input, &CancellationToken::new()).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     #[cfg(unix)]
     {
@@ -166,7 +166,7 @@ async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
     assert!(matches!(
         list.list(ListInput::new("."), &CancellationToken::new())
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     let mut glob_limits = GlobLimits::default();
     glob_limits.max_scan_entries = 5;
@@ -178,7 +178,7 @@ async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
     assert!(matches!(
         glob.glob(GlobInput::new("**"), &CancellationToken::new())
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     glob_limits.max_scan_entries = 100;
     glob_limits.max_depth = 1;
@@ -190,7 +190,7 @@ async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
     assert!(matches!(
         glob.glob(GlobInput::new("**/*.txt"), &CancellationToken::new())
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
 }
 
@@ -234,7 +234,7 @@ async fn invalid_patterns_and_no_matches_are_distinct() {
     assert!(matches!(
         glob.glob(GlobInput::new("["), &CancellationToken::new())
             .await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     assert_eq!(
         glob.glob(GlobInput::new("*.missing"), &CancellationToken::new())
@@ -248,7 +248,7 @@ async fn invalid_patterns_and_no_matches_are_distinct() {
     assert!(matches!(
         grep.grep(GrepInput::new("["), &CancellationToken::new())
             .await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     assert_eq!(
         grep.grep(
@@ -272,14 +272,14 @@ async fn deeply_nested_brace_globs_are_invalid_input_instead_of_a_panic() {
     assert!(matches!(
         glob.glob(GlobInput::new(pattern.clone()), &CancellationToken::new())
             .await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     let grep = GrepTool::new(root.path()).await.unwrap();
     let mut input = GrepInput::new("Sourdough");
     input.include = Some(pattern);
     assert!(matches!(
         grep.grep(input, &CancellationToken::new()).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
 }
 
@@ -309,7 +309,7 @@ async fn grep_filters_files_and_returns_paths_and_source_line_numbers() {
     input.offset = NonZeroUsize::new(3).unwrap();
     assert!(matches!(
         tool.grep(input, &CancellationToken::new()).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
 }
 
@@ -376,7 +376,7 @@ async fn grep_caps_file_bytes_total_bytes_matches_and_rendered_bytes() {
         assert!(matches!(
             tool.grep(GrepInput::new("hit"), &CancellationToken::new())
                 .await,
-            Err(Error::LimitExceeded(_))
+            Err(ToolError::LimitExceeded(_))
         ));
     }
     let mut limits = GrepLimits::default();
@@ -400,7 +400,7 @@ async fn grep_caps_file_bytes_total_bytes_matches_and_rendered_bytes() {
     assert!(matches!(
         tool.grep(GrepInput::new("hit"), &CancellationToken::new())
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
 }
 
@@ -419,32 +419,32 @@ async fn all_discovery_tools_refuse_root_escape_and_honor_pre_cancellation() {
     let cancel = CancellationToken::new();
     assert!(matches!(
         list.list(ListInput::new(path), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         glob.glob(glob_input.clone(), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         grep.grep(grep_input.clone(), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         list.list(ListInput::new(".."), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     cancel.cancel();
     assert!(matches!(
         list.list(ListInput::new(path), &cancel).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert!(matches!(
         glob.glob(glob_input, &cancel).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert!(matches!(
         grep.grep(grep_input, &cancel).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
 }
 
@@ -482,7 +482,7 @@ async fn symlinks_are_listed_but_never_recursed_into() {
     assert!(matches!(
         list.list(ListInput::new("outside"), &CancellationToken::new())
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(
         list.list(ListInput::new("inside"), &CancellationToken::new())
@@ -571,7 +571,7 @@ async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
         assert!(
             matches!(
                 glob.glob(GlobInput::new(unbounded), &cancel).await,
-                Err(Error::LimitExceeded(_))
+                Err(ToolError::LimitExceeded(_))
             ),
             "{unbounded}"
         );
@@ -591,7 +591,7 @@ async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
     input.include = Some("**/*.rs".into());
     assert!(matches!(
         grep.grep(input, &cancel).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
 }
 

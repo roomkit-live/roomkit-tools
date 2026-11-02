@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_process::{CommandEnv, ShellInput, ShellLimits, ShellTool};
 use tokio_util::sync::CancellationToken;
 
@@ -71,20 +71,20 @@ async fn validates_inputs_limits_and_initial_cwd_before_spawning() {
     for command in ["", " \n", "bad\0command"] {
         assert!(matches!(
             tool.shell(ShellInput::new(command), &token).await,
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
     }
     let mut input = ShellInput::new("touch must-not-exist");
     input.cwd = Some(outside.path().display().to_string());
     assert!(matches!(
         tool.shell(input.clone(), &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     std::os::unix::fs::symlink(outside.path(), root.path().join("escape")).unwrap();
     input.cwd = Some("escape".into());
     assert!(matches!(
         tool.shell(input, &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(!outside.path().join("must-not-exist").exists());
     let mut limits = ShellLimits::default();
@@ -92,7 +92,7 @@ async fn validates_inputs_limits_and_initial_cwd_before_spawning() {
     let bounded = tool.clone().with_limits(limits).unwrap();
     assert!(matches!(
         bounded.shell(ShellInput::new("touch x"), &token).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     limits.max_output_bytes = 0;
     assert!(tool.with_limits(limits).is_err());
@@ -113,7 +113,7 @@ async fn cancelled_before_start_has_no_side_effect() {
     assert!(matches!(
         tool.shell(ShellInput::new("touch unexpected"), &token)
             .await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert!(!root.path().join("unexpected").exists());
 }
@@ -294,7 +294,7 @@ async fn cancellation_and_dropped_call_stop_the_shell_and_its_background_child()
             assert!(task.await.unwrap_err().is_cancelled());
         } else {
             token.cancel();
-            assert!(matches!(task.await.unwrap(), Err(Error::Cancelled)));
+            assert!(matches!(task.await.unwrap(), Err(ToolError::Cancelled)));
         }
         stopped(&ids).await;
         // A dropped call leaves the reaping to its detached worker, so the
@@ -415,18 +415,21 @@ async fn invalid_environment_names_and_values_are_refused() {
         inherited.inherit_env.push(name.into());
         assert!(matches!(
             tool.clone().with_env(inherited),
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
         let mut explicit = CommandEnv::default();
         explicit.env.insert(name.into(), "value".into());
         assert!(matches!(
             tool.clone().with_env(explicit),
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
     }
     let mut value = CommandEnv::default();
     value.env.insert("NAME".into(), "a\0b".into());
-    assert!(matches!(tool.with_env(value), Err(Error::InvalidInput(_))));
+    assert!(matches!(
+        tool.with_env(value),
+        Err(ToolError::InvalidInput(_))
+    ));
     assert_eq!(
         CommandEnv::default().inherit_env,
         [

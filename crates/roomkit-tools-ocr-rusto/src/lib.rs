@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_image::DecodedImage;
 use roomkit_tools_ocr::{OcrBackend, OcrBlock, OcrEngine, OcrIdentity, OcrPoint};
 use rusto::{DetectTextResult, InferenceSession, InitializeConfig, OcrRunOptions, RustO};
@@ -72,7 +72,7 @@ impl RustoBackend {
     ///
     /// # Errors
     /// Rejects invalid configuration, unreadable/oversized models and initialization failures.
-    pub fn load(config: RustoConfig) -> Result<OcrEngine, Error> {
+    pub fn load(config: RustoConfig) -> Result<OcrEngine, ToolError> {
         OcrEngine::new(Self::load_backend(config)?)
     }
 
@@ -80,7 +80,7 @@ impl RustoBackend {
     ///
     /// # Errors
     /// Rejects invalid configuration before creating the engine.
-    pub fn lazy(config: RustoConfig) -> Result<OcrEngine, Error> {
+    pub fn lazy(config: RustoConfig) -> Result<OcrEngine, ToolError> {
         validate(&config)?;
         OcrEngine::new(LazyBackend {
             config,
@@ -88,14 +88,14 @@ impl RustoBackend {
         })
     }
 
-    fn load_backend(config: RustoConfig) -> Result<Self, Error> {
+    fn load_backend(config: RustoConfig) -> Result<Self, ToolError> {
         validate(&config)?;
         let detection = read_file(&config.detection_model, 256 * 1024 * 1024)?;
         let recognition = read_file(&config.recognition_model, 256 * 1024 * 1024)?;
         let dictionary = read_file(&config.dictionary, 4 * 1024 * 1024)?;
         let characters = vocabulary(
             std::str::from_utf8(&dictionary)
-                .map_err(|_| Error::InvalidInput("OCR dictionary must be UTF-8".into()))?,
+                .map_err(|_| ToolError::InvalidInput("OCR dictionary must be UTF-8".into()))?,
         );
         let mut digest = Sha256::new();
         for bytes in [&detection, &recognition, &dictionary] {
@@ -152,7 +152,7 @@ fn engine(
     det: impl InferenceSession + 'static,
     rec: impl InferenceSession + 'static,
     characters: Vec<String>,
-) -> Result<RustO, Error> {
+) -> Result<RustO, ToolError> {
     let mut preset = InitializeConfig::ppv6(
         config.detection_model.clone(),
         config.recognition_model.clone(),
@@ -166,13 +166,13 @@ fn engine(
     RustO::with_custom_engines(preset, det, rec).map_err(|_| model_error())
 }
 
-fn validate(config: &RustoConfig) -> Result<(), Error> {
+fn validate(config: &RustoConfig) -> Result<(), ToolError> {
     if !(1..=16).contains(&config.threads)
         || !(32..=2048).contains(&config.detection_max_edge)
         || config.model_name.is_empty()
         || config.model_name.len() > 256
     {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "invalid RustO model label or worker configuration".into(),
         ));
     }
@@ -199,7 +199,7 @@ impl OcrBackend for LazyBackend {
         &mut self,
         image: &DecodedImage,
         cancel: &CancellationToken,
-    ) -> Result<Vec<OcrBlock>, Error> {
+    ) -> Result<Vec<OcrBlock>, ToolError> {
         if self.loaded.is_none() {
             self.loaded = Some(RustoBackend::load_backend(self.config.clone())?);
         }
@@ -223,9 +223,9 @@ impl OcrBackend for RustoBackend {
         &mut self,
         image: &DecodedImage,
         cancel: &CancellationToken,
-    ) -> Result<Vec<OcrBlock>, Error> {
+    ) -> Result<Vec<OcrBlock>, ToolError> {
         if cancel.is_cancelled() {
-            return Err(Error::Cancelled);
+            return Err(ToolError::Cancelled);
         }
         let stride = image.width as usize * 3;
         let result = self
@@ -240,13 +240,15 @@ impl OcrBackend for RustoBackend {
                 )
             })
             .map_err(|_| {
-                Error::Unsupported("RustO inference failed for the configured models/image".into())
+                ToolError::UnsupportedResource(
+                    "RustO inference failed for the configured models/image".into(),
+                )
             })?;
         if cancel.is_cancelled() {
-            return Err(Error::Cancelled);
+            return Err(ToolError::Cancelled);
         }
         let DetectTextResult::Structured(items) = result else {
-            return Err(Error::Unsupported(
+            return Err(ToolError::UnsupportedResource(
                 "RustO returned an unexpected output format".into(),
             ));
         };
@@ -265,46 +267,50 @@ impl OcrBackend for RustoBackend {
     }
 }
 
-fn model_error() -> Error {
-    Error::Unsupported("unable to initialize the configured RustO models/pools".into())
+fn model_error() -> ToolError {
+    ToolError::UnsupportedResource("unable to initialize the configured RustO models/pools".into())
 }
 
-fn read_file(path: &Path, maximum: u64) -> Result<Vec<u8>, Error> {
-    let meta = std::fs::metadata(path).map_err(|source| Error::Io {
+fn read_file(path: &Path, maximum: u64) -> Result<Vec<u8>, ToolError> {
+    let meta = std::fs::metadata(path).map_err(|source| ToolError::Io {
         operation: "inspect OCR model path",
         source,
     })?;
     if !meta.is_file() {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "OCR models must be regular files".into(),
         ));
     }
 
-    let file = File::open(path).map_err(|source| Error::Io {
+    let file = File::open(path).map_err(|source| ToolError::Io {
         operation: "open OCR model file",
         source,
     })?;
-    let meta = file.metadata().map_err(|source| Error::Io {
+    let meta = file.metadata().map_err(|source| ToolError::Io {
         operation: "inspect OCR model file",
         source,
     })?;
     if !meta.is_file() {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "OCR models must be regular files".into(),
         ));
     }
     if meta.len() > maximum {
-        return Err(Error::LimitExceeded("OCR model file is too large".into()));
+        return Err(ToolError::LimitExceeded(
+            "OCR model file is too large".into(),
+        ));
     }
     let mut bytes = Vec::new();
     file.take(maximum + 1)
         .read_to_end(&mut bytes)
-        .map_err(|source| Error::Io {
+        .map_err(|source| ToolError::Io {
             operation: "read OCR model file",
             source,
         })?;
     if bytes.len() as u64 > maximum {
-        return Err(Error::LimitExceeded("OCR model file is too large".into()));
+        return Err(ToolError::LimitExceeded(
+            "OCR model file is too large".into(),
+        ));
     }
     Ok(bytes)
 }

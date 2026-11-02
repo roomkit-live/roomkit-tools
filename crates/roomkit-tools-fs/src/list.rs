@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 use std::path::Path;
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -72,7 +72,7 @@ impl ListTool {
     ///
     /// # Errors
     /// Returns an I/O error for an unresolved root, or invalid input for a file.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self {
             root: Root::new(root).await?,
             limits: ListLimits::default(),
@@ -83,9 +83,11 @@ impl ListTool {
     ///
     /// # Errors
     /// Returns invalid input if any bound is zero.
-    pub fn with_limits(mut self, limits: ListLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: ListLimits) -> Result<Self, ToolError> {
         if limits.max_entries == 0 || limits.max_output_bytes == 0 || limits.max_scan_entries == 0 {
-            return Err(Error::InvalidInput("list limits must be positive".into()));
+            return Err(ToolError::InvalidInput(
+                "list limits must be positive".into(),
+            ));
         }
         self.limits = limits;
         Ok(self)
@@ -110,14 +112,14 @@ impl ListTool {
         &self,
         input: ListInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<PathPage>, Error> {
+    ) -> Result<Output<PathPage>, ToolError> {
         tokio::select! { biased;
-            () = cancel.cancelled() => Err(Error::Cancelled),
+            () = cancel.cancelled() => Err(ToolError::Cancelled),
             result = self.list_directory(input) => result,
         }
     }
 
-    async fn list_directory(&self, input: ListInput) -> Result<Output<PathPage>, Error> {
+    async fn list_directory(&self, input: ListInput) -> Result<Output<PathPage>, ToolError> {
         let path = self.root.resolve(&input.path).await?;
         let mut scan =
             paths::directory_entries(&self.root, &path, self.limits.max_scan_entries).await?;

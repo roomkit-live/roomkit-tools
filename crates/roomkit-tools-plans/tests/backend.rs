@@ -1,5 +1,5 @@
 //! Plan storage and cross-language contract checks.
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_plans::{
     MemoryPlanBackend, PlanBackend, PlanContract, PlanCreateInput, PlanDeleteInput, PlanListInput,
     PlanReadInput, PlanScope, PlanStep, PlanUpdateInput, StepStatus, decode,
@@ -84,7 +84,7 @@ async fn assert_other_scopes_refused(
             backend
                 .update(&other, &update(&read.plan_id, 1), token)
                 .await,
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
         assert!(matches!(
             backend
@@ -97,7 +97,7 @@ async fn assert_other_scopes_refused(
                     token
                 )
                 .await,
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
     }
 }
@@ -114,7 +114,7 @@ async fn ownership_revisions_noop_delete_and_capacity_are_enforced() {
     assert_other_scopes_refused(&backend, &owner, &read, &token).await;
     assert!(matches!(
         backend.create(&owner, &create(), &token).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     let mut input = update(&plan.plan_id, 1);
     input.title = Some(plan.title.clone());
@@ -126,7 +126,7 @@ async fn ownership_revisions_noop_delete_and_capacity_are_enforced() {
     assert_eq!(edited.steps, plan.steps);
     assert!(matches!(
         backend.update(&owner, &input, &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     let mut deletion = PlanDeleteInput {
         plan_id: plan.plan_id.clone(),
@@ -134,7 +134,7 @@ async fn ownership_revisions_noop_delete_and_capacity_are_enforced() {
     };
     assert!(matches!(
         backend.delete(&owner, &deletion, &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(backend.read(&owner, &read, &token).await.unwrap(), edited);
     deletion.expected_revision = 2;
@@ -197,7 +197,9 @@ async fn concurrent_updates_have_one_winner_without_lost_changes() {
                 winners += 1;
                 assert_eq!(value.revision, 2);
             }
-            Err(Error::Refused(message)) => assert!(message.contains("revision conflict")),
+            Err(ToolError::AccessRefused(message)) => {
+                assert!(message.contains("revision conflict"));
+            }
             other => panic!("unexpected result {other:?}"),
         }
     }
@@ -227,11 +229,11 @@ async fn validation_size_and_precancellation_do_not_mutate_state() {
     input.steps.push(input.steps[0].clone());
     assert!(matches!(
         backend.create(&owner, &input, &token).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     let mut input = create();
     input.steps[0].description = "x".repeat(2049);
-    assert!(matches!(input.validate(), Err(Error::LimitExceeded(_))));
+    assert!(matches!(input.validate(), Err(ToolError::LimitExceeded(_))));
     assert!(
         decode::<PlanCreateInput>(r#"{"title":"T","objective":"O","steps":[],"room_id":"spoof"}"#)
             .is_err()
@@ -258,19 +260,19 @@ async fn validation_size_and_precancellation_do_not_mutate_state() {
     change.validate().unwrap();
     assert!(matches!(
         backend.update(&owner, &change, &token).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     let stopped = CancellationToken::new();
     stopped.cancel();
     assert!(matches!(
         backend.create(&owner, &create(), &stopped).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert!(matches!(
         backend
             .update(&owner, &update(&plan.plan_id, 1), &stopped)
             .await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert!(matches!(
         backend
@@ -283,7 +285,7 @@ async fn validation_size_and_precancellation_do_not_mutate_state() {
                 &stopped
             )
             .await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert_eq!(
         backend

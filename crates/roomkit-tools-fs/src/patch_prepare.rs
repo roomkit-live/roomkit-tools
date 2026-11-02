@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use tokio_util::sync::CancellationToken;
 
 use crate::patch::{PatchChange, PatchLimits, PatchOperation, PatchPreview};
@@ -77,9 +77,9 @@ pub(crate) fn prepare(
     changes: &[PatchChange],
     limits: PatchLimits,
     cancel: &CancellationToken,
-) -> Result<Vec<Job>, Error> {
+) -> Result<Vec<Job>, ToolError> {
     if changes.is_empty() || changes.len() > limits.max_changes {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "patch requires 1..max_changes operations".into(),
         ));
     }
@@ -108,21 +108,21 @@ struct Totals {
 }
 
 impl Totals {
-    fn count_input(&mut self, parts: [Option<&str>; 4], maximum: usize) -> Result<(), Error> {
+    fn count_input(&mut self, parts: [Option<&str>; 4], maximum: usize) -> Result<(), ToolError> {
         for part in parts.into_iter().flatten() {
             self.input_bytes = self
                 .input_bytes
                 .checked_add(part.len())
                 .filter(|n| *n <= maximum)
-                .ok_or_else(|| Error::LimitExceeded("patch exceeds max_input_bytes".into()))?;
+                .ok_or_else(|| ToolError::LimitExceeded("patch exceeds max_input_bytes".into()))?;
         }
         Ok(())
     }
 
-    fn touch(&mut self, source: &Path, target: Option<&Path>) -> Result<(), Error> {
+    fn touch(&mut self, source: &Path, target: Option<&Path>) -> Result<(), ToolError> {
         for path in std::iter::once(source).chain(target) {
             if !self.touched.insert(path.to_path_buf()) {
-                return Err(Error::InvalidInput(
+                return Err(ToolError::InvalidInput(
                     "patch paths overlap; each file may be touched once".into(),
                 ));
             }
@@ -130,13 +130,20 @@ impl Totals {
         Ok(())
     }
 
-    fn count_output(&mut self, heading: usize, text: usize, maximum: usize) -> Result<(), Error> {
+    fn count_output(
+        &mut self,
+        heading: usize,
+        text: usize,
+        maximum: usize,
+    ) -> Result<(), ToolError> {
         self.output_bytes = self
             .output_bytes
             .checked_add(heading)
             .and_then(|n| n.checked_add(text))
             .filter(|n| *n <= maximum)
-            .ok_or_else(|| Error::LimitExceeded("patch previews exceed max_output_bytes".into()))?;
+            .ok_or_else(|| {
+                ToolError::LimitExceeded("patch previews exceed max_output_bytes".into())
+            })?;
         Ok(())
     }
 }
@@ -161,7 +168,7 @@ fn prepare_change(
     limits: PatchLimits,
     cancel: &CancellationToken,
     totals: &mut Totals,
-) -> Result<Job, Error> {
+) -> Result<Job, ToolError> {
     let (path, to, expected, after, operation) = parts(change);
     totals.count_input([Some(path), to, expected, after], limits.max_input_bytes)?;
     for text in [expected, after].into_iter().flatten() {
@@ -203,16 +210,16 @@ fn check_existing(
     before: Option<&mutation::Snapshot>,
     expected: Option<&str>,
     target: Option<&Path>,
-) -> Result<(), Error> {
+) -> Result<(), ToolError> {
     if before.map(|s| s.bytes.as_slice()) != expected.map(str::as_bytes) {
-        return Err(Error::Refused(
+        return Err(ToolError::AccessRefused(
             "patch source differs from old_content or required existence; read it again".into(),
         ));
     }
     if let Some(target) = target
         && mutation::inspect(target)?.is_some()
     {
-        return Err(Error::Refused(
+        return Err(ToolError::AccessRefused(
             "patch move destination already exists".into(),
         ));
     }
@@ -227,7 +234,7 @@ fn render_preview(
     limits: PatchLimits,
     cancel: &CancellationToken,
     totals: &mut Totals,
-) -> Result<PatchPreview, Error> {
+) -> Result<PatchPreview, ToolError> {
     let path = root.relative(change.source)?;
     let to = change.target.map(|path| root.relative(path)).transpose()?;
     let old_label = label(change.existed, &path);
@@ -275,7 +282,7 @@ fn in_source_endings<'a>(
     expected: Option<&'a str>,
     after: Option<&'a str>,
     maximum: usize,
-) -> Result<Contents<'a>, Error> {
+) -> Result<Contents<'a>, ToolError> {
     let crlf = before
         .and_then(|snapshot| std::str::from_utf8(&snapshot.bytes).ok())
         .is_some_and(line_endings::uniformly_crlf);

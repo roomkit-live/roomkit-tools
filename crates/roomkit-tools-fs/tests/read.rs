@@ -2,7 +2,7 @@
 
 use std::num::NonZeroUsize;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{ReadInput, ReadLimits, ReadTool};
 use tokio_util::sync::CancellationToken;
 
@@ -98,7 +98,7 @@ async fn a_page_past_eof_is_invalid() {
     input.offset = NonZeroUsize::new(2).unwrap();
     assert!(matches!(
         tool.read(input, &CancellationToken::new()).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
 }
 
@@ -109,7 +109,7 @@ async fn binary_and_non_utf8_files_are_refused() {
         assert!(matches!(
             tool.read(ReadInput::new("source.txt"), &CancellationToken::new())
                 .await,
-            Err(Error::Unsupported(_))
+            Err(ToolError::UnsupportedResource(_))
         ));
     }
 }
@@ -123,7 +123,7 @@ async fn a_file_above_the_ingestion_budget_is_refused() {
     assert!(matches!(
         tool.read(ReadInput::new("source.txt"), &CancellationToken::new())
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
 }
 
@@ -165,7 +165,7 @@ async fn a_line_that_cannot_fit_is_reported_instead_of_silently_lost() {
     assert!(matches!(
         tool.read(ReadInput::new("source.txt"), &CancellationToken::new())
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
 }
 
@@ -176,7 +176,7 @@ async fn cancellation_takes_precedence_over_starting_a_read() {
     cancel.cancel();
     assert!(matches!(
         tool.read(ReadInput::new("missing.txt"), &cancel).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
 }
 
@@ -186,14 +186,14 @@ async fn directories_and_missing_files_have_distinct_failures() {
     assert!(matches!(
         tool.read(ReadInput::new("."), &CancellationToken::new())
             .await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     let error = tool
         .read(ReadInput::new("missing.txt"), &CancellationToken::new())
         .await
         .unwrap_err();
     assert!(
-        matches!(error, Error::Io { source, .. } if source.kind() == std::io::ErrorKind::NotFound)
+        matches!(error, ToolError::Io { source, .. } if source.kind() == std::io::ErrorKind::NotFound)
     );
 }
 
@@ -216,7 +216,7 @@ async fn absolute_paths_inside_the_root_work_and_paths_outside_are_refused() {
             &CancellationToken::new()
         )
         .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
 }
 
@@ -229,7 +229,7 @@ async fn parent_traversal_cannot_leave_the_root() {
     assert!(matches!(
         tool.read(ReadInput::new("../source.txt"), &CancellationToken::new())
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
 }
 
@@ -243,7 +243,7 @@ async fn symlinks_are_checked_against_their_resolved_target() {
     assert!(matches!(
         tool.read(ReadInput::new("outside"), &CancellationToken::new())
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(
         tool.read(ReadInput::new("inside"), &CancellationToken::new())

@@ -1,5 +1,5 @@
 //! External backend extensibility without any built-in provider feature.
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_search::{
     BackendOutput, SearchBackend, SearchFuture, SearchHit, SearchInput, SearchPayload,
     WebSearchTool,
@@ -66,7 +66,7 @@ async fn invalid_citations_fail_instead_of_fabricating_or_reindexing() {
             backend(value)
                 .search(SearchInput::new("q"), &CancellationToken::new())
                 .await,
-            Err(Error::Unsupported(_))
+            Err(ToolError::UnsupportedResource(_))
         ));
     }
 }
@@ -78,7 +78,7 @@ async fn answer_bounds_do_not_clip_citations() {
     assert!(matches!(
         tool.search(SearchInput::new("q"), &CancellationToken::new())
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
 }
 #[tokio::test]
@@ -117,7 +117,7 @@ async fn arguments_and_limits_are_host_controlled() {
                 &CancellationToken::new()
             )
             .await,
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
     }
     assert!(
@@ -155,7 +155,7 @@ async fn generic_deadline_and_parent_cancellation_cover_custom_backends() {
     input.timeout_ms = Some(10);
     assert!(matches!(
         tool.search(input, &CancellationToken::new()).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     let cancel = CancellationToken::new();
     let child = cancel.clone();
@@ -164,5 +164,5 @@ async fn generic_deadline_and_parent_cancellation_cover_custom_backends() {
         child.cancel();
     };
     let (out, ()) = tokio::join!(tool.search(SearchInput::new("q"), &cancel), result);
-    assert!(matches!(out, Err(Error::Cancelled)));
+    assert!(matches!(out, Err(ToolError::Cancelled)));
 }

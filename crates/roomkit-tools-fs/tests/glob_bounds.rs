@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{GlobInput, GlobTool};
 use tokio_util::sync::CancellationToken;
 
@@ -48,7 +48,7 @@ fn cancellation_returns_promptly_and_stops_the_matching_worker() {
         });
         let start = Instant::now();
         let result = tool.glob(GlobInput::new(costly_pattern()), &cancel).await;
-        assert!(matches!(result, Err(Error::Cancelled)), "{result:?}");
+        assert!(matches!(result, Err(ToolError::Cancelled)), "{result:?}");
         start.elapsed()
     });
     assert!(

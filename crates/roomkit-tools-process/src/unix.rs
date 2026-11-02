@@ -4,7 +4,7 @@ use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
 
-use roomkit_tools_core::{Error, Output};
+use roomkit_tools_core::{Output, ToolError};
 use rustix::process::{Pid, Signal, kill_process_group};
 use tokio::process::{Child, ChildStderr, ChildStdout, Command};
 use tokio_util::sync::CancellationToken;
@@ -36,18 +36,18 @@ pub(crate) fn shell_command(command: &str, cwd: &Path, env: &CommandEnv, stdin: 
 pub(crate) fn spawn(
     mut command: Command,
     operation: &'static str,
-) -> Result<(Child, Group), Error> {
+) -> Result<(Child, Group), ToolError> {
     new_session(&mut command);
     let child = command
         .spawn()
-        .map_err(|source| Error::Io { operation, source })?;
+        .map_err(|source| ToolError::Io { operation, source })?;
     // The group is exactly the positive child PID, never 0 or -1.
     let pid = child
         .id()
         .and_then(|id| i32::try_from(id).ok())
         .filter(|id| *id > 1)
         .and_then(Pid::from_raw)
-        .ok_or_else(|| Error::Io {
+        .ok_or_else(|| ToolError::Io {
             operation: "identify process group",
             source: std::io::Error::other("missing child PID"),
         })?;
@@ -127,11 +127,11 @@ impl Drop for Group {
     }
 }
 
-fn io(operation: &'static str, source: std::io::Error) -> Error {
-    Error::Io { operation, source }
+fn io(operation: &'static str, source: std::io::Error) -> ToolError {
+    ToolError::Io { operation, source }
 }
 
-fn missing_pipe(operation: &'static str) -> Error {
+fn missing_pipe(operation: &'static str) -> ToolError {
     io(operation, std::io::Error::other("missing pipe"))
 }
 
@@ -148,9 +148,9 @@ pub(crate) struct Foreground {
 pub(crate) async fn run(
     foreground: Foreground,
     cancel: CancellationToken,
-) -> Result<Output<ShellResult>, Error> {
+) -> Result<Output<ShellResult>, ToolError> {
     if cancel.is_cancelled() {
-        return Err(Error::Cancelled);
+        return Err(ToolError::Cancelled);
     }
     let command = shell_command(
         &foreground.command,
@@ -169,7 +169,7 @@ async fn supervise(
     mut group: Group,
     foreground: Foreground,
     cancel: &CancellationToken,
-) -> Result<Output<ShellResult>, Error> {
+) -> Result<Output<ShellResult>, ToolError> {
     let mut stdout = child
         .stdout
         .take()
@@ -202,7 +202,7 @@ async fn supervise(
     let output_complete = drain_rest(&mut out, &mut err, &mut stdout, &mut stderr).await?;
     tokio::join!(out.finish_archive(), err.finish_archive());
     if cancelled || cancel.is_cancelled() {
-        return Err(Error::Cancelled);
+        return Err(ToolError::Cancelled);
     }
     Ok(render(ShellResult {
         cwd: foreground.cwd.to_string_lossy().into_owned(),
@@ -224,7 +224,10 @@ async fn supervise(
 /// outside cleanup. A shell that runs under other credentials itself cannot be
 /// stopped either: past a short grace it is left running and `None` is
 /// returned, so the call still ends with its timeout or cancellation.
-async fn stop_and_reap(group: &mut Group, child: &mut Child) -> Result<Option<ExitStatus>, Error> {
+async fn stop_and_reap(
+    group: &mut Group,
+    child: &mut Child,
+) -> Result<Option<ExitStatus>, ToolError> {
     drop(group.stop());
     group
         .reap_shell(child)
@@ -241,7 +244,7 @@ async fn drain_rest(
     err: &mut Capture,
     stdout: &mut ChildStdout,
     stderr: &mut ChildStderr,
-) -> Result<bool, Error> {
+) -> Result<bool, ToolError> {
     let drained = tokio::time::timeout(Duration::from_millis(250), async {
         tokio::try_join!(out.drain(stdout), err.drain(stderr))
     })
@@ -331,7 +334,7 @@ mod tests {
         command: &str,
         timeout_ms: u64,
         cancel: &CancellationToken,
-    ) -> Result<Output<ShellResult>, Error> {
+    ) -> Result<Output<ShellResult>, ToolError> {
         let root = tempfile::tempdir().unwrap();
         let foreground = Foreground {
             command: command.into(),
@@ -376,6 +379,6 @@ mod tests {
         let cancel = CancellationToken::new();
         cancel.cancel();
         let result = supervise_refused("sleep 30", 10_000, &cancel).await;
-        assert!(matches!(result, Err(Error::Cancelled)), "{result:?}");
+        assert!(matches!(result, Err(ToolError::Cancelled)), "{result:?}");
     }
 }

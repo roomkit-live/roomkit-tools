@@ -1,6 +1,5 @@
 //! Separate optional native OCR distribution, reusing the shared Rust tool.
 use pyo3::prelude::*;
-use roomkit_tools_core::Error;
 use roomkit_tools_ocr::{OcrEngine, OcrInput, OcrTool};
 use roomkit_tools_ocr_rusto::RustoBackend;
 use tokio_util::sync::CancellationToken;
@@ -20,15 +19,17 @@ mod runtime;
 // Each extension owns its runtime threads, so it also refuses work after fork().
 mod fork;
 
-fn error(error: &Error) -> PyErr {
+fn error(error: &roomkit_tools_core::ToolError) -> PyErr {
     let message = error.to_string();
     match error {
-        Error::InvalidInput(_) => InvalidInputError::new_err(message),
-        Error::Refused(_) => AccessRefusedError::new_err(message),
-        Error::LimitExceeded(_) => LimitExceededError::new_err(message),
-        Error::Unsupported(_) => UnsupportedResourceError::new_err(message),
-        Error::Cancelled => CancelledError::new_err(message),
-        Error::Io { .. } => ToolIOError::new_err(message),
+        roomkit_tools_core::ToolError::InvalidInput(_) => InvalidInputError::new_err(message),
+        roomkit_tools_core::ToolError::AccessRefused(_) => AccessRefusedError::new_err(message),
+        roomkit_tools_core::ToolError::LimitExceeded(_) => LimitExceededError::new_err(message),
+        roomkit_tools_core::ToolError::UnsupportedResource(_) => {
+            UnsupportedResourceError::new_err(message)
+        }
+        roomkit_tools_core::ToolError::Cancelled => CancelledError::new_err(message),
+        roomkit_tools_core::ToolError::Io { .. } => ToolIOError::new_err(message),
         _ => ToolError::new_err(message),
     }
 }

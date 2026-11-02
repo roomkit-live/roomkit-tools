@@ -1,6 +1,6 @@
 //! Filesystem boundaries, snapshot revisions, query semantics and bounded pages.
 #![cfg(feature = "files")]
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_docs::{
     DocsBackend, DocsListInput, DocsReadInput, DocsSearchInput, FileDocs, FileDocsLimits, decode,
 };
@@ -65,7 +65,7 @@ async fn snapshot_refresh_and_revision_checked_pages() {
         FileDocs::new(root.path(), Some("v1".into()), FileDocsLimits::default()).unwrap();
     assert!(matches!(
         refreshed.read(&input, &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         refreshed
@@ -75,7 +75,7 @@ async fn snapshot_refresh_and_revision_checked_pages() {
                 &token
             )
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     for id in [
         "../outside.md",
@@ -89,7 +89,7 @@ async fn snapshot_refresh_and_revision_checked_pages() {
                     &token
                 )
                 .await,
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
     }
 }
@@ -104,7 +104,7 @@ async fn scan_limits_fail_without_partial_catalogues_and_initialization_can_retr
     let token = CancellationToken::new();
     assert!(matches!(
         backend.list(&input, &token).await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     std::fs::remove_file(root.path().join("invalid.txt")).unwrap();
     assert_eq!(
@@ -129,7 +129,7 @@ async fn scan_limits_fail_without_partial_catalogues_and_initialization_can_retr
         let backend = FileDocs::new(root.path(), None, limits).unwrap();
         assert!(matches!(
             backend.list(&input, &token).await,
-            Err(Error::LimitExceeded(_))
+            Err(ToolError::LimitExceeded(_))
         ));
     }
     std::fs::write(root.path().join("second.md"), "Second").unwrap();
@@ -148,7 +148,7 @@ async fn scan_limits_fail_without_partial_catalogues_and_initialization_can_retr
                 .unwrap()
                 .list(&input, &token)
                 .await,
-            Err(Error::LimitExceeded(_))
+            Err(ToolError::LimitExceeded(_))
         ));
     }
     std::fs::create_dir_all(root.path().join("a/b")).unwrap();
@@ -164,7 +164,7 @@ async fn scan_limits_fail_without_partial_catalogues_and_initialization_can_retr
         .unwrap()
         .list(&input, &token)
         .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
 }
 
@@ -221,7 +221,7 @@ async fn line_pages_clip_only_between_lines_and_excerpts_preserve_utf8() {
         fresh
             .read(&decode(r#"{"document_id":"long.txt"}"#).unwrap(), &token)
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     assert!(decode::<DocsReadInput>(r#"{"document_id":"page.md","offset":0}"#).is_err());
     assert!(decode::<DocsSearchInput>(r#"{"query":" "}"#).is_err());
@@ -256,6 +256,6 @@ async fn symlinks_and_hidden_files_are_not_part_of_the_catalogue() {
         backend
             .read(&decode(r#"{"document_id":"alias.md"}"#).unwrap(), &token)
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
 }

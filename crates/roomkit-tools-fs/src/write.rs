@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -81,7 +81,7 @@ impl WriteTool {
     ///
     /// # Errors
     /// Returns invalid input or I/O for an invalid root.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self::from_workspace(MutationWorkspace::new(root).await?))
     }
 
@@ -97,7 +97,7 @@ impl WriteTool {
     ///
     /// # Errors
     /// Returns invalid input for a zero or unrepresentable bound.
-    pub fn with_limits(mut self, limits: WriteLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: WriteLimits) -> Result<Self, ToolError> {
         mutation::validate_limit(limits.max_file_bytes)?;
         self.limits = limits;
         Ok(self)
@@ -124,7 +124,7 @@ impl WriteTool {
         &self,
         input: WriteInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<WriteResult>, Error> {
+    ) -> Result<Output<WriteResult>, ToolError> {
         let maximum = self.limits.max_file_bytes;
         self.workspace
             .run(cancel, move |root, cancel| {
@@ -137,7 +137,7 @@ impl WriteTool {
                     before.as_ref().map(|snapshot| snapshot.bytes.as_slice()),
                 )?;
                 if before.is_some() && !input.overwrite {
-                    return Err(Error::Refused(
+                    return Err(ToolError::AccessRefused(
                         "destination already exists; overwrite must be true".into(),
                     ));
                 }

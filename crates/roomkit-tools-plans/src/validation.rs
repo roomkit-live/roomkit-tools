@@ -3,33 +3,33 @@ use crate::types::{
     Plan, PlanCreateInput, PlanDeleteInput, PlanDeleteResult, PlanListInput, PlanListResult,
     PlanReadInput, PlanScope, PlanStep, PlanUpdateInput,
 };
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use std::collections::BTreeSet;
 
-pub(crate) fn bounded(value: &str, name: &str, max: usize) -> Result<(), Error> {
+pub(crate) fn bounded(value: &str, name: &str, max: usize) -> Result<(), ToolError> {
     if value.trim().is_empty() || value.contains('\0') {
-        return Err(Error::InvalidInput(format!(
+        return Err(ToolError::InvalidInput(format!(
             "{name} must be non-empty and contain no NUL"
         )));
     }
     if value.len() > max {
-        return Err(Error::LimitExceeded(format!(
+        return Err(ToolError::LimitExceeded(format!(
             "{name} exceeds {max} UTF-8 bytes"
         )));
     }
     Ok(())
 }
-fn revision(value: u64) -> Result<(), Error> {
+fn revision(value: u64) -> Result<(), ToolError> {
     if value == 0 || value > 9_007_199_254_740_991 {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "revision must be a positive JSON-safe integer".into(),
         ));
     }
     Ok(())
 }
-fn steps(values: &[PlanStep]) -> Result<(), Error> {
+fn steps(values: &[PlanStep]) -> Result<(), ToolError> {
     if values.len() > 64 {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "a plan supports at most 64 steps".into(),
         ));
     }
@@ -41,22 +41,22 @@ fn steps(values: &[PlanStep]) -> Result<(), Error> {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "step_id accepts ASCII letters, digits, '_' and '-'".into(),
             ));
         }
         if !ids.insert(&step.step_id) {
-            return Err(Error::InvalidInput("duplicate step_id in plan".into()));
+            return Err(ToolError::InvalidInput("duplicate step_id in plan".into()));
         }
         bounded(&step.description, "step description", 2048)?;
     }
     Ok(())
 }
-pub(crate) fn size<T: serde::Serialize>(value: &T) -> Result<(), Error> {
-    let bytes =
-        serde_json::to_vec(value).map_err(|_| Error::InvalidInput("invalid plan JSON".into()))?;
+pub(crate) fn size<T: serde::Serialize>(value: &T) -> Result<(), ToolError> {
+    let bytes = serde_json::to_vec(value)
+        .map_err(|_| ToolError::InvalidInput("invalid plan JSON".into()))?;
     if bytes.len() > 64 * 1024 {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "plan record exceeds 64 KiB JSON".into(),
         ));
     }
@@ -66,13 +66,13 @@ impl PlanScope {
     /// Validate the trusted host identity.
     /// # Errors
     /// Rejects empty or oversized scope identifiers.
-    pub fn validate(&self) -> Result<(), Error> {
+    pub fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.room_id, "room_id", 256)?;
         bounded(&self.caller_id, "caller_id", 256)
     }
 }
 impl PlanContract for PlanCreateInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.title, "title", 256)?;
         bounded(&self.objective, "objective", 16 * 1024)?;
         steps(&self.steps)?;
@@ -80,21 +80,21 @@ impl PlanContract for PlanCreateInput {
     }
 }
 impl PlanContract for PlanReadInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)
     }
 }
 impl PlanContract for PlanListInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         Ok(())
     }
 }
 impl PlanContract for PlanUpdateInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)?;
         revision(self.expected_revision)?;
         if self.title.is_none() && self.objective.is_none() && self.steps.is_none() {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "provide title, objective or the complete steps list".into(),
             ));
         }
@@ -111,13 +111,13 @@ impl PlanContract for PlanUpdateInput {
     }
 }
 impl PlanContract for PlanDeleteInput {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)?;
         revision(self.expected_revision)
     }
 }
 impl PlanContract for Plan {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)?;
         revision(self.revision)?;
         bounded(&self.title, "title", 256)?;
@@ -127,9 +127,9 @@ impl PlanContract for Plan {
     }
 }
 impl PlanContract for PlanListResult {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         if self.plans.len() > 64 {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "scope supports at most 64 plans".into(),
             ));
         }
@@ -142,7 +142,7 @@ impl PlanContract for PlanListResult {
                 || plan.total_steps > 64
                 || plan.completed_steps > plan.total_steps
             {
-                return Err(Error::InvalidInput("invalid plan summary".into()));
+                return Err(ToolError::InvalidInput("invalid plan summary".into()));
             }
         }
         // Count and field limits bound the full list below 256 KiB, even with JSON escaping.
@@ -150,11 +150,11 @@ impl PlanContract for PlanListResult {
     }
 }
 impl PlanContract for PlanDeleteResult {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)?;
         revision(self.revision)?;
         if !self.deleted {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "deletion receipt must confirm deletion".into(),
             ));
         }

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -181,7 +181,7 @@ impl PatchTool {
     ///
     /// # Errors
     /// Returns invalid-root or I/O failures.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self::from_workspace(MutationWorkspace::new(root).await?))
     }
 
@@ -197,10 +197,12 @@ impl PatchTool {
     ///
     /// # Errors
     /// Rejects zero or unrepresentable bounds.
-    pub fn with_limits(mut self, limits: PatchLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: PatchLimits) -> Result<Self, ToolError> {
         limits.diff.validate()?;
         if limits.max_changes == 0 || limits.max_input_bytes == 0 {
-            return Err(Error::InvalidInput("patch limits must be positive".into()));
+            return Err(ToolError::InvalidInput(
+                "patch limits must be positive".into(),
+            ));
         }
         self.limits = limits;
         Ok(self)
@@ -229,7 +231,7 @@ impl PatchTool {
         &self,
         input: PatchInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<PatchResult>, Error> {
+    ) -> Result<Output<PatchResult>, ToolError> {
         let limits = self.limits;
         self.workspace
             .run(cancel, move |root, cancel| {
@@ -245,7 +247,7 @@ fn apply(
     dry_run: bool,
     maximum: usize,
     cancel: &CancellationToken,
-) -> Result<Output<PatchResult>, Error> {
+) -> Result<Output<PatchResult>, ToolError> {
     let mut applied = Vec::new();
     let mut failure = None;
     if dry_run {
@@ -258,7 +260,7 @@ fn apply(
                 }
                 failure = Some(PatchFailure {
                     index: job.preview.index,
-                    cancelled: matches!(error, Error::Cancelled),
+                    cancelled: matches!(error, ToolError::Cancelled),
                     message: error.to_string(),
                 });
                 break;
@@ -291,7 +293,7 @@ fn apply_one(
     maximum: usize,
     cancel: &CancellationToken,
     applied: &mut Vec<PatchApplied>,
-) -> Result<(), Error> {
+) -> Result<(), ToolError> {
     mutation::check_cancel(cancel)?;
     let record = |operation, path| PatchApplied {
         index: job.preview.index,
@@ -302,7 +304,7 @@ fn apply_one(
         let before = job
             .before
             .as_ref()
-            .ok_or_else(|| Error::InvalidInput("move requires a source".into()))?;
+            .ok_or_else(|| ToolError::InvalidInput("move requires a source".into()))?;
         mutation::recheck(&job.source, Some(before), maximum)?;
         mutation::create_from(
             target,
@@ -334,7 +336,7 @@ fn apply_one(
         let before = job
             .before
             .as_ref()
-            .ok_or_else(|| Error::InvalidInput("delete requires a source".into()))?;
+            .ok_or_else(|| ToolError::InvalidInput("delete requires a source".into()))?;
         mutation::remove(&job.source, before, maximum, cancel)?;
         applied.push(record(PatchOperation::Delete, job.preview.path.clone()));
     }
@@ -404,7 +406,7 @@ mod tests {
         cancel.cancel();
         assert!(matches!(
             apply(&jobs, false, 1024, &cancel),
-            Err(Error::Cancelled)
+            Err(ToolError::Cancelled)
         ));
         assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 0);
     }

@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 use std::time::Duration;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_process::{
     CommandEnv, ProcessEnd, ProcessLimits, ProcessManager, ProcessReadInput, ProcessStartInput,
     ProcessState, ProcessStatus, ProcessStatusInput, ProcessStopInput, ProcessWriteInput,
@@ -132,7 +132,7 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
     input.stdout_offset += 1;
     assert!(matches!(
         manager.read("alice", input, &token).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     assert_eq!(
         manager
@@ -285,7 +285,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     );
     assert!(matches!(
         manager.read("b", ProcessReadInput::new(&id), &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         manager
@@ -299,7 +299,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
                 &token
             )
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         manager
@@ -312,13 +312,13 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
                 &token
             )
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         manager
             .start("a", ProcessStartInput::new("touch unexpected"), &token)
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     assert!(!root.path().join("unexpected").exists());
     let stopped = manager
@@ -340,7 +340,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
         manager
             .start("a", ProcessStartInput::new("true"), &token)
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     assert!(
         manager
@@ -359,7 +359,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     );
     assert!(matches!(
         manager.read("a", ProcessReadInput::new(&id), &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     let next = manager
         .start("a", ProcessStartInput::new("cat"), &token)
@@ -376,7 +376,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
         manager
             .start("c", ProcessStartInput::new("true"), &token)
             .await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     assert!(manager.close_owner("a").await);
     assert_eq!(
@@ -393,7 +393,7 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
         manager
             .start("a", ProcessStartInput::new("true"), &token)
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
 }
 
@@ -510,7 +510,7 @@ async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
         manager
             .start("a", ProcessStartInput::new("touch unexpected"), &token)
             .await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     let token = CancellationToken::new();
     for command in ["", "\n", "bad\0command"] {
@@ -518,14 +518,14 @@ async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
             manager
                 .start("a", ProcessStartInput::new(command), &token)
                 .await,
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
     }
     let mut input = ProcessStartInput::new("touch unexpected");
     input.cwd = Some(outside.path().display().to_string());
     assert!(matches!(
         manager.start("a", input, &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(!outside.path().join("unexpected").exists());
     assert!(!root.path().join("unexpected").exists());
@@ -706,7 +706,7 @@ async fn cancelling_or_dropping_a_blocked_stdin_call_keeps_the_job_controllable(
         } else {
             token.cancel();
             match task.await.unwrap() {
-                Err(Error::Cancelled) => (),
+                Err(ToolError::Cancelled) => (),
                 Ok(result) => {
                     assert!(!result.data.complete);
                     assert_eq!(result.data.error.as_deref(), Some("stdin call cancelled"));
@@ -876,7 +876,7 @@ async fn persistent_environment_is_host_configured_before_start() {
     assert_eq!(read.stdout.text, "roomkit-tools-process|hello");
     assert!(matches!(
         manager.clone().with_env(env.clone()),
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     manager.close().await;
     let mut invalid = env;
@@ -886,7 +886,7 @@ async fn persistent_environment_is_host_configured_before_start() {
             .await
             .unwrap()
             .with_env(invalid),
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
 }
 

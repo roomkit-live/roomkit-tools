@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
@@ -65,14 +65,14 @@ impl Default for DiffLimits {
 }
 
 impl DiffLimits {
-    pub(crate) fn validate(self) -> Result<(), Error> {
+    pub(crate) fn validate(self) -> Result<(), ToolError> {
         mutation::validate_limit(self.max_file_bytes)?;
         if self.max_lines == 0
             || self.max_lines > u32::MAX as usize / 2
             || self.max_comparison_cells == 0
             || self.max_output_bytes == 0
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "diff bounds must be positive and representable".into(),
             ));
         }
@@ -151,7 +151,7 @@ impl DiffTool {
     ///
     /// # Errors
     /// Returns root resolution errors or invalid input for a non-directory.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self {
             root: Root::new(root).await?,
             limits: DiffLimits::default(),
@@ -162,7 +162,7 @@ impl DiffTool {
     ///
     /// # Errors
     /// Rejects zero or unrepresentable resource bounds. Zero context is supported.
-    pub fn with_limits(mut self, limits: DiffLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: DiffLimits) -> Result<Self, ToolError> {
         limits.validate()?;
         self.limits = limits;
         Ok(self)
@@ -185,11 +185,11 @@ impl DiffTool {
         &self,
         input: DiffInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<DiffResult>, Error> {
+    ) -> Result<Output<DiffResult>, ToolError> {
         let token = cancel.child_token();
         let _cancel_on_drop = token.clone().drop_guard();
         tokio::select! { biased;
-            () = token.cancelled() => Err(Error::Cancelled),
+            () = token.cancelled() => Err(ToolError::Cancelled),
             result = self.compare_files(input, token.clone()) => result,
         }
     }
@@ -198,7 +198,7 @@ impl DiffTool {
         &self,
         input: DiffInput,
         cancel: CancellationToken,
-    ) -> Result<Output<DiffResult>, Error> {
+    ) -> Result<Output<DiffResult>, ToolError> {
         let (old, new) = tokio::try_join!(self.load(&input.old_path), self.load(&input.new_path))?;
         let limits = self.limits;
         tokio::task::spawn_blocking(move || {
@@ -216,16 +216,18 @@ impl DiffTool {
         .map_err(|error| mutation::io("finish the comparison", std::io::Error::other(error)))?
     }
 
-    async fn load(&self, input: &str) -> Result<(String, String), Error> {
+    async fn load(&self, input: &str) -> Result<(String, String), ToolError> {
         let path = self.root.resolve(input).await?;
         let info = tokio::fs::metadata(&path)
             .await
             .map_err(|error| mutation::io("inspect diff file", error))?;
         if !info.is_file() {
-            return Err(Error::Unsupported("diff accepts regular files only".into()));
+            return Err(ToolError::UnsupportedResource(
+                "diff accepts regular files only".into(),
+            ));
         }
         if info.len() > self.limits.max_file_bytes as u64 {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "diff file exceeds max_file_bytes".into(),
             ));
         }
@@ -238,7 +240,7 @@ impl DiffTool {
             .await
             .map_err(|error| mutation::io("read diff file", error))?;
         if bytes.len() > self.limits.max_file_bytes {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "diff file exceeds max_file_bytes".into(),
             ));
         }
@@ -262,7 +264,7 @@ pub(crate) fn compare(
     context: usize,
     limits: DiffLimits,
     cancel: &CancellationToken,
-) -> Result<Output<DiffResult>, Error> {
+) -> Result<Output<DiffResult>, ToolError> {
     mutation::bounded_text(old, limits.max_file_bytes)?;
     mutation::bounded_text(new, limits.max_file_bytes)?;
     mutation::check_cancel(cancel)?;
@@ -275,7 +277,7 @@ pub(crate) fn compare(
         .take(limits.max_lines + 1)
         .collect();
     if old_lines.len().max(new_lines.len()) > limits.max_lines {
-        return Err(Error::LimitExceeded("diff exceeds max_lines".into()));
+        return Err(ToolError::LimitExceeded("diff exceeds max_lines".into()));
     }
     let kinds = align(&old_lines, &new_lines, limits.max_comparison_cells, cancel)?;
     let mut lines = Vec::with_capacity(kinds.len());
@@ -291,7 +293,7 @@ pub(crate) fn compare(
             DiffLineKind::Removed => old_iter.next(),
             DiffLineKind::Added => new_iter.next(),
         }
-        .ok_or_else(|| Error::InvalidInput("invalid diff alignment".into()))?;
+        .ok_or_else(|| ToolError::InvalidInput("invalid diff alignment".into()))?;
         lines.push(Line {
             kind,
             value,
@@ -322,7 +324,7 @@ fn align(
     new: &[&str],
     maximum: usize,
     cancel: &CancellationToken,
-) -> Result<Vec<DiffLineKind>, Error> {
+) -> Result<Vec<DiffLineKind>, ToolError> {
     let prefix = old.iter().zip(new).take_while(|(a, b)| a == b).count();
     let suffix = old[prefix..]
         .iter()
@@ -344,7 +346,7 @@ fn align(
             .checked_mul(width)
             .filter(|size| *size <= maximum)
             .ok_or_else(|| {
-                Error::LimitExceeded(
+                ToolError::LimitExceeded(
                     "diff exceeds max_comparison_cells; compare smaller files".into(),
                 )
             })?;
@@ -384,9 +386,11 @@ fn align(
     Ok(output)
 }
 
-fn push(text: &mut String, value: &str, maximum: usize) -> Result<(), Error> {
+fn push(text: &mut String, value: &str, maximum: usize) -> Result<(), ToolError> {
     if value.len() > maximum.saturating_sub(text.len()) {
-        return Err(Error::LimitExceeded("diff exceeds max_output_bytes".into()));
+        return Err(ToolError::LimitExceeded(
+            "diff exceeds max_output_bytes".into(),
+        ));
     }
     text.push_str(value);
     Ok(())
@@ -399,7 +403,7 @@ fn render(
     context: usize,
     maximum: usize,
     cancel: &CancellationToken,
-) -> Result<Output<DiffResult>, Error> {
+) -> Result<Output<DiffResult>, ToolError> {
     let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
     let (mut additions, mut deletions) = (0, 0);
     for (index, line) in lines.iter().enumerate() {
@@ -432,7 +436,7 @@ fn render(
         mutation::check_cancel(cancel)?;
         let selected = lines
             .get(range)
-            .ok_or_else(|| Error::InvalidInput("invalid diff range".into()))?;
+            .ok_or_else(|| ToolError::InvalidInput("invalid diff range".into()))?;
         let Some(first) = selected.first() else {
             continue;
         };

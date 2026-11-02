@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
@@ -148,9 +148,9 @@ impl OutputStore {
     ///
     /// # Errors
     /// Rejects invalid bounds, inaccessible parents and unsupported platforms.
-    pub async fn new(parent: impl AsRef<Path>, limits: OutputLimits) -> Result<Self, Error> {
+    pub async fn new(parent: impl AsRef<Path>, limits: OutputLimits) -> Result<Self, ToolError> {
         if !cfg!(unix) {
-            return Err(Error::Unsupported(
+            return Err(ToolError::UnsupportedResource(
                 "output archives currently require Unix".into(),
             ));
         }
@@ -163,16 +163,18 @@ impl OutputStore {
             || limits.write_timeout_ms == 0
             || limits.write_timeout_ms > 60_000
         {
-            return Err(Error::InvalidInput("invalid output store limits".into()));
+            return Err(ToolError::InvalidInput(
+                "invalid output store limits".into(),
+            ));
         }
         let parent = parent.as_ref().to_owned();
         let directory = tokio::task::spawn_blocking(move || private_directory(&parent))
             .await
-            .map_err(|error| Error::Io {
+            .map_err(|error| ToolError::Io {
                 operation: "join output store creation",
                 source: std::io::Error::other(error),
             })?
-            .map_err(|source| Error::Io {
+            .map_err(|source| ToolError::Io {
                 operation: "create output store",
                 source,
             })?;
@@ -217,19 +219,19 @@ impl OutputStore {
         owner: &str,
         id: &str,
         cancel: &CancellationToken,
-    ) -> Result<Arc<Record>, Error> {
+    ) -> Result<Arc<Record>, ToolError> {
         if cancel.is_cancelled() {
-            return Err(Error::Cancelled);
+            return Err(ToolError::Cancelled);
         }
         if self.is_closed() {
-            return Err(Error::Refused("output store is closed".into()));
+            return Err(ToolError::AccessRefused("output store is closed".into()));
         }
         lock(&self.inner.registry)
             .entries
             .get(id)
             .filter(|entry| entry.owner == owner)
             .cloned()
-            .ok_or_else(|| Error::Refused("unknown output archive".into()))
+            .ok_or_else(|| ToolError::AccessRefused("unknown output archive".into()))
     }
 
     /// List only the trusted owner's retained copies, including failed/active
@@ -241,12 +243,12 @@ impl OutputStore {
         &self,
         owner: &str,
         cancel: &CancellationToken,
-    ) -> Result<Vec<OutputArchive>, Error> {
+    ) -> Result<Vec<OutputArchive>, ToolError> {
         if cancel.is_cancelled() {
-            return Err(Error::Cancelled);
+            return Err(ToolError::Cancelled);
         }
         if self.is_closed() {
-            return Err(Error::Refused("output store is closed".into()));
+            return Err(ToolError::AccessRefused("output store is closed".into()));
         }
         let registry = lock(&self.inner.registry);
         let mut records: Vec<_> = registry
@@ -270,11 +272,13 @@ impl OutputStore {
         owner: &str,
         input: OutputReadInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<OutputPage>, Error> {
+    ) -> Result<Output<OutputPage>, ToolError> {
         let record = self.entry(owner, &input.archive_id, cancel)?;
         let archive = record.snapshot();
         if input.offset > archive.stored_bytes {
-            return Err(Error::InvalidInput("offset is past stored output".into()));
+            return Err(ToolError::InvalidInput(
+                "offset is past stored output".into(),
+            ));
         }
         let count = (archive.stored_bytes - input.offset).min(
             input
@@ -286,10 +290,10 @@ impl OutputStore {
         let offset = input.offset;
         let bytes = tokio::select! {
             biased;
-            () = cancel.cancelled() => return Err(Error::Cancelled),
+            () = cancel.cancelled() => return Err(ToolError::Cancelled),
             result = tokio::task::spawn_blocking(move || writer::read(file.as_deref(), offset, count)) => result
-                .map_err(|error| Error::Io { operation: "join output read", source: std::io::Error::other(error) })?
-                .map_err(|source| Error::Io { operation: "read output archive", source })?,
+                .map_err(|error| ToolError::Io { operation: "join output read", source: std::io::Error::other(error) })?
+                .map_err(|source| ToolError::Io { operation: "read output archive", source })?,
         };
         let next_offset = offset + bytes.len() as u64;
         let text = String::from_utf8_lossy(&bytes).into_owned();
@@ -319,11 +323,11 @@ impl OutputStore {
         owner: &str,
         input: OutputForgetInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<OutputForgetResult>, Error> {
+    ) -> Result<Output<OutputForgetResult>, ToolError> {
         let record = self.entry(owner, &input.archive_id, cancel)?;
         let state = record.snapshot();
         if !state.finished || !record.capture_done.load(Ordering::Acquire) {
-            return Err(Error::Refused(
+            return Err(ToolError::AccessRefused(
                 "output capture or writing is still active".into(),
             ));
         }
@@ -331,7 +335,7 @@ impl OutputStore {
         record.fail("forgotten");
         tokio::task::spawn_blocking(move || record.release())
             .await
-            .map_err(|error| Error::Io {
+            .map_err(|error| ToolError::Io {
                 operation: "release output archive",
                 source: std::io::Error::other(error),
             })?;

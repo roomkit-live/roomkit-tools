@@ -1,6 +1,6 @@
 use super::super::{invalid, mime};
 use crate::{BackendOutput, SearchCitation, SearchHit, SearchPayload, SearchUsage};
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use serde::Deserialize;
 use std::collections::HashSet;
 
@@ -83,13 +83,13 @@ pub(super) fn response(
     bytes: &[u8],
     content_type: &str,
     max_calls: u64,
-) -> Result<BackendOutput, Error> {
+) -> Result<BackendOutput, ToolError> {
     if !mime(content_type).eq_ignore_ascii_case("application/json") {
         return Err(invalid());
     }
     let response: Response = serde_json::from_slice(bytes).map_err(|_| invalid())?;
     if response.error.is_some() {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "OpenAI response reported an error".into(),
         ));
     }
@@ -97,7 +97,7 @@ pub(super) fn response(
         "completed" => false,
         "incomplete" => true,
         _ => {
-            return Err(Error::Unsupported(
+            return Err(ToolError::UnsupportedResource(
                 "OpenAI response did not finish successfully".into(),
             ));
         }
@@ -119,7 +119,7 @@ pub(super) fn response(
         collected.item(item)?;
     }
     if u64::try_from(collected.calls.len()).map_err(|_| invalid())? > max_calls {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "OpenAI exceeded the configured tool-call ceiling".into(),
         ));
     }
@@ -130,7 +130,7 @@ pub(super) fn response(
     });
     let payload = if collected.searches == 0 {
         if partial {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "OpenAI response incomplete before a search was observed".into(),
             ));
         }
@@ -143,15 +143,15 @@ pub(super) fn response(
         }
     } else {
         if collected.refused {
-            return Err(Error::Refused(
+            return Err(ToolError::AccessRefused(
                 "OpenAI refused to return a search answer".into(),
             ));
         }
         if collected.answer.trim().is_empty() {
             return Err(if partial {
-                Error::LimitExceeded("OpenAI search ended before producing answer text".into())
+                ToolError::LimitExceeded("OpenAI search ended before producing answer text".into())
             } else {
-                Error::Unsupported("OpenAI completed search without answer text".into())
+                ToolError::UnsupportedResource("OpenAI completed search without answer text".into())
             });
         }
         if collected.citations.is_empty() {
@@ -175,7 +175,7 @@ pub(super) fn response(
 }
 
 impl Collected {
-    fn source(&mut self, url: String, title: Option<String>) -> Result<usize, Error> {
+    fn source(&mut self, url: String, title: Option<String>) -> Result<usize, ToolError> {
         if let Some(index) = self.sources.iter().position(|s| s.url == url) {
             if let Some(hit) = self.sources.get_mut(index)
                 && title.is_some()
@@ -185,7 +185,7 @@ impl Collected {
             return Ok(index);
         }
         if self.sources.len() >= 100 {
-            return Err(Error::LimitExceeded("too many OpenAI sources".into()));
+            return Err(ToolError::LimitExceeded("too many OpenAI sources".into()));
         }
         let index = self.sources.len();
         self.sources.push(SearchHit {
@@ -196,7 +196,7 @@ impl Collected {
         });
         Ok(index)
     }
-    fn item(&mut self, item: Item) -> Result<(), Error> {
+    fn item(&mut self, item: Item) -> Result<(), ToolError> {
         match item {
             Item::Reasoning {} => (),
             Item::WebSearchCall { id, status, action } => {
@@ -204,7 +204,7 @@ impl Collected {
                     return Err(invalid());
                 }
                 if status != "completed" {
-                    return Err(Error::Unsupported(
+                    return Err(ToolError::UnsupportedResource(
                         "OpenAI search call did not complete".into(),
                     ));
                 }
@@ -213,7 +213,7 @@ impl Collected {
                         self.searches += 1;
                         for source in sources.unwrap_or_default() {
                             if source.r#type != "url" {
-                                return Err(Error::Unsupported(
+                                return Err(ToolError::UnsupportedResource(
                                     "OpenAI returned an unsupported source type".into(),
                                 ));
                             }
@@ -245,7 +245,7 @@ impl Collected {
         }
         Ok(())
     }
-    fn text(&mut self, text: &str, annotations: Vec<Annotation>) -> Result<(), Error> {
+    fn text(&mut self, text: &str, annotations: Vec<Annotation>) -> Result<(), ToolError> {
         if !self.answer.is_empty() {
             self.answer.push_str("\n\n");
         }
@@ -271,7 +271,7 @@ impl Collected {
             let end = *boundaries.get(end_index).ok_or_else(invalid)?;
             let source_index = self.source(url, Some(title))?;
             if self.citations.len() >= 1000 {
-                return Err(Error::LimitExceeded("too many OpenAI citations".into()));
+                return Err(ToolError::LimitExceeded("too many OpenAI citations".into()));
             }
             self.citations.push(SearchCitation {
                 source_index,

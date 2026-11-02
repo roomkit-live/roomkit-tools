@@ -8,7 +8,7 @@ use std::cell::{Cell, RefCell};
 
 use crate::FetchFormat;
 use reqwest::Url;
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use tokio_util::sync::CancellationToken;
 
 /// Most nodes a document may have.
@@ -30,7 +30,7 @@ pub(crate) fn convert(
     base: &Url,
     max_bytes: usize,
     cancel: &CancellationToken,
-) -> Result<String, Error> {
+) -> Result<String, ToolError> {
     let format = match format {
         FetchFormat::Markdown if html => htmlmark::Format::Markdown,
         FetchFormat::Text if html => htmlmark::Format::Text,
@@ -70,20 +70,20 @@ pub(crate) fn convert(
     result.map_err(|error| failure(error, *stop.borrow()))
 }
 
-fn links_too_long() -> Error {
-    Error::LimitExceeded("expanded HTML links exceed host byte limit".into())
+fn links_too_long() -> ToolError {
+    ToolError::LimitExceeded("expanded HTML links exceed host byte limit".into())
 }
 
 /// The tool error for a failed conversion; an error `htmlmark` adds later is
 /// still a refused page.
-fn failure(error: htmlmark::Error, stop: Option<Stop>) -> Error {
+fn failure(error: htmlmark::Error, stop: Option<Stop>) -> ToolError {
     match (error, stop) {
         (htmlmark::Error::OutputTooLong, _) => {
-            Error::LimitExceeded("converted text exceeds host byte limit".into())
+            ToolError::LimitExceeded("converted text exceeds host byte limit".into())
         }
         (_, Some(Stop::Links)) => links_too_long(),
-        (htmlmark::Error::Interrupted, _) => Error::Cancelled,
-        _ => Error::LimitExceeded("HTML exceeds 100000 nodes or 128 levels".into()),
+        (htmlmark::Error::Interrupted, _) => ToolError::Cancelled,
+        _ => ToolError::LimitExceeded("HTML exceeds 100000 nodes or 128 levels".into()),
     }
 }
 
@@ -92,7 +92,11 @@ mod tests {
     use super::*;
     use std::fmt::Write as _;
 
-    fn convert_with(html: &str, format: FetchFormat, max_bytes: usize) -> Result<String, Error> {
+    fn convert_with(
+        html: &str,
+        format: FetchFormat,
+        max_bytes: usize,
+    ) -> Result<String, ToolError> {
         let base = Url::parse("https://example.com/docs/").unwrap();
         convert(
             html.to_owned(),
@@ -104,7 +108,7 @@ mod tests {
         )
     }
 
-    fn markdown(html: &str, max_bytes: usize) -> Result<String, Error> {
+    fn markdown(html: &str, max_bytes: usize) -> Result<String, ToolError> {
         convert_with(html, FetchFormat::Markdown, max_bytes)
     }
 
@@ -123,7 +127,7 @@ mod tests {
         let html = "<a href=\"relative\"></a>".repeat(100);
         assert!(matches!(
             markdown(&html, 1024),
-            Err(Error::LimitExceeded(message)) if message.contains("links")
+            Err(ToolError::LimitExceeded(message)) if message.contains("links")
         ));
     }
 
@@ -136,11 +140,11 @@ mod tests {
         );
         assert!(matches!(
             markdown(&quotes, 256 * 1024),
-            Err(Error::LimitExceeded(message)) if message.contains("converted text")
+            Err(ToolError::LimitExceeded(message)) if message.contains("converted text")
         ));
         assert!(matches!(
             markdown(&"<div>".repeat(200), 4096),
-            Err(Error::LimitExceeded(message)) if message.contains("nodes")
+            Err(ToolError::LimitExceeded(message)) if message.contains("nodes")
         ));
         let cancel = CancellationToken::new();
         cancel.cancel();
@@ -153,7 +157,7 @@ mod tests {
             4096,
             &cancel,
         );
-        assert!(matches!(result, Err(Error::Cancelled)));
+        assert!(matches!(result, Err(ToolError::Cancelled)));
     }
 
     /// Table rows of an id, a name and a price.

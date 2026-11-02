@@ -70,21 +70,25 @@ impl<T> Output<T> {
 }
 
 /// Failures the host can classify without inspecting an error message.
+///
+/// Python raises the same failures as `ToolError` and its subclasses: each
+/// variant `X` is the exception `XError`, an I/O failure `ToolIOError`, and a
+/// cancellation `asyncio.CancelledError`.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum Error {
+pub enum ToolError {
     /// The input cannot be used; the operation did not run.
     #[error("Invalid input: {0}")]
     InvalidInput(String),
     /// The requested operation is outside the tool's granted access.
     #[error("Access refused: {0}")]
-    Refused(String),
+    AccessRefused(String),
     /// An explicit input or output bound was exceeded.
     #[error("Limit exceeded: {0}")]
     LimitExceeded(String),
     /// The content or resource is not supported by this tool.
     #[error("Unsupported resource: {0}")]
-    Unsupported(String),
+    UnsupportedResource(String),
     /// The caller cancelled the operation.
     #[error("Operation cancelled")]
     Cancelled,

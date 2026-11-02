@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use roomkit_tools_core::{Error, Output};
+use roomkit_tools_core::{Output, ToolError};
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 
@@ -20,9 +20,9 @@ impl ProcessManager {
         owner: &str,
         input: ProcessWriteInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<ProcessWriteResult>, Error> {
+    ) -> Result<Output<ProcessWriteResult>, ToolError> {
         if input.text.len() > self.inner.limits.max_write_bytes {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "process stdin exceeds host limit".into(),
             ));
         }

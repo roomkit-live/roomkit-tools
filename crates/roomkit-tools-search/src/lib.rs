@@ -18,12 +18,13 @@ pub use backends::{NetworkPolicy, SearchHttpConfig};
 pub use backends::{OpenAISearch, OpenAISearchConfig};
 pub use types::*;
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use std::{fmt::Debug, future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 
 /// Object-safe async response, allowing third-party backends without an enum registry.
-pub type SearchFuture<'a> = Pin<Box<dyn Future<Output = Result<BackendOutput, Error>> + Send + 'a>>;
+pub type SearchFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<BackendOutput, ToolError>> + Send + 'a>>;
 
 /// Implement in another crate to add a service without modifying the generic tool.
 /// Backends must bound transport input, honor cancellation and normalize citations
@@ -58,7 +59,7 @@ impl WebSearchTool {
     /// Set common bounds.
     /// # Errors
     /// Rejects zero limits, more than 100 results, or invalid deadlines.
-    pub fn with_limits(mut self, limits: SearchLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: SearchLimits) -> Result<Self, ToolError> {
         if limits.max_query_bytes == 0
             || limits.max_results == 0
             || limits.max_results > 100
@@ -68,7 +69,7 @@ impl WebSearchTool {
             || limits.default_timeout_ms > limits.max_timeout_ms
             || limits.max_timeout_ms > 86_400_000
         {
-            return Err(Error::InvalidInput("invalid search limits".into()));
+            return Err(ToolError::InvalidInput("invalid search limits".into()));
         }
         self.limits = limits;
         Ok(self)
@@ -93,9 +94,9 @@ impl WebSearchTool {
         &self,
         input: SearchInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<SearchResult>, Error> {
+    ) -> Result<Output<SearchResult>, ToolError> {
         if cancel.is_cancelled() {
-            return Err(Error::Cancelled);
+            return Err(ToolError::Cancelled);
         }
         let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
         if input.query.trim().is_empty()
@@ -106,7 +107,7 @@ impl WebSearchTool {
             || timeout == 0
             || timeout > self.limits.max_timeout_ms
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "query, limit or timeout_ms exceeds search constraints".into(),
             ));
         }
@@ -115,7 +116,7 @@ impl WebSearchTool {
             .max_results
             .is_some_and(|max| input.limit > max)
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "limit exceeds backend capabilities".into(),
             ));
         }
@@ -123,11 +124,11 @@ impl WebSearchTool {
         let _guard = token.clone().drop_guard();
         tokio::select! {
             biased;
-            () = token.cancelled() => Err(Error::Cancelled),
+            () = token.cancelled() => Err(ToolError::Cancelled),
             result = tokio::time::timeout(Duration::from_millis(timeout), async {
                 let response = self.backend.search(&input, &token).await?;
                 self.finish(input, response)
-            }) => result.map_err(|_| Error::LimitExceeded("web search deadline exceeded".into()))?,
+            }) => result.map_err(|_| ToolError::LimitExceeded("web search deadline exceeded".into()))?,
         }
     }
 
@@ -135,14 +136,14 @@ impl WebSearchTool {
         &self,
         input: SearchInput,
         mut response: BackendOutput,
-    ) -> Result<Output<SearchResult>, Error> {
+    ) -> Result<Output<SearchResult>, ToolError> {
         let kind = match &response.payload {
             SearchPayload::Results { .. } => SearchKind::Results,
             SearchPayload::Answer { .. } => SearchKind::Answer,
             SearchPayload::NotPerformed { .. } => SearchKind::NotPerformed,
         };
         if !self.capabilities().result_kinds.contains(&kind) {
-            return Err(Error::Unsupported(
+            return Err(ToolError::UnsupportedResource(
                 "backend returned an undeclared result kind".into(),
             ));
         }
@@ -161,7 +162,7 @@ impl WebSearchTool {
                 citations,
             } => {
                 if sources.len() > 100 || citations.len() > 1000 {
-                    return Err(Error::LimitExceeded(
+                    return Err(ToolError::LimitExceeded(
                         "too many answer sources or citations".into(),
                     ));
                 }
@@ -175,14 +176,16 @@ impl WebSearchTool {
                         || !answer.is_char_boundary(citation.start)
                         || !answer.is_char_boundary(citation.end)
                     {
-                        return Err(Error::Unsupported("invalid provider citation".into()));
+                        return Err(ToolError::UnsupportedResource(
+                            "invalid provider citation".into(),
+                        ));
                     }
                 }
                 omitted_results = answer::bound_sources(sources, citations, input.limit)?;
             }
             SearchPayload::NotPerformed { reason } => {
                 if reason.trim().is_empty() {
-                    return Err(Error::Unsupported(
+                    return Err(ToolError::UnsupportedResource(
                         "missing search non-execution reason".into(),
                     ));
                 }
@@ -205,18 +208,18 @@ impl WebSearchTool {
         let text = answer::render(&data)?;
         let output = Output::new(data, text);
         let bytes = serde_json::to_vec(&output)
-            .map_err(|_| Error::Unsupported("invalid search output".into()))?;
+            .map_err(|_| ToolError::UnsupportedResource("invalid search output".into()))?;
         if bytes.len() > self.limits.max_output_bytes {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "search output exceeds host byte limit".into(),
             ));
         }
         Ok(output)
     }
 
-    fn bound_hit(&self, hit: &mut SearchHit) -> Result<(), Error> {
+    fn bound_hit(&self, hit: &mut SearchHit) -> Result<(), ToolError> {
         if !is_source_url(&hit.url) {
-            return Err(Error::Unsupported("invalid source URL".into()));
+            return Err(ToolError::UnsupportedResource("invalid source URL".into()));
         }
         if let Some(content) = &mut hit.content {
             let mut end = content.len().min(self.limits.max_content_bytes);
@@ -226,7 +229,7 @@ impl WebSearchTool {
             hit.omitted_bytes = hit
                 .omitted_bytes
                 .checked_add(content.len() - end)
-                .ok_or_else(|| Error::LimitExceeded("excerpt byte count overflow".into()))?;
+                .ok_or_else(|| ToolError::LimitExceeded("excerpt byte count overflow".into()))?;
             content.truncate(end);
         }
         Ok(())

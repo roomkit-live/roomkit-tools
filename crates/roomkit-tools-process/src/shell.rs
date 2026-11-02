@@ -2,7 +2,7 @@ use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -109,22 +109,24 @@ impl ShellTool {
     ///
     /// # Errors
     /// Fails for an inaccessible root or a non-directory.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         let root = tokio::fs::canonicalize(root)
             .await
-            .map_err(|source| Error::Io {
+            .map_err(|source| ToolError::Io {
                 operation: "resolve shell root",
                 source,
             })?;
         if !tokio::fs::metadata(&root)
             .await
-            .map_err(|source| Error::Io {
+            .map_err(|source| ToolError::Io {
                 operation: "inspect shell root",
                 source,
             })?
             .is_dir()
         {
-            return Err(Error::InvalidInput("shell root must be a directory".into()));
+            return Err(ToolError::InvalidInput(
+                "shell root must be a directory".into(),
+            ));
         }
         Ok(Self {
             root,
@@ -153,14 +155,14 @@ impl ShellTool {
     ///
     /// # Errors
     /// Rejects zero bounds and timeouts greater than 24 hours (timer overflow guard).
-    pub fn with_limits(mut self, limits: ShellLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: ShellLimits) -> Result<Self, ToolError> {
         if limits.max_command_bytes == 0
             || limits.max_output_bytes == 0
             || limits.default_timeout_ms == 0
             || limits.max_timeout_ms > 86_400_000
             || limits.default_timeout_ms > limits.max_timeout_ms
         {
-            return Err(Error::InvalidInput("invalid shell limits".into()));
+            return Err(ToolError::InvalidInput("invalid shell limits".into()));
         }
         self.limits = limits;
         Ok(self)
@@ -170,7 +172,7 @@ impl ShellTool {
     ///
     /// # Errors
     /// Rejects invalid variable names or values, as [`CommandEnv::validate`].
-    pub fn with_env(mut self, env: CommandEnv) -> Result<Self, Error> {
+    pub fn with_env(mut self, env: CommandEnv) -> Result<Self, ToolError> {
         env.validate()?;
         self.env = Arc::new(env);
         Ok(self)
@@ -197,7 +199,7 @@ impl ShellTool {
         &self,
         input: ShellInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<ShellResult>, Error> {
+    ) -> Result<Output<ShellResult>, ToolError> {
         self.shell_owned("default", input, cancel).await
     }
 
@@ -211,28 +213,28 @@ impl ShellTool {
         owner: &str,
         input: ShellInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<ShellResult>, Error> {
+    ) -> Result<Output<ShellResult>, ToolError> {
         if cancel.is_cancelled() {
-            return Err(Error::Cancelled);
+            return Err(ToolError::Cancelled);
         }
         if input.command.trim().is_empty() || input.command.contains('\0') {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "command must be nonempty and contain no NUL".into(),
             ));
         }
         if input.command.len() > self.limits.max_command_bytes {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "shell command exceeds the host limit".into(),
             ));
         }
         let path = self.root.join(input.cwd.as_deref().unwrap_or("."));
         let cwd = tokio::select! {
             biased;
-            () = cancel.cancelled() => return Err(Error::Cancelled),
-            path = tokio::fs::canonicalize(path) => path.map_err(|source| Error::Io { operation: "resolve shell working directory", source })?,
+            () = cancel.cancelled() => return Err(ToolError::Cancelled),
+            path = tokio::fs::canonicalize(path) => path.map_err(|source| ToolError::Io { operation: "resolve shell working directory", source })?,
         };
         if !cwd.starts_with(&self.root) {
-            return Err(Error::Refused(
+            return Err(ToolError::AccessRefused(
                 "shell working directory is outside the root".into(),
             ));
         }
@@ -257,7 +259,7 @@ impl ShellTool {
             };
             tokio::spawn(crate::unix::run(foreground, child_cancel))
                 .await
-                .map_err(|error| Error::Io {
+                .map_err(|error| ToolError::Io {
                     operation: "join shell worker",
                     source: std::io::Error::other(error),
                 })?
@@ -265,7 +267,7 @@ impl ShellTool {
         #[cfg(not(unix))]
         {
             let _ = (cwd, timeout_ms);
-            Err(Error::Unsupported(
+            Err(ToolError::UnsupportedResource(
                 "shell process-group cleanup currently requires Unix".into(),
             ))
         }

@@ -4,7 +4,7 @@ use std::io::Cursor;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage, Rgba, RgbaImage};
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_image::{
     ImageMime, ImageWorkspace, ViewImageInput, ViewImageLimits, ViewImageTool,
 };
@@ -149,12 +149,12 @@ async fn outside_paths_are_refused_whether_or_not_they_exist() {
     ] {
         let result = tool.view(input(&path), &CancellationToken::new()).await;
         assert!(
-            matches!(result, Err(Error::Refused(_))),
+            matches!(result, Err(ToolError::AccessRefused(_))),
             "{path}: {result:?}"
         );
         let result = workspace.load(&path, 1024).await;
         assert!(
-            matches!(result, Err(Error::Refused(_))),
+            matches!(result, Err(ToolError::AccessRefused(_))),
             "{path}: {result:?}"
         );
     }
@@ -178,12 +178,12 @@ async fn paths_beneath_a_symlink_to_outside_are_refused_whether_or_not_they_exis
     ] {
         let result = tool.view(input(path), &CancellationToken::new()).await;
         assert!(
-            matches!(result, Err(Error::Refused(_))),
+            matches!(result, Err(ToolError::AccessRefused(_))),
             "{path}: {result:?}"
         );
         let result = workspace.load(path, 1024).await;
         assert!(
-            matches!(result, Err(Error::Refused(_))),
+            matches!(result, Err(ToolError::AccessRefused(_))),
             "{path}: {result:?}"
         );
     }
@@ -199,7 +199,7 @@ async fn root_escape_invalid_limits_and_precancel_are_refused() {
     assert!(matches!(
         tool.view(input(path.to_str().unwrap()), &CancellationToken::new())
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     #[cfg(unix)]
     {
@@ -207,7 +207,7 @@ async fn root_escape_invalid_limits_and_precancel_are_refused() {
         assert!(matches!(
             tool.view(input("link.png"), &CancellationToken::new())
                 .await,
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
     }
     for limits in [
@@ -226,17 +226,17 @@ async fn root_escape_invalid_limits_and_precancel_are_refused() {
     ] {
         assert!(matches!(
             tool.clone().with_limits(limits),
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
     }
     let cancel = CancellationToken::new();
     cancel.cancel();
     assert!(matches!(
         tool.view(input("missing.png"), &cancel).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert!(matches!(
         tool.view(input(""), &CancellationToken::new()).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
 }

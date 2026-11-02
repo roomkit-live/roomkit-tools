@@ -20,7 +20,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use roomkit_tools_core::{Definition, Error, Output, WorkspaceRoot};
+use roomkit_tools_core::{Definition, Output, ToolError, WorkspaceRoot};
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
@@ -42,7 +42,7 @@ impl CodeOutlineTool {
     ///
     /// # Errors
     /// Returns an I/O error for an inaccessible path or invalid input for a file.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self {
             root: source::root(root.as_ref()).await?,
             limits: CodeOutlineLimits::default(),
@@ -54,7 +54,7 @@ impl CodeOutlineTool {
     ///
     /// # Errors
     /// Rejects zero limits, unrepresentable file bounds and deadlines over 24 hours.
-    pub fn with_limits(mut self, limits: CodeOutlineLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: CodeOutlineLimits) -> Result<Self, ToolError> {
         if [
             limits.max_file_bytes,
             limits.max_output_bytes,
@@ -71,7 +71,7 @@ impl CodeOutlineTool {
             || limits.max_timeout_ms > 86_400_000
             || u64::try_from(limits.max_file_bytes).map_or(true, |n| n == u64::MAX)
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "outline limits must be positive and representable; deadlines at most 24 hours"
                     .into(),
             ));
@@ -97,16 +97,16 @@ impl CodeOutlineTool {
         &self,
         input: CodeOutlineInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<CodeOutlinePage>, Error> {
+    ) -> Result<Output<CodeOutlinePage>, ToolError> {
         let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
         if timeout == 0 || timeout > self.limits.max_timeout_ms {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "timeout_ms must be positive and within the host maximum".into(),
             ));
         }
         let duration = Duration::from_millis(
             u64::try_from(timeout)
-                .map_err(|_| Error::InvalidInput("timeout_ms is too large".into()))?,
+                .map_err(|_| ToolError::InvalidInput("timeout_ms is too large".into()))?,
         );
         extract::validate_revision(input.expected_revision.as_deref())?;
         let token = cancel.child_token();
@@ -114,9 +114,9 @@ impl CodeOutlineTool {
         let deadline = Instant::now() + duration;
         tokio::select! {
             biased;
-            () = token.cancelled() => Err(Error::Cancelled),
+            () = token.cancelled() => Err(ToolError::Cancelled),
             result = tokio::time::timeout(duration, self.run(input, token.clone(), deadline)) =>
-                result.map_err(|_| Error::LimitExceeded("code outline deadline exceeded".into()))?,
+                result.map_err(|_| ToolError::LimitExceeded("code outline deadline exceeded".into()))?,
         }
     }
 
@@ -125,11 +125,11 @@ impl CodeOutlineTool {
         input: CodeOutlineInput,
         token: CancellationToken,
         deadline: Instant,
-    ) -> Result<Output<CodeOutlinePage>, Error> {
+    ) -> Result<Output<CodeOutlinePage>, ToolError> {
         let permit = Arc::clone(&self.workers)
             .acquire_owned()
             .await
-            .map_err(|_| Error::Cancelled)?;
+            .map_err(|_| ToolError::Cancelled)?;
         let (path, language, text) = source::load(
             &self.root,
             &input.path,
@@ -146,6 +146,6 @@ impl CodeOutlineTool {
             page::render(path, language, data, &input, limits, &control)
         })
         .await
-        .map_err(|_| Error::Unsupported("outline worker failed".into()))?
+        .map_err(|_| ToolError::UnsupportedResource("outline worker failed".into()))?
     }
 }

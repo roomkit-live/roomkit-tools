@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use tokio::process::ChildStdin;
 use tokio::sync::{Mutex, watch};
 use tokio_util::sync::CancellationToken;
@@ -61,17 +61,17 @@ pub(super) struct Registry {
 
 impl Registry {
     /// The next identifier number for `owner`, within the host quotas.
-    pub(super) fn next_for(&self, owner: &str, limits: ProcessLimits) -> Result<u64, Error> {
+    pub(super) fn next_for(&self, owner: &str, limits: ProcessLimits) -> Result<u64, ToolError> {
         let retained = self.entries.values().filter(|e| e.owner == owner).count();
         if self.entries.len() >= limits.max_processes || retained >= limits.max_processes_per_owner
         {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "process quota reached; stop with forget=true to release completed records".into(),
             ));
         }
         self.next_id
             .checked_add(1)
-            .ok_or_else(|| Error::LimitExceeded("process identifiers exhausted".into()))
+            .ok_or_else(|| ToolError::LimitExceeded("process identifiers exhausted".into()))
     }
 
     /// Retained entries that `keep` selects, in creation order.

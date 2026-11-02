@@ -52,7 +52,7 @@ toolset = { trait = "Toolset", suffix = "Toolset", members = ["definition", "han
 # and a tool definition, which Python returns as dicts.
 builtins = { "roomkit_tools_core::Output" = "dict", "roomkit_tools_core::Definition" = "dict" }
 # The error variants a Python builtin exception stands for, by path.
-builtin_errors = { "roomkit_tools_core::Error::Cancelled" = "asyncio.CancelledError" }
+builtin_errors = { "roomkit_tools_core::ToolError::Cancelled" = "asyncio.CancelledError" }
 
 # The Python modules a Rust crate's items are looked for in, in order.
 [rules.packages]
@@ -78,12 +78,6 @@ roomkit_tools_roomkit = ["roomkit_tools.roomkit", "roomkit_tools"]
 # others cover the findings of each pair of counterparts, or of an item on
 # one side only.
 # ---------------------------------------------------------------------------
-
-[[pending]]
-rust = "roomkit_tools_core::Error"
-python = "roomkit_tools.ToolError"
-reason = "The error type: Rust's Error, Python's ToolError"
-covers = ["rust roomkit_tools_core::Error (name)"]
 
 [[pending]]
 rust = "roomkit_tools_fs::MutationWorkspace"
@@ -397,13 +391,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_core::Error / roomkit_tools.ToolError: unmatched (5)"
+reason = "roomkit_tools_core::ToolError / roomkit_tools.ToolError: unmatched"
 covers = [
-  "rust roomkit_tools_core::Error::Refused (unmatched)",  # an error variant: no Python exception class of the roomkit_tools.ToolError family
-  "rust roomkit_tools_core::Error::Unsupported (unmatched)",  # an error variant: no Python exception class of the roomkit_tools.ToolError family
-  "python roomkit_tools.AccessRefusedError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::Error
-  "python roomkit_tools.ForkedProcessError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::Error
-  "python roomkit_tools.UnsupportedResourceError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::Error
+  "python roomkit_tools.ForkedProcessError (unmatched)",  # an exception of the roomkit_tools.ToolError family: no Rust variant of roomkit_tools_core::ToolError
 ]
 
 [[pending]]

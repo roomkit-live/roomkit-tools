@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use roomkit_tools_core::{Error, Output};
+use roomkit_tools_core::{Output, ToolError};
 use tokio::sync::{Mutex, watch};
 use tokio_util::sync::CancellationToken;
 
@@ -70,22 +70,22 @@ impl ProcessManager {
     ///
     /// # Errors
     /// Inaccessible or non-directory roots are rejected.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         let root = tokio::fs::canonicalize(root)
             .await
-            .map_err(|source| Error::Io {
+            .map_err(|source| ToolError::Io {
                 operation: "resolve process root",
                 source,
             })?;
         if !tokio::fs::metadata(&root)
             .await
-            .map_err(|source| Error::Io {
+            .map_err(|source| ToolError::Io {
                 operation: "inspect process root",
                 source,
             })?
             .is_dir()
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "process root must be a directory".into(),
             ));
         }
@@ -137,11 +137,12 @@ impl ProcessManager {
     ///
     /// # Errors
     /// Refuses shared or previously used managers.
-    pub fn with_output_store(mut self, outputs: crate::OutputStore) -> Result<Self, Error> {
-        let inner = Arc::get_mut(&mut self.inner)
-            .ok_or_else(|| Error::Refused("configure output storage before cloning".into()))?;
+    pub fn with_output_store(mut self, outputs: crate::OutputStore) -> Result<Self, ToolError> {
+        let inner = Arc::get_mut(&mut self.inner).ok_or_else(|| {
+            ToolError::AccessRefused("configure output storage before cloning".into())
+        })?;
         if inner.registry.get_mut().next_id != 0 {
-            return Err(Error::Refused(
+            return Err(ToolError::AccessRefused(
                 "configure output storage before starting".into(),
             ));
         }
@@ -153,7 +154,7 @@ impl ProcessManager {
     ///
     /// # Errors
     /// Rejects shared/used managers, inconsistent bounds and timers above 24 hours.
-    pub fn with_limits(mut self, limits: ProcessLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: ProcessLimits) -> Result<Self, ToolError> {
         if limits.max_processes == 0
             || limits.max_processes_per_owner == 0
             || limits.max_processes_per_owner > limits.max_processes
@@ -167,12 +168,13 @@ impl ProcessManager {
             || limits.default_timeout_ms > limits.max_timeout_ms
             || limits.max_timeout_ms > 86_400_000
         {
-            return Err(Error::InvalidInput("invalid process limits".into()));
+            return Err(ToolError::InvalidInput("invalid process limits".into()));
         }
-        let inner = Arc::get_mut(&mut self.inner)
-            .ok_or_else(|| Error::Refused("configure process limits before cloning".into()))?;
+        let inner = Arc::get_mut(&mut self.inner).ok_or_else(|| {
+            ToolError::AccessRefused("configure process limits before cloning".into())
+        })?;
         if inner.registry.get_mut().next_id != 0 {
-            return Err(Error::Refused(
+            return Err(ToolError::AccessRefused(
                 "configure process limits before starting".into(),
             ));
         }
@@ -186,13 +188,13 @@ impl ProcessManager {
     /// # Errors
     /// Rejects invalid variable names or values, as [`CommandEnv::validate`],
     /// and shared or previously used managers.
-    pub fn with_env(mut self, env: CommandEnv) -> Result<Self, Error> {
+    pub fn with_env(mut self, env: CommandEnv) -> Result<Self, ToolError> {
         env.validate()?;
         let inner = Arc::get_mut(&mut self.inner).ok_or_else(|| {
-            Error::Refused("configure the process environment before cloning".into())
+            ToolError::AccessRefused("configure the process environment before cloning".into())
         })?;
         if inner.registry.get_mut().next_id != 0 {
-            return Err(Error::Refused(
+            return Err(ToolError::AccessRefused(
                 "configure the process environment before starting".into(),
             ));
         }
@@ -200,15 +202,15 @@ impl ProcessManager {
         Ok(self)
     }
 
-    fn check(&self, owner: &str, cancel: &CancellationToken) -> Result<(), Error> {
+    fn check(&self, owner: &str, cancel: &CancellationToken) -> Result<(), ToolError> {
         if cancel.is_cancelled() {
-            return Err(Error::Cancelled);
+            return Err(ToolError::Cancelled);
         }
         if self.inner.closed.is_cancelled() {
-            return Err(Error::Refused("process manager is closed".into()));
+            return Err(ToolError::AccessRefused("process manager is closed".into()));
         }
         if owner.is_empty() || owner.len() > 1024 {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "owner key must contain 1 to 1024 bytes".into(),
             ));
         }
@@ -220,7 +222,7 @@ impl ProcessManager {
         owner: &str,
         id: &str,
         cancel: &CancellationToken,
-    ) -> Result<Arc<Entry>, Error> {
+    ) -> Result<Arc<Entry>, ToolError> {
         self.check(owner, cancel)?;
         let registry = self.inner.registry.lock().await;
         registry
@@ -228,7 +230,7 @@ impl ProcessManager {
             .get(id)
             .filter(|entry| entry.owner == owner)
             .map(Arc::clone)
-            .ok_or_else(|| Error::Refused("unknown process in this owner scope".into()))
+            .ok_or_else(|| ToolError::AccessRefused("unknown process in this owner scope".into()))
     }
 
     /// Check a start request and resolve its initial directory inside the root.
@@ -236,24 +238,24 @@ impl ProcessManager {
         &self,
         input: &ProcessStartInput,
         cancel: &CancellationToken,
-    ) -> Result<PathBuf, Error> {
+    ) -> Result<PathBuf, ToolError> {
         if input.command.trim().is_empty() || input.command.contains('\0') {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "command must be nonempty without NUL".into(),
             ));
         }
         if input.command.len() > self.inner.limits.max_command_bytes {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "process command exceeds host limit".into(),
             ));
         }
         let cwd = tokio::select! {
             biased;
-            () = cancel.cancelled() => return Err(Error::Cancelled),
-            result = tokio::fs::canonicalize(self.inner.root.join(input.cwd.as_deref().unwrap_or("."))) => result.map_err(|source| Error::Io { operation: "resolve process working directory", source })?,
+            () = cancel.cancelled() => return Err(ToolError::Cancelled),
+            result = tokio::fs::canonicalize(self.inner.root.join(input.cwd.as_deref().unwrap_or("."))) => result.map_err(|source| ToolError::Io { operation: "resolve process working directory", source })?,
         };
         if !cwd.starts_with(&self.inner.root) {
-            return Err(Error::Refused(
+            return Err(ToolError::AccessRefused(
                 "process working directory is outside root".into(),
             ));
         }
@@ -271,7 +273,7 @@ impl ProcessManager {
         owner: &str,
         input: ProcessStartInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<ProcessStatus>, Error> {
+    ) -> Result<Output<ProcessStatus>, ToolError> {
         self.check(owner, cancel)?;
         let cwd = self.start_directory(&input, cancel).await?;
         let mut registry = self.inner.registry.lock().await;
@@ -318,7 +320,7 @@ impl ProcessManager {
         #[cfg(not(unix))]
         {
             let _ = (&mut registry, status);
-            Err(Error::Unsupported(
+            Err(ToolError::UnsupportedResource(
                 "persistent process groups require Unix".into(),
             ))
         }
@@ -333,7 +335,7 @@ impl ProcessManager {
         owner: &str,
         input: ProcessStatusInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<Vec<ProcessStatus>>, Error> {
+    ) -> Result<Output<Vec<ProcessStatus>>, ToolError> {
         self.check(owner, cancel)?;
         let entries = if let Some(id) = input.process_id {
             vec![self.entry(owner, &id, cancel).await?]
@@ -373,7 +375,7 @@ impl ProcessManager {
         owner: &str,
         input: ProcessReadInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<ProcessReadResult>, Error> {
+    ) -> Result<Output<ProcessReadResult>, ToolError> {
         let entry = self.entry(owner, &input.process_id, cancel).await?;
         let record = entry.record.lock().await;
         let limit = input
@@ -418,7 +420,7 @@ impl ProcessManager {
         owner: &str,
         input: ProcessStopInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<ProcessStopResult>, Error> {
+    ) -> Result<Output<ProcessStopResult>, ToolError> {
         let entry = self.entry(owner, &input.process_id, cancel).await?;
         entry.stop.cancel();
         wait_done(&entry, tokio::time::Instant::now() + Duration::from_secs(2)).await;
@@ -542,7 +544,7 @@ mod tests {
             manager
                 .start("a", ProcessStartInput::new("true"), &token)
                 .await,
-            Err(Error::LimitExceeded(_))
+            Err(ToolError::LimitExceeded(_))
         ));
         drop(publishing);
         assert!(manager.close_owner("a").await);

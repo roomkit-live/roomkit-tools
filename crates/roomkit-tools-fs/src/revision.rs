@@ -1,4 +1,4 @@
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use sha2::{Digest, Sha256};
 
 pub(crate) fn finish(hash: Sha256) -> String {
@@ -11,7 +11,7 @@ pub(crate) fn of(bytes: &[u8]) -> String {
     finish(hash)
 }
 
-pub(crate) fn check(expected: Option<&str>, bytes: Option<&[u8]>) -> Result<(), Error> {
+pub(crate) fn check(expected: Option<&str>, bytes: Option<&[u8]>) -> Result<(), ToolError> {
     let Some(expected) = expected else {
         return Ok(());
     };
@@ -21,12 +21,12 @@ pub(crate) fn check(expected: Option<&str>, bytes: Option<&[u8]>) -> Result<(), 
                 .bytes()
                 .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     }) {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "expected_revision must be a sha256 revision returned by read, write or edit".into(),
         ));
     }
     if bytes.is_none_or(|bytes| of(bytes) != expected) {
-        return Err(Error::Refused(
+        return Err(ToolError::AccessRefused(
             "file does not match expected_revision; read it again before changing it".into(),
         ));
     }

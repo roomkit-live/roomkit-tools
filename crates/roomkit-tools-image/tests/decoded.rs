@@ -1,6 +1,6 @@
 //! Full-resolution OCR pixels retain orientation and composite alpha on white.
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage, Rgba, RgbaImage};
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_image::{ImageWorkspace, ViewImageLimits, decode_rgb};
 use std::io::Cursor;
 
@@ -21,7 +21,7 @@ fn alpha_rotation_and_bounds_are_applied_before_ocr() {
     };
     assert!(matches!(
         decode_rgb(bytes.get_ref(), &limits, 0),
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
 }
 
@@ -30,9 +30,9 @@ async fn shared_image_errors_do_not_name_the_view_image_tool() {
     let root = tempfile::tempdir().unwrap();
     let workspace = ImageWorkspace::new(root.path()).await.unwrap();
     let directory = workspace.load(".", 1024).await.unwrap_err();
-    assert!(matches!(directory, Error::Unsupported(_)));
+    assert!(matches!(directory, ToolError::UnsupportedResource(_)));
     let gif = decode_rgb(b"GIF89a", &ViewImageLimits::default(), 0).unwrap_err();
-    assert!(matches!(gif, Error::Unsupported(_)));
+    assert!(matches!(gif, ToolError::UnsupportedResource(_)));
     for error in [directory, gif] {
         let message = error.to_string();
         assert!(message.contains("image input"), "{message}");

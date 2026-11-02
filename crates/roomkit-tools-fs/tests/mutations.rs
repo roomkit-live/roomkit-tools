@@ -1,6 +1,6 @@
 //! Mutation outcomes, unchanged bytes on refusal and shared serialization.
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
     EditInput, EditLimits, EditTool, MutationWorkspace, PatchChange, PatchInput, PatchTool,
     ReadInput, ReadTool, WriteInput, WriteLimits, WriteTool,
@@ -24,7 +24,7 @@ async fn write_creates_exact_unicode_bytes_and_requires_explicit_overwrite() {
     );
     assert!(matches!(
         tool.write(input.clone(), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     let mut input = input;
     input.overwrite = true;
@@ -110,7 +110,7 @@ async fn edit_accepts_text_from_read_in_a_file_with_uniform_crlf_endings() {
     assert!(matches!(
         edit.edit(EditInput::new("mixed.txt", "alpha\nbeta", "x"), &cancel)
             .await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     assert_eq!(
         std::fs::read_to_string(root.path().join("mixed.txt")).unwrap(),
@@ -138,7 +138,7 @@ async fn a_line_ending_in_a_bare_cr_needs_its_exact_ending() {
         .edit(EditInput::new("crlf.txt", shown.join("\n"), "x"), &cancel)
         .await;
     assert!(
-        matches!(&result, Err(Error::InvalidInput(message)) if message.contains("not found")),
+        matches!(&result, Err(ToolError::InvalidInput(message)) if message.contains("not found")),
         "{result:?}"
     );
     assert_eq!(
@@ -167,7 +167,7 @@ async fn edit_refuses_empty_missing_and_ambiguous_matches_without_writing() {
                 &CancellationToken::new()
             )
             .await,
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
         assert_eq!(
             std::fs::read_to_string(root.path().join("orders")).unwrap(),
@@ -223,13 +223,13 @@ async fn bounds_cover_existing_input_and_expanded_content_before_writing() {
     let cancel = CancellationToken::new();
     assert!(matches!(
         write.write(WriteInput::new("new", "ππ"), &cancel).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     let mut overwrite = WriteInput::new("orders", "a");
     overwrite.overwrite = true;
     assert!(matches!(
         write.write(overwrite, &cancel).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     let mut limits = EditLimits::default();
     limits.max_file_bytes = 4;
@@ -242,7 +242,7 @@ async fn bounds_cover_existing_input_and_expanded_content_before_writing() {
     input.replace_all = true;
     assert!(matches!(
         edit.edit(input, &cancel).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     assert_eq!(
         std::fs::read_to_string(root.path().join("orders")).unwrap(),
@@ -272,23 +272,23 @@ async fn missing_parents_are_created_and_non_files_are_not_replaced() {
     );
     assert!(matches!(
         edit.edit(EditInput::new("absent", "a", "b"), &cancel).await,
-        Err(Error::Io { .. })
+        Err(ToolError::Io { .. })
     ));
     assert!(matches!(
         write
             .write(WriteInput::new("directory", "a"), &cancel)
             .await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     assert!(matches!(
         edit.edit(EditInput::new("directory", "a", "b"), &cancel)
             .await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     for path in ["", ".", "directory/.", "directory/", "directory/.."] {
         assert!(matches!(
             write.write(WriteInput::new(path, "a"), &cancel).await,
-            Err(Error::InvalidInput(_))
+            Err(ToolError::InvalidInput(_))
         ));
     }
     assert!(root.path().join("directory").is_dir());
@@ -312,13 +312,13 @@ async fn rejected_writes_do_not_create_parents() {
     let deep = format!("{}file", "a/".repeat(65));
     assert!(matches!(
         tool.write(WriteInput::new(deep, "data"), &cancel).await,
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     cancel.cancel();
     assert!(matches!(
         tool.write(WriteInput::new("new/file", "data"), &cancel)
             .await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
 }
@@ -369,12 +369,12 @@ async fn mutation_paths_stay_inside_the_root_and_accept_internal_absolute_paths(
     ] {
         assert!(matches!(
             write.write(WriteInput::new(&path, "oops"), &cancel).await,
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
         assert!(matches!(
             edit.edit(EditInput::new(path, "secret", "oops"), &cancel)
                 .await,
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
     }
     write
@@ -413,12 +413,12 @@ async fn leaf_symlinks_are_refused_even_inside_the_root_or_dangling() {
         input.overwrite = true;
         assert!(matches!(
             write.write(input, &cancel).await,
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
         assert!(matches!(
             edit.edit(EditInput::new(path, "safe", "oops"), &cancel)
                 .await,
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
     }
     let result = write
@@ -441,7 +441,7 @@ async fn binary_content_is_refused_and_pre_cancellation_has_no_side_effects() {
     let cancel = CancellationToken::new();
     assert!(matches!(
         write.write(WriteInput::new("new", "a\0b"), &cancel).await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     for bytes in [b"a\0b".as_slice(), b"\xff".as_slice()] {
         std::fs::write(root.path().join("orders"), bytes).unwrap();
@@ -449,22 +449,22 @@ async fn binary_content_is_refused_and_pre_cancellation_has_no_side_effects() {
         input.overwrite = true;
         assert!(matches!(
             write.write(input, &cancel).await,
-            Err(Error::Unsupported(_))
+            Err(ToolError::UnsupportedResource(_))
         ));
         assert!(matches!(
             edit.edit(EditInput::new("orders", "a", "b"), &cancel).await,
-            Err(Error::Unsupported(_))
+            Err(ToolError::UnsupportedResource(_))
         ));
         assert_eq!(std::fs::read(root.path().join("orders")).unwrap(), bytes);
     }
     cancel.cancel();
     assert!(matches!(
         write.write(WriteInput::new("new", "safe"), &cancel).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert!(matches!(
         edit.edit(EditInput::new("orders", "a", "b"), &cancel).await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
 }
@@ -493,7 +493,7 @@ async fn replacement_preserves_permissions_and_refuses_read_only_files() {
             &CancellationToken::new()
         )
         .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(std::fs::read_to_string(path).unwrap(), "b");
 }

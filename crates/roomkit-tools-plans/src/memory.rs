@@ -5,7 +5,7 @@ use crate::{
         PlanReadInput, PlanScope, PlanSummary, PlanUpdateInput, StepStatus,
     },
 };
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex, MutexGuard},
@@ -41,12 +41,14 @@ impl MemoryPlanBackend {
     /// Configure independent global/per-owner record counts. Record size is 64 KiB.
     /// # Errors
     /// Rejects zero bounds, more than 4096 total or more than 64 plans per scope.
-    pub fn new(max_plans: usize, max_plans_per_scope: usize) -> Result<Self, Error> {
+    pub fn new(max_plans: usize, max_plans_per_scope: usize) -> Result<Self, ToolError> {
         if !(1..=4096).contains(&max_plans)
             || !(1..=64).contains(&max_plans_per_scope)
             || max_plans_per_scope > max_plans
         {
-            return Err(Error::InvalidInput("invalid plan capacity limits".into()));
+            return Err(ToolError::InvalidInput(
+                "invalid plan capacity limits".into(),
+            ));
         }
         Ok(Self {
             max_plans,
@@ -54,25 +56,25 @@ impl MemoryPlanBackend {
             ..Default::default()
         })
     }
-    fn lock(&self) -> Result<MutexGuard<'_, State>, Error> {
-        self.state
-            .lock()
-            .map_err(|_| Error::Unsupported("plan store unavailable after a worker failure".into()))
+    fn lock(&self) -> Result<MutexGuard<'_, State>, ToolError> {
+        self.state.lock().map_err(|_| {
+            ToolError::UnsupportedResource("plan store unavailable after a worker failure".into())
+        })
     }
 }
-fn owned<'a>(state: &'a State, scope: &PlanScope, id: &str) -> Result<&'a Plan, Error> {
+fn owned<'a>(state: &'a State, scope: &PlanScope, id: &str) -> Result<&'a Plan, ToolError> {
     state
         .plans
         .get(id)
         .filter(|(owner, _)| owner == scope)
         .map(|(_, plan)| plan)
-        .ok_or_else(|| Error::Refused("unknown plan in this scope".into()))
+        .ok_or_else(|| ToolError::AccessRefused("unknown plan in this scope".into()))
 }
-fn check_revision(plan: &Plan, expected: u64) -> Result<(), Error> {
+fn check_revision(plan: &Plan, expected: u64) -> Result<(), ToolError> {
     if plan.revision == expected {
         Ok(())
     } else {
-        Err(Error::Refused(
+        Err(ToolError::AccessRefused(
             "plan revision conflict; use plan_read before retrying".into(),
         ))
     }
@@ -97,14 +99,14 @@ impl PlanBackend for MemoryPlanBackend {
                     .count()
                     >= self.max_plans_per_scope
             {
-                return Err(Error::LimitExceeded(
+                return Err(ToolError::LimitExceeded(
                     "plan capacity reached; delete an owned plan before creating another".into(),
                 ));
             }
             let sequence = state
                 .sequence
                 .checked_add(1)
-                .ok_or_else(|| Error::LimitExceeded("plan identifiers exhausted".into()))?;
+                .ok_or_else(|| ToolError::LimitExceeded("plan identifiers exhausted".into()))?;
             let plan = Plan {
                 plan_id: format!("plan-{sequence}"),
                 revision: 1,
@@ -198,7 +200,7 @@ impl PlanBackend for MemoryPlanBackend {
                 next.revision = current
                     .revision
                     .checked_add(1)
-                    .ok_or_else(|| Error::LimitExceeded("plan revision exhausted".into()))?;
+                    .ok_or_else(|| ToolError::LimitExceeded("plan revision exhausted".into()))?;
             }
             next.validate()?;
             cancelled(cancel)?;

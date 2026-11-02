@@ -5,7 +5,7 @@ use std::path::Path;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_image::{ViewImageInput, ViewImageTool};
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
@@ -37,14 +37,14 @@ async fn shared_image_contracts() {
         }
         let result = match serde_json::from_value::<ViewImageInput>(case["input"].clone()) {
             Ok(input) => tool.view(input, &cancel).await,
-            Err(error) => Err(Error::InvalidInput(error.to_string())),
+            Err(error) => Err(ToolError::InvalidInput(error.to_string())),
         };
         let result = match result {
             Ok(output) => serde_json::to_value(output).unwrap(),
             Err(error) => json!({"error": match error {
-                Error::InvalidInput(_) => "invalid_input", Error::Refused(_) => "refused",
-                Error::LimitExceeded(_) => "limit", Error::Unsupported(_) => "unsupported",
-                Error::Cancelled => "cancelled", Error::Io { .. } => "io", _ => "unknown",
+                ToolError::InvalidInput(_) => "invalid_input", ToolError::AccessRefused(_) => "refused",
+                ToolError::LimitExceeded(_) => "limit", ToolError::UnsupportedResource(_) => "unsupported",
+                ToolError::Cancelled => "cancelled", ToolError::Io { .. } => "io", _ => "unknown",
             }}),
         };
         // The structured path and the metadata-only rendering name the image

@@ -4,7 +4,7 @@
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_process::{
     OutputForgetInput, OutputLimits, OutputReadInput, OutputStore, ProcessLimits, ProcessManager,
     ProcessStartInput, ProcessStatusInput, ProcessWriteInput, ShellInput, ShellLimits, ShellTool,
@@ -148,7 +148,7 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
     );
     assert!(matches!(
         store.read("default", page(&id, 6, 1), &cancel).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     let second = shell
         .shell(ShellInput::new("printf still-runs"), &cancel)
@@ -171,7 +171,7 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
         .unwrap();
     assert!(matches!(
         store.read("default", page(&id, 0, 1), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     let third = shell
         .shell(ShellInput::new("printf ok"), &cancel)
@@ -206,7 +206,7 @@ async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
     assert_eq!(archive.error.as_deref(), Some("total_limit"));
     assert!(matches!(
         store.read("two", page(&id, 0, 1), &cancel).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert!(matches!(
         store
@@ -218,7 +218,7 @@ async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
                 &cancel
             )
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(store.list("unknown", &cancel).unwrap(), []);
     store
@@ -295,7 +295,7 @@ async fn process_archives_remain_readable_after_manager_close() {
                 &cancel
             )
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     let status = manager
         .status(

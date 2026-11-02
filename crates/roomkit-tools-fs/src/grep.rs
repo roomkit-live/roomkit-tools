@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 
 use regex::{Regex, RegexBuilder};
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
@@ -160,7 +160,7 @@ impl GrepTool {
     ///
     /// # Errors
     /// Returns an I/O error for an unresolved root, or invalid input for a file.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self {
             root: Root::new(root).await?,
             limits: GrepLimits::default(),
@@ -171,7 +171,7 @@ impl GrepTool {
     ///
     /// # Errors
     /// Returns invalid input for zero bounds or an unrepresentable read limit.
-    pub fn with_limits(mut self, limits: GrepLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: GrepLimits) -> Result<Self, ToolError> {
         if [
             limits.max_matches,
             limits.max_output_bytes,
@@ -184,7 +184,7 @@ impl GrepTool {
         .contains(&0)
             || u64::try_from(limits.max_file_bytes).map_or(true, |n| n == u64::MAX)
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "grep limits must be positive and representable".into(),
             ));
         }
@@ -214,7 +214,7 @@ impl GrepTool {
         &self,
         input: GrepInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<GrepPage>, Error> {
+    ) -> Result<Output<GrepPage>, ToolError> {
         worker::cancellable(cancel, |cancel| self.search(input, cancel)).await
     }
 
@@ -224,8 +224,8 @@ impl GrepTool {
         &self,
         path: &Path,
         include_depth: Option<usize>,
-    ) -> Result<(Scan, String), Error> {
-        let info = fs::metadata(path).await.map_err(|source| Error::Io {
+    ) -> Result<(Scan, String), ToolError> {
+        let info = fs::metadata(path).await.map_err(|source| ToolError::Io {
             operation: "inspect the search path",
             source,
         })?;
@@ -234,7 +234,7 @@ impl GrepTool {
             let name = path
                 .file_name()
                 .and_then(|name| name.to_str())
-                .ok_or_else(|| Error::Unsupported("filename is not UTF-8".into()))?
+                .ok_or_else(|| ToolError::UnsupportedResource("filename is not UTF-8".into()))?
                 .to_owned();
             let prefix = relative.strip_suffix(&name).unwrap_or_default().to_owned();
             let entries = vec![PathEntry {
@@ -268,7 +268,7 @@ impl GrepTool {
         &self,
         input: GrepInput,
         cancel: CancellationToken,
-    ) -> Result<Output<GrepPage>, Error> {
+    ) -> Result<Output<GrepPage>, ToolError> {
         let regex = self.regex(&input)?;
         let include = input.include.as_deref().map(paths::pattern).transpose()?;
         let path = self.root.resolve(&input.path).await?;
@@ -293,16 +293,16 @@ impl GrepTool {
     }
 
     /// Check model arguments against host bounds and compile the pattern.
-    fn regex(&self, input: &GrepInput) -> Result<Regex, Error> {
+    fn regex(&self, input: &GrepInput) -> Result<Regex, ToolError> {
         if input.context_before > self.limits.max_context_lines
             || input.context_after > self.limits.max_context_lines
         {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "requested grep context exceeds max_context_lines".into(),
             ));
         }
         if input.pattern.is_empty() || input.pattern.len() > 4096 {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "grep pattern must contain 1 to 4096 bytes".into(),
             ));
         }
@@ -315,6 +315,6 @@ impl GrepTool {
             .case_insensitive(input.ignore_case)
             .size_limit(1024 * 1024)
             .build()
-            .map_err(|error| Error::InvalidInput(format!("invalid regex: {error}")))
+            .map_err(|error| ToolError::InvalidInput(format!("invalid regex: {error}")))
     }
 }

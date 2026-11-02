@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use roomkit_tools_core::Error;
 use roomkit_tools_process::{
     CommandEnv, DEFAULT_INHERITED_ENV, ProcessLimits, ProcessManager, ProcessReadInput,
     ProcessStartInput, ProcessStatusInput, ProcessStopInput, ProcessWriteInput,
@@ -108,9 +107,11 @@ struct SessionState {
 }
 
 impl SessionState {
-    async fn resolve(&self) -> Result<ProcessManager, Error> {
+    async fn resolve(&self) -> Result<ProcessManager, roomkit_tools_core::ToolError> {
         if self.closed.is_cancelled() {
-            return Err(Error::Refused("process session is closed".into()));
+            return Err(roomkit_tools_core::ToolError::AccessRefused(
+                "process session is closed".into(),
+            ));
         }
         let manager = self
             .manager
@@ -122,14 +123,16 @@ impl SessionState {
                 if let Some(outputs) = &self.outputs {
                     manager = manager.with_output_store(outputs.resolve().await?)?;
                 }
-                Ok::<_, Error>(manager)
+                Ok::<_, roomkit_tools_core::ToolError>(manager)
             })
             .await?;
         if self.closed.is_cancelled() {
             // Closing before/during lazy initialization must never reopen the
             // scope or allow a first process to escape its shutdown boundary.
             manager.close().await;
-            return Err(Error::Refused("process session is closed".into()));
+            return Err(roomkit_tools_core::ToolError::AccessRefused(
+                "process session is closed".into(),
+            ));
         }
         Ok(manager.clone())
     }
@@ -198,11 +201,11 @@ impl PythonProcessSession {
         crate::runtime::future_into_py(py, async move {
             let _guard = guard;
             if token.is_cancelled() {
-                return Err(tool_error(&Error::Cancelled));
+                return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
             }
             state.resolve().await.map_err(|error| tool_error(&error))?;
             if token.is_cancelled() {
-                return Err(tool_error(&Error::Cancelled));
+                return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
             }
             Ok(())
         })
@@ -238,7 +241,7 @@ impl PythonProcessSession {
         crate::runtime::future_into_py(py, async move {
             let _guard = guard;
             if token.is_cancelled() {
-                return Err(tool_error(&Error::Cancelled));
+                return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
             }
             macro_rules! invoke {
                 ($method:ident, $input:ty) => {{

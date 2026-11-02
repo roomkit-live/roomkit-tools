@@ -3,7 +3,7 @@
 use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{GrepInput, GrepLimits, GrepTool};
 use tokio_util::sync::CancellationToken;
 
@@ -61,7 +61,7 @@ fn cancellation_returns_promptly_and_stops_the_search_worker() {
         });
         let start = Instant::now();
         let result = tool.grep(GrepInput::new(COSTLY), &cancel).await;
-        assert!(matches!(result, Err(Error::Cancelled)), "{result:?}");
+        assert!(matches!(result, Err(ToolError::Cancelled)), "{result:?}");
         start.elapsed()
     });
     assert!(
@@ -109,7 +109,7 @@ async fn lines_longer_than_the_host_bound_are_skipped_and_counted() {
             .await
             .unwrap()
             .with_limits(limits),
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
 }
 

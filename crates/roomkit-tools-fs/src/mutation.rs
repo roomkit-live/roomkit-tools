@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -34,22 +34,26 @@ impl MutationWorkspace {
     ///
     /// # Errors
     /// Returns invalid input for a non-directory or I/O for an unresolved root.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self {
             root: Root::new(root).await?,
             gate: Arc::new(Mutex::new(())),
         })
     }
 
-    pub(crate) async fn run<T, F>(&self, cancel: &CancellationToken, work: F) -> Result<T, Error>
+    pub(crate) async fn run<T, F>(
+        &self,
+        cancel: &CancellationToken,
+        work: F,
+    ) -> Result<T, ToolError>
     where
         T: Send + 'static,
-        F: FnOnce(&Root, &CancellationToken) -> Result<T, Error> + Send + 'static,
+        F: FnOnce(&Root, &CancellationToken) -> Result<T, ToolError> + Send + 'static,
     {
         let cancel = cancel.child_token();
         let _cancel_on_drop = cancel.clone().drop_guard();
         let gate = tokio::select! { biased;
-            () = cancel.cancelled() => return Err(Error::Cancelled),
+            () = cancel.cancelled() => return Err(ToolError::Cancelled),
             gate = Arc::clone(&self.gate).lock_owned() => gate,
         };
         let root = self.root.clone();
@@ -62,48 +66,50 @@ impl MutationWorkspace {
             work(&root, &cancel)
         })
         .await
-        .map_err(|source| Error::Io {
+        .map_err(|source| ToolError::Io {
             operation: "finish the mutation task",
             source: std::io::Error::other(source),
         })?
     }
 }
 
-pub(crate) fn check_cancel(cancel: &CancellationToken) -> Result<(), Error> {
+pub(crate) fn check_cancel(cancel: &CancellationToken) -> Result<(), ToolError> {
     if cancel.is_cancelled() {
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     } else {
         Ok(())
     }
 }
 
-pub(crate) fn io(operation: &'static str, source: std::io::Error) -> Error {
-    Error::Io { operation, source }
+pub(crate) fn io(operation: &'static str, source: std::io::Error) -> ToolError {
+    ToolError::Io { operation, source }
 }
 
-pub(crate) fn validate_limit(maximum: usize) -> Result<(), Error> {
+pub(crate) fn validate_limit(maximum: usize) -> Result<(), ToolError> {
     if maximum == 0 || u64::try_from(maximum).map_or(true, |n| n == u64::MAX) {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "max_file_bytes must be positive and representable".into(),
         ));
     }
     Ok(())
 }
 
-pub(crate) fn validate_text(bytes: &[u8]) -> Result<&str, Error> {
+pub(crate) fn validate_text(bytes: &[u8]) -> Result<&str, ToolError> {
     let text = std::str::from_utf8(bytes)
-        .map_err(|_| Error::Unsupported("mutations require UTF-8 text".into()))?;
+        .map_err(|_| ToolError::UnsupportedResource("mutations require UTF-8 text".into()))?;
     if text.contains('\0') {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "mutations do not accept NUL bytes".into(),
         ));
     }
     Ok(text)
 }
 
-pub(crate) fn bounded_text(text: &str, maximum: usize) -> Result<(), Error> {
+pub(crate) fn bounded_text(text: &str, maximum: usize) -> Result<(), ToolError> {
     if text.len() > maximum {
-        return Err(Error::LimitExceeded("text exceeds max_file_bytes".into()));
+        return Err(ToolError::LimitExceeded(
+            "text exceeds max_file_bytes".into(),
+        ));
     }
     validate_text(text.as_bytes())?;
     Ok(())
@@ -111,23 +117,23 @@ pub(crate) fn bounded_text(text: &str, maximum: usize) -> Result<(), Error> {
 
 /// Resolve the existing parent, retaining the final component so a symlink
 /// at the destination cannot turn into a permitted ordinary file unnoticed.
-pub(crate) fn destination(root: &Root, input: &str) -> Result<PathBuf, Error> {
+pub(crate) fn destination(root: &Root, input: &str) -> Result<PathBuf, ToolError> {
     if matches!(
         input.rsplit(std::path::MAIN_SEPARATOR).next(),
         None | Some("" | "." | "..")
     ) {
-        return Err(Error::InvalidInput("path must name a file".into()));
+        return Err(ToolError::InvalidInput("path must name a file".into()));
     }
     let joined = root.join(input)?;
     let name = joined
         .file_name()
-        .ok_or_else(|| Error::InvalidInput("path must name a file".into()))?;
+        .ok_or_else(|| ToolError::InvalidInput("path must name a file".into()))?;
     let parent = joined
         .parent()
-        .ok_or_else(|| Error::InvalidInput("path must have a parent".into()))?;
+        .ok_or_else(|| ToolError::InvalidInput("path must have a parent".into()))?;
     let parent = root.canonical(parent, RESOLVE_PARENT)?;
     if !parent.is_dir() {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "destination parent must be a directory".into(),
         ));
     }
@@ -139,10 +145,10 @@ pub(crate) fn destination(root: &Root, input: &str) -> Result<PathBuf, Error> {
 pub(crate) fn write_destination(
     root: &Root,
     input: &str,
-) -> Result<(PathBuf, Vec<PathBuf>), Error> {
+) -> Result<(PathBuf, Vec<PathBuf>), ToolError> {
     match destination(root, input) {
         Ok(path) => return Ok((path, Vec::new())),
-        Err(Error::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {}
+        Err(ToolError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
     }
     let joined = root.join(input)?;
@@ -150,42 +156,42 @@ pub(crate) fn write_destination(
         .components()
         .any(|c| c == std::path::Component::ParentDir)
     {
-        return Err(Error::Refused(
+        return Err(ToolError::AccessRefused(
             "missing-parent paths must not contain '..'".into(),
         ));
     }
     let name = joined
         .file_name()
-        .ok_or_else(|| Error::InvalidInput("path must name a file".into()))?;
+        .ok_or_else(|| ToolError::InvalidInput("path must name a file".into()))?;
     let mut ancestor = joined
         .parent()
-        .ok_or_else(|| Error::InvalidInput("path must have a parent".into()))?;
+        .ok_or_else(|| ToolError::InvalidInput("path must have a parent".into()))?;
     let mut names = Vec::new();
     loop {
         match fs::symlink_metadata(ancestor) {
             Ok(_) => break,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 if names.len() == 64 {
-                    return Err(Error::LimitExceeded(
+                    return Err(ToolError::LimitExceeded(
                         "write creates at most 64 parent directories".into(),
                     ));
                 }
                 names.push(
                     ancestor
                         .file_name()
-                        .ok_or_else(|| Error::InvalidInput("invalid parent path".into()))?
+                        .ok_or_else(|| ToolError::InvalidInput("invalid parent path".into()))?
                         .to_owned(),
                 );
                 ancestor = ancestor
                     .parent()
-                    .ok_or_else(|| Error::InvalidInput("invalid parent path".into()))?;
+                    .ok_or_else(|| ToolError::InvalidInput("invalid parent path".into()))?;
             }
             Err(error) => return Err(io("inspect the destination parent", error)),
         }
     }
     let mut parent = root.canonical(ancestor, RESOLVE_PARENT)?;
     if !parent.is_dir() {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "destination parent must be a directory".into(),
         ));
     }
@@ -203,20 +209,20 @@ pub(crate) fn create_parents(
     root: &Root,
     paths: &[PathBuf],
     cancel: &CancellationToken,
-) -> Result<Vec<String>, Error> {
+) -> Result<Vec<String>, ToolError> {
     let mut created = Vec::new();
     for path in paths {
         check_cancel(cancel)?;
         let parent = path
             .parent()
-            .ok_or_else(|| Error::InvalidInput("invalid parent path".into()))?;
+            .ok_or_else(|| ToolError::InvalidInput("invalid parent path".into()))?;
         root.canonical(parent, RESOLVE_PARENT)?;
         match fs::create_dir(path) {
             Ok(()) => created.push(root.relative(path)?),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 let resolved = fs::canonicalize(path).map_err(|e| io(RESOLVE_PARENT, e))?;
                 if !resolved.starts_with(root.path()) || !resolved.is_dir() {
-                    return Err(Error::Refused(
+                    return Err(ToolError::AccessRefused(
                         "destination parent changed during creation".into(),
                     ));
                 }
@@ -232,36 +238,36 @@ pub(crate) struct Snapshot {
     permissions: Permissions,
 }
 
-pub(crate) fn inspect(path: &Path) -> Result<Option<fs::Metadata>, Error> {
+pub(crate) fn inspect(path: &Path) -> Result<Option<fs::Metadata>, ToolError> {
     let info = match fs::symlink_metadata(path) {
         Ok(info) => info,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(io("inspect the destination", error)),
     };
     if info.file_type().is_symlink() {
-        return Err(Error::Refused(
+        return Err(ToolError::AccessRefused(
             "mutation of a symbolic link is not supported".into(),
         ));
     }
     if !info.is_file() {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "mutations accept regular files only".into(),
         ));
     }
     if info.permissions().readonly() {
-        return Err(Error::Refused("destination is read-only".into()));
+        return Err(ToolError::AccessRefused("destination is read-only".into()));
     }
     Ok(Some(info))
 }
 
-pub(crate) fn snapshot(path: &Path, maximum: usize) -> Result<Option<Snapshot>, Error> {
+pub(crate) fn snapshot(path: &Path, maximum: usize) -> Result<Option<Snapshot>, ToolError> {
     let Some(info) = inspect(path)? else {
         return Ok(None);
     };
     let maximum = u64::try_from(maximum)
-        .map_err(|_| Error::InvalidInput("file bound is too large".into()))?;
+        .map_err(|_| ToolError::InvalidInput("file bound is too large".into()))?;
     if info.len() > maximum {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "existing file exceeds max_file_bytes".into(),
         ));
     }
@@ -272,7 +278,7 @@ pub(crate) fn snapshot(path: &Path, maximum: usize) -> Result<Option<Snapshot>, 
         .read_to_end(&mut bytes)
         .map_err(|source| io("read the destination", source))?;
     if u64::try_from(bytes.len()).map_or(true, |len| len > maximum) {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "existing file exceeds max_file_bytes".into(),
         ));
     }
@@ -289,7 +295,7 @@ pub(crate) fn commit(
     after: &[u8],
     maximum: usize,
     cancel: &CancellationToken,
-) -> Result<(), Error> {
+) -> Result<(), ToolError> {
     commit_with_permissions(
         path,
         before,
@@ -306,7 +312,7 @@ pub(crate) fn create_from(
     after: &[u8],
     maximum: usize,
     cancel: &CancellationToken,
-) -> Result<(), Error> {
+) -> Result<(), ToolError> {
     commit_with_permissions(
         path,
         None,
@@ -324,11 +330,11 @@ fn commit_with_permissions(
     permissions: Option<Permissions>,
     maximum: usize,
     cancel: &CancellationToken,
-) -> Result<(), Error> {
+) -> Result<(), ToolError> {
     check_cancel(cancel)?;
     let parent = path
         .parent()
-        .ok_or_else(|| Error::InvalidInput("path must have a parent".into()))?;
+        .ok_or_else(|| ToolError::InvalidInput("path must have a parent".into()))?;
     let staged = stage(parent, after, permissions)?;
     // Best-effort detection of external changes. The check and rename are not
     // a filesystem compare-and-swap; the shared workspace lock covers our tools.
@@ -341,7 +347,9 @@ fn commit_with_permissions(
     } else {
         staged.persist_noclobber(path).map_err(|error| {
             if error.error.kind() == std::io::ErrorKind::AlreadyExists {
-                Error::Refused("destination already exists; read it before overwriting".into())
+                ToolError::AccessRefused(
+                    "destination already exists; read it before overwriting".into(),
+                )
             } else {
                 io("create the destination", error.error)
             }
@@ -360,7 +368,7 @@ fn stage(
     parent: &Path,
     after: &[u8],
     permissions: Option<Permissions>,
-) -> Result<tempfile::NamedTempFile, Error> {
+) -> Result<tempfile::NamedTempFile, ToolError> {
     let mut builder = tempfile::Builder::new();
     builder.prefix(".roomkit-write-");
     #[cfg(unix)]
@@ -387,12 +395,16 @@ fn stage(
     Ok(staged)
 }
 
-pub(crate) fn recheck(path: &Path, before: Option<&Snapshot>, maximum: usize) -> Result<(), Error> {
+pub(crate) fn recheck(
+    path: &Path,
+    before: Option<&Snapshot>,
+    maximum: usize,
+) -> Result<(), ToolError> {
     let current = snapshot(path, maximum)?;
     if current.as_ref().map(|s| (&s.bytes, &s.permissions))
         != before.map(|s| (&s.bytes, &s.permissions))
     {
-        return Err(Error::Refused(
+        return Err(ToolError::AccessRefused(
             "file changed while preparing the mutation; read it again".into(),
         ));
     }
@@ -404,7 +416,7 @@ pub(crate) fn remove(
     before: &Snapshot,
     maximum: usize,
     cancel: &CancellationToken,
-) -> Result<(), Error> {
+) -> Result<(), ToolError> {
     check_cancel(cancel)?;
     recheck(path, Some(before), maximum)?;
     check_cancel(cancel)?;
@@ -430,7 +442,7 @@ mod tests {
                 100,
                 &CancellationToken::new()
             ),
-            Err(Error::Refused(_))
+            Err(ToolError::AccessRefused(_))
         ));
         assert_eq!(fs::read_to_string(&path).unwrap(), "external edit");
         assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);

@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use roomkit_tools_code::{CodeOutlineInput, CodeOutlineTool};
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
@@ -31,14 +31,14 @@ async fn shared_outline_contracts() {
         }
         let result = match serde_json::from_value::<CodeOutlineInput>(case["input"].clone()) {
             Ok(input) => tool.outline(input, &token).await,
-            Err(error) => Err(Error::InvalidInput(error.to_string())),
+            Err(error) => Err(ToolError::InvalidInput(error.to_string())),
         };
         let result = match result {
             Ok(output) => serde_json::to_value(output).unwrap(),
             Err(error) => json!({"error": match error {
-                Error::InvalidInput(_) => "invalid_input", Error::Refused(_) => "refused",
-                Error::LimitExceeded(_) => "limit", Error::Unsupported(_) => "unsupported",
-                Error::Cancelled => "cancelled", Error::Io {..} => "io", _ => "unknown",
+                ToolError::InvalidInput(_) => "invalid_input", ToolError::AccessRefused(_) => "refused",
+                ToolError::LimitExceeded(_) => "limit", ToolError::UnsupportedResource(_) => "unsupported",
+                ToolError::Cancelled => "cancelled", ToolError::Io {..} => "io", _ => "unknown",
             }}),
         };
         // Results name the file relative to the workspace, never by host path.

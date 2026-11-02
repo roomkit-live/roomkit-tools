@@ -1,6 +1,6 @@
 use std::fmt::Write as _;
 
-use roomkit_tools_core::{Error, Output};
+use roomkit_tools_core::{Output, ToolError};
 
 use crate::extract::{Control, SourceOutline};
 use crate::{CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage};
@@ -12,11 +12,11 @@ pub(crate) fn render(
     input: &CodeOutlineInput,
     limits: CodeOutlineLimits,
     control: &Control,
-) -> Result<Output<CodeOutlinePage>, Error> {
+) -> Result<Output<CodeOutlinePage>, ToolError> {
     let total = source.symbols.len();
     let offset = input.offset.get();
     if offset > total && !(offset == 1 && total == 0) {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "offset is beyond the last symbol".into(),
         ));
     }
@@ -62,7 +62,7 @@ pub(crate) fn render(
             output.data.symbols.pop();
             output.text.truncate(text_len);
             if output.data.symbols.is_empty() {
-                return Err(Error::LimitExceeded(
+                return Err(ToolError::LimitExceeded(
                     "one symbol exceeds max_output_bytes".into(),
                 ));
             }
@@ -72,7 +72,7 @@ pub(crate) fn render(
         }
     }
     if size(&output)? > limits.max_output_bytes {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "outline output exceeds max_output_bytes".into(),
         ));
     }
@@ -80,8 +80,8 @@ pub(crate) fn render(
     Ok(output)
 }
 
-fn size(output: &Output<CodeOutlinePage>) -> Result<usize, Error> {
+fn size(output: &Output<CodeOutlinePage>) -> Result<usize, ToolError> {
     serde_json::to_vec(output)
         .map(|value| value.len())
-        .map_err(|_| Error::Unsupported("outline output is not serializable".into()))
+        .map_err(|_| ToolError::UnsupportedResource("outline output is not serializable".into()))
 }

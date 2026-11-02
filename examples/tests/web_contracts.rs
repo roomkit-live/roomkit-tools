@@ -3,7 +3,7 @@
 
 #[path = "../../tests/support/web.rs"]
 mod web;
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_web::{WebFetchPolicy, WebFetchTool};
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
@@ -47,9 +47,9 @@ async fn shared_web_contracts() {
         let mut result = match result {
             Ok(value) => serde_json::to_value(value).unwrap(),
             Err(error) => json!({"error": match error {
-                Error::InvalidInput(_) => "invalid_input", Error::Refused(_) => "refused",
-                Error::LimitExceeded(_) => "limit", Error::Unsupported(_) => "unsupported",
-                Error::Cancelled => "cancelled", Error::Io { .. } => "io", _ => "unknown",
+                ToolError::InvalidInput(_) => "invalid_input", ToolError::AccessRefused(_) => "refused",
+                ToolError::LimitExceeded(_) => "limit", ToolError::UnsupportedResource(_) => "unsupported",
+                ToolError::Cancelled => "cancelled", ToolError::Io { .. } => "io", _ => "unknown",
             }}),
         };
         replace(&mut result, &server.origin, "$ORIGIN");

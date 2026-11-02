@@ -12,7 +12,7 @@ use std::path::Path;
 
 use globset::GlobSet;
 use regex::Regex;
-use roomkit_tools_core::{Error, Output};
+use roomkit_tools_core::{Output, ToolError};
 use tokio_util::sync::CancellationToken;
 
 use crate::ReadLine;
@@ -34,7 +34,10 @@ pub(crate) struct Search {
 }
 
 /// Scan the files in order until the page is full; blocking.
-pub(crate) fn run(search: Search, cancel: &CancellationToken) -> Result<Output<GrepPage>, Error> {
+pub(crate) fn run(
+    search: Search,
+    cancel: &CancellationToken,
+) -> Result<Output<GrepPage>, ToolError> {
     let Search {
         root,
         files,
@@ -85,28 +88,31 @@ fn text(bytes: &[u8]) -> Option<&str> {
         .filter(|source| !source.contains('\0'))
 }
 
-fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>, Error> {
-    let exceeded = || Error::LimitExceeded("grep exceeds max_file_bytes or max_total_bytes".into());
-    let info = std::fs::metadata(path).map_err(|source| Error::Io {
+fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>, ToolError> {
+    let exceeded =
+        || ToolError::LimitExceeded("grep exceeds max_file_bytes or max_total_bytes".into());
+    let info = std::fs::metadata(path).map_err(|source| ToolError::Io {
         operation: "inspect the search file",
         source,
     })?;
     if !info.is_file() {
-        return Err(Error::Unsupported("grep accepts regular files only".into()));
+        return Err(ToolError::UnsupportedResource(
+            "grep accepts regular files only".into(),
+        ));
     }
     let maximum = u64::try_from(maximum)
-        .map_err(|_| Error::InvalidInput("ingestion limit is too large".into()))?;
+        .map_err(|_| ToolError::InvalidInput("ingestion limit is too large".into()))?;
     if info.len() > maximum {
         return Err(exceeded());
     }
-    let file = File::open(path).map_err(|source| Error::Io {
+    let file = File::open(path).map_err(|source| ToolError::Io {
         operation: "open the search file",
         source,
     })?;
     let mut bytes = Vec::new();
     file.take(maximum + 1)
         .read_to_end(&mut bytes)
-        .map_err(|source| Error::Io {
+        .map_err(|source| ToolError::Io {
             operation: "read the search file",
             source,
         })?;
@@ -127,7 +133,7 @@ struct Lines<'a> {
 
 impl Lines<'_> {
     /// Push this file's matches; returns false once the page is full.
-    fn scan(&self, page: &mut Matches, cancel: &CancellationToken) -> Result<bool, Error> {
+    fn scan(&self, page: &mut Matches, cancel: &CancellationToken) -> Result<bool, ToolError> {
         let context = self.input.context_before;
         let mut preceding = VecDeque::with_capacity(context);
         let mut lines = self.source.lines().enumerate();
@@ -196,7 +202,7 @@ impl Matches {
         text: &str,
         before: &VecDeque<(usize, &str)>,
         after: impl Iterator<Item = (usize, &'a str)>,
-    ) -> Result<bool, Error> {
+    ) -> Result<bool, ToolError> {
         self.seen += 1;
         if self.seen < self.offset {
             return Ok(true);
@@ -222,9 +228,9 @@ impl Matches {
         false
     }
 
-    fn finish(self) -> Result<Output<GrepPage>, Error> {
+    fn finish(self) -> Result<Output<GrepPage>, ToolError> {
         if self.offset > self.seen && !(self.offset == 1 && self.seen == 0) {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "offset is beyond the last match".into(),
             ));
         }
@@ -277,10 +283,10 @@ fn clip_match(
     line: usize,
     text: &str,
     budget: usize,
-) -> Result<(String, GrepMatch), Error> {
+) -> Result<(String, GrepMatch), ToolError> {
     let prefix = format!("{path:?}:{line}: ");
     let available = budget.checked_sub(prefix.len() + 1).ok_or_else(|| {
-        Error::LimitExceeded("max_output_bytes cannot hold one match reference".into())
+        ToolError::LimitExceeded("max_output_bytes cannot hold one match reference".into())
     })?;
     let mut end = text.len().min(available);
     while !text.is_char_boundary(end) {
@@ -340,7 +346,7 @@ mod tests {
         };
         assert!(matches!(
             lines.scan(&mut page, &cancel),
-            Err(Error::Cancelled)
+            Err(ToolError::Cancelled)
         ));
         assert_eq!(page.data.matches, []);
     }

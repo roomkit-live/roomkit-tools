@@ -1,7 +1,7 @@
 //! Real network requests verify bounds, access scope and cancellation.
 #[path = "../../../tests/support/web.rs"]
 mod web;
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_web::{WebFetchInput, WebFetchLimits, WebFetchPolicy, WebFetchTool};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -87,7 +87,7 @@ async fn policy_and_invalid_input_refuse_before_network_effects() {
             &cancel
         )
         .await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     assert!(server.seen.lock().unwrap().is_empty());
 }
@@ -102,7 +102,7 @@ async fn blocked_redirect_does_not_reach_the_target() {
                 &CancellationToken::new()
             )
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(*server.seen.lock().unwrap(), ["/blocked"]);
 }
@@ -125,7 +125,7 @@ async fn cancellation_interrupts_a_body_read_and_another_call_still_works() {
     .await
     .unwrap();
     token.cancel();
-    assert!(matches!(task.await.unwrap(), Err(Error::Cancelled)));
+    assert!(matches!(task.await.unwrap(), Err(ToolError::Cancelled)));
     assert!(
         tool.fetch(
             WebFetchInput::new(format!("{}/json", server.origin)),

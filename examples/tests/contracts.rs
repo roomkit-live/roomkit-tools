@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::Duration;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
     DiffTool, EditTool, GlobTool, GrepTool, ListTool, MutationWorkspace, PatchTool, ReadTool,
     WriteTool,
@@ -23,9 +23,9 @@ use tokio_util::sync::CancellationToken;
 const FIXTURE: &str = include_str!("../../tests/fixtures/contracts.json");
 const OWNER: &str = "contract-host";
 
-fn input<T: DeserializeOwned>(arguments: &Value) -> Result<T, Error> {
+fn input<T: DeserializeOwned>(arguments: &Value) -> Result<T, ToolError> {
     serde_json::from_value(arguments.clone())
-        .map_err(|error| Error::InvalidInput(error.to_string()))
+        .map_err(|error| ToolError::InvalidInput(error.to_string()))
 }
 
 async fn invoke(
@@ -35,7 +35,7 @@ async fn invoke(
     outputs: Option<&OutputStore>,
     step: &Value,
     token: &CancellationToken,
-) -> Result<Value, Error> {
+) -> Result<Value, ToolError> {
     let arguments = &step["input"];
     macro_rules! call {
         ($tool:expr, $method:ident) => {
@@ -90,18 +90,20 @@ async fn invoke(
         "process_read" => process!(read),
         "process_write" => process!(write),
         "process_stop" => process!(stop),
-        name => Err(Error::InvalidInput(format!("unknown fixture tool: {name}"))),
+        name => Err(ToolError::InvalidInput(format!(
+            "unknown fixture tool: {name}"
+        ))),
     }
 }
 
-fn error_name(error: &Error) -> &str {
+fn error_name(error: &ToolError) -> &str {
     match error {
-        Error::InvalidInput(_) => "invalid_input",
-        Error::Refused(_) => "refused",
-        Error::LimitExceeded(_) => "limit",
-        Error::Unsupported(_) => "unsupported",
-        Error::Cancelled => "cancelled",
-        Error::Io { .. } => "io",
+        ToolError::InvalidInput(_) => "invalid_input",
+        ToolError::AccessRefused(_) => "refused",
+        ToolError::LimitExceeded(_) => "limit",
+        ToolError::UnsupportedResource(_) => "unsupported",
+        ToolError::Cancelled => "cancelled",
+        ToolError::Io { .. } => "io",
         _ => "unknown",
     }
 }

@@ -46,6 +46,9 @@ part of an existing published preview.
   another keeps only its text. Text format output keeps the same words; it no
   longer resolves link URLs it never shows, so a page is no longer refused in
   text format for the size of its expanded links.
+- Rust: the core error is `ToolError`, as in Python, and its variants
+  `Refused` and `Unsupported` are `AccessRefused` and `UnsupportedResource`,
+  as Python's `AccessRefusedError` and `UnsupportedResourceError`.
 
 ### Added
 

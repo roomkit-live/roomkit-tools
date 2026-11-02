@@ -8,7 +8,7 @@ mod types;
 mod validation;
 #[cfg(feature = "files")]
 pub use files::{FileDocs, FileDocsLimits};
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Serialize, de::DeserializeOwned};
 use std::{fmt::Debug, future::Future, pin::Pin, sync::Arc};
@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 pub use types::*;
 
 /// Object-safe async backend response.
-pub type DocsFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, Error>> + Send + 'a>>;
+pub type DocsFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ToolError>> + Send + 'a>>;
 /// Host-configured documentation source. Never infer grants from document text.
 /// Implementations bound work, honour cancellation and supply complete provenance.
 pub trait DocsBackend: Debug + Send + Sync {
@@ -44,37 +44,38 @@ pub trait DocsContract: Serialize + DeserializeOwned + JsonSchema {
     /// Check bounds and structural consistency.
     /// # Errors
     /// Rejects invalid values or oversized records.
-    fn validate(&self) -> Result<(), Error>;
+    fn validate(&self) -> Result<(), ToolError>;
 }
 /// Decode a Rust input or result and validate its contract.
 /// # Errors
 /// Rejects malformed/unknown fields and invalid or oversized values.
-pub fn decode<T: DocsContract>(json: &str) -> Result<T, Error> {
+pub fn decode<T: DocsContract>(json: &str) -> Result<T, ToolError> {
     if json.len() > 256 * 1024 {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "documentation JSON exceeds 256 KiB".into(),
         ));
     }
-    let value: T = serde_json::from_str(json).map_err(|e| Error::InvalidInput(e.to_string()))?;
+    let value: T =
+        serde_json::from_str(json).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
     value.validate()?;
     Ok(value)
 }
 /// Produce the common envelope without inventing a summary.
 /// # Errors
 /// Rejects invalid results or more than 128 KiB of serialized data.
-pub fn render<T: DocsContract>(data: T) -> Result<Output<T>, Error> {
+pub fn render<T: DocsContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
-    let text = serde_json::to_string(&data).map_err(|e| Error::InvalidInput(e.to_string()))?;
+    let text = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
     if text.len() > 128 * 1024 {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "documentation result exceeds 128 KiB; request a smaller page".into(),
         ));
     }
     Ok(Output::new(data, text))
 }
-pub(crate) fn cancelled(token: &CancellationToken) -> Result<(), Error> {
+pub(crate) fn cancelled(token: &CancellationToken) -> Result<(), ToolError> {
     if token.is_cancelled() {
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     } else {
         Ok(())
     }
@@ -102,7 +103,7 @@ macro_rules! tool {
                 &self,
                 input: $input,
                 cancel: &CancellationToken,
-            ) -> Result<Output<$output>, Error> {
+            ) -> Result<Output<$output>, ToolError> {
                 input.validate()?;
                 cancelled(cancel)?;
                 let data = self.backend.$method(&input, cancel).await?;

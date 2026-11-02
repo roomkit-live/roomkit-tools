@@ -4,7 +4,7 @@ use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::{Child, ChildStderr, ChildStdout};
 use tokio::sync::{Mutex, watch};
@@ -30,7 +30,7 @@ pub(crate) fn launch(
     limits: ProcessLimits,
     stop: CancellationToken,
     outputs: Option<&crate::OutputStore>,
-) -> Result<(Arc<Entry>, ProcessStatus), Error> {
+) -> Result<(Arc<Entry>, ProcessStatus), ToolError> {
     let shell =
         crate::unix::shell_command(request.command, request.cwd, request.env, Stdio::piped());
     let spawned = crate::unix::spawn(shell, "spawn persistent process")?;
@@ -45,7 +45,7 @@ fn adopt(
     limits: ProcessLimits,
     stop: CancellationToken,
     outputs: Option<&crate::OutputStore>,
-) -> Result<(Arc<Entry>, ProcessStatus), Error> {
+) -> Result<(Arc<Entry>, ProcessStatus), ToolError> {
     let Launch { owner, command, .. } = *request;
     let stdout = child.stdout.take().ok_or_else(missing_pipe)?;
     let stderr = child.stderr.take().ok_or_else(missing_pipe)?;
@@ -84,8 +84,8 @@ fn adopt(
     Ok((entry, status))
 }
 
-fn missing_pipe() -> Error {
-    Error::Io {
+fn missing_pipe() -> ToolError {
+    ToolError::Io {
         operation: "open process pipe",
         source: std::io::Error::other("missing pipe"),
     }

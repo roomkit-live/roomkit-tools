@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 
 use roomkit_tools_agents::*;
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 
 #[derive(Debug, Default)]
 struct Backend(Mutex<Vec<String>>);
@@ -30,7 +30,7 @@ impl AgentBackend for Backend {
         Box::pin(async move {
             self.0
                 .lock()
-                .map_err(|_| Error::Refused("test backend poisoned".into()))?
+                .map_err(|_| ToolError::AccessRefused("test backend poisoned".into()))?
                 .push(format!("{}:{}", scope.room_id, input.profile));
             Ok(receipt())
         })
@@ -76,7 +76,7 @@ async fn selected_tools_validate_before_backend_and_share_scope() {
     };
     assert!(matches!(
         tool.call(&scope, &input).await,
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     assert!(backend.0.lock().unwrap().is_empty());
     input.task = "Read the source".into();
@@ -116,7 +116,7 @@ fn json_rejects_host_scope_and_limits_utf8_bytes() {
         profile: "reader".into(),
         task: "é".repeat(8193),
     };
-    assert!(matches!(input.validate(), Err(Error::LimitExceeded(_))));
+    assert!(matches!(input.validate(), Err(ToolError::LimitExceeded(_))));
     let mut output = receipt();
     output.result = Some("invented while running".into());
     assert!(render(output).is_err());
@@ -156,7 +156,7 @@ async fn extensions_fail_explicitly_for_older_backends() {
                 }
             )
             .await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     assert!(matches!(
         AgentSendTool::new(backend)
@@ -168,7 +168,7 @@ async fn extensions_fail_explicitly_for_older_backends() {
                 }
             )
             .await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     assert!(
         decode::<FollowupInput>(r#"{"agent_id":"a1","task":"Continue","profile":"other"}"#)
@@ -180,7 +180,7 @@ async fn extensions_fail_explicitly_for_older_backends() {
             message: "é".repeat(4097)
         }
         .validate(),
-        Err(Error::LimitExceeded(_))
+        Err(ToolError::LimitExceeded(_))
     ));
     let mut sent = SendResult {
         agent_id: "a1".into(),

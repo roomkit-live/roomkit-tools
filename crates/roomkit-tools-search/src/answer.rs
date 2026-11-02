@@ -1,5 +1,5 @@
 use crate::{SearchCitation, SearchHit, SearchPayload, SearchResult};
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
@@ -9,10 +9,10 @@ pub(crate) fn bound_sources(
     sources: &mut Vec<SearchHit>,
     citations: &mut [SearchCitation],
     limit: usize,
-) -> Result<usize, Error> {
+) -> Result<usize, ToolError> {
     let mut keep: BTreeSet<usize> = citations.iter().map(|c| c.source_index).collect();
     if keep.len() > limit {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "cited sources exceed limit; increase limit rather than dropping citations".into(),
         ));
     }
@@ -31,7 +31,7 @@ pub(crate) fn bound_sources(
     for citation in citations {
         citation.source_index = *remap
             .get(&citation.source_index)
-            .ok_or_else(|| Error::Unsupported("invalid citation source".into()))?;
+            .ok_or_else(|| ToolError::UnsupportedResource("invalid citation source".into()))?;
     }
     let mut index = 0;
     sources.retain(|_| {
@@ -42,7 +42,7 @@ pub(crate) fn bound_sources(
     Ok(omitted)
 }
 
-pub(crate) fn render(data: &SearchResult) -> Result<String, Error> {
+pub(crate) fn render(data: &SearchResult) -> Result<String, ToolError> {
     let SearchPayload::Answer {
         answer,
         sources,
@@ -50,7 +50,7 @@ pub(crate) fn render(data: &SearchResult) -> Result<String, Error> {
     } = &data.response.payload
     else {
         return serde_json::to_string(data)
-            .map_err(|_| Error::Unsupported("invalid search output".into()));
+            .map_err(|_| ToolError::UnsupportedResource("invalid search output".into()));
     };
     let mut text = format!(
         "provider={}, partial={}, omitted_results={}\n\n",
@@ -93,13 +93,13 @@ pub(crate) fn render(data: &SearchResult) -> Result<String, Error> {
     }
     Ok(text)
 }
-fn link(url: &str) -> Result<String, Error> {
+fn link(url: &str) -> Result<String, ToolError> {
     Ok(url::Url::parse(url)
         .map_err(|_| invalid())?
         .to_string()
         .replace('<', "%3C")
         .replace('>', "%3E"))
 }
-fn invalid() -> Error {
-    Error::Unsupported("invalid search answer".into())
+fn invalid() -> ToolError {
+    ToolError::UnsupportedResource("invalid search answer".into())
 }

@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use roomkit_tools_core::Error;
 use roomkit_tools_fs::{
     EditInput, EditLimits, EditTool, MutationWorkspace, PatchInput, PatchLimits, PatchTool,
     WriteInput, WriteLimits, WriteTool,
@@ -74,7 +73,7 @@ impl PythonWorkspace {
 }
 
 impl PythonWorkspace {
-    async fn resolve(&self) -> Result<MutationWorkspace, Error> {
+    async fn resolve(&self) -> Result<MutationWorkspace, roomkit_tools_core::ToolError> {
         // Unlike independent lazy read tools, concurrent mutation constructors
         // must resolve to the same lock. Cancelled/failed initialization can be
         // retried; no Python task or lock is bound to a particular asyncio loop.
@@ -110,7 +109,7 @@ macro_rules! mutation_binding {
                     let options: $options = serde_json::from_str(&options_json)
                         .map_err(|error| InvalidInputError::new_err(error.to_string()))?;
                     if token.is_cancelled() {
-                        return Err(tool_error(&Error::Cancelled));
+                        return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
                     }
                     let workspace = workspace
                         .resolve()
@@ -120,7 +119,7 @@ macro_rules! mutation_binding {
                         .with_limits(options.limits())
                         .map_err(|error| tool_error(&error))?;
                     if token.is_cancelled() {
-                        return Err(tool_error(&Error::Cancelled));
+                        return Err(tool_error(&roomkit_tools_core::ToolError::Cancelled));
                     }
                     Ok(Self { tool })
                 })

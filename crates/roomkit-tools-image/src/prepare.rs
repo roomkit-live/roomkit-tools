@@ -10,7 +10,7 @@ use image::codecs::{
 };
 use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageFormat, Limits};
-use roomkit_tools_core::{Error, Output};
+use roomkit_tools_core::{Output, ToolError};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
@@ -22,11 +22,13 @@ pub(crate) struct Control {
 }
 
 impl Control {
-    pub(crate) fn check(&self) -> Result<(), Error> {
+    pub(crate) fn check(&self) -> Result<(), ToolError> {
         if self.token.is_cancelled() {
-            Err(Error::Cancelled)
+            Err(ToolError::Cancelled)
         } else if Instant::now() >= self.deadline {
-            Err(Error::LimitExceeded("view_image deadline exceeded".into()))
+            Err(ToolError::LimitExceeded(
+                "view_image deadline exceeded".into(),
+            ))
         } else {
             Ok(())
         }
@@ -37,12 +39,12 @@ impl Control {
     clippy::needless_pass_by_value,
     reason = "map_err owns decoder errors; diagnostic details are deliberately discarded"
 )]
-pub(crate) fn image_error(error: image::ImageError) -> Error {
+pub(crate) fn image_error(error: image::ImageError) -> ToolError {
     if matches!(error, image::ImageError::Limits(_)) {
-        Error::LimitExceeded("image decoder resource limit exceeded".into())
+        ToolError::LimitExceeded("image decoder resource limit exceeded".into())
     } else {
         // Decoder details may include arbitrary file metadata.
-        Error::Unsupported("invalid or unsupported image data".into())
+        ToolError::UnsupportedResource("invalid or unsupported image data".into())
     }
 }
 
@@ -53,11 +55,11 @@ pub(crate) fn image_error(error: image::ImageError) -> Error {
 pub(crate) fn decoder<'a>(
     bytes: &'a [u8],
     bounds: &ViewImageLimits,
-) -> Result<(ImageMime, Box<dyn ImageDecoder + 'a>), Error> {
+) -> Result<(ImageMime, Box<dyn ImageDecoder + 'a>), ToolError> {
     let mut limits = Limits::default();
     limits.max_image_width = Some(
         u32::try_from(bounds.max_dimension)
-            .map_err(|_| Error::InvalidInput("max_dimension is too large".into()))?,
+            .map_err(|_| ToolError::InvalidInput("max_dimension is too large".into()))?,
     );
     limits.max_image_height = limits.max_image_width;
     limits.max_alloc = Some(bounds.max_decode_bytes as u64);
@@ -67,7 +69,7 @@ pub(crate) fn decoder<'a>(
             ImageFormat::Png => {
                 let png = PngDecoder::with_limits(cursor, limits.clone()).map_err(image_error)?;
                 if png.is_apng().map_err(image_error)? {
-                    return Err(Error::Unsupported(
+                    return Err(ToolError::UnsupportedResource(
                         "animated PNG is not supported; select a static frame first".into(),
                     ));
                 }
@@ -80,14 +82,14 @@ pub(crate) fn decoder<'a>(
             ImageFormat::WebP => {
                 let webp = WebPDecoder::new(cursor).map_err(image_error)?;
                 if webp.has_animation() {
-                    return Err(Error::Unsupported(
+                    return Err(ToolError::UnsupportedResource(
                         "animated WebP is not supported; select a static frame first".into(),
                     ));
                 }
                 (ImageMime::Webp, Box::new(webp))
             }
             _ => {
-                return Err(Error::Unsupported(
+                return Err(ToolError::UnsupportedResource(
                     "image input must be a static PNG, JPEG or WebP".into(),
                 ));
             }
@@ -95,15 +97,15 @@ pub(crate) fn decoder<'a>(
     decoder.set_limits(limits).map_err(image_error)?;
     let (width, height) = decoder.dimensions();
     if width == 0 || height == 0 {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "image dimensions must be positive".into(),
         ));
     }
     if u64::from(width) * u64::from(height) > bounds.max_pixels as u64 {
-        return Err(Error::LimitExceeded("image exceeds max_pixels".into()));
+        return Err(ToolError::LimitExceeded("image exceeds max_pixels".into()));
     }
     if decoder.total_bytes() > bounds.max_decode_bytes as u64 {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "decoded pixels exceed max_decode_bytes".into(),
         ));
     }
@@ -138,7 +140,7 @@ pub(crate) fn prepare(
     bytes: &[u8],
     limits: ViewImageLimits,
     control: &Control,
-) -> Result<Output<ViewImageResult>, Error> {
+) -> Result<Output<ViewImageResult>, ToolError> {
     control.check()?;
     let (mime, mut reader) = decoder(bytes, &limits)?;
     let (original_width, original_height) = reader.dimensions();
@@ -148,7 +150,7 @@ pub(crate) fn prepare(
     control.check()?;
     decoded.apply_orientation(orientation);
     let edge = u32::try_from(limits.max_edge)
-        .map_err(|_| Error::InvalidInput("max_edge is too large".into()))?;
+        .map_err(|_| ToolError::InvalidInput("max_edge is too large".into()))?;
     let resized = decoded.width().max(decoded.height()) > edge;
     if resized {
         decoded = decoded.resize(edge, edge, image::imageops::FilterType::Triangle);
@@ -169,7 +171,7 @@ pub(crate) fn prepare(
     let encoded = normalized.write_with_encoder(PngEncoder::new(&mut output));
     control.check()?;
     if output.exceeded {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound".into(),
         ));
     }

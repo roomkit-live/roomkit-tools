@@ -2,7 +2,7 @@
 use std::num::NonZeroUsize;
 
 use roomkit_tools_code::{CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlineTool};
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test]
@@ -33,7 +33,7 @@ async fn revisions_detect_changes_and_output_is_bounded_without_losing_symbols()
     std::fs::write(path, source.replace("return 1", "return 3")).unwrap();
     assert!(matches!(
         tool.outline(input, &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
 }
 
@@ -47,24 +47,24 @@ async fn explicit_override_does_not_bypass_path_or_regular_text_checks() {
     let absolute = outside.path().join("outside.py").display().to_string();
     assert!(matches!(
         tool.outline(CodeOutlineInput::new(absolute), &token).await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
     std::fs::write(root.path().join("invalid.py"), [0xff, 0xfe]).unwrap();
     assert!(matches!(
         tool.outline(CodeOutlineInput::new("invalid.py"), &token)
             .await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     let mut directory = CodeOutlineInput::new(".");
     directory.language = Some(CodeLanguage::Python);
     assert!(matches!(
         tool.outline(directory, &token).await,
-        Err(Error::Unsupported(_))
+        Err(ToolError::UnsupportedResource(_))
     ));
     assert!(matches!(
         tool.outline(CodeOutlineInput::new("missing.py"), &token)
             .await,
-        Err(Error::Io { .. })
+        Err(ToolError::Io { .. })
     ));
 }
 
@@ -83,7 +83,7 @@ async fn sources_above_512_kib_are_refused_by_default_before_parsing() {
         .outline(CodeOutlineInput::new("large.py"), &token)
         .await;
     assert!(
-        matches!(&refused, Err(Error::LimitExceeded(message)) if message.contains("max_file_bytes")),
+        matches!(&refused, Err(ToolError::LimitExceeded(message)) if message.contains("max_file_bytes")),
         "{refused:?}"
     );
     let accepted = tool
@@ -130,7 +130,7 @@ async fn outside_paths_are_refused_whether_or_not_they_exist() {
             .outline(CodeOutlineInput::new(path.clone()), &token)
             .await;
         assert!(
-            matches!(result, Err(Error::Refused(_))),
+            matches!(result, Err(ToolError::AccessRefused(_))),
             "{path}: {result:?}"
         );
     }
@@ -160,7 +160,7 @@ async fn symlinks_must_resolve_to_regular_files_inside_the_root() {
     assert!(matches!(
         tool.outline(CodeOutlineInput::new("escape.py"), &token)
             .await,
-        Err(Error::Refused(_))
+        Err(ToolError::AccessRefused(_))
     ));
 }
 
@@ -182,7 +182,7 @@ async fn paths_beneath_a_symlink_to_outside_are_refused_whether_or_not_they_exis
     ] {
         let result = tool.outline(CodeOutlineInput::new(path), &token).await;
         assert!(
-            matches!(result, Err(Error::Refused(_))),
+            matches!(result, Err(ToolError::AccessRefused(_))),
             "{path}: {result:?}"
         );
     }
@@ -197,20 +197,20 @@ async fn invalid_limits_and_cancellation_are_explicit_and_reusable() {
     limits.max_file_bytes = 0;
     assert!(matches!(
         tool.clone().with_limits(limits),
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     limits = CodeOutlineLimits::default();
     limits.default_timeout_ms = limits.max_timeout_ms + 1;
     assert!(matches!(
         tool.clone().with_limits(limits),
-        Err(Error::InvalidInput(_))
+        Err(ToolError::InvalidInput(_))
     ));
     let token = CancellationToken::new();
     token.cancel();
     assert!(matches!(
         tool.outline(CodeOutlineInput::new("valid.rs"), &token)
             .await,
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     ));
     let output = tool
         .outline(CodeOutlineInput::new("valid.rs"), &CancellationToken::new())

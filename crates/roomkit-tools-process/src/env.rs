@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 
 /// Host variables passed to commands by default, when the host has them set.
 pub const DEFAULT_INHERITED_ENV: &[&str] = &[
@@ -43,15 +43,15 @@ impl CommandEnv {
     /// # Errors
     /// Rejects an empty name, a name containing `=` or NUL, and a value
     /// containing NUL.
-    pub fn validate(&self) -> Result<(), Error> {
+    pub fn validate(&self) -> Result<(), ToolError> {
         let mut names = self.inherit_env.iter().chain(self.env.keys());
         if names.any(|name| name.is_empty() || name.contains(['=', '\0'])) {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "environment names must be nonempty, without '=' or NUL".into(),
             ));
         }
         if self.env.values().any(|value| value.contains('\0')) {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "environment values must not contain NUL".into(),
             ));
         }

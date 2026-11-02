@@ -1,6 +1,6 @@
 use super::{
-    BackendOutput, Error, HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, SearchInput,
-    Transport, credential, header, invalid, mime,
+    BackendOutput, HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, SearchInput,
+    ToolError, Transport, credential, header, invalid, mime,
 };
 use crate::SearchHit;
 use serde_json::{Value, json};
@@ -23,7 +23,7 @@ impl ExaSearch {
     /// Construct with an optional explicit API key; no environment lookup or I/O.
     /// # Errors
     /// Rejects malformed credentials or invalid host transport configuration.
-    pub fn new(api_key: Option<&str>, config: SearchHttpConfig) -> Result<Self, Error> {
+    pub fn new(api_key: Option<&str>, config: SearchHttpConfig) -> Result<Self, ToolError> {
         let mut headers = HeaderMap::new();
         if let Some(key) = api_key {
             headers.insert("x-api-key", credential(key, false)?);
@@ -53,7 +53,7 @@ impl SearchBackend for ExaSearch {
         Box::pin(self.transport.post(json!({"jsonrpc":"2.0", "id":1, "method":"tools/call", "params":{"name":"web_search_exa", "arguments":{"query":input.query,"numResults":input.limit}}}), move |bytes, content_type| decode(bytes, content_type, requested), cancel))
     }
 }
-fn decode(bytes: &[u8], content_type: &str, requested: usize) -> Result<BackendOutput, Error> {
+fn decode(bytes: &[u8], content_type: &str, requested: usize) -> Result<BackendOutput, ToolError> {
     let messages: Vec<Value> = if mime(content_type).eq_ignore_ascii_case("application/json") {
         vec![serde_json::from_slice(bytes).map_err(|_| invalid())?]
     } else if mime(content_type).eq_ignore_ascii_case("text/event-stream") {
@@ -96,7 +96,7 @@ fn decode(bytes: &[u8], content_type: &str, requested: usize) -> Result<BackendO
             return Err(invalid());
         }
         if message.get("error").is_some() {
-            return Err(Error::Unsupported("Exa JSON-RPC error".into()));
+            return Err(ToolError::UnsupportedResource("Exa JSON-RPC error".into()));
         }
         result = Some(message.get("result").cloned().ok_or_else(invalid)?);
     }
@@ -105,7 +105,7 @@ fn decode(bytes: &[u8], content_type: &str, requested: usize) -> Result<BackendO
         .get("isError")
         .is_some_and(|v| v != &Value::Bool(false))
     {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "Exa search tool reported an error".into(),
         ));
     }
@@ -130,7 +130,7 @@ fn decode(bytes: &[u8], content_type: &str, requested: usize) -> Result<BackendO
     }
     parse_text(&texts.join("\n\n"), requested)
 }
-fn parse_text(text: &str, requested: usize) -> Result<BackendOutput, Error> {
+fn parse_text(text: &str, requested: usize) -> Result<BackendOutput, ToolError> {
     let mut text = text.trim();
     let mut notices = Vec::new();
     while let Some(note) = text.strip_prefix("Note: ") {
@@ -179,7 +179,7 @@ struct Records {
 
 /// Split the result text into records. The first record must start with a
 /// header; format changes fail explicitly.
-fn records(text: &str) -> Result<Records, Error> {
+fn records(text: &str) -> Result<Records, ToolError> {
     let mut records = Records {
         hits: Vec::new(),
         rejected: 0,

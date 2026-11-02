@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 
 use crate::paths::Root;
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -107,7 +107,7 @@ impl ReadTool {
     /// # Errors
     /// Returns an I/O failure when the root cannot be resolved, or invalid
     /// input when it is not a directory.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         let root = Root::new(root).await?;
         Ok(Self {
             root,
@@ -120,13 +120,13 @@ impl ReadTool {
     /// # Errors
     /// Every bound must be positive and the ingestion limit must fit in `u64`
     /// with room for one extra byte to detect a file growing during the read.
-    pub fn with_limits(mut self, limits: ReadLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: ReadLimits) -> Result<Self, ToolError> {
         if limits.max_file_bytes == 0
             || limits.max_output_bytes == 0
             || limits.max_lines == 0
             || u64::try_from(limits.max_file_bytes).map_or(true, |n| n == u64::MAX)
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "read limits must be positive and representable".into(),
             ));
         }
@@ -156,29 +156,33 @@ impl ReadTool {
         &self,
         input: ReadInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<ReadPage>, Error> {
+    ) -> Result<Output<ReadPage>, ToolError> {
         tokio::select! {
             biased;
-            () = cancel.cancelled() => Err(Error::Cancelled),
+            () = cancel.cancelled() => Err(ToolError::Cancelled),
             result = self.read_file(input) => result,
         }
     }
 
-    async fn read_file(&self, input: ReadInput) -> Result<Output<ReadPage>, Error> {
+    async fn read_file(&self, input: ReadInput) -> Result<Output<ReadPage>, ToolError> {
         let path = self.root.resolve(&input.path).await?;
-        let info = fs::metadata(&path).await.map_err(|source| Error::Io {
+        let info = fs::metadata(&path).await.map_err(|source| ToolError::Io {
             operation: "inspect the file",
             source,
         })?;
         if !info.is_file() {
-            return Err(Error::Unsupported("read accepts regular files only".into()));
+            return Err(ToolError::UnsupportedResource(
+                "read accepts regular files only".into(),
+            ));
         }
         let maximum = u64::try_from(self.limits.max_file_bytes)
-            .map_err(|_| Error::InvalidInput("ingestion limit is too large".into()))?;
+            .map_err(|_| ToolError::InvalidInput("ingestion limit is too large".into()))?;
         if info.len() > maximum {
-            return Err(Error::LimitExceeded("file exceeds max_file_bytes".into()));
+            return Err(ToolError::LimitExceeded(
+                "file exceeds max_file_bytes".into(),
+            ));
         }
-        let file = File::open(&path).await.map_err(|source| Error::Io {
+        let file = File::open(&path).await.map_err(|source| ToolError::Io {
             operation: "open the file",
             source,
         })?;
@@ -192,7 +196,7 @@ async fn scan(
     path: String,
     input: &ReadInput,
     limits: ReadLimits,
-) -> Result<Output<ReadPage>, Error> {
+) -> Result<Output<ReadPage>, ToolError> {
     let mut page = Page::new(input, limits);
     let mut hash = Sha256::new();
     let mut buffer = vec![0; READ_CHUNK_BYTES];
@@ -203,29 +207,37 @@ async fn scan(
         let count = reader
             .read(buffer.split_at_mut(pending).1)
             .await
-            .map_err(|source| Error::Io {
+            .map_err(|source| ToolError::Io {
                 operation: "read the file",
                 source,
             })?;
         if count > limits.max_file_bytes - ingested {
-            return Err(Error::LimitExceeded("file exceeds max_file_bytes".into()));
+            return Err(ToolError::LimitExceeded(
+                "file exceeds max_file_bytes".into(),
+            ));
         }
         ingested += count;
         let length = pending + count;
         let bytes = buffer.split_at(length).0;
         hash.update(bytes.split_at(pending).1);
         if bytes.contains(&0) {
-            return Err(Error::Unsupported("file contains binary NUL bytes".into()));
+            return Err(ToolError::UnsupportedResource(
+                "file contains binary NUL bytes".into(),
+            ));
         }
         let (text, complete) = match std::str::from_utf8(bytes) {
             Ok(text) => (text, length),
             Err(error) if error.error_len().is_none() && count > 0 => {
                 let complete = error.valid_up_to();
                 let text = std::str::from_utf8(bytes.split_at(complete).0)
-                    .map_err(|_| Error::Unsupported("file is not UTF-8 text".into()))?;
+                    .map_err(|_| ToolError::UnsupportedResource("file is not UTF-8 text".into()))?;
                 (text, complete)
             }
-            Err(_) => return Err(Error::Unsupported("file is not UTF-8 text".into())),
+            Err(_) => {
+                return Err(ToolError::UnsupportedResource(
+                    "file is not UTF-8 text".into(),
+                ));
+            }
         };
         if !text.is_empty() {
             let text = if first {
@@ -282,7 +294,7 @@ impl Page {
         }
     }
 
-    fn push(&mut self, text: &str) -> Result<(), Error> {
+    fn push(&mut self, text: &str) -> Result<(), ToolError> {
         for part in text.split_inclusive('\n') {
             self.line_open = true;
             let fragment = part.strip_suffix('\n').unwrap_or(part);
@@ -310,7 +322,7 @@ impl Page {
         Ok(())
     }
 
-    fn end_line(&mut self) -> Result<(), Error> {
+    fn end_line(&mut self) -> Result<(), ToolError> {
         if self.number >= self.offset && self.next_offset.is_none() {
             let prefix = format!("{}: ", self.number);
             let size = prefix
@@ -319,7 +331,7 @@ impl Page {
                 .saturating_add(1);
             if self.oversized || size > self.bytes - self.text.len() {
                 if self.lines.is_empty() {
-                    return Err(Error::LimitExceeded(
+                    return Err(ToolError::LimitExceeded(
                         "one line exceeds max_output_bytes".into(),
                     ));
                 }
@@ -338,19 +350,18 @@ impl Page {
         self.oversized = false;
         self.line_open = false;
         self.total = self.number;
-        self.number = self
-            .number
-            .checked_add(1)
-            .ok_or_else(|| Error::LimitExceeded("file has too many lines to represent".into()))?;
+        self.number = self.number.checked_add(1).ok_or_else(|| {
+            ToolError::LimitExceeded("file has too many lines to represent".into())
+        })?;
         Ok(())
     }
 
-    fn finish(mut self, path: String, revision: String) -> Result<Output<ReadPage>, Error> {
+    fn finish(mut self, path: String, revision: String) -> Result<Output<ReadPage>, ToolError> {
         if self.line_open {
             self.end_line()?;
         }
         if self.offset > self.total && !(self.offset == 1 && self.total == 0) {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "offset is beyond the end of the file".into(),
             ));
         }
@@ -465,7 +476,7 @@ mod tests {
                         ReadLimits::default(),
                     )
                     .await,
-                    Err(Error::Unsupported(_))
+                    Err(ToolError::UnsupportedResource(_))
                 ));
             }
         }
@@ -488,7 +499,7 @@ mod tests {
                 limits,
             )
             .await,
-            Err(Error::LimitExceeded(_))
+            Err(ToolError::LimitExceeded(_))
         ));
     }
 
@@ -516,10 +527,10 @@ mod tests {
             .await;
             cancel.cancel();
             let result = tokio::select! { biased;
-                () = cancel.cancelled() => Err(Error::Cancelled),
+                () = cancel.cancelled() => Err(ToolError::Cancelled),
                 result = scan => result,
             };
-            assert!(matches!(result, Err(Error::Cancelled)));
+            assert!(matches!(result, Err(ToolError::Cancelled)));
         }
         assert_eq!(reader.bytes, b"b\nc\n");
     }

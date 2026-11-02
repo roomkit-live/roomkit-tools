@@ -1,6 +1,6 @@
 use super::{
-    BackendOutput, Error, HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, SearchInput,
-    Transport, credential, header, invalid, mime,
+    BackendOutput, HeaderMap, SearchBackend, SearchFuture, SearchHttpConfig, SearchInput,
+    ToolError, Transport, credential, header, invalid, mime,
 };
 use crate::SearchHit;
 use serde::Deserialize;
@@ -16,7 +16,7 @@ impl OllamaSearch {
     /// Construct with an explicit Ollama API key. No environment lookup or I/O.
     /// # Errors
     /// Rejects malformed/empty credentials or invalid host transport configuration.
-    pub fn new(api_key: &str, config: SearchHttpConfig) -> Result<Self, Error> {
+    pub fn new(api_key: &str, config: SearchHttpConfig) -> Result<Self, ToolError> {
         let mut headers = HeaderMap::new();
         headers.insert(header::AUTHORIZATION, credential(api_key, true)?);
         headers.insert(
@@ -42,7 +42,7 @@ impl SearchBackend for OllamaSearch {
     ) -> SearchFuture<'a> {
         Box::pin(async move {
             if input.limit > 10 {
-                return Err(Error::InvalidInput(
+                return Err(ToolError::InvalidInput(
                     "Ollama supports at most 10 results".into(),
                 ));
             }
@@ -66,7 +66,7 @@ struct Hit {
     url: String,
     content: String,
 }
-fn decode(bytes: &[u8], content_type: &str) -> Result<BackendOutput, Error> {
+fn decode(bytes: &[u8], content_type: &str) -> Result<BackendOutput, ToolError> {
     if !mime(content_type).eq_ignore_ascii_case("application/json") {
         return Err(invalid());
     }

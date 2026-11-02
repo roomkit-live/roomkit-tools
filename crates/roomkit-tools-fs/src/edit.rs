@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -90,7 +90,7 @@ impl EditTool {
     ///
     /// # Errors
     /// Returns invalid input or I/O for an invalid root.
-    pub async fn new(root: impl AsRef<Path>) -> Result<Self, Error> {
+    pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
         Ok(Self::from_workspace(MutationWorkspace::new(root).await?))
     }
 
@@ -106,7 +106,7 @@ impl EditTool {
     ///
     /// # Errors
     /// Returns invalid input for a zero or unrepresentable bound.
-    pub fn with_limits(mut self, limits: EditLimits) -> Result<Self, Error> {
+    pub fn with_limits(mut self, limits: EditLimits) -> Result<Self, ToolError> {
         mutation::validate_limit(limits.max_file_bytes)?;
         self.limits = limits;
         Ok(self)
@@ -137,7 +137,7 @@ impl EditTool {
         &self,
         input: EditInput,
         cancel: &CancellationToken,
-    ) -> Result<Output<EditResult>, Error> {
+    ) -> Result<Output<EditResult>, ToolError> {
         let maximum = self.limits.max_file_bytes;
         self.workspace
             .run(cancel, move |root, cancel| {
@@ -153,7 +153,7 @@ fn apply(
     input: &EditInput,
     maximum: usize,
     cancel: &CancellationToken,
-) -> Result<Output<EditResult>, Error> {
+) -> Result<Output<EditResult>, ToolError> {
     check_arguments(input, maximum)?;
     let path = mutation::destination(root, &input.path)?;
     let relative = root.relative(&path)?;
@@ -186,16 +186,16 @@ fn apply(
 }
 
 /// Refuse an empty `old_text` and texts that exceed the file bound.
-fn check_arguments(input: &EditInput, maximum: usize) -> Result<(), Error> {
+fn check_arguments(input: &EditInput, maximum: usize) -> Result<(), ToolError> {
     if input.old_text.is_empty() {
-        return Err(Error::InvalidInput("old_text must not be empty".into()));
+        return Err(ToolError::InvalidInput("old_text must not be empty".into()));
     }
     mutation::bounded_text(&input.old_text, maximum)?;
     mutation::bounded_text(&input.new_text, maximum)
 }
 
 /// The file to edit, which must exist.
-fn existing(path: &Path, maximum: usize) -> Result<mutation::Snapshot, Error> {
+fn existing(path: &Path, maximum: usize) -> Result<mutation::Snapshot, ToolError> {
     mutation::snapshot(path, maximum)?.ok_or_else(|| {
         mutation::io(
             "open the edit file",
@@ -206,15 +206,15 @@ fn existing(path: &Path, maximum: usize) -> Result<mutation::Snapshot, Error> {
 
 /// Occurrences of `old_text`: at least one, and exactly one unless
 /// `replace_all`.
-fn occurrences(source: &str, old_text: &str, replace_all: bool) -> Result<usize, Error> {
+fn occurrences(source: &str, old_text: &str, replace_all: bool) -> Result<usize, ToolError> {
     let count = source.matches(old_text).count();
     if count == 0 {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "old_text was not found; read the file again".into(),
         ));
     }
     if count > 1 && !replace_all {
-        return Err(Error::InvalidInput(format!(
+        return Err(ToolError::InvalidInput(format!(
             "old_text matches {count} times; use a unique passage or replace_all: true"
         )));
     }
@@ -228,7 +228,7 @@ fn edited_size(
     new_text: usize,
     count: usize,
     maximum: usize,
-) -> Result<usize, Error> {
+) -> Result<usize, ToolError> {
     source
         .checked_sub(old_text.saturating_mul(count))
         .and_then(|size| {
@@ -237,7 +237,7 @@ fn edited_size(
                 .and_then(|added| size.checked_add(added))
         })
         .filter(|size| *size <= maximum)
-        .ok_or_else(|| Error::LimitExceeded("edited file exceeds max_file_bytes".into()))
+        .ok_or_else(|| ToolError::LimitExceeded("edited file exceeds max_file_bytes".into()))
 }
 
 fn render(data: EditResult) -> Output<EditResult> {

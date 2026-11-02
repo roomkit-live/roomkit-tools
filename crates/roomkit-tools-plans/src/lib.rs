@@ -10,14 +10,14 @@ mod validation;
 pub use memory::MemoryPlanBackend;
 pub use types::*;
 
-use roomkit_tools_core::{Definition, Error, Output};
+use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
 use serde::{Serialize, de::DeserializeOwned};
 use std::{fmt::Debug, future::Future, pin::Pin, sync::Arc};
 use tokio_util::sync::CancellationToken;
 
 /// Object-safe host operation, independent of a specific async runtime.
-pub type PlanFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, Error>> + Send + 'a>>;
+pub type PlanFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ToolError>> + Send + 'a>>;
 
 /// Injected storage. Implementations enforce scope on every call and atomic
 /// revision checks on update/delete. IDs must never be reused within a backend.
@@ -66,17 +66,20 @@ pub trait PlanContract: Serialize + DeserializeOwned + JsonSchema {
     /// Validate fields and bounded payloads.
     /// # Errors
     /// Rejects invalid or oversized values.
-    fn validate(&self) -> Result<(), Error>;
+    fn validate(&self) -> Result<(), ToolError>;
 }
 
 /// Decode and validate the implementation's actual input/output types.
 /// # Errors
 /// Rejects malformed, unknown or oversized fields.
-pub fn decode<T: PlanContract>(json: &str) -> Result<T, Error> {
+pub fn decode<T: PlanContract>(json: &str) -> Result<T, ToolError> {
     if json.len() > 256 * 1024 {
-        return Err(Error::LimitExceeded("plan input exceeds 256 KiB".into()));
+        return Err(ToolError::LimitExceeded(
+            "plan input exceeds 256 KiB".into(),
+        ));
     }
-    let value: T = serde_json::from_str(json).map_err(|e| Error::InvalidInput(e.to_string()))?;
+    let value: T =
+        serde_json::from_str(json).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
     value.validate()?;
     Ok(value)
 }
@@ -84,15 +87,15 @@ pub fn decode<T: PlanContract>(json: &str) -> Result<T, Error> {
 /// Render a validated record; structured data carries the full plan.
 /// # Errors
 /// Rejects a backend result that violates the common contract.
-pub fn render<T: PlanContract>(data: T) -> Result<Output<T>, Error> {
+pub fn render<T: PlanContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
-    let text = serde_json::to_string(&data).map_err(|e| Error::InvalidInput(e.to_string()))?;
+    let text = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
     Ok(Output::new(data, text))
 }
 
-pub(crate) fn cancelled(cancel: &CancellationToken) -> Result<(), Error> {
+pub(crate) fn cancelled(cancel: &CancellationToken) -> Result<(), ToolError> {
     if cancel.is_cancelled() {
-        Err(Error::Cancelled)
+        Err(ToolError::Cancelled)
     } else {
         Ok(())
     }
@@ -122,7 +125,7 @@ macro_rules! tool {
                 scope: &PlanScope,
                 input: $input,
                 cancel: &CancellationToken,
-            ) -> Result<Output<$output>, Error> {
+            ) -> Result<Output<$output>, ToolError> {
                 scope.validate()?;
                 input.validate()?;
                 cancelled(cancel)?;

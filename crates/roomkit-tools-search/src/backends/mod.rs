@@ -3,7 +3,7 @@ use reqwest::{
     Url,
     header::{self, HeaderMap, HeaderValue},
 };
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use roomkit_tools_http::{checked_client, io_error, normalize_policy, parse_url, read_body};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -55,12 +55,12 @@ struct Transport {
     decoders: Arc<Semaphore>,
 }
 impl Transport {
-    fn new(default: &str, config: SearchHttpConfig, headers: HeaderMap) -> Result<Self, Error> {
+    fn new(default: &str, config: SearchHttpConfig, headers: HeaderMap) -> Result<Self, ToolError> {
         let raw = config.endpoint.as_deref().unwrap_or(default);
         let endpoint = parse_url(raw, 8192)?;
         let policy = normalize_policy(config.policy, 8192)?;
         if endpoint.query().is_some() || raw.contains('#') {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "search endpoints cannot contain queries or fragments".into(),
             ));
         }
@@ -69,12 +69,12 @@ impl Transport {
                 .private_origins
                 .contains(&endpoint.origin().ascii_serialization())
         {
-            return Err(Error::Refused(
+            return Err(ToolError::AccessRefused(
                 "search requires HTTPS or an explicit private origin".into(),
             ));
         }
         if config.max_response_bytes == 0 || config.max_response_bytes > 16 * 1024 * 1024 {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "invalid search response byte limit".into(),
             ));
         }
@@ -92,13 +92,13 @@ impl Transport {
         body: serde_json::Value,
         decode: D,
         cancel: &CancellationToken,
-    ) -> Result<BackendOutput, Error>
+    ) -> Result<BackendOutput, ToolError>
     where
-        D: FnOnce(&[u8], &str) -> Result<BackendOutput, Error> + Send + 'static,
+        D: FnOnce(&[u8], &str) -> Result<BackendOutput, ToolError> + Send + 'static,
     {
         let client = checked_client(&self.endpoint, &self.policy).await?;
         let bytes = serde_json::to_vec(&body)
-            .map_err(|_| Error::InvalidInput("invalid search request".into()))?;
+            .map_err(|_| ToolError::InvalidInput("invalid search request".into()))?;
         let mut response = client
             .post(self.endpoint.clone())
             .headers(self.headers.clone())
@@ -110,19 +110,23 @@ impl Transport {
         let status = response.status().as_u16();
         match status {
             200..=299 => (),
-            300..=399 => return Err(Error::Refused("search redirects are not followed".into())),
+            300..=399 => {
+                return Err(ToolError::AccessRefused(
+                    "search redirects are not followed".into(),
+                ));
+            }
             401 | 403 => {
-                return Err(Error::Refused(
+                return Err(ToolError::AccessRefused(
                     "search service rejected authentication or access".into(),
                 ));
             }
             429 => {
-                return Err(Error::LimitExceeded(
+                return Err(ToolError::LimitExceeded(
                     "search service rate limit exceeded".into(),
                 ));
             }
             _ => {
-                return Err(Error::Unsupported(format!(
+                return Err(ToolError::UnsupportedResource(format!(
                     "search service returned HTTP {status}"
                 )));
             }
@@ -142,11 +146,11 @@ impl Transport {
         tokio::task::spawn_blocking(move || {
             let _slot = slot;
             if token.is_cancelled() {
-                return Err(Error::Cancelled);
+                return Err(ToolError::Cancelled);
             }
             let result = decode(&bytes, &content_type);
             if token.is_cancelled() {
-                return Err(Error::Cancelled);
+                return Err(ToolError::Cancelled);
             }
             result
         })
@@ -155,9 +159,9 @@ impl Transport {
     }
 }
 
-fn credential(value: &str, bearer: bool) -> Result<HeaderValue, Error> {
+fn credential(value: &str, bearer: bool) -> Result<HeaderValue, ToolError> {
     if value.trim().is_empty() || value.trim() != value {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "search API key must be nonempty without surrounding whitespace".into(),
         ));
     }
@@ -167,7 +171,7 @@ fn credential(value: &str, bearer: bool) -> Result<HeaderValue, Error> {
         value.to_owned()
     };
     let mut header = HeaderValue::from_str(&text)
-        .map_err(|_| Error::InvalidInput("invalid search API key header".into()))?;
+        .map_err(|_| ToolError::InvalidInput("invalid search API key header".into()))?;
     header.set_sensitive(true);
     Ok(header)
 }
@@ -175,6 +179,6 @@ fn credential(value: &str, bearer: bool) -> Result<HeaderValue, Error> {
 fn mime(value: &str) -> &str {
     value.split(';').next().unwrap_or("").trim()
 }
-fn invalid() -> Error {
-    Error::Unsupported("unsupported or malformed search service response".into())
+fn invalid() -> ToolError {
+    ToolError::UnsupportedResource("unsupported or malformed search service response".into())
 }

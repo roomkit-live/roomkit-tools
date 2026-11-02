@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 use std::time::Instant;
 
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 use tree_sitter::{Node, ParseOptions, Parser};
@@ -14,11 +14,11 @@ pub(crate) struct Control {
 }
 
 impl Control {
-    pub(crate) fn check(&self) -> Result<(), Error> {
+    pub(crate) fn check(&self) -> Result<(), ToolError> {
         if self.token.is_cancelled() {
-            Err(Error::Cancelled)
+            Err(ToolError::Cancelled)
         } else if Instant::now() >= self.deadline {
-            Err(Error::LimitExceeded(
+            Err(ToolError::LimitExceeded(
                 "code outline deadline exceeded".into(),
             ))
         } else {
@@ -33,7 +33,7 @@ pub(crate) struct SourceOutline {
     pub(crate) syntax_errors: bool,
 }
 
-pub(crate) fn validate_revision(expected: Option<&str>) -> Result<(), Error> {
+pub(crate) fn validate_revision(expected: Option<&str>) -> Result<(), ToolError> {
     if let Some(value) = expected {
         let digest = value.strip_prefix("sha256:").ok_or_else(invalid_revision)?;
         if digest.len() != 64
@@ -47,8 +47,8 @@ pub(crate) fn validate_revision(expected: Option<&str>) -> Result<(), Error> {
     Ok(())
 }
 
-fn invalid_revision() -> Error {
-    Error::InvalidInput(
+fn invalid_revision() -> ToolError {
+    ToolError::InvalidInput(
         "expected_revision must be sha256: followed by 64 lowercase hexadecimal digits".into(),
     )
 }
@@ -59,7 +59,7 @@ pub(crate) fn outline(
     input: &CodeOutlineInput,
     limits: CodeOutlineLimits,
     control: &Control,
-) -> Result<SourceOutline, Error> {
+) -> Result<SourceOutline, ToolError> {
     control.check()?;
     let revision = roomkit_tools_core::revision::sha256(&Sha256::digest(text.as_bytes()));
     if input
@@ -67,7 +67,7 @@ pub(crate) fn outline(
         .as_ref()
         .is_some_and(|expected| expected != &revision)
     {
-        return Err(Error::Refused(
+        return Err(ToolError::AccessRefused(
             "source changed since expected_revision; read or outline it again".into(),
         ));
     }
@@ -80,7 +80,7 @@ pub(crate) fn outline(
     };
     parser
         .set_language(&grammar)
-        .map_err(|_| Error::Unsupported("incompatible source grammar".into()))?;
+        .map_err(|_| ToolError::UnsupportedResource("incompatible source grammar".into()))?;
     let mut progress = |_: &tree_sitter::ParseState| {
         if control.check().is_err() {
             ControlFlow::Break(())
@@ -95,8 +95,9 @@ pub(crate) fn outline(
         Some(options),
     );
     control.check()?;
-    let tree =
-        tree.ok_or_else(|| Error::Unsupported("source parser did not produce a tree".into()))?;
+    let tree = tree.ok_or_else(|| {
+        ToolError::UnsupportedResource("source parser did not produce a tree".into())
+    })?;
     let symbols = walk(tree.root_node(), text, limits, control)?;
     Ok(SourceOutline {
         symbols,
@@ -110,7 +111,7 @@ fn walk(
     text: &str,
     limits: CodeOutlineLimits,
     control: &Control,
-) -> Result<Vec<CodeSymbol>, Error> {
+) -> Result<Vec<CodeSymbol>, ToolError> {
     let mut cursor = root.walk();
     let mut depth = 0;
     let mut visited = 0;
@@ -120,7 +121,7 @@ fn walk(
         control.check()?;
         visited += 1;
         if visited > limits.max_scan_nodes || depth > limits.max_depth {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "syntax traversal exceeds max_scan_nodes or max_depth".into(),
             ));
         }
@@ -130,7 +131,7 @@ fn walk(
         let parent = scopes.last().map(|scope| (scope.1, scope.2));
         if let Some(symbol) = definition(cursor.node(), text, parent, symbols.len() + 1, limits)? {
             if symbols.len() >= limits.max_scan_symbols {
-                return Err(Error::LimitExceeded(
+                return Err(ToolError::LimitExceeded(
                     "source exceeds max_scan_symbols".into(),
                 ));
             }
@@ -157,7 +158,7 @@ fn definition(
     parent: Option<(usize, SymbolKind)>,
     index: usize,
     limits: CodeOutlineLimits,
-) -> Result<Option<CodeSymbol>, Error> {
+) -> Result<Option<CodeSymbol>, ToolError> {
     let kind = match node.kind() {
         "function_item" | "function_signature_item" | "function_definition" => {
             if parent.is_some_and(|(_, kind)| {
@@ -190,7 +191,7 @@ fn definition(
     };
     let name = slice(text, name_node.start_byte(), name_node.end_byte())?;
     if name.len() > limits.max_signature_bytes {
-        return Err(Error::LimitExceeded(
+        return Err(ToolError::LimitExceeded(
             "definition name exceeds max_signature_bytes".into(),
         ));
     }
@@ -233,7 +234,8 @@ fn definition_start(mut node: Node<'_>) -> Node<'_> {
     node
 }
 
-fn slice(text: &str, start: usize, end: usize) -> Result<&str, Error> {
-    text.get(start..end)
-        .ok_or_else(|| Error::Unsupported("invalid source byte range from parser".into()))
+fn slice(text: &str, start: usize, end: usize) -> Result<&str, ToolError> {
+    text.get(start..end).ok_or_else(|| {
+        ToolError::UnsupportedResource("invalid source byte range from parser".into())
+    })
 }

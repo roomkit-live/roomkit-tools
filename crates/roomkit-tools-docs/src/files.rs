@@ -3,7 +3,7 @@ use crate::{
     DocsReadResult, DocsSearchInput, DocsSearchResult, DocumentInfo, DocumentLine, DocumentMatch,
     cancelled,
 };
-use roomkit_tools_core::Error;
+use roomkit_tools_core::ToolError;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -54,7 +54,7 @@ impl FileDocsLimits {
     /// Check host budgets before any I/O.
     /// # Errors
     /// Rejects zero or unsupported sizes.
-    pub fn validate(&self) -> Result<(), Error> {
+    pub fn validate(&self) -> Result<(), ToolError> {
         if !(1..=1024).contains(&self.max_documents)
             || !(1..=1024 * 1024).contains(&self.max_document_bytes)
             || !(1..=64 * 1024 * 1024).contains(&self.max_total_bytes)
@@ -63,7 +63,7 @@ impl FileDocsLimits {
             || !(1..=131_072).contains(&self.max_total_lines)
             || !(4096..=65536).contains(&self.max_read_bytes)
         {
-            return Err(Error::InvalidInput(
+            return Err(ToolError::InvalidInput(
                 "invalid file documentation limits".into(),
             ));
         }
@@ -106,7 +106,7 @@ impl FileDocs {
         root: impl AsRef<Path>,
         version: Option<String>,
         limits: FileDocsLimits,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, ToolError> {
         limits.validate()?;
         if let Some(v) = &version {
             crate::validation::bounded(v, 128)?;
@@ -116,7 +116,7 @@ impl FileDocs {
             path.to_path_buf()
         } else {
             std::env::current_dir()
-                .map_err(|source| Error::Io {
+                .map_err(|source| ToolError::Io {
                     operation: "capture documentation root",
                     source,
                 })?
@@ -132,29 +132,29 @@ impl FileDocs {
             }),
         })
     }
-    async fn run<T, F>(&self, cancel: &CancellationToken, work: F) -> Result<T, Error>
+    async fn run<T, F>(&self, cancel: &CancellationToken, work: F) -> Result<T, ToolError>
     where
         T: Send + 'static,
-        F: FnOnce(CancellationToken) -> Result<T, Error> + Send + 'static,
+        F: FnOnce(CancellationToken) -> Result<T, ToolError> + Send + 'static,
     {
         let token = cancel.child_token();
         let _guard = token.clone().drop_guard();
-        let permit = tokio::select! {biased; ()=token.cancelled()=>return Err(Error::Cancelled), p=Arc::clone(&self.inner.slots).acquire_owned()=>p.map_err(|_|Error::Unsupported("documentation workers closed".into()))?};
+        let permit = tokio::select! {biased; ()=token.cancelled()=>return Err(ToolError::Cancelled), p=Arc::clone(&self.inner.slots).acquire_owned()=>p.map_err(|_|ToolError::UnsupportedResource("documentation workers closed".into()))?};
         let worker_token = token.clone();
         let worker = tokio::task::spawn_blocking(move || {
             let _permit = permit;
             work(worker_token)
         });
-        tokio::select! {biased; ()=token.cancelled()=>Err(Error::Cancelled),result=worker=>result.map_err(|_|Error::Unsupported("documentation worker failed".into()))?}
+        tokio::select! {biased; ()=token.cancelled()=>Err(ToolError::Cancelled),result=worker=>result.map_err(|_|ToolError::UnsupportedResource("documentation worker failed".into()))?}
     }
-    async fn snapshot(&self, cancel: &CancellationToken) -> Result<Arc<Snapshot>, Error> {
+    async fn snapshot(&self, cancel: &CancellationToken) -> Result<Arc<Snapshot>, ToolError> {
         cancelled(cancel)?;
         let snapshot = self.inner.snapshot.get_or_try_init(|| async {
             let inner = Arc::clone(&self.inner);
             self.run(cancel, move |token| load(&inner, &token).map(Arc::new))
                 .await
         });
-        tokio::select! {biased; ()=cancel.cancelled()=>Err(Error::Cancelled),result=snapshot=>result.map(Arc::clone)}
+        tokio::select! {biased; ()=cancel.cancelled()=>Err(ToolError::Cancelled),result=snapshot=>result.map(Arc::clone)}
     }
 }
 impl DocsBackend for FileDocs {
@@ -218,31 +218,31 @@ impl DocsBackend for FileDocs {
         })
     }
 }
-fn check_revision(expected: Option<&str>, current: &str) -> Result<(), Error> {
+fn check_revision(expected: Option<&str>, current: &str) -> Result<(), ToolError> {
     if expected.is_some_and(|e| e != current) {
-        Err(Error::Refused(
+        Err(ToolError::AccessRefused(
             "documentation revision changed; discover/search again".into(),
         ))
     } else {
         Ok(())
     }
 }
-fn page_end(offset: usize, limit: usize, total: usize) -> Result<usize, Error> {
+fn page_end(offset: usize, limit: usize, total: usize) -> Result<usize, ToolError> {
     if offset > total {
-        return Err(Error::InvalidInput(
+        return Err(ToolError::InvalidInput(
             "offset is beyond available results".into(),
         ));
     }
     Ok(offset.saturating_add(limit).min(total))
 }
-fn io(operation: &'static str, source: std::io::Error) -> Error {
-    Error::Io { operation, source }
+fn io(operation: &'static str, source: std::io::Error) -> ToolError {
+    ToolError::Io { operation, source }
 }
 fn paths(
     root: &Path,
     limits: &FileDocsLimits,
     cancel: &CancellationToken,
-) -> Result<Vec<PathBuf>, Error> {
+) -> Result<Vec<PathBuf>, ToolError> {
     let mut stack = vec![(root.to_path_buf(), 0usize)];
     let mut files = Vec::new();
     let mut entries = 0;
@@ -252,7 +252,7 @@ fn paths(
             cancelled(cancel)?;
             entries += 1;
             if entries > limits.max_entries {
-                return Err(Error::LimitExceeded(
+                return Err(ToolError::LimitExceeded(
                     "documentation scan entry budget exceeded".into(),
                 ));
             }
@@ -268,7 +268,7 @@ fn paths(
             }
             if kind.is_dir() {
                 if depth >= limits.max_depth {
-                    return Err(Error::LimitExceeded(
+                    return Err(ToolError::LimitExceeded(
                         "documentation directory depth exceeded".into(),
                     ));
                 }
@@ -284,12 +284,14 @@ fn paths(
                 continue;
             }
             if !kind.is_file() {
-                return Err(Error::Unsupported(
+                return Err(ToolError::UnsupportedResource(
                     "documentation accepts regular Markdown/text files only".into(),
                 ));
             }
             if files.len() >= limits.max_documents {
-                return Err(Error::LimitExceeded("documentation count exceeded".into()));
+                return Err(ToolError::LimitExceeded(
+                    "documentation count exceeded".into(),
+                ));
             }
             files.push(path);
         }
@@ -302,20 +304,24 @@ fn bytes(
     root: &Path,
     max: usize,
     cancel: &CancellationToken,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>, ToolError> {
     let path = path.canonicalize().map_err(|e| io("resolve document", e))?;
     if !path.starts_with(root) {
-        return Err(Error::Refused("document escaped configured root".into()));
+        return Err(ToolError::AccessRefused(
+            "document escaped configured root".into(),
+        ));
     }
     let mut file = fs::File::open(path).map_err(|e| io("open document", e))?;
     let metadata = file.metadata().map_err(|e| io("inspect document", e))?;
     if !metadata.is_file() {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "documentation accepts regular files only".into(),
         ));
     }
     if metadata.len() > max as u64 {
-        return Err(Error::LimitExceeded("document byte budget exceeded".into()));
+        return Err(ToolError::LimitExceeded(
+            "document byte budget exceeded".into(),
+        ));
     }
     let mut result = Vec::new();
     let mut buffer = [0; 16384];
@@ -326,7 +332,9 @@ fn bytes(
             break;
         }
         if result.len() + count > max {
-            return Err(Error::LimitExceeded("document byte budget exceeded".into()));
+            return Err(ToolError::LimitExceeded(
+                "document byte budget exceeded".into(),
+            ));
         }
         result.extend(buffer.iter().take(count));
     }
@@ -340,13 +348,13 @@ fn clipped(text: &str, max: usize) -> String {
         })
         .collect()
 }
-fn load(inner: &Inner, cancel: &CancellationToken) -> Result<Snapshot, Error> {
+fn load(inner: &Inner, cancel: &CancellationToken) -> Result<Snapshot, ToolError> {
     let root = inner
         .root
         .canonicalize()
         .map_err(|e| io("resolve documentation root", e))?;
     if !root.is_dir() {
-        return Err(Error::Unsupported(
+        return Err(ToolError::UnsupportedResource(
             "documentation root must be a directory".into(),
         ));
     }
@@ -355,7 +363,7 @@ fn load(inner: &Inner, cancel: &CancellationToken) -> Result<Snapshot, Error> {
     let mut line_count = 0;
     let mut hash = Sha256::new();
     hash.update(
-        serde_json::to_vec(&inner.version).map_err(|e| Error::InvalidInput(e.to_string()))?,
+        serde_json::to_vec(&inner.version).map_err(|e| ToolError::InvalidInput(e.to_string()))?,
     );
     for path in paths(&root, &inner.limits, cancel)? {
         cancelled(cancel)?;
@@ -363,21 +371,24 @@ fn load(inner: &Inner, cancel: &CancellationToken) -> Result<Snapshot, Error> {
             .strip_prefix(&root)
             .ok()
             .and_then(|p| p.to_str())
-            .ok_or_else(|| Error::Unsupported("document IDs require UTF-8 paths".into()))?
+            .ok_or_else(|| {
+                ToolError::UnsupportedResource("document IDs require UTF-8 paths".into())
+            })?
             .replace(std::path::MAIN_SEPARATOR, "/");
         crate::validation::bounded(&id, 512)?;
         let data = bytes(&path, &root, inner.limits.max_document_bytes, cancel)?;
         total += data.len();
         if total > inner.limits.max_total_bytes {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "documentation catalogue byte budget exceeded".into(),
             ));
         }
         let revision = roomkit_tools_core::revision::sha256(&Sha256::digest(&data));
-        let text = String::from_utf8(data)
-            .map_err(|_| Error::Unsupported("documentation must be UTF-8 text".into()))?;
+        let text = String::from_utf8(data).map_err(|_| {
+            ToolError::UnsupportedResource("documentation must be UTF-8 text".into())
+        })?;
         if text.contains('\0') {
-            return Err(Error::Unsupported(
+            return Err(ToolError::UnsupportedResource(
                 "binary documentation is unsupported".into(),
             ));
         }
@@ -385,7 +396,7 @@ fn load(inner: &Inner, cancel: &CancellationToken) -> Result<Snapshot, Error> {
         let count = text.lines().count();
         line_count += count;
         if line_count > inner.limits.max_total_lines {
-            return Err(Error::LimitExceeded(
+            return Err(ToolError::LimitExceeded(
                 "documentation catalogue line budget exceeded".into(),
             ));
         }
@@ -404,7 +415,7 @@ fn load(inner: &Inner, cancel: &CancellationToken) -> Result<Snapshot, Error> {
             revision,
             line_count: count,
         };
-        hash.update(serde_json::to_vec(&info).map_err(|e| Error::InvalidInput(e.to_string()))?);
+        hash.update(serde_json::to_vec(&info).map_err(|e| ToolError::InvalidInput(e.to_string()))?);
         documents.push(Document {
             info,
             lines: text.lines().map(str::to_owned).collect(),
@@ -423,7 +434,7 @@ fn search(
     snapshot: &Snapshot,
     input: &DocsSearchInput,
     cancel: &CancellationToken,
-) -> Result<DocsSearchResult, Error> {
+) -> Result<DocsSearchResult, ToolError> {
     check_revision(
         input.expected_catalog_revision.as_deref(),
         &snapshot.revision,
@@ -494,17 +505,17 @@ fn read(
     input: &DocsReadInput,
     budget: usize,
     cancel: &CancellationToken,
-) -> Result<DocsReadResult, Error> {
+) -> Result<DocsReadResult, ToolError> {
     let doc = snapshot
         .documents
         .iter()
         .find(|d| d.info.document_id == input.document_id)
-        .ok_or_else(|| Error::Refused("unknown document in this catalogue".into()))?;
+        .ok_or_else(|| ToolError::AccessRefused("unknown document in this catalogue".into()))?;
     check_revision(input.expected_revision.as_deref(), &doc.info.revision)?;
     let start = input.offset - 1;
     let end = page_end(start, input.limit, doc.lines.len())?;
     let mut size = serde_json::to_vec(&doc.info)
-        .map_err(|e| Error::InvalidInput(e.to_string()))?
+        .map_err(|e| ToolError::InvalidInput(e.to_string()))?
         .len()
         + 512;
     let mut lines = Vec::new();
@@ -515,12 +526,12 @@ fn read(
             text: text.clone(),
         };
         let bytes = serde_json::to_vec(&line)
-            .map_err(|e| Error::InvalidInput(e.to_string()))?
+            .map_err(|e| ToolError::InvalidInput(e.to_string()))?
             .len()
             + 1;
         if size + bytes > budget {
             if lines.is_empty() {
-                return Err(Error::LimitExceeded(
+                return Err(ToolError::LimitExceeded(
                     "document line cannot fit the read budget".into(),
                 ));
             }
@@ -563,7 +574,7 @@ mod tests {
         });
         started.await.unwrap();
         cancel.cancel();
-        assert!(matches!(call.await.unwrap(), Err(Error::Cancelled)));
+        assert!(matches!(call.await.unwrap(), Err(ToolError::Cancelled)));
         assert_eq!(backend.inner.slots.available_permits(), 1);
         release.send(()).unwrap();
         let _all = backend.inner.slots.acquire_many(2).await.unwrap();
