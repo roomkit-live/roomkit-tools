@@ -22,7 +22,7 @@ class OutputStore:
     None, the default, is one standalone owner. No arbitrary paths are
     accepted by those tools. The host controls the parent directory and quotas.
 
-    Archives survive process-record deletion and manager close. Explicit forget
+    Archives survive process-record deletion and session close. Explicit forget
     or store close releases them; nothing is promised across host restarts.
     Use an outer async context so processes close before their output store.
     """

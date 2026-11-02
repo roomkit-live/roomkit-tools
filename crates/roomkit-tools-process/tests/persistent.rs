@@ -633,10 +633,10 @@ async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
 
 #[cfg(target_os = "linux")]
 #[tokio::test]
-async fn dropping_last_manager_reaps_shell_and_stops_its_child() {
+async fn dropping_last_session_reaps_shell_and_stops_its_child() {
     let root = tempfile::tempdir().unwrap();
-    let manager = ProcessSession::new(root.path()).await.unwrap();
-    manager
+    let session = ProcessSession::new(root.path()).await.unwrap();
+    session
         .start(
             Some("a"),
             ProcessStartInput::new("sleep 60 & printf '%s %s' $$ $! > pids; wait"),
@@ -647,7 +647,7 @@ async fn dropping_last_manager_reaps_shell_and_stops_its_child() {
     let pids = file(&root.path().join("pids")).await;
     let ids: Vec<&str> = pids.split_whitespace().collect();
     assert_eq!(ids.len(), 2);
-    drop(manager);
+    drop(session);
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let mut alive = false;

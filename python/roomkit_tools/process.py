@@ -20,13 +20,13 @@ class ProcessSession:
 
     Use ``async with ProcessSession(root) as session`` for bounded cleanup on
     exit. Construction captures an absolute root; first use resolves it in Rust.
-    Each session owns a separate manager. Every job belongs to one owner, a
-    trusted host string: the RoomKit process tools give each room and acting
-    agent its own owner, roomkit_owner(room_id, channel_id), so one session can
-    serve several conversations without them seeing each other's jobs. The
-    host methods take owner=; None, the default, is one standalone owner.
-    IDs are local to this session and sequential, not OS PIDs, credentials or
-    portable identifiers.
+    Sessions are independent, each with its own jobs. Every job belongs to one
+    owner, a trusted host string: the RoomKit process tools give each room and
+    acting agent its own owner, roomkit_owner(room_id, channel_id), so one
+    session can serve several conversations without them seeing each other's
+    jobs. The host methods take owner=; None, the default, is one standalone
+    owner. IDs are local to this session and sequential, not OS PIDs,
+    credentials or portable identifiers.
 
     Commands use /bin/sh -c with piped stdin, the host's permissions, the
     environment selected by inherit_env and env (as for ShellTool), a new

@@ -1,4 +1,4 @@
-//! A Python-owned process session; process behavior remains in the Rust manager.
+//! A Python-owned process session; process behavior remains in Rust's `ProcessSession`.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
