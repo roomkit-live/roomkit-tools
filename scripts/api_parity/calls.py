@@ -8,7 +8,8 @@ has no member of that name for:
   also names among several;
 - `[rules] named_calls`: Python's name-keyed `call(name, arguments, ...)`
   stands for the typed methods of the tool contracts its class serves, one
-  method to one contract, by the contract's input type; the parameters after
+  method to one contract, by the contract's input type (of several taking
+  it, the one Python also names); the parameters after
   `name` are compared with each. Its static `definition(name)` stands for
   each such method's `<method>_definition()`. A contract with no typed
   method, or no definition, is a finding naming the contract; a typed method
@@ -94,12 +95,31 @@ def _typed_call(
 
 def by_contract(comparison: Comparison, python: str, pool: dict) -> dict[str, Member | None]:
     """Each tool contract the class serves, by name, with the typed method
-    taking its input type, or None."""
+    taking its input type, or None. Of several, the one serving it is the
+    one Python's class also names, else the one with its definition, else
+    the one the contract's name ends with: any other is left unmatched."""
     methods = typed(comparison, pool)
-    return {
-        name: next((m for m in methods if tool["input"] in inputs(comparison, m.data)), None)
-        for name, tool in sorted(tools_of(comparison, python).items())
-    }
+    found = {}
+    for name, tool in sorted(tools_of(comparison, python).items()):
+        taking = [m for m in methods if tool["input"] in inputs(comparison, m.data)]
+        found[name] = _serving(comparison, python, name, taking, pool)
+    return found
+
+
+def _serving(
+    comparison: Comparison, python: str, tool: str, taking: list[Member], pool: dict
+) -> Member | None:
+    spec = comparison.python.specs.get(python, {})
+    suffix = comparison.rules.setting("named_calls", "suffix") or ""
+    for prefer in (
+        lambda m: m.data["name"] in spec,
+        lambda m: bool(pool.get(m.data["name"] + suffix)),
+        lambda m: tool == m.data["name"] or tool.endswith(f"_{m.data['name']}"),
+    ):
+        chosen = [m for m in taking if prefer(m)]
+        if len(chosen) == 1:
+            return chosen[0]
+    return taking[0] if taking else None
 
 
 def _named_call(

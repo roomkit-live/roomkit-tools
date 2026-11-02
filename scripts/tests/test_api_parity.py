@@ -410,6 +410,16 @@ class NamedCalls(unittest.TestCase):
         ]
         self.assertIn("rust kit::Session::restart (unmatched)", self._keys(items))
 
+    def test_a_second_method_taking_a_contracts_input_is_the_one_named(self):
+        """Two typed methods take the stop contract's input: the one Python
+        also names serves the contract, and the finding names the other."""
+        items = self._session()
+        stop = next(m for m in items[0]["methods"] if m["name"] == "stop")
+        restart = {**stop, "name": "restart"}
+        at = items[0]["methods"].index(stop)
+        items[0]["methods"].insert(at, restart)
+        self.assertEqual(self._keys(items), {"rust kit::Session::restart (unmatched)"})
+
     def test_each_contract_has_its_typed_method_and_its_definition(self):
         self.assertEqual(
             self._keys(self._session(drop=("stop_definition",))),
