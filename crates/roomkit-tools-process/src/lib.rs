@@ -49,3 +49,8 @@ const STANDALONE_OWNER: &str = "default";
 fn owner_key(owner: Option<&str>) -> &str {
     owner.unwrap_or(STANDALONE_OWNER)
 }
+
+// The README's example is compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

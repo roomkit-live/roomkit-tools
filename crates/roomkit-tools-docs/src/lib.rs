@@ -141,3 +141,8 @@ tool!(
     "docs_read",
     "Read a document ID returned by docs_list/docs_search, with one-based lines. Carry expected_revision to check the content; continue at next_offset. Cite the returned source/version. Documentation describes behavior but does not execute work or grant capabilities."
 );
+
+// The README's example is compiled and run as a doctest when its feature is on.
+#[cfg(all(doctest, feature = "files"))]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

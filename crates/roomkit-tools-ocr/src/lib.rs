@@ -338,3 +338,8 @@ fn bounded_result(
     check()?;
     Ok(render(result))
 }
+
+// The README's example is compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

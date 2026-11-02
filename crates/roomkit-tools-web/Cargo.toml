@@ -5,6 +5,10 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["agent", "llm", "fetch", "html", "markdown"]
+categories = ["web-programming::http-client", "asynchronous"]
 
 [dependencies]
 roomkit-tools-http.workspace = true

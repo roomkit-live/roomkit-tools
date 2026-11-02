@@ -8,6 +8,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
+repository = "https://github.com/roomkit-live/roomkit-tools"
 
 [workspace.dependencies]
 roomkit-tools-docs = { version = "0.1.0", path = "crates/roomkit-tools-docs", default-features = false }

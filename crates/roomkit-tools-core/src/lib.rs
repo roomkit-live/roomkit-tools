@@ -110,3 +110,8 @@ pub enum ToolError {
         source: std::io::Error,
     },
 }
+
+// The README's example is compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

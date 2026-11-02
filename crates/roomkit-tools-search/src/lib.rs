@@ -255,3 +255,8 @@ fn is_source_url(value: &str) -> bool {
                 && url.password().is_none()
         })
 }
+
+// The README's example is compiled and run as a doctest when its feature is on.
+#[cfg(all(doctest, feature = "exa"))]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

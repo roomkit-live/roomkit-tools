@@ -178,3 +178,8 @@ tool!(
     "plan_delete",
     "Delete an owned plan at `expected_revision`. Returns an actual deletion receipt. Does not cancel or delete processes, delegated tasks, files or other plans."
 );
+
+// The README's example is compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

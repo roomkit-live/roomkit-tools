@@ -5,6 +5,10 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["agent", "llm", "tree-sitter", "outline", "ai"]
+categories = ["development-tools", "text-processing"]
 
 [dependencies]
 roomkit-tools-core.workspace = true

@@ -36,3 +36,8 @@ pub use patch::{
 pub use paths::{PathEntry, PathKind, PathPage};
 pub use read::{ReadInput, ReadLimits, ReadLine, ReadPage, ReadTool};
 pub use write::{WriteInput, WriteLimits, WriteResult, WriteTool};
+
+// The README's example is compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

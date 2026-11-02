@@ -149,3 +149,8 @@ impl CodeOutlineTool {
         .map_err(|_| ToolError::UnsupportedResource("outline worker failed".into()))?
     }
 }
+
+// The README's example is compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

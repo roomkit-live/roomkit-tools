@@ -5,6 +5,12 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["agent", "llm", "tools", "json-schema", "ai"]
+categories = ["development-tools"]
+# Lint configuration for this repository, not for the crate's users.
+exclude = ["clippy.toml"]
 
 [dependencies]
 schemars.workspace = true

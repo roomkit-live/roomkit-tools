@@ -178,3 +178,8 @@ mod tests {
         assert!(matches!(call.await, Err(ToolError::Cancelled)));
     }
 }
+
+// The README's example is compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

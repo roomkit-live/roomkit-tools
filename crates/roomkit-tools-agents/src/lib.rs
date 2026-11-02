@@ -455,3 +455,8 @@ tool!(
     "agent_send",
     "Send a clarification to an existing agent's running mission. Copy `agent_id` exactly from delegation or `task_status`; never reconstruct or shorten it. queued means accepted for a future tool-round boundary, not already read by the model. `not_running` starts nothing; use `agent_followup` for an idle agent. Check `history_recorded` before assuming future missions retain the message."
 );
+
+// The README's example is compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

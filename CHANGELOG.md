@@ -238,6 +238,10 @@ part of an existing published preview.
   `code_outline` and `view_image`.
 - Align the optional Rust adapter with the current RoomKit engine revision,
   retaining individually selected tools and host-owned lifecycles.
+- The Rust library crates are ready for crates.io: each has a README whose
+  example runs as a doctest, its license text, keywords and categories, and
+  `cargo package --workspace` builds them. The examples, the Python native
+  modules and the RoomKit adapter stay unpublished.
 
 
 ## 0.1.0a15
