@@ -7,8 +7,9 @@ before an upload. Building, validating and uploading are separate operations.
 
 ## Current distribution scope
 
-The Python version lives in `pyproject.toml`. Rust crates keep separate versions
-and have `publish = false`. Continue the existing alpha sequence until the API
+The Python version lives in `pyproject.toml`. Rust crates keep separate
+versions; the library crates are crates.io packages (see
+[Rust crates](#rust-crates)). Continue the existing alpha sequence until the API
 is ready for a stable release. Select the final version before building release
 artifacts; release-specific changes belong in the changelog.
 
@@ -86,6 +87,24 @@ and the native module, so run them from the candidate's checkout. They need Rust
 Set `ROOMKIT_OCR_MODELS` to a pre-provisioned model directory to additionally
 check real native recognition and RoomKit delivery; no models are downloaded.
 `twine check` validates metadata and description rendering, not application behavior.
+
+## Rust crates
+
+The library crates under `crates/` are crates.io packages. The examples, the two
+Python native modules and the RoomKit adapter are not: each sets
+`publish = false` and says why. The adapter depends on roomkit-rs by Git, which
+crates.io refuses.
+
+From the candidate's checkout, build every package against the others in a
+local registry, then list the files a package ships:
+
+```sh
+cargo package --workspace --locked
+cargo package --list --package roomkit-tools-fs
+```
+
+`cargo publish --workspace --dry-run` runs the same checks in dependency order.
+Publishing itself is a maintainer's step, from the tested commit.
 
 ## Proposed first PyPI publication
 

@@ -5,6 +5,8 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
+# Not on crates.io: it depends on roomkit-rs by git, which crates.io refuses,
+# and the crates.io name `roomkit` belongs to an unrelated project.
 publish = false
 
 # Optional integration workspace. Pin the same engine revision as consuming

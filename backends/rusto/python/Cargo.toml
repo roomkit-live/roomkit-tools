@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
+# The native module of the roomkit-tools-ocr-rusto Python package, shipped in
+# its wheel.
 publish = false
 
 [workspace]
