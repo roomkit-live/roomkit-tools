@@ -107,7 +107,8 @@ explicitly loaded on a blocking worker.
 ## Input and result
 
 Model-facing input is `path`, optional `rotation_degrees` (0/90/180/270 clockwise),
-`expected_revision` (SHA-256 of the encoded source bytes) and `timeout_ms`.
+`expected_revision` (SHA-256 of the encoded source bytes) and a positive
+`timeout_ms`.
 
 Results contain `data.text`, ordered `blocks` with text, optional score and a
 four-point polygon, source `revision`, backend/model identity and a model-files

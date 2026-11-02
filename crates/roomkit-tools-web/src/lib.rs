@@ -13,6 +13,7 @@ pub use types::{FetchFormat, WebFetchInput, WebFetchLimits, WebFetchPolicy, WebF
 
 use reqwest::{Response, Url, header};
 use roomkit_tools_core::{Definition, Output, ToolError};
+use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
@@ -95,7 +96,9 @@ impl WebFetchTool {
         if cancel.is_cancelled() {
             return Err(ToolError::Cancelled);
         }
-        let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
+        let timeout = input
+            .timeout_ms
+            .map_or(self.limits.default_timeout_ms, NonZeroU64::get);
         if timeout == 0 || timeout > self.limits.max_timeout_ms {
             return Err(ToolError::InvalidInput(
                 "timeout_ms must be positive and within the host maximum".into(),

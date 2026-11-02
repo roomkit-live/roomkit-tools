@@ -114,7 +114,6 @@ async fn arguments_and_limits_are_host_controlled() {
     for input in [
         json!({"query":""}),
         json!({"query":"q","limit":0}),
-        json!({"query":"q","timeout_ms":0}),
         json!({"query":"q","limit":11}),
     ] {
         assert!(matches!(
@@ -158,7 +157,8 @@ impl SearchBackend for Pending {
 async fn generic_deadline_and_parent_cancellation_cover_custom_backends() {
     let tool = WebSearchTool::new(Arc::new(Pending));
     let mut input = WebSearchInput::new("q");
-    input.timeout_ms = Some(10);
+    // A zero timeout is refused when the input is read (tests/timeouts.rs).
+    input.timeout_ms = std::num::NonZeroU64::new(10);
     assert!(matches!(
         tool.search(input, &CancellationToken::new()).await,
         Err(ToolError::LimitExceeded(_))

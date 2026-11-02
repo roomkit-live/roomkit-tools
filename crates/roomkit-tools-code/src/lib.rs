@@ -16,6 +16,7 @@ pub use types::{
     CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage, CodeSymbol, SymbolKind,
 };
 
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -98,16 +99,15 @@ impl CodeOutlineTool {
         input: CodeOutlineInput,
         cancel: &CancellationToken,
     ) -> Result<Output<CodeOutlinePage>, ToolError> {
-        let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
-        if timeout == 0 || timeout > self.limits.max_timeout_ms {
+        let timeout = input
+            .timeout_ms
+            .map_or(self.limits.default_timeout_ms as u64, NonZeroU64::get);
+        if timeout == 0 || timeout > self.limits.max_timeout_ms as u64 {
             return Err(ToolError::InvalidInput(
                 "timeout_ms must be positive and within the host maximum".into(),
             ));
         }
-        let duration = Duration::from_millis(
-            u64::try_from(timeout)
-                .map_err(|_| ToolError::InvalidInput("timeout_ms is too large".into()))?,
-        );
+        let duration = Duration::from_millis(timeout);
         extract::validate_revision(input.expected_revision.as_deref())?;
         let token = cancel.child_token();
         let _guard = token.clone().drop_guard();

@@ -1,4 +1,5 @@
 use std::fmt;
+use std::num::NonZeroU64;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -10,7 +11,7 @@ pub struct ViewImageInput {
     /// One local regular PNG, JPEG or static WebP file beneath the configured root.
     pub path: String,
     /// Optional positive per-call deadline, bounded by the host maximum.
-    pub timeout_ms: Option<usize>,
+    pub timeout_ms: Option<NonZeroU64>,
 }
 
 impl ViewImageInput {

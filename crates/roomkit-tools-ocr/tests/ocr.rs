@@ -220,7 +220,7 @@ async fn cancelling_a_caller_keeps_the_shared_slot_until_native_work_ends() {
     cancel.cancel();
     assert!(matches!(job.await.unwrap(), Err(ToolError::Cancelled)));
     let mut request = input("image.png");
-    request.timeout_ms = Some(20);
+    request.timeout_ms = std::num::NonZeroU64::new(20);
     assert!(matches!(
         other.ocr(request, &CancellationToken::new()).await,
         Err(ToolError::LimitExceeded(_))

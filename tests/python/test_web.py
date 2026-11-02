@@ -158,3 +158,14 @@ class NamedParametersTests(unittest.TestCase):
                 await tool.fetch("https://example.com/")
 
         asyncio.run(fetch())
+
+    def test_a_zero_timeout_is_refused_and_one_accepted(self):
+        async def fetch():
+            tool = await WebFetchTool.create(allowed_origins=[])
+            with self.assertRaises(InvalidInputError):
+                await tool.fetch("https://example.com/", timeout_ms=0)
+            # 1 is a valid deadline: the call reaches the origin policy.
+            with self.assertRaises(AccessRefusedError):
+                await tool.fetch("https://example.com/", timeout_ms=1)
+
+        asyncio.run(fetch())

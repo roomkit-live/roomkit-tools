@@ -52,6 +52,11 @@ part of an existing published preview.
 - `process_status` returns `{"processes": [...]}` instead of a bare array, as
   the other list results do; Rust's `ProcessSession::status` returns a
   `ProcessStatusResult`.
+- Every tool's `timeout_ms` is a positive integer, as the process tools'
+  are: the schemas of `code_outline`, `ocr`, `view_image`, `web_search` and
+  `web_fetch` tell the model 0 is invalid, and Rust's inputs hold an
+  `Option<NonZeroU64>` (were `Option<usize>` or `Option<u64>`). A 0 is refused
+  when the input is read.
 - Python: the documentation, plan and agent tools split into a tool and its
   RoomKit adapter, as `ReadTool` and `Read`: `DocsList(backend).call(arguments)`
   is `DocsListTool(backend).call(arguments)`, `DocsList(backend)` in RoomKit's

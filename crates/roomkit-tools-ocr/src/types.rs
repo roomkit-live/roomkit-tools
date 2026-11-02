@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::num::NonZeroU64;
 
 /// One local image to transcribe. Host chooses the engine and models.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
@@ -13,7 +14,7 @@ pub struct OcrInput {
     /// Optional raw-byte SHA-256 revision to reject a changed image.
     pub expected_revision: Option<String>,
     /// Positive timeout capped by the host. Native stages may finish after return.
-    pub timeout_ms: Option<usize>,
+    pub timeout_ms: Option<NonZeroU64>,
 }
 
 impl OcrInput {

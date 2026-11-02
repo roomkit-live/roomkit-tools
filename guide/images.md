@@ -18,7 +18,7 @@ agent = AIChannel(
 ```
 
 The model calls `view_image` with `{"path": "screenshot.png"}` and an optional
-`timeout_ms`. The adapter returns `AITextPart` metadata and an `AIImagePart`
+positive `timeout_ms`. The adapter returns `AITextPart` metadata and an `AIImagePart`
 containing actual pixels. RoomKit performs provider-specific multimodal encoding;
 base64 is not included in ordinary tool text. This tool supplies pixels, not OCR
 or a generated caption. The host must select a model that accepts images.

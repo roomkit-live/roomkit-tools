@@ -19,7 +19,7 @@ pub use backends::{OpenAISearch, OpenAISearchConfig};
 pub use types::*;
 
 use roomkit_tools_core::{Definition, Output, ToolError};
-use std::{fmt::Debug, future::Future, pin::Pin, sync::Arc, time::Duration};
+use std::{fmt::Debug, future::Future, num::NonZeroU64, pin::Pin, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 
 /// Object-safe async response, allowing third-party backends without an enum registry.
@@ -98,7 +98,9 @@ impl WebSearchTool {
         if cancel.is_cancelled() {
             return Err(ToolError::Cancelled);
         }
-        let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
+        let timeout = input
+            .timeout_ms
+            .map_or(self.limits.default_timeout_ms, NonZeroU64::get);
         if input.query.trim().is_empty()
             || input.query.contains('\0')
             || input.query.len() > self.limits.max_query_bytes

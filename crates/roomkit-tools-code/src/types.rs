@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU64, NonZeroUsize};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -31,9 +31,10 @@ pub struct CodeOutlineInput {
     /// Raw-file revision returned by read/outline; reject a changed file.
     #[serde(default)]
     pub expected_revision: Option<String>,
-    /// Total call deadline in milliseconds, including queuing, I/O and parsing.
+    /// Total call deadline in milliseconds, positive, including queuing, I/O
+    /// and parsing.
     #[serde(default)]
-    pub timeout_ms: Option<usize>,
+    pub timeout_ms: Option<NonZeroU64>,
 }
 
 const fn first_symbol() -> NonZeroUsize {

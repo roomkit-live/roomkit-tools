@@ -271,3 +271,14 @@ class NamedParametersTests(unittest.TestCase):
                 await tool.search("abcd")
 
         asyncio.run(search())
+
+    def test_a_zero_timeout_is_refused_and_one_accepted(self):
+        async def search():
+            tool = WebSearchTool(backend=ExaSearch(allowed_origins=[]))
+            with self.assertRaises(InvalidInputError):
+                await tool.search("q", timeout_ms=0)
+            # 1 is a valid deadline: the call reaches the origin policy.
+            with self.assertRaises(AccessRefusedError):
+                await tool.search("q", timeout_ms=1)
+
+        asyncio.run(search())

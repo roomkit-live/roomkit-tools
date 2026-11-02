@@ -9,6 +9,7 @@
 mod types;
 pub use types::{OcrBlock, OcrIdentity, OcrInput, OcrLimits, OcrPoint, OcrResult};
 
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -163,15 +164,17 @@ impl OcrTool {
                 "expected_revision must be a lowercase sha256 digest".into(),
             ));
         }
-        let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
-        if timeout == 0 || timeout > self.limits.max_timeout_ms {
+        let timeout = input
+            .timeout_ms
+            .map_or(self.limits.default_timeout_ms as u64, NonZeroU64::get);
+        if timeout == 0 || timeout > self.limits.max_timeout_ms as u64 {
             return Err(ToolError::InvalidInput(
                 "timeout_ms is outside the host bounds".into(),
             ));
         }
         let token = cancel.child_token();
         let _guard = token.clone().drop_guard();
-        let duration = Duration::from_millis(timeout as u64);
+        let duration = Duration::from_millis(timeout);
         let deadline = Instant::now() + duration;
         tokio::select! {
             biased;

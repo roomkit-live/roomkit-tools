@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::num::NonZeroU64;
 
 /// Representation requested for a fetched textual resource.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -23,9 +24,10 @@ pub struct WebFetchInput {
     /// Output format, default markdown. JavaScript is never executed.
     #[serde(default)]
     pub format: FetchFormat,
-    /// Total deadline in milliseconds, including DNS, redirects, body and conversion.
+    /// Total positive deadline in milliseconds, including DNS, redirects, body
+    /// and conversion.
     #[serde(default)]
-    pub timeout_ms: Option<u64>,
+    pub timeout_ms: Option<NonZeroU64>,
 }
 
 impl WebFetchInput {

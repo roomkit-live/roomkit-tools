@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::num::NonZeroU64;
 
 /// Model arguments; provider, credentials and endpoints belong to the host.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -10,9 +11,9 @@ pub struct WebSearchInput {
     /// Maximum retained documents or answer sources, default five. Cited sources must all fit.
     #[serde(default = "default_limit")]
     pub limit: usize,
-    /// Total deadline including DNS, HTTP and decoding.
+    /// Total positive deadline in milliseconds, including DNS, HTTP and decoding.
     #[serde(default)]
-    pub timeout_ms: Option<u64>,
+    pub timeout_ms: Option<NonZeroU64>,
 }
 const fn default_limit() -> usize {
     5

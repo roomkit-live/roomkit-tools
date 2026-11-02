@@ -118,7 +118,7 @@ Without RoomKit, use `WebSearchTool(backend=...)` and
 backend's supported result kinds and service limits. A new native backend needs a binding factory to be
 available in Python; there is no Python HTTP fallback.
 
-Input is only `query`, `limit` and `timeout_ms`. The host selects credentials,
+Input is only `query`, `limit` and a positive `timeout_ms`. The host selects credentials,
 endpoint, origin policy and budgets. Exa and Ollama return
 `data.payload.kind == "results"` with ranked URL/title/excerpt entries.
 `partial`, `omitted_results` and per-excerpt `omitted_bytes` expose known

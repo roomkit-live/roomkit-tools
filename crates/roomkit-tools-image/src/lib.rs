@@ -16,6 +16,7 @@ pub use decoded::{ImageWorkspace, decode_rgb};
 
 pub use types::{ImageMime, ImagePayload, ViewImageInput, ViewImageLimits, ViewImageResult};
 
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -109,13 +110,15 @@ impl ViewImageTool {
                 "path must be nonempty, NUL-free and at most 4096 bytes".into(),
             ));
         }
-        let timeout = input.timeout_ms.unwrap_or(self.limits.default_timeout_ms);
-        if timeout == 0 || timeout > self.limits.max_timeout_ms {
+        let timeout = input
+            .timeout_ms
+            .map_or(self.limits.default_timeout_ms as u64, NonZeroU64::get);
+        if timeout == 0 || timeout > self.limits.max_timeout_ms as u64 {
             return Err(ToolError::InvalidInput(
                 "timeout_ms must be positive and within the host maximum".into(),
             ));
         }
-        let duration = Duration::from_millis(timeout as u64);
+        let duration = Duration::from_millis(timeout);
         let token = cancel.child_token();
         let _guard = token.clone().drop_guard();
         let deadline = Instant::now() + duration;
@@ -161,7 +164,7 @@ mod tests {
         let _slots = tool.workers.acquire_many(2).await.unwrap();
         let input = ViewImageInput {
             path: "missing.png".into(),
-            timeout_ms: Some(10),
+            timeout_ms: NonZeroU64::new(10),
         };
         assert!(matches!(
             tool.view(input, &CancellationToken::new()).await,

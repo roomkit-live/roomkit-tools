@@ -11,7 +11,7 @@ async fn queued_calls_obey_deadlines_and_cancellation_without_losing_slots() {
         .unwrap();
     let token = CancellationToken::new();
     let mut input = CodeOutlineInput::new("source.rs");
-    input.timeout_ms = Some(1);
+    input.timeout_ms = NonZeroU64::new(1);
     assert!(matches!(
         tool.outline(input, &token).await,
         Err(ToolError::LimitExceeded(_))
