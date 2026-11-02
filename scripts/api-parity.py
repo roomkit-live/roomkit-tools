@@ -47,9 +47,18 @@ applies with no setting is declared all the same:
   or `Default` (a struct with neither is built by a literal setting every
   field). A Python required parameter is a required Rust one, a defaulted
   one a defaulted one, whatever its position: a required keyword-only
-  parameter is a positional Rust one. Defaults' values are not compared. A
-  struct a caller builds keeps no `#[non_exhaustive]` (roomkit-rs convention
-  9): that refuses struct update outside its crate;
+  parameter is a positional Rust one. A struct a caller builds keeps no
+  `#[non_exhaustive]` (roomkit-rs convention 9): that refuses struct update
+  outside its crate;
+- default values: rustdoc shows none, so `examples/tests/api_defaults.rs`
+  dumps each struct's (`--defaults`, `make api-parity`), and a parameter both
+  sides default has the same JSON value on both, a Python tuple being a
+  list. Python's `None` for a Rust field that is no `Option` is the Rust
+  default, Python passing no value (`[rules] deferred_default`), and a
+  builder Rust does not call is Python's `None`; anything else, an `Option`
+  Rust resolves at execution included, is a `default` finding. A struct
+  the comparison reads that the dump lacks is a `dump` finding no entry
+  covers (see `api_parity/defaults.py`);
 - optional arguments: Rust has none, so an `Option<T>` parameter stands for
   Python's `=None` (`[rules] optional`), and for no other default;
 - a dict for a struct: Python's `arguments` (`[rules] arguments`), the
@@ -122,9 +131,9 @@ The gate fails (exit 1) on a finding no entry covers, a dead entry or a
 decision awaiting the maintainer; `--strict` also on any `[[pending]]`
 entry left. An input it cannot read whole exits 2.
 
-Usage: python3 scripts/api-parity.py SURFACE... [--python DIR]... [--mapping FILE]
-                                     [--rules-only] [--strict] [--verbose]
-                                     [--json OUT] [--pending]
+Usage: python3 scripts/api-parity.py SURFACE... --defaults FILE [--python DIR]...
+                                     [--mapping FILE] [--rules-only] [--strict]
+                                     [--verbose] [--json OUT] [--pending]
 """
 
 from __future__ import annotations
@@ -140,6 +149,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from api_parity import ParityError  # noqa: E402
 from api_parity.cover import Report, compare  # noqa: E402
+from api_parity.defaults import load_defaults  # noqa: E402
 from api_parity.mapping import Mapping, load_mapping  # noqa: E402
 from api_parity.report import as_json, pending_toml, render  # noqa: E402
 from api_parity.sides import Python, Surface, load_python, load_surface  # noqa: E402
@@ -157,6 +167,12 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     )
     parser.add_argument("--mapping", type=Path, default=Path("api/mapping.toml"))
     parser.add_argument(
+        "--defaults",
+        type=Path,
+        required=True,
+        help="the Rust defaults examples/tests/api_defaults.rs wrote (ROOMKIT_API_DEFAULTS)",
+    )
+    parser.add_argument(
         "--rules-only", action="store_true", help="apply the rules, none of the entries"
     )
     parser.add_argument(
@@ -173,7 +189,10 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     try:
         python = load_python(args.python or PYTHON)
         report = compare(
-            load_surface(args.surfaces), python, load_mapping(args.mapping, args.rules_only)
+            load_surface(args.surfaces),
+            python,
+            load_mapping(args.mapping, args.rules_only),
+            load_defaults(args.defaults),
         )
     except ParityError as error:
         print(f"api-parity: {error}", file=log)

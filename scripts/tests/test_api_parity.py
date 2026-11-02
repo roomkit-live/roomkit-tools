@@ -20,6 +20,7 @@ sys.path.insert(0, str(HERE.parent))
 
 from api_parity import ParityError  # noqa: E402
 from api_parity.cover import compare  # noqa: E402
+from api_parity.defaults import Defaults  # noqa: E402
 from api_parity.mapping import Mapping  # noqa: E402
 from api_parity.sides import Python, Surface  # noqa: E402
 
@@ -127,7 +128,17 @@ def function(path, *params, returns=None):
     }
 
 
-def run(items, specs, *, contracts=None, mapping="", rules="", rules_only=False, exports=None):
+def run(
+    items,
+    specs,
+    *,
+    contracts=None,
+    mapping="",
+    rules="",
+    rules_only=False,
+    exports=None,
+    defaults=None,
+):
     crates: dict[str, list] = {}
     for item in items:
         crates.setdefault(item["path"].split("::")[0], []).append(item)
@@ -139,7 +150,8 @@ def run(items, specs, *, contracts=None, mapping="", rules="", rules_only=False,
             exports.setdefault(module, []).append(name)
     python = Python(specs, exports, contracts)
     table = tomllib.loads(mapping_text(mapping, rules))
-    return compare(surface, python, Mapping.from_table(table, rules_only))
+    dump = None if defaults is None else Defaults(defaults)
+    return compare(surface, python, Mapping.from_table(table, rules_only), dump)
 
 
 def keys(report) -> set[str]:
@@ -932,6 +944,128 @@ covers = ["rust kit::DocsListTool (name)"]
         self.assertTrue(report.passed(strict=True))
 
 
+class DefaultValues(unittest.TestCase):
+    """A defaulted Python parameter's value against the Rust default the
+    defaults dump holds for the field it stands for."""
+
+    DEFERRED = 'deferred_default = { python = "None", decision = "ref" }\n'
+    DUMP = {"kit::ReadLimits": {"max_lines": 2000}, "kit::ReadInput": {"path": "a", "offset": 1}}
+
+    @staticmethod
+    def _limit(rust_type: str, python: str):
+        """The read tool whose input has a `limit` field of `rust_type`, and
+        Python's read taking `limit=<python>`."""
+        items = read_tool()
+        items[2]["fields"].append({"name": "limit", "type": rust_type})
+        spec = {"pkg.ReadTool": dict(READ_SPEC["pkg.ReadTool"])}
+        spec["pkg.ReadTool"]["read"] = ["async def", "path", "*", "offset=1", f"limit={python}"]
+        contracts = json.loads(json.dumps(READ_CONTRACTS))
+        contracts["types"]["ReadInput"]["fields"].append("limit")
+        return items, spec, contracts
+
+    def test_python_and_rust_with_the_same_defaults(self):
+        report = run(
+            read_tool(),
+            READ_SPEC,
+            contracts=READ_CONTRACTS,
+            rules=self.DEFERRED,
+            defaults=self.DUMP,
+        )
+        self.assertEqual(keys(report), set())
+
+    def test_a_default_rust_does_not_share_fails(self):
+        """Python says limit=20, Rust's default is 10."""
+        items, spec, contracts = self._limit("usize", "20")
+        dump = {**self.DUMP, "kit::ReadInput": {"path": "a", "offset": 1, "limit": 10}}
+        report = run(items, spec, contracts=contracts, rules=self.DEFERRED, defaults=dump)
+        self.assertEqual(keys(report), {"rust kit::ReadInput::limit (default)"})
+        (finding,) = report.findings
+        self.assertEqual(finding.detail, "Python defaults it to 20; Rust to 10")
+        self.assertFalse(report.passed(strict=False))
+        dump["kit::ReadInput"]["limit"] = 20
+        report = run(items, spec, contracts=contracts, rules=self.DEFERRED, defaults=dump)
+        self.assertEqual(keys(report), set())
+
+    def test_python_none_defers_to_a_rust_default_by_a_rule(self):
+        """`[rules] deferred_default`: Python's None for a field that is no
+        Option is Rust's default; without the rule, a finding."""
+        without = run(read_tool(), READ_SPEC, contracts=READ_CONTRACTS, defaults=self.DUMP)
+        self.assertEqual(keys(without), {"rust kit::ReadLimits::max_lines (default)"})
+        items, spec, contracts = self._limit("Option<usize>", "None")
+        dump = {**self.DUMP, "kit::ReadInput": {"path": "a", "offset": 1, "limit": 5}}
+        report = run(items, spec, contracts=contracts, rules=self.DEFERRED, defaults=dump)
+        self.assertEqual(keys(report), {"rust kit::ReadInput::limit (default)"})
+
+    def test_an_option_rust_resolves_at_execution_is_no_silent_pass(self):
+        items, spec, contracts = self._limit("Option<usize>", "20")
+        dump = {**self.DUMP, "kit::ReadInput": {"path": "a", "offset": 1, "limit": None}}
+        report = run(items, spec, contracts=contracts, rules=self.DEFERRED, defaults=dump)
+        (finding,) = report.findings
+        self.assertEqual(finding.key, "rust kit::ReadInput::limit (default)")
+        self.assertIn("resolves at execution", finding.detail)
+
+    def test_a_struct_the_dump_lacks_fails_whatever_the_entries(self):
+        dump = {"kit::ReadInput": self.DUMP["kit::ReadInput"]}
+        entry = (
+            '[[exception]]\napproved = 2026-11-02\nreason = "r"\ndecision = "ref"\n'
+            'covers = ["rust kit::ReadLimits (dump)"]\n'
+        )
+        report = run(
+            read_tool(),
+            READ_SPEC,
+            contracts=READ_CONTRACTS,
+            rules=self.DEFERRED,
+            mapping=entry,
+            defaults=dump,
+        )
+        self.assertEqual(uncovered(report), {"rust kit::ReadLimits (dump)"})
+        self.assertFalse(report.passed(strict=False))
+
+    def test_a_builder_rust_does_not_call_is_pythons_none(self):
+        items = [
+            struct(
+                "kit::FileDocs",
+                methods=[
+                    method("new", ("root", "&Path"), receiver=None, returns="Self"),
+                    method("with_version", ("version", "String"), receiver="self", returns="Self"),
+                ],
+            )
+        ]
+        spec = {"pkg.FileDocs": {"__init__": ["def", "root", "*", "version=None"]}}
+        self.assertEqual(keys(run(items, spec, defaults={})), set())
+        spec["pkg.FileDocs"]["__init__"][-1] = "version='v1'"
+        self.assertEqual(
+            keys(run(items, spec, defaults={})), {"rust kit::FileDocs::with_version (default)"}
+        )
+
+    def test_values_compare_as_json(self):
+        """A tuple is a list; `True` is no 1."""
+        items = [
+            struct(
+                "kit::Shell",
+                methods=[
+                    method(
+                        "new",
+                        ("root", "&Path"),
+                        ("env", "ShellConfig"),
+                        receiver=None,
+                        returns="Self",
+                    )
+                ],
+            ),
+            struct(
+                "kit::ShellConfig",
+                fields=[("inherit", "Vec<String>"), ("strict", "bool")],
+                impls=["Default"],
+            ),
+        ]
+        spec = {"pkg.Shell": {"__init__": ["def", "root", "*", "inherit=('A',)", "strict=1"]}}
+        dump = {"kit::ShellConfig": {"inherit": ["A"], "strict": True}}
+        self.assertEqual(
+            keys(run(items, spec, defaults=dump)), {"rust kit::ShellConfig::strict (default)"}
+        )
+
+
 class Decisions(unittest.TestCase):
     """Every rule and every approved entry names where the maintainer
     decided it; one whose decision is left to the maintainer fails the gate."""
@@ -998,6 +1132,7 @@ class Command(unittest.TestCase):
         (snapshot / "public_api_signatures.json").write_text(json.dumps(Entries.SPECS))
         (snapshot / "public_api_names.json").write_text(json.dumps({"pkg": ["DocsList"]}))
         (snapshot / "public_api_contracts.json").write_text(json.dumps(Entries.CONTRACTS))
+        (self.dir / "defaults.json").write_text("{}")
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1015,6 +1150,8 @@ class Command(unittest.TestCase):
                 str(self.dir / "python"),
                 "--mapping",
                 str(self.dir / "mapping.toml"),
+                "--defaults",
+                str(self.dir / "defaults.json"),
                 *flags,
             ],
             out=out,
@@ -1056,6 +1193,8 @@ class Command(unittest.TestCase):
 
     def test_an_input_it_cannot_read(self):
         self.assertEqual(self._main("[[nonsense]]\n")[0], 2)
+        (self.dir / "defaults.json").write_text("[]")
+        self.assertEqual(self._main(Entries.PAIRS)[0], 2)
 
 
 def _load_gate():

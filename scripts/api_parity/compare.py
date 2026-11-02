@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from api_parity import calls, constructors, errors, leftovers, wire
 from api_parity import params as parameters
+from api_parity.defaults import Defaults
 from api_parity.mapping import Entry, Mapping
 from api_parity.rust import RustSide
 from api_parity.sides import Python, Surface, python_params
@@ -43,8 +44,12 @@ class Member:
 
 
 class Comparison:
-    def __init__(self, surface: Surface, python: Python, mapping: Mapping) -> None:
+    def __init__(
+        self, surface: Surface, python: Python, mapping: Mapping, defaults: Defaults | None = None
+    ) -> None:
         self.surface, self.python, self.rules = surface, python, mapping.rules
+        # The Rust defaults dump; None compares no default value.
+        self.defaults = defaults
         self.rust = RustSide(surface, mapping.rules)
         self.findings: list[Finding] = []
         self.applied: set[int] = set()

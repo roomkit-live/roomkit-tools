@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from api_parity import defaults
 from api_parity.rust import RustParam, base_type
 from api_parity.sides import PythonParam
 
@@ -29,8 +30,9 @@ def compare(
     concrete: bool,
 ) -> None:
     """Each parameter on both sides, and, `concrete`, required on both or
-    defaulted on both. An interface (a trait against a protocol) compares no
-    default: its implementation receives every argument."""
+    defaulted on both, to the same value (`defaults`). An interface (a trait
+    against a protocol) compares no default: its implementation receives
+    every argument."""
     left: list[PythonParam] = []
     taken: set[str] = set()
     for param in python_side:
@@ -79,6 +81,8 @@ def _requiredness(
     elif not param.required and found.required and not _optional(comparison, param, found):
         detail = f"Python defaults it ({param.name}={param.default}); Rust requires it"
         comparison.find("rust", found.path, "defaulted", detail, *pairs)
+    elif not param.required and not found.required:
+        defaults.compare(comparison, param, found, pairs)
 
 
 def _optional(comparison: Comparison, param: PythonParam, found: RustParam) -> bool:

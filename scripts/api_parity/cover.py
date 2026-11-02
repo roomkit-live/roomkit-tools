@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from api_parity.compare import Comparison, Finding
-from api_parity.mapping import Mapping, parse_key
+from api_parity.defaults import Defaults
+from api_parity.mapping import UNCOVERED_KINDS, Mapping, parse_key
 from api_parity.sides import Python, Surface
 
 
@@ -53,8 +54,10 @@ class Report:
         )
 
 
-def compare(surface: Surface, python: Python, mapping: Mapping) -> Report:
-    comparison = Comparison(surface, python, mapping)
+def compare(
+    surface: Surface, python: Python, mapping: Mapping, defaults: Defaults | None = None
+) -> Report:
+    comparison = Comparison(surface, python, mapping, defaults)
     findings = comparison.run()
     uncovered = _cover(findings, mapping)
     dead = _dead(comparison, findings, mapping)
@@ -63,13 +66,13 @@ def compare(surface: Surface, python: Python, mapping: Mapping) -> Report:
 
 def _cover(findings: list[Finding], mapping: Mapping) -> list[Finding]:
     """Gives each finding to the entry naming its key, and returns those no
-    entry names. No entry covers a finding about the rules themselves: the
-    rules are fixed, not excused."""
+    entry names. No entry covers a finding about the rules themselves, nor
+    a struct the defaults dump lacks: they are fixed, not excused."""
     by_key = {key: entry for entry in mapping.entries for key in entry.covers}
     uncovered = []
     for finding in findings:
         entry = by_key.get(finding.key)
-        if entry is None or finding.kind == "rules":
+        if entry is None or finding.kind in UNCOVERED_KINDS:
             uncovered.append(finding)
         else:
             entry.covered.append(finding)

@@ -87,6 +87,10 @@ named_calls = { method = "call", key = "name", definition = "definition", suffix
 # OutputStore(...)) stands for Rust's async new, which reports an invalid
 # root earlier.
 lazy_constructor = { python = "__init__", decision = "luge-hitl:76e988fe Q6" }
+# A Python `None` for a Rust field that is no Option stands for the Rust
+# default: Python passes no value, and the field keeps Rust's (the binding
+# overrides only the values a host supplies).
+deferred_default = { python = "None", decision = "TODO: maintainer" }
 # Rust has no union parameter: Python's create(root | Workspace) is Rust's
 # new(root) and from_workspace(workspace), an associated from_<x> building
 # the type from a type Python names.

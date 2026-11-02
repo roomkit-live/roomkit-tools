@@ -1462,11 +1462,14 @@ name = "roomkit-tools-examples"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "roomkit-tools-agents",
  "roomkit-tools-code",
  "roomkit-tools-core",
  "roomkit-tools-docs",
  "roomkit-tools-fs",
  "roomkit-tools-image",
+ "roomkit-tools-ocr",
+ "roomkit-tools-ocr-rusto",
  "roomkit-tools-plans",
  "roomkit-tools-process",
  "roomkit-tools-search",

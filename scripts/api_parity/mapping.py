@@ -27,7 +27,11 @@ KINDS = {
     "uncompared": "a contract type no tool contract holds",
     "result": "a call takes or returns another type than its contract or its class",
     "rules": "a rule names what is gone or never read",
+    "default": "both default it, to another value",
+    "dump": "a struct or field the Rust defaults dump lacks",
 }
+# The kinds no entry covers: what the gate itself needs is fixed, not excused.
+UNCOVERED_KINDS = {"rules", "dump"}
 # Each table's keys: those it requires, and those it may hold. `decision`
 # names where the maintainer decided an approved entry; a pending one awaits
 # its decision.
@@ -66,6 +70,7 @@ _RULES: dict[str, set[str] | None] = {
     "named_calls": {"method", "key", "definition", "suffix"},
     "lazy_constructor": {"python"},
     "union_constructor": {"prefix"},
+    "deferred_default": {"python"},
 }
 # The rules a mapping may leave out: the comparison then applies none.
 _RULES_OPTIONAL = {
@@ -76,6 +81,7 @@ _RULES_OPTIONAL = {
     "named_calls",
     "lazy_constructor",
     "union_constructor",
+    "deferred_default",
 }
 # The rules whose settings `Rules.setting` reads, the optional tables.
 _TABLE_RULES = _RULES_OPTIONAL - {"builtins", "builtin_errors"}

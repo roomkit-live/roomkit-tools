@@ -9,6 +9,7 @@
   for it, and a class's members against theirs;
 - `constructors`, `params`, `errors`: a constructor, a call's parameters and
   an error enum against Python's;
+- `defaults`: Python's default values against the Rust dump's;
 - `calls`: Python's `call` and `definition` against the typed methods they
   stand for;
 - `wire`: the contract types against the JSON the Python calls exchange;
