@@ -1,0 +1,55 @@
+#!/bin/sh
+# The Rust side of the public API parity gate before a push (CONTRIBUTING.md,
+# "One public API"): the gate's tests and `make api-parity`, which reads the
+# crates' rustdoc and their defaults and compares them with the committed
+# Python snapshots. It runs when the pushed commits touch what the gate reads,
+# on the checked-out tree, which must be the pushed commit. It builds no
+# Python wheel: CI checks that the snapshots are those of the code.
+# `git push --no-verify` skips it.
+set -eu
+
+remote=$1
+zero=0000000000000000000000000000000000000000
+# What the gate reads: the crates, the adapter, the Python package and its
+# snapshots, the mapping, the gate itself and the defaults dump.
+set -- crates adapters python/roomkit_tools api scripts \
+    examples/tests/api_defaults.rs tests/python/public_api_names.json \
+    tests/python/public_api_signatures.json tests/python/public_api_contracts.json \
+    backends/rusto/python/tests/public_api_names.json \
+    backends/rusto/python/tests/public_api_signatures.json
+
+# The files a pushed ref, from its remote commit `old` to `new`, changes
+# among those the gate reads; a new branch's commits are those no remote ref
+# holds.
+touched() {
+    new=$1 old=$2
+    shift 2
+    if [ "$old" != "$zero" ] && git cat-file -e "$old^{commit}" 2>/dev/null; then
+        git diff --name-only "$old" "$new" -- "$@"
+    else
+        git log --format= --name-only "$new" --not --remotes="$remote" -- "$@"
+    fi
+}
+
+run=
+head=$(git rev-parse HEAD)
+while read -r local_ref local_sha _remote_ref remote_sha; do
+    [ "$local_sha" != "$zero" ] || continue
+    [ -n "$(touched "$local_sha" "$remote_sha" "$@")" ] || continue
+    if [ "$local_sha" != "$head" ]; then
+        echo "pre-push: $local_ref changes the public API but is not the checked-out commit;" \
+            "check it out to push it, or push with --no-verify" >&2
+        exit 1
+    fi
+    run=1
+done
+[ -n "$run" ] || exit 0
+
+if ! git diff --quiet HEAD -- "$@"; then
+    echo "pre-push: uncommitted changes to the public API would be checked, not the" \
+        "pushed commit; commit or stash them" >&2
+    exit 1
+fi
+cd "$(git rev-parse --show-toplevel)"
+echo "pre-push: public API parity gate (make api-test api-parity)" >&2
+exec ${MAKE:-make} --no-print-directory api-test api-parity
