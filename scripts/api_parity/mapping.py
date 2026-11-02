@@ -40,7 +40,7 @@ UNCOVERED_KINDS = {"rules", "dump"}
 # its decision.
 _KEYS = {
     "map": ({"rust", "python", "approved", "reason", "decision"}, {"params"}),
-    "exception": ({"covers", "approved", "reason", "decision"}, set()),
+    "exception": ({"covers", "approved", "reason", "decision"}, {"rust", "python"}),
     "missing": ({"covers", "approved", "reason", "decision"}, set()),
     "hidden": ({"covers", "reason", "decision"}, {"approved"}),
     "pending": ({"covers", "reason"}, {"rust", "python"}),
@@ -240,8 +240,10 @@ class Mapping:
         return rules + entries
 
     def pairings(self) -> list[Entry]:
-        """The entries naming both counterparts: an approved `[[map]]`, or a
-        `[[pending]]` whose name difference awaits a decision."""
+        """The entries naming both counterparts: an approved `[[map]]`, a
+        language-forced mapping; an `[[exception]]`, an approved difference
+        that covers its name finding; or a `[[pending]]` whose name
+        difference awaits a decision."""
         return [entry for entry in self.entries if entry.pairs]
 
 

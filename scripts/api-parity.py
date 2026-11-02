@@ -131,7 +131,9 @@ and none silenced:
 What a rule does not give, an entry of `api/mapping.toml` does: `[[map]]`
 names the Python counterpart of a Rust item or member, a mapping the
 maintainer approved as forced by the language; `[[exception]]` covers
-approved one-sided findings; `[[missing]]` covers a feature one side has
+approved findings, and, naming both counterparts, pairs two items or members
+whose approved difference is no language-forced mapping, its name finding
+among those it covers; `[[missing]]` covers a feature one side has
 and the other lacks, recorded rather than ported (`unmatched` and
 `uncompared` findings only); `[[hidden]]` lists the public items
 `#[doc(hidden)]` hides, which rustdoc shows on no page (`hidden` findings,

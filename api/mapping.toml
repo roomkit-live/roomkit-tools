@@ -17,6 +17,8 @@
 # written. Until it is taken, it is a finding the gate fails on, unless an
 # entry covers it:
 # - [[exception]]: findings the maintainer approved (`approved`, `reason`);
+#   naming both counterparts (`rust` and `python`), it also pairs them, for a
+#   difference that is no language-forced mapping;
 # - [[missing]]: a feature one side has and the other lacks, recorded, not
 #   ported (`approved`, `reason`), its `unmatched` or `uncompared` findings;
 # - [[hidden]]: the public items #[doc(hidden)] hides from the documentation
@@ -133,18 +135,17 @@ roomkit_tools_roomkit = ["roomkit_tools.roomkit", "roomkit_tools"]
 # APPROVED: the differences the maintainer approved, with their source.
 # ---------------------------------------------------------------------------
 
-[[map]]
+[[exception]]
+# Pairs Rust's RustoOcr::lazy(RustoConfig), which builds the lazy engine,
+# with Python's RustoOcr(models, ...), the backend itself, so that their
+# configuration is compared.
 rust = "roomkit_tools_ocr_rusto::RustoOcr::lazy"
 python = "roomkit_tools_ocr_rusto.RustoOcr.__init__"
 approved = 2026-11-02
 decision = "luge-hitl:76e988fe Q7"
-reason = "the OCR backend protocol differs for this release: Rust builds the lazy engine with RustoOcr::lazy(RustoConfig), Python's RustoOcr(models, ...) is the backend itself; the configuration is the same"
-
-[[exception]]
-approved = 2026-11-02
-decision = "luge-hitl:76e988fe Q7"
 reason = "for this release, the OCR backend protocol differs: Python's OcrBackend.bind(root, limits) returns a BoundOcrBackend whose call(arguments) runs the tool; Rust's OcrBackend has identity() and recognize(&DecodedImage), wrapped in an OcrEngine that RustoOcr::lazy and load build. The OcrTool surface and the tool contract are the same; Python will adopt Rust's recognizer model later"
 covers = [
+  "rust roomkit_tools_ocr_rusto::RustoOcr::lazy (name) [roomkit_tools_ocr_rusto.RustoOcr.__init__]",
   "python roomkit_tools.OcrBackend.bind (unmatched)",
   "python roomkit_tools.ocr.BoundOcrBackend (unmatched)",
   "python roomkit_tools_ocr_rusto.RustoOcr.bind (unmatched)",
@@ -159,7 +160,7 @@ covers = [
 
 [[exception]]
 approved = 2026-11-02
-decision = "luge-hitl:76e988fe Q9"
+decision = "TODO: maintainer"
 reason = "forced by the language: ForkedProcessError is Python's guard against using the native extension in a child forked after the parent used it; a Rust host has no such interpreter state"
 covers = [
   "python roomkit_tools.ForkedProcessError (unmatched)",
@@ -203,7 +204,7 @@ covers = [
 [[missing]]
 approved = 2026-11-02
 decision = "luge-hitl:76e988fe Q9"
-reason = "Rust only: the open SearchBackend trait (name, search) a host implements, with BackendOutput, SearchCapabilities and SearchKind, and WebSearchTool::capabilities; Python's search backends are the packaged native ones"
+reason = "Rust only: the open SearchBackend trait (name, search) a host implements, with BackendOutput, SearchCapabilities and SearchKind; Python's search backends are the packaged native ones"
 covers = [
   "rust roomkit_tools_search::SearchBackend::name (unmatched)",
   "rust roomkit_tools_search::SearchBackend::search (unmatched)",
@@ -212,6 +213,13 @@ covers = [
   "rust roomkit_tools_search::SearchCapabilities::direct (unmatched)",
   "rust roomkit_tools_search::SearchCapabilities (uncompared)",
   "rust roomkit_tools_search::SearchKind (uncompared)",
+]
+
+[[missing]]
+approved = 2026-11-02
+decision = "TODO: maintainer"
+reason = "Rust only: WebSearchTool::capabilities, the capabilities of the tool's backend; Python's WebSearchTool has none"
+covers = [
   "rust roomkit_tools_search::WebSearchTool::capabilities (unmatched)",
 ]
 
@@ -227,7 +235,7 @@ covers = [
 
 [[missing]]
 approved = 2026-11-02
-decision = "luge-hitl:76e988fe Q9"
+decision = "maintainer 2026-11-02: deferred, tracked as RMK-1184 (blocked by RMK-1077)"
 reason = "Python only: the RoomKit ViewImage adapter; roomkit-ai's ToolOutput carries Text or Json, not an image, so Rust has no image adapter"
 covers = [
   "python roomkit_tools.ViewImage (unmatched)",

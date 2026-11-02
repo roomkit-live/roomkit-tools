@@ -1089,6 +1089,20 @@ covers = ["rust kit::DocsListTool::execute (name) [pkg.DocsList.call]"]
         self.assertEqual(keys(report), set())
         self.assertTrue(report.passed(strict=True))
 
+    def test_an_exception_naming_both_counterparts_pairs_them(self):
+        """An approved difference that is no language-forced mapping pairs
+        its counterparts in an `[[exception]]`, which covers the name."""
+        exception = (
+            '[[exception]]\nrust = "kit::DocsListTool::execute"\npython = "pkg.DocsList.call"\n'
+            'approved = 2026-11-02\nreason = "release"\ndecision = "ref"\n'
+            'covers = ["rust kit::DocsListTool::execute (name) [pkg.DocsList.call]"]\n'
+        )
+        mapping = self.PAIRS.split("\n\n[[pending]]")[0] + "\n" + exception
+        report = run(self.ITEMS, self.SPECS, contracts=self.CONTRACTS, mapping=mapping)
+        self.assertEqual(uncovered(report), set())
+        self.assertEqual(report.dead, [])
+        self.assertEqual(len(report.covered_by("exception")), 1)
+
     def test_an_approved_map_renames_parameters(self):
         items = [
             struct(
