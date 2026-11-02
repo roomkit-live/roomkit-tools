@@ -93,7 +93,9 @@ check real native recognition and RoomKit delivery; no models are downloaded.
 The library crates under `crates/` are crates.io packages. The examples, the two
 Python native modules and the RoomKit adapter are not: each sets
 `publish = false` and says why. The adapter depends on roomkit-rs by Git, which
-crates.io refuses.
+crates.io refuses. Internal dependencies give both `path` and `version`, so a
+packaged crate depends on the published version of its siblings; change those
+versions together with `workspace.package.version`.
 
 From the candidate's checkout, build every package against the others in a
 local registry, then list the files a package ships:

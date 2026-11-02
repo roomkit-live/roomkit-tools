@@ -21,24 +21,24 @@ plans = ["dep:roomkit-tools-plans"]
 ocr = ["dep:roomkit-tools-ocr"]
 
 [dependencies]
-roomkit-tools-docs = { path = "../../crates/roomkit-tools-docs", optional = true }
-roomkit-tools-plans = { path = "../../crates/roomkit-tools-plans", optional = true }
-roomkit-tools-ocr = { path = "../../crates/roomkit-tools-ocr", optional = true }
-roomkit-tools-code = { path = "../../crates/roomkit-tools-code" }
-roomkit-tools-search = { path = "../../crates/roomkit-tools-search" }
-roomkit-tools-web = { path = "../../crates/roomkit-tools-web" }
+roomkit-tools-docs = { version = "0.1.0", path = "../../crates/roomkit-tools-docs", optional = true }
+roomkit-tools-plans = { version = "0.1.0", path = "../../crates/roomkit-tools-plans", optional = true }
+roomkit-tools-ocr = { version = "0.1.0", path = "../../crates/roomkit-tools-ocr", optional = true }
+roomkit-tools-code = { version = "0.1.0", path = "../../crates/roomkit-tools-code" }
+roomkit-tools-search = { version = "0.1.0", path = "../../crates/roomkit-tools-search" }
+roomkit-tools-web = { version = "0.1.0", path = "../../crates/roomkit-tools-web" }
 roomkit = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "5d884364e18c517dd178afc11b241fa820be74d4" }
 roomkit-ai = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "5d884364e18c517dd178afc11b241fa820be74d4" }
-roomkit-tools-core = { path = "../../crates/roomkit-tools-core" }
-roomkit-tools-fs = { path = "../../crates/roomkit-tools-fs" }
-roomkit-tools-process = { path = "../../crates/roomkit-tools-process" }
+roomkit-tools-core = { version = "0.1.0", path = "../../crates/roomkit-tools-core" }
+roomkit-tools-fs = { version = "0.1.0", path = "../../crates/roomkit-tools-fs" }
+roomkit-tools-process = { version = "0.1.0", path = "../../crates/roomkit-tools-process" }
 serde = "1"
 serde_json = "1"
 tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
 
 [dev-dependencies]
-roomkit-tools-docs = { path = "../../crates/roomkit-tools-docs", features = ["files"] }
-roomkit-tools-search = { path = "../../crates/roomkit-tools-search", features = ["openai"] }
+roomkit-tools-docs = { version = "0.1.0", path = "../../crates/roomkit-tools-docs", features = ["files"] }
+roomkit-tools-search = { version = "0.1.0", path = "../../crates/roomkit-tools-search", features = ["openai"] }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt", "net", "io-util"] }
 
