@@ -458,10 +458,9 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_fs::PatchTool / roomkit_tools.PatchTool: unmatched (2), form"
+reason = "roomkit_tools_fs::PatchTool / roomkit_tools.PatchTool: unmatched (2)"
 covers = [
   "python roomkit_tools.PatchTool.call (unmatched)",  # no Rust method
-  "rust roomkit_tools_fs::PatchLimits::diff (form)",  # nests max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines in a DiffLimits; Python takes them flat
   "rust roomkit_tools_fs::PatchTool::from_workspace (unmatched)",  # no Python member
 ]
 
@@ -873,12 +872,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_search::ExaSearch / roomkit_tools.search.ExaSearch: form"
-covers = [
-  "rust roomkit_tools_search::SearchHttpConfig::policy (form)",  # nests allowed_origins, private_origins in a NetworkPolicy; Python takes them flat
-]
-
-[[pending]]
 reason = "roomkit_tools_search::SearchBackend / roomkit_tools.search.SearchBackend: unmatched (2)"
 covers = [
   "rust roomkit_tools_search::SearchBackend::name (unmatched)",  # no Python member
@@ -896,16 +889,6 @@ covers = [
 reason = "roomkit_tools_search::SearchKind / no Python name: uncompared"
 covers = [
   "rust roomkit_tools_search::SearchKind (uncompared)",  # a contract type no tool contract holds: its JSON is compared with nothing
-]
-
-[[pending]]
-reason = "roomkit_tools_search::SearchResult / json:SearchResult: unmatched (5)"
-covers = [
-  "rust roomkit_tools_search::SearchResult::response (unmatched)",  # a field with no JSON property in SearchResult
-  "python json:SearchResult.notices (unmatched)",  # a JSON property: no Rust field of roomkit_tools_search::SearchResult
-  "python json:SearchResult.partial (unmatched)",  # a JSON property: no Rust field of roomkit_tools_search::SearchResult
-  "python json:SearchResult.payload (unmatched)",  # a JSON property: no Rust field of roomkit_tools_search::SearchResult
-  "python json:SearchResult.usage (unmatched)",  # a JSON property: no Rust field of roomkit_tools_search::SearchResult
 ]
 
 [[pending]]

@@ -101,12 +101,12 @@ async fn utf8_excerpt_clipping_is_accounted_for() {
         .search(SearchInput::new("q"), &CancellationToken::new())
         .await
         .unwrap();
-    let SearchPayload::Results { results } = out.data.response.payload else {
+    let SearchPayload::Results { results } = out.data.payload else {
         unreachable!()
     };
     assert_eq!(results[0].content.as_deref(), Some("é"));
     assert_eq!(results[0].omitted_bytes, 3);
-    assert!(out.data.response.partial);
+    assert!(out.data.partial);
 }
 #[tokio::test]
 async fn arguments_and_limits_are_host_controlled() {

@@ -372,17 +372,11 @@ async fn patch_limits_and_cancellation_prevent_writes() {
             ..PatchLimits::default()
         },
         PatchLimits {
-            diff: DiffLimits {
-                max_file_bytes: 1,
-                ..DiffLimits::default()
-            },
+            max_file_bytes: 1,
             ..PatchLimits::default()
         },
         PatchLimits {
-            diff: DiffLimits {
-                max_output_bytes: 1,
-                ..DiffLimits::default()
-            },
+            max_output_bytes: 1,
             ..PatchLimits::default()
         },
     ];

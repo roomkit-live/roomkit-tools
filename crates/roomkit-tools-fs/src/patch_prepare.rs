@@ -172,16 +172,16 @@ fn prepare_change(
     let (path, to, expected, after, operation) = parts(change);
     totals.count_input([Some(path), to, expected, after], limits.max_input_bytes)?;
     for text in [expected, after].into_iter().flatten() {
-        mutation::bounded_text(text, limits.diff.max_file_bytes)?;
+        mutation::bounded_text(text, limits.max_file_bytes)?;
     }
     let source = mutation::destination(root, path)?;
     let target = to
         .map(|path| mutation::destination(root, path))
         .transpose()?;
     totals.touch(&source, target.as_deref())?;
-    let before = mutation::snapshot(&source, limits.diff.max_file_bytes)?;
+    let before = mutation::snapshot(&source, limits.max_file_bytes)?;
     let (expected, after) =
-        in_source_endings(before.as_ref(), expected, after, limits.diff.max_file_bytes)?;
+        in_source_endings(before.as_ref(), expected, after, limits.max_file_bytes)?;
     let (expected, after) = (expected.as_deref(), after.as_deref());
     check_existing(before.as_ref(), expected, target.as_deref())?;
     let resolved = Resolved {
@@ -245,16 +245,12 @@ fn render_preview(
         old_label,
         new_label,
         3,
-        limits.diff,
+        limits.diff(),
         cancel,
     )?;
     let operation = change.operation;
     let heading = format!("{}: {operation:?} {path:?} -> {to:?}\n", change.index);
-    totals.count_output(
-        heading.len(),
-        compared.text.len(),
-        limits.diff.max_output_bytes,
-    )?;
+    totals.count_output(heading.len(), compared.text.len(), limits.max_output_bytes)?;
     Ok(PatchPreview {
         index: change.index,
         operation,

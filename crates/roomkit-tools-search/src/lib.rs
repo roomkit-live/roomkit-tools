@@ -13,7 +13,7 @@ pub use backends::ExaSearch;
 #[cfg(feature = "ollama")]
 pub use backends::OllamaSearch;
 #[cfg(any(feature = "exa", feature = "ollama", feature = "openai"))]
-pub use backends::{NetworkPolicy, SearchHttpConfig};
+pub use backends::SearchHttpConfig;
 #[cfg(feature = "openai")]
 pub use backends::{OpenAISearch, OpenAISearchConfig};
 pub use types::*;
@@ -199,10 +199,19 @@ impl WebSearchTool {
                 }
                 SearchPayload::NotPerformed { .. } => false,
             };
+        let BackendOutput {
+            payload,
+            partial,
+            notices,
+            usage,
+        } = response;
         let data = SearchResult {
             provider: self.backend.name().to_owned(),
             query: input.query,
-            response,
+            payload,
+            partial,
+            notices,
+            usage,
             omitted_results,
         };
         let text = answer::render(&data)?;

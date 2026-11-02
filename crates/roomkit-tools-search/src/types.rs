@@ -153,9 +153,17 @@ pub struct SearchResult {
     pub provider: String,
     /// Query actually submitted.
     pub query: String,
-    /// Provider response with common bounds applied.
-    #[serde(flatten)]
-    pub response: BackendOutput,
+    /// Typed result, answer or explicit non-execution.
+    pub payload: SearchPayload,
+    /// Provider reports incomplete results or relaxed constraints.
+    #[serde(default)]
+    pub partial: bool,
+    /// Provider notices, preserved as untrusted data (including presentation metadata).
+    #[serde(default)]
+    pub notices: Vec<String>,
+    /// Usage reported by the service; absent for built-in direct backends.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<SearchUsage>,
     /// Known direct results or uncited answer sources omitted to respect the requested count.
     pub omitted_results: usize,
 }

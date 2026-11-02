@@ -77,23 +77,52 @@ impl PatchInput {
     }
 }
 
-/// Host-owned bounds for a complete patch and its previews.
+/// Host-owned bounds for a complete patch and its previews, Python's
+/// `PatchTool.create` keywords. The file and comparison bounds are those of
+/// [`DiffLimits`], with the same defaults.
 #[derive(Clone, Copy, Debug)]
 pub struct PatchLimits {
     /// Maximum operations per call. Default: 32.
     pub max_changes: usize,
     /// Maximum combined path and text argument bytes. Default: 16 MiB.
     pub max_input_bytes: usize,
-    /// Per-file and comparison limits, plus total rendered preview limit.
-    pub diff: DiffLimits,
+    /// Maximum bytes per file. Default: 8 MiB.
+    pub max_file_bytes: usize,
+    /// Maximum LF-delimited lines per file. Default: 20,000.
+    pub max_lines: usize,
+    /// Maximum LCS matrix cells per file after removing common ends. Default: 1,000,000.
+    pub max_comparison_cells: usize,
+    /// Maximum rendered bytes of all previews together; exceeding this fails
+    /// without clipping. Default: 50 KiB.
+    pub max_output_bytes: usize,
+    /// Maximum context lines on each side of a change. Default: 100.
+    pub max_context_lines: usize,
 }
 
 impl Default for PatchLimits {
     fn default() -> Self {
+        let diff = DiffLimits::default();
         Self {
             max_changes: 32,
             max_input_bytes: 16 * 1024 * 1024,
-            diff: DiffLimits::default(),
+            max_file_bytes: diff.max_file_bytes,
+            max_lines: diff.max_lines,
+            max_comparison_cells: diff.max_comparison_cells,
+            max_output_bytes: diff.max_output_bytes,
+            max_context_lines: diff.max_context_lines,
+        }
+    }
+}
+
+impl PatchLimits {
+    /// The bounds each file's comparison takes.
+    pub(crate) fn diff(self) -> DiffLimits {
+        DiffLimits {
+            max_file_bytes: self.max_file_bytes,
+            max_lines: self.max_lines,
+            max_comparison_cells: self.max_comparison_cells,
+            max_output_bytes: self.max_output_bytes,
+            max_context_lines: self.max_context_lines,
         }
     }
 }
@@ -197,7 +226,7 @@ impl PatchTool {
     /// # Errors
     /// Rejects zero or unrepresentable bounds.
     pub fn with_limits(mut self, limits: PatchLimits) -> Result<Self, ToolError> {
-        limits.diff.validate()?;
+        limits.diff().validate()?;
         if limits.max_changes == 0 || limits.max_input_bytes == 0 {
             return Err(ToolError::InvalidInput(
                 "patch limits must be positive".into(),
@@ -235,7 +264,7 @@ impl PatchTool {
         self.workspace
             .run(cancel, move |root, cancel| {
                 let jobs = prepare(root, &input.changes, limits, cancel)?;
-                apply(&jobs, input.dry_run, limits.diff.max_file_bytes, cancel)
+                apply(&jobs, input.dry_run, limits.max_file_bytes, cancel)
             })
             .await
     }

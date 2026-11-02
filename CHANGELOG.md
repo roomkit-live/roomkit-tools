@@ -75,6 +75,12 @@ part of an existing published preview.
   `MemoryPlanBackend::new` a `MemoryPlanLimits` (256 and 64 by default), and
   `OutputStore::new` an optional parent, the system temporary directory for
   `None`.
+- Rust takes flat what Python takes flat: `PatchLimits` holds the file and
+  comparison bounds itself instead of a nested `DiffLimits`,
+  `SearchHttpConfig` holds `allowed_origins` and `private_origins` instead of
+  a `NetworkPolicy`, which `roomkit_tools_search` no longer exports, and
+  `SearchResult` holds `payload`, `partial`, `notices` and `usage`, its JSON
+  unchanged, instead of a `BackendOutput`.
 
 ### Added
 

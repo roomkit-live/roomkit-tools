@@ -5,8 +5,7 @@
 mod search;
 use roomkit_tools_core::ToolError;
 use roomkit_tools_search::{
-    ExaSearch, NetworkPolicy, OllamaSearch, OpenAISearch, SearchBackend, SearchHttpConfig,
-    WebSearchTool,
+    ExaSearch, OllamaSearch, OpenAISearch, SearchBackend, SearchHttpConfig, WebSearchTool,
 };
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -36,14 +35,11 @@ async fn shared_search_contracts() {
                 server.origin,
                 case["path"].as_str().unwrap()
             )),
-            policy: NetworkPolicy {
-                private_origins: vec![server.origin.clone()],
-                ..NetworkPolicy::default()
-            },
+            private_origins: vec![server.origin.clone()],
             ..SearchHttpConfig::default()
         };
         if case["deny"] == true {
-            config.policy.allowed_origins = Some(vec![]);
+            config.allowed_origins = Some(vec![]);
         }
         if let Some(cap) = case["max_response_bytes"].as_u64() {
             config.max_response_bytes = usize::try_from(cap).unwrap();

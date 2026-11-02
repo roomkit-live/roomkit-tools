@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "standalone demonstration output")]
 use roomkit_tools_search::{
-    ExaSearch, NetworkPolicy, OllamaSearch, SearchBackend, SearchHttpConfig, SearchInput,
-    SearchPayload, WebSearchTool,
+    ExaSearch, OllamaSearch, SearchBackend, SearchHttpConfig, SearchInput, SearchPayload,
+    WebSearchTool,
 };
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -41,10 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
         let config = SearchHttpConfig {
             endpoint: Some(format!("{origin}/search")),
-            policy: NetworkPolicy {
-                private_origins: vec![origin],
-                ..NetworkPolicy::default()
-            },
+            private_origins: vec![origin],
             ..SearchHttpConfig::default()
         };
         Arc::new(OllamaSearch::new("fixture-only", config)?)
@@ -57,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
     if !live {
-        let SearchPayload::Results { results } = &output.data.response.payload else {
+        let SearchPayload::Results { results } = &output.data.payload else {
             return Err("expected results".into());
         };
         assert_eq!(

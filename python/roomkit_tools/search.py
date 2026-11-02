@@ -37,10 +37,8 @@ def _config(
     return json.dumps(
         {
             "endpoint": endpoint,
-            "policy": {
-                "allowed_origins": allowed_origins,
-                "private_origins": [] if private_origins is None else private_origins,
-            },
+            "allowed_origins": allowed_origins,
+            "private_origins": [] if private_origins is None else private_origins,
             "max_response_bytes": max_response_bytes,
         },
         allow_nan=False,

@@ -90,10 +90,7 @@ async fn native_openai_answer_preserves_citations_and_usage_through_roomkit() {
     let server = http::Server::start().await;
     let config = roomkit_tools_search::SearchHttpConfig {
         endpoint: Some(format!("{}/openai/answer", server.origin)),
-        policy: roomkit_tools_search::NetworkPolicy {
-            private_origins: vec![server.origin.clone()],
-            ..roomkit_tools_search::NetworkPolicy::default()
-        },
+        private_origins: vec![server.origin.clone()],
         ..roomkit_tools_search::SearchHttpConfig::default()
     };
     let backend = roomkit_tools_search::OpenAISearch::new(

@@ -47,14 +47,14 @@ pub(crate) fn render(data: &SearchResult) -> Result<String, ToolError> {
         answer,
         sources,
         citations,
-    } = &data.response.payload
+    } = &data.payload
     else {
         return serde_json::to_string(data)
             .map_err(|_| ToolError::UnsupportedResource("invalid search output".into()));
     };
     let mut text = format!(
         "provider={}, partial={}, omitted_results={}\n\n",
-        data.provider, data.response.partial, data.omitted_results
+        data.provider, data.partial, data.omitted_results
     );
     let mut insertions: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
     for citation in citations {
@@ -80,10 +80,10 @@ pub(crate) fn render(data: &SearchResult) -> Result<String, ToolError> {
     for (index, hit) in sources.iter().enumerate() {
         writeln!(text, "- [source {}](<{}>)", index + 1, link(&hit.url)?).map_err(|_| invalid())?;
     }
-    for notice in &data.response.notices {
+    for notice in &data.notices {
         writeln!(text, "Notice: {notice}").map_err(|_| invalid())?;
     }
-    if let Some(usage) = &data.response.usage {
+    if let Some(usage) = &data.usage {
         writeln!(
             text,
             "Observed usage: {}",

@@ -4,13 +4,14 @@ use reqwest::{
     header::{self, HeaderMap, HeaderValue},
 };
 use roomkit_tools_core::ToolError;
-use roomkit_tools_http::{checked_client, io_error, normalize_policy, parse_url, read_body};
+use roomkit_tools_http::{
+    NetworkPolicy, checked_client, io_error, normalize_policy, parse_url, read_body,
+};
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
-pub use roomkit_tools_http::NetworkPolicy;
 #[cfg(feature = "exa")]
 mod exa;
 #[cfg(feature = "ollama")]
@@ -25,13 +26,17 @@ pub use ollama::OllamaSearch;
 pub use openai::{OpenAISearch, OpenAISearchConfig};
 
 /// Host-only transport configuration; never exposed in model arguments.
+/// Its fields are the transport keywords Python's backends take.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SearchHttpConfig {
     /// Override service URL, primarily for local tests or an explicit proxy.
     pub endpoint: Option<String>,
-    /// Exact origin policy and explicit private-network exceptions.
-    pub policy: NetworkPolicy,
+    /// Exact origins allowed: `None` allows public origins, an empty list
+    /// refuses every destination.
+    pub allowed_origins: Option<Vec<String>>,
+    /// Explicit private-network origins; they do not bypass `allowed_origins`.
+    pub private_origins: Vec<String>,
     /// Decoded HTTP response limit, default 512 KiB, maximum 16 MiB.
     pub max_response_bytes: usize,
 }
@@ -39,7 +44,8 @@ impl Default for SearchHttpConfig {
     fn default() -> Self {
         Self {
             endpoint: None,
-            policy: NetworkPolicy::default(),
+            allowed_origins: None,
+            private_origins: Vec::new(),
             max_response_bytes: 512 * 1024,
         }
     }
@@ -57,7 +63,11 @@ impl Transport {
     fn new(default: &str, config: SearchHttpConfig, headers: HeaderMap) -> Result<Self, ToolError> {
         let raw = config.endpoint.as_deref().unwrap_or(default);
         let endpoint = parse_url(raw, 8192)?;
-        let policy = normalize_policy(config.policy, 8192)?;
+        let policy = NetworkPolicy {
+            allowed_origins: config.allowed_origins,
+            private_origins: config.private_origins,
+        };
+        let policy = normalize_policy(policy, 8192)?;
         if endpoint.query().is_some() || raw.contains('#') {
             return Err(ToolError::InvalidInput(
                 "search endpoints cannot contain queries or fragments".into(),
