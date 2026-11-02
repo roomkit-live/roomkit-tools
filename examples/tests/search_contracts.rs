@@ -124,6 +124,29 @@ fn assert_requests(seen: &[Value]) {
             .unwrap()
             .contains("authorization: Bearer fixture-key")
     );
+    let fixture: Value =
+        serde_json::from_str(include_str!("../../tests/fixtures/search.json")).unwrap();
+    let exa_paths: Vec<&Value> = fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|case| case["backend"] == "exa")
+        .map(|case| &case["path"])
+        .collect();
+    let sent: Vec<&Value> = seen
+        .iter()
+        .filter(|r| exa_paths.contains(&&r["path"]))
+        .collect();
+    assert_ne!(sent.len(), 0, "no request of an Exa case");
+    for request in sent {
+        assert!(
+            request["headers"]
+                .as_str()
+                .unwrap()
+                .contains("x-api-key: fixture-key"),
+            "{request}"
+        );
+    }
     let exa = seen.iter().find(|r| r["path"] == "/exa").unwrap();
     assert_eq!(
         exa["body"],

@@ -73,6 +73,11 @@ class WebSearchTests(unittest.IsolatedAsyncioTestCase):
                             json.dumps(result, sort_keys=True),
                             json.dumps(reference["reports"][case["name"]], sort_keys=True),
                         )
+            exa = {case["path"] for case in FIXTURE["cases"] if case["backend"] == "exa"}
+            sent = [request for request in server.seen if request["path"] in exa]
+            self.assertTrue(sent)
+            for request in sent:
+                self.assertEqual(request["headers"].get("x-api-key"), "fixture-key", request)
 
     async def test_openai_wire_contract_and_visible_citations(self):
         async with SearchServer() as server:
@@ -189,6 +194,9 @@ class WebSearchTests(unittest.IsolatedAsyncioTestCase):
             ExaSearch(endpoint="http://example.com/search")
         with self.assertRaises(InvalidInputError):
             ExaSearch(endpoint="https://example.com/search?key=secret")
+        # The key is checked before the transport, as the other backends do.
+        with self.assertRaises(InvalidInputError):
+            ExaSearch(api_key=" key", endpoint="http://example.com/search")
         async with SearchServer() as server:
             with self.assertRaises(AccessRefusedError) as ctx:
                 await WebSearchTool(

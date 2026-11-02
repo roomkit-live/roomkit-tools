@@ -2,7 +2,8 @@
 use super::{Cancellation, InvalidInputError, ToolError, tool_error};
 use pyo3::prelude::*;
 use roomkit_tools_search::{
-    ExaSearch, OllamaSearch, OpenAISearch, SearchBackend, SearchInput, WebSearchTool,
+    ExaSearch, OllamaSearch, OpenAISearch, SearchBackend, SearchHttpConfig, SearchInput,
+    WebSearchTool,
 };
 use std::sync::Arc;
 
@@ -80,8 +81,16 @@ impl PythonSearchBackend {
 
     #[staticmethod]
     fn exa(api_key: Option<&str>, config_json: &str) -> PyResult<Self> {
-        let config = serde_json::from_str(config_json)
+        let config: SearchHttpConfig = serde_json::from_str(config_json)
             .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
+        if let Some(api_key) = api_key {
+            // Python's ExaSearch checks its key before its transport, as the
+            // other backends do: the key goes first on the default transport,
+            // which builds no client and does no I/O.
+            ExaSearch::new(SearchHttpConfig::default())
+                .and_then(|backend| backend.with_api_key(api_key))
+                .map_err(|e| tool_error(&e))?;
+        }
         let mut backend = ExaSearch::new(config).map_err(|e| tool_error(&e))?;
         if let Some(api_key) = api_key {
             backend = backend.with_api_key(api_key).map_err(|e| tool_error(&e))?;
