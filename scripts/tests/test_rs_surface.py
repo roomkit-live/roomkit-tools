@@ -343,6 +343,107 @@ class FailsClosed(unittest.TestCase):
         self._refused("index.html", "re-export")
 
 
+def _json_item(name, inner, visibility="public", hidden=False):
+    attrs = [{"other": "#[doc(hidden)]"}] if hidden else []
+    return {"name": name, "visibility": visibility, "attrs": attrs, "inner": inner}
+
+
+def _use(source, name, id_, *, glob=False, hidden=False):
+    inner = {"use": {"source": source, "name": name, "id": id_, "is_glob": glob}}
+    return _json_item(None, inner, hidden=hidden)
+
+
+# A crate as rustdoc's JSON (format 61) writes it with --document-hidden-items,
+# trimmed to what the hidden reader reads: each way an item or a member is
+# hidden, and what is no public item.
+HIDDEN_INDEX = {
+    0: _json_item("fixture", {"module": {"is_crate": True, "items": [1, 2, 3, 4, 5, 6, 7, 8]}}),
+    1: _json_item("internal", {"module": {"items": [10]}}, hidden=True),
+    10: _json_item("helper", {"function": {}}),
+    2: _use("private::Hidden", "Hidden", 11, hidden=True),
+    11: _json_item("Hidden", {"struct": {"kind": {"unit": None}, "impls": []}}),
+    3: _json_item("Shown", {"struct": {"kind": {"plain": {"fields": [12, 13]}}, "impls": [14, 15]}}),
+    12: _json_item("visible", {"struct_field": {}}),
+    13: _json_item("secret", {"struct_field": {}}, hidden=True),
+    14: _json_item(None, {"impl": {"trait": None, "items": [16, 17, 19]}}, visibility="default"),
+    16: _json_item("new", {"function": {}}),
+    17: _json_item("plumbing", {"function": {}}, hidden=True),
+    19: _json_item("private", {"function": {}}, visibility="default", hidden=True),
+    15: _json_item(None, {"impl": {"trait": {"path": "Debug"}, "items": [18]}}, visibility="default"),
+    18: _json_item("fmt", {"function": {}}, visibility="default", hidden=True),
+    4: _json_item("Mode", {"enum": {"variants": [21, 22], "impls": []}}),
+    21: _json_item("Fast", {"variant": {}}, visibility="default"),
+    22: _json_item("Legacy", {"variant": {}}, visibility="default", hidden=True),
+    5: _use("more", "more", 30, glob=True),
+    30: _json_item("more", {"module": {"items": [31]}}, visibility="crate"),
+    31: _json_item("extra", {"function": {}}, hidden=True),
+    6: _json_item("private_fn", {"function": {}}, visibility="crate", hidden=True),
+    7: _use("other::External", "External", 99, hidden=True),
+    8: _json_item("Contract", {"trait": {"items": [23], "impls": []}}),
+    23: _json_item("check", {"function": {}}, visibility="default", hidden=True),
+}
+
+
+class ReadsTheHiddenItems(unittest.TestCase):
+    """`--hidden` lists the public items `#[doc(hidden)]` hides, from the
+    JSON rustdoc writes with --document-hidden-items."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.doc = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write(self, format_version: int = 61) -> None:
+        index = {str(key): value for key, value in HIDDEN_INDEX.items()}
+        crate = {"root": 0, "index": index, "format_version": format_version}
+        (self.doc / "fixture.json").write_text(json.dumps(crate), encoding="utf-8")
+
+    def test_each_way_an_item_or_member_is_hidden(self) -> None:
+        self._write()
+        self.assertEqual(
+            surface.read_hidden(self.doc, "fixture"),
+            [
+                "fixture::Contract::check",
+                "fixture::External",
+                "fixture::Hidden",
+                "fixture::Mode::Legacy",
+                "fixture::Shown::plumbing",
+                "fixture::Shown::secret",
+                "fixture::extra",
+                "fixture::internal::helper",
+            ],
+        )
+
+    def test_another_json_format_is_refused(self) -> None:
+        self._write(format_version=62)
+        with self.assertRaises(surface.SurfaceError) as raised:
+            surface.read_hidden(self.doc, "fixture")
+        self.assertIn("format 62", str(raised.exception))
+
+    def test_writes_the_hidden_items_by_crate(self) -> None:
+        self._write()
+        out = io.StringIO()
+        status = surface.main(
+            ["--hidden", "--doc", str(self.doc), "--crate", "fixture"], out=out, log=io.StringIO()
+        )
+        self.assertEqual(status, 0)
+        self.assertEqual(len(json.loads(out.getvalue())["hidden"]["fixture"]), 8)
+
+
+class ChecksTheInternalCrate(unittest.TestCase):
+    def test_an_internal_crate_shows_no_item(self) -> None:
+        with self.assertRaises(surface.SurfaceError) as raised:
+            surface.check_internal(FIXTURES, "fixture")
+        self.assertIn("an internal crate shows public items", str(raised.exception))
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "empty").mkdir()
+            page = '<section id="main-content" class="content"><h1>List of all items</h1></section>'
+            (Path(tmp) / "empty" / "all.html").write_text(page, encoding="utf-8")
+            surface.check_internal(Path(tmp), "empty")
+
+
 class ParsesSignatures(unittest.TestCase):
     def test_a_closure_type_among_the_parameters(self) -> None:
         parsed = surface.parse_fn(

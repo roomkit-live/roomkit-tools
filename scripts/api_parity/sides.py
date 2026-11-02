@@ -243,3 +243,14 @@ def load_surface(paths: list[Path]) -> Surface:
     if not surface.items:
         raise ParityError("the surface holds no item")
     return surface
+
+
+def load_hidden(path: Path) -> list[str]:
+    """The public paths `#[doc(hidden)]` hides, as `rs-surface.py --hidden`
+    wrote them."""
+    try:
+        written = json.loads(path.read_text(encoding="utf-8"))
+        hidden = [str(item) for items in written["hidden"].values() for item in items]
+    except (OSError, ValueError, KeyError, AttributeError, TypeError) as error:
+        raise ParityError(f"{path}: the hidden items cannot be read: {error}") from error
+    return sorted(set(hidden))

@@ -31,6 +31,7 @@ KINDS = {
     "default": "both default it, to another value",
     "value": "a constant of another value, or of a value rustdoc does not show",
     "dump": "a struct or field the Rust defaults dump lacks",
+    "hidden": "a public item hidden from the documentation",
 }
 # The kinds no entry covers: what the gate itself needs is fixed, not excused.
 UNCOVERED_KINDS = {"rules", "dump"}
@@ -41,10 +42,13 @@ _KEYS = {
     "map": ({"rust", "python", "approved", "reason", "decision"}, {"params"}),
     "exception": ({"covers", "approved", "reason", "decision"}, set()),
     "missing": ({"covers", "approved", "reason", "decision"}, set()),
+    "hidden": ({"covers", "reason", "decision"}, {"approved"}),
     "pending": ({"covers", "reason"}, {"rust", "python"}),
 }
-# The kinds a `[[missing]]` entry covers: a feature one side lacks.
-_MISSING_KINDS = {"unmatched", "uncompared"}
+# The kinds a table's entry may cover, for the tables limited to some: a
+# `[[missing]]` entry covers a feature one side lacks, a `[[hidden]]` one a
+# public item hidden from the documentation, which no other table covers.
+TABLE_KINDS = {"missing": {"unmatched", "uncompared"}, "hidden": {"hidden"}}
 # Each rule of `[rules]`: a table naming in `decision` where the maintainer
 # decided it, with its settings, None for a rule of free keys (a name for a
 # name). A rule with no setting declares one the comparison applies.
@@ -262,10 +266,12 @@ def entry(table: str, index: int, raw: dict) -> Entry:
             )
     if table != "map" and not covers:
         raise ParityError(f"{where}: covers no finding")
-    if table == "missing" and (
-        kinds := sorted({parse_key(key)[2] for key in covers} - _MISSING_KINDS)
-    ):
-        raise ParityError(f"{where}: covers {kinds}, not a feature on one side only")
+    kinds = {parse_key(key)[2] for key in covers}
+    allowed = TABLE_KINDS.get(table)
+    if allowed is not None and kinds - allowed:
+        raise ParityError(f"{where}: covers {sorted(kinds - allowed)}, not {sorted(allowed)}")
+    if allowed is None and "hidden" in kinds:
+        raise ParityError(f"{where}: covers a hidden item; a [[hidden]] entry lists it")
     decision = raw.get("decision")
     if "decision" in raw and (not isinstance(decision, str) or not decision.strip()):
         raise ParityError(f"{where}: decision names its source")

@@ -6,6 +6,7 @@ the findings by key: `<side> <path> (<kind>)`.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import io
 import json
@@ -138,6 +139,7 @@ def run(
     rules_only=False,
     exports=None,
     defaults=None,
+    hidden=None,
 ):
     crates: dict[str, list] = {}
     for item in items:
@@ -151,7 +153,7 @@ def run(
     python = Python(specs, exports, contracts)
     table = tomllib.loads(mapping_text(mapping, rules))
     dump = None if defaults is None else Defaults(defaults)
-    return compare(surface, python, Mapping.from_table(table, rules_only), dump)
+    return compare(surface, python, Mapping.from_table(table, rules_only), dump, hidden)
 
 
 def keys(report) -> set[str]:
@@ -1463,6 +1465,47 @@ class DefaultValues(unittest.TestCase):
         )
 
 
+class Hidden(unittest.TestCase):
+    """A public item `#[doc(hidden)]` hides is on no rustdoc page: each is a
+    finding a `[[hidden]]` entry lists with its decision."""
+
+    ITEMS = [function("kit::helper", ("value", "&str"))]
+    SPECS = {"pkg.helper": {"__call__": ["def", "value"]}}
+    LISTED = (
+        '[[hidden]]\nreason = "plumbing"\ndecision = "ref"\n'
+        'covers = ["rust kit::Tool::check (hidden)"]\n'
+    )
+
+    def test_a_hidden_item_is_listed_with_its_decision(self):
+        report = run(self.ITEMS, self.SPECS, hidden=["kit::Tool::check"])
+        self.assertEqual(uncovered(report), {"rust kit::Tool::check (hidden)"})
+        report = run(self.ITEMS, self.SPECS, mapping=self.LISTED, hidden=["kit::Tool::check"])
+        self.assertEqual(uncovered(report), set())
+        self.assertEqual(len(report.hidden), 1)
+        self.assertTrue(report.passed(strict=True))
+
+    def test_an_item_no_longer_hidden_leaves_its_entry_dead(self):
+        report = run(self.ITEMS, self.SPECS, mapping=self.LISTED, hidden=[])
+        self.assertEqual(len(report.dead), 1)
+
+    def test_only_a_hidden_entry_lists_a_hidden_item(self):
+        for entry in (
+            '[[pending]]\nreason = "r"\ncovers = ["rust kit::X (hidden)"]\n',
+            '[[exception]]\napproved = 2026-11-02\nreason = "r"\ndecision = "ref"\n'
+            'covers = ["rust kit::X (hidden)"]\n',
+            '[[hidden]]\nreason = "r"\ndecision = "ref"\ncovers = ["rust kit::X (unmatched)"]\n',
+            '[[hidden]]\nreason = "r"\ncovers = ["rust kit::X (hidden)"]\n',
+        ):
+            with self.subTest(entry=entry), self.assertRaises(ParityError):
+                Mapping.from_table(tomllib.loads(mapping_text(entry)))
+
+    def test_a_hidden_item_awaiting_its_decision_fails(self):
+        entry = self.LISTED.replace('decision = "ref"', 'decision = "TODO: maintainer"')
+        report = run(self.ITEMS, self.SPECS, mapping=entry, hidden=["kit::Tool::check"])
+        self.assertEqual(uncovered(report), set())
+        self.assertFalse(report.passed(strict=False))
+
+
 class Decisions(unittest.TestCase):
     """Every rule and every approved entry names where the maintainer
     decided it; one whose decision is left to the maintainer fails the gate."""
@@ -1530,6 +1573,7 @@ class Command(unittest.TestCase):
         (snapshot / "public_api_names.json").write_text(json.dumps({"pkg": ["DocsList"]}))
         (snapshot / "public_api_contracts.json").write_text(json.dumps(Entries.CONTRACTS))
         (self.dir / "defaults.json").write_text("{}")
+        (self.dir / "hidden.json").write_text(json.dumps({"hidden": {"kit": []}}))
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -1549,6 +1593,8 @@ class Command(unittest.TestCase):
                 str(self.dir / "mapping.toml"),
                 "--defaults",
                 str(self.dir / "defaults.json"),
+                "--hidden",
+                str(self.dir / "hidden.json"),
                 *flags,
             ],
             out=out,
@@ -1590,8 +1636,16 @@ class Command(unittest.TestCase):
 
     def test_an_input_it_cannot_read(self):
         self.assertEqual(self._main("[[nonsense]]\n")[0], 2)
+        (self.dir / "hidden.json").write_text("[]")
+        self.assertEqual(self._main(Entries.PAIRS)[0], 2)
         (self.dir / "defaults.json").write_text("[]")
         self.assertEqual(self._main(Entries.PAIRS)[0], 2)
+
+    def test_the_hidden_items_are_required(self):
+        (self.dir / "mapping.toml").write_text(mapping_text())
+        argv = [str(self.dir / "surface.json"), "--defaults", str(self.dir / "defaults.json")]
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            gate.main(argv, out=io.StringIO(), log=io.StringIO())
 
 
 def _load_gate():

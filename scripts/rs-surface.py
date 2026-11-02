@@ -12,8 +12,12 @@ snapshot through `api/mapping.toml`.
 The scope is every `roomkit-tools-*` crate of the workspace but the internal
 `roomkit-tools-http`, whose items are all hidden, and the RoomKit adapter
 `roomkit-tools-roomkit`, read from its own workspace's documentation
-(`make api-adapter-surface`). An item or member hidden by `#[doc(hidden)]` is
-on no page, and so not in the surface.
+(`make api-adapter-surface`). The internal crate's pages must list no item.
+An item or member hidden by `#[doc(hidden)]` is on no page, and so not in
+the surface: `--hidden` lists them instead, from the JSON rustdoc writes with
+`--document-hidden-items` (the HTML it then writes inlines no re-export, so
+it cannot be read for them), and the parity gate requires each to be listed
+with its decision.
 
 The reader fails closed. A missing page, a kind of item or a page section it
 does not know, a declaration whose members disagree with the page's entries,
@@ -22,10 +26,12 @@ no item is an error, never a smaller surface. rustdoc's templates change
 between releases: a toolchain bump that breaks the reader fails here, and its
 fix lands with the bump.
 
-The reader is a copy of roomkit-rs's `scripts/rs-surface.py`; only the crates
-in scope differ.
+The HTML reader is a copy of roomkit-rs's `scripts/rs-surface.py`; the crates
+in scope, the constants' values, the internal crate's check and `--hidden`
+are this repository's.
 
 Usage: python3 scripts/rs-surface.py [--doc target/doc] [--crate NAME]... > surface.json
+       python3 scripts/rs-surface.py --hidden --doc DIR [--crate NAME]... > hidden.json
 """
 
 from __future__ import annotations
@@ -228,6 +234,21 @@ def _main_content(page: str, where: str) -> str:
 
 def read_items(doc: Path, crate: str) -> list[tuple[str, str, str]]:
     """The (kind, name, href) of each item all.html lists."""
+    found = _listed(doc, crate)
+    if not found:
+        raise SurfaceError(f"{crate}/all.html: no item")
+    return found
+
+
+def check_internal(doc: Path, crate: str) -> None:
+    """An internal crate, out of the gate's scope, shows no public item."""
+    found = _listed(doc, crate)
+    if found:
+        names = ", ".join(name for _, name, _ in found)
+        raise SurfaceError(f"{crate}: an internal crate shows public items: {names}")
+
+
+def _listed(doc: Path, crate: str) -> list[tuple[str, str, str]]:
     where = f"{crate}/all.html"
     page = _main_content(_page(doc, crate, "all.html"), where)
     found: list[tuple[str, str, str]] = []
@@ -244,8 +265,6 @@ def read_items(doc: Path, crate: str) -> list[tuple[str, str, str]]:
             raise SurfaceError(f"{where}: an entry of {section.group(1)} it cannot read")
         kind = KINDS[section.group(1)][0]
         found += [(kind, html.unescape(link.group(2)), link.group(1)) for link in links]
-    if not found:
-        raise SurfaceError(f"{where}: no item")
     return found
 
 
@@ -482,6 +501,107 @@ def rustdoc_version(doc: Path, crate: str) -> str:
     return found.group(1)
 
 
+# The JSON format the hidden reader knows, from rustdoc's `--output-format
+# json`: a toolchain bump that changes it fails here, and the fix lands with
+# the bump.
+JSON_FORMAT = 61
+_HIDDEN = "#[doc(hidden)]"
+
+
+def read_hidden(doc: Path, crate: str) -> list[str]:
+    """The public paths of `crate` that `#[doc(hidden)]` hides: each hidden
+    item, each item of a hidden module, and each hidden member of a shown
+    item, read from `<doc>/<crate>.json`."""
+    path = doc / f"{crate}.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise SurfaceError(f"{crate}.json: cannot read rustdoc's JSON ({error})") from error
+    if data.get("format_version") != JSON_FORMAT:
+        raise SurfaceError(f"{crate}.json: JSON format {data.get('format_version')}, not {JSON_FORMAT}")
+    found: list[str] = []
+    _HiddenWalk(data["index"], found).visit(data["index"][str(data["root"])], crate, False)
+    return sorted(set(found))
+
+
+class _HiddenWalk:
+    """A walk of the public items from a crate's root, through its public
+    modules and re-exports, recording the hidden paths."""
+
+    def __init__(self, index: dict, found: list[str]) -> None:
+        self.index, self.found = index, found
+
+    def item(self, id_: object) -> dict:
+        found = self.index.get(str(id_))
+        if found is None:
+            raise SurfaceError(f"rustdoc's JSON names item {id_}, which its index lacks")
+        return found
+
+    def visit(self, item: dict, path: str, hidden: bool) -> None:
+        hidden = hidden or _hidden(item)
+        kind, inner = _inner(item)
+        if kind == "module":
+            for child in inner["items"]:
+                self.child(self.item(child), path, hidden)
+        elif hidden:
+            self.found.append(path)
+        else:
+            self.members(kind, inner, path)
+
+    def child(self, item: dict, module: str, hidden: bool) -> None:
+        """An item a module lists: shown when public, a re-export followed."""
+        if item["visibility"] != "public":
+            return
+        kind, inner = _inner(item)
+        if kind != "use":
+            self.visit(item, f"{module}::{item['name']}", hidden)
+            return
+        hidden = hidden or _hidden(item)
+        target = self.index.get(str(inner["id"])) if inner["id"] is not None else None
+        if target is None:  # another crate's item
+            if hidden:
+                self.found.append(f"{module}::{inner['name']}")
+        elif inner["is_glob"]:
+            if _inner(target)[0] != "module":
+                raise SurfaceError(f"{module}: a glob re-export of {inner['source']}, which is no module")
+            for child in _inner(target)[1]["items"]:
+                self.child(self.item(child), module, hidden)
+        else:
+            self.visit(target, f"{module}::{inner['name']}", hidden)
+
+    def members(self, kind: str, inner: dict, path: str) -> None:
+        """The hidden members of a shown type or trait: its public fields,
+        its variants, its trait items and its public inherent members, those
+        of a hidden inherent block included."""
+        members = []
+        if kind == "struct":
+            shape = inner["kind"]
+            ids = shape["plain"]["fields"] if "plain" in shape else shape.get("tuple") or []
+            fields = [self.item(id_) for id_ in ids if id_ is not None]  # None: a private field
+            members += [field for field in fields if field["visibility"] == "public"]
+        elif kind == "enum":
+            members += [self.item(id_) for id_ in inner["variants"]]
+        elif kind == "trait":
+            members += [self.item(id_) for id_ in inner["items"]]
+        for impl in map(self.item, inner.get("impls", [])):
+            if _inner(impl)[1]["trait"] is None:
+                members += [
+                    {**member, "attrs": member["attrs"] + impl["attrs"]}
+                    for member in map(self.item, _inner(impl)[1]["items"])
+                    if member["visibility"] == "public"
+                ]
+        self.found += [f"{path}::{member['name']}" for member in members if _hidden(member)]
+
+
+def _inner(item: dict) -> tuple[str, dict]:
+    ((kind, inner),) = item["inner"].items()
+    return kind, inner or {}
+
+
+def _hidden(item: dict) -> bool:
+    return any(attr == {"other": _HIDDEN} or attr == _HIDDEN for attr in item.get("attrs", []))
+
+
 def counts(crates: dict[str, list[dict]]) -> dict[str, int]:
     """The audit's counts: items, inherent methods, associated constants,
     trait methods, fields and variants."""
@@ -500,11 +620,16 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--doc", type=Path, default=Path("target/doc"), help="rustdoc's output directory")
     parser.add_argument("--crate", action="append", dest="crates", help="a crate to read, instead of the workspace crates in scope")
+    parser.add_argument("--hidden", action="store_true", help="list the hidden public items, from rustdoc's JSON")
     args = parser.parse_args(argv)
     names = args.crates or list(CRATES)
     try:
+        if args.hidden:
+            return _write_hidden(args.doc, names, out, log)
         crates = {crate: read_crate(args.doc, crate) for crate in names}
         version = rustdoc_version(args.doc, names[0])
+        for crate in () if args.crates else INTERNAL:
+            check_internal(args.doc, crate)
     except SurfaceError as error:
         print(f"rs-surface: {error}", file=log)
         return 1
@@ -515,6 +640,14 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     print(f"rs-surface: rustdoc {version}: {summary['items']} items ({by_crate}); "
           + ", ".join(f"{count} {name.replace('_', ' ')}" for name, count in summary.items() if name != "items"),
           file=log)
+    return 0
+
+
+def _write_hidden(doc: Path, names: list[str], out: TextIO, log: TextIO) -> int:
+    hidden = {crate: read_hidden(doc, crate) for crate in names}
+    json.dump({"format_version": JSON_FORMAT, "hidden": hidden}, out, indent=1, ensure_ascii=False)
+    out.write("\n")
+    print(f"rs-surface: {sum(map(len, hidden.values()))} hidden public items", file=log)
     return 0
 
 

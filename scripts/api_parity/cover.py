@@ -31,6 +31,11 @@ class Report:
         return self.covered_by("pending")
 
     @property
+    def hidden(self) -> list[Finding]:
+        """The public items hidden from the documentation, listed."""
+        return self.covered_by("hidden")
+
+    @property
     def missing(self) -> list[Finding]:
         """The features one side lacks, recorded, not ported."""
         return self.covered_by("missing")
@@ -55,9 +60,13 @@ class Report:
 
 
 def compare(
-    surface: Surface, python: Python, mapping: Mapping, defaults: Defaults | None = None
+    surface: Surface,
+    python: Python,
+    mapping: Mapping,
+    defaults: Defaults | None = None,
+    hidden: list[str] | None = None,
 ) -> Report:
-    comparison = Comparison(surface, python, mapping, defaults)
+    comparison = Comparison(surface, python, mapping, defaults, hidden)
     findings = comparison.run()
     uncovered = _cover(findings, mapping)
     dead = _dead(comparison, findings, mapping)

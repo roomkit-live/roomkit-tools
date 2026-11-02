@@ -108,7 +108,10 @@ applies with no setting is declared all the same:
   trait, the Rust form of that protocol (`[rules] tool_protocol`); an
   adapter has its Python RoomKit tool's name;
 - a rule naming a Rust item or variant that is gone, or that no comparison
-  reads, is a finding no entry covers.
+  reads, is a finding no entry covers;
+- hidden items: a public item or member hidden by `#[doc(hidden)]` is on no
+  page rustdoc writes, so each is a `hidden` finding, which only a
+  `[[hidden]]` entry naming its decision covers.
 
 How a difference is reported, each finding of a kind (`mapping.KINDS`)
 and none silenced:
@@ -130,7 +133,10 @@ names the Python counterpart of a Rust item or member, a mapping the
 maintainer approved as forced by the language; `[[exception]]` covers
 approved one-sided findings; `[[missing]]` covers a feature one side has
 and the other lacks, recorded rather than ported (`unmatched` and
-`uncompared` findings only); `[[pending]]` covers the findings awaiting a
+`uncompared` findings only); `[[hidden]]` lists the public items
+`#[doc(hidden)]` hides, which rustdoc shows on no page (`hidden` findings,
+from `rs-surface.py --hidden`, and no other table covers them); `[[pending]]`
+covers the findings awaiting a
 decision, and, naming both counterparts, pairs two items or members whose
 name difference awaits it. An entry covers findings by key,
 `<rust|python> <path> (<kind>) [<with>]`: `<with>` names what the finding
@@ -141,7 +147,7 @@ other side's call; one named twice, its Python name; a `required`,
 for `default`, Rust's; a `variadic` or `form` finding, the struct and the
 fields or parameters it stands for. A key no finding has, a pairing the
 rules already make, or an entry naming what is gone, is dead. Every rule and
-every `[[map]]`, `[[exception]]` and `[[missing]]` entry names in `decision`
+every `[[map]]`, `[[exception]]`, `[[missing]]` and `[[hidden]]` entry names in `decision`
 where the maintainer decided it, and the mapping is refused without one; a
 decision that reads `TODO: maintainer` awaits the maintainer.
 
@@ -149,7 +155,7 @@ The gate fails (exit 1) on a finding no entry covers, a dead entry or a
 decision awaiting the maintainer; `--strict` also on any `[[pending]]`
 entry left. An input it cannot read whole exits 2.
 
-Usage: python3 scripts/api-parity.py SURFACE... --defaults FILE [--python DIR]...
+Usage: python3 scripts/api-parity.py SURFACE... --defaults FILE --hidden FILE [--python DIR]...
                                      [--mapping FILE] [--rules-only] [--strict]
                                      [--verbose] [--json OUT] [--pending]
 """
@@ -170,7 +176,7 @@ from api_parity.cover import Report, compare  # noqa: E402
 from api_parity.defaults import load_defaults  # noqa: E402
 from api_parity.mapping import Mapping, load_mapping  # noqa: E402
 from api_parity.report import as_json, pending_toml, render  # noqa: E402
-from api_parity.sides import Python, Surface, load_python, load_surface  # noqa: E402
+from api_parity.sides import Python, Surface, load_hidden, load_python, load_surface  # noqa: E402
 
 __all__ = ["Mapping", "ParityError", "Python", "Report", "Surface", "compare", "main"]
 
@@ -189,6 +195,12 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
         type=Path,
         required=True,
         help="the Rust defaults examples/tests/api_defaults.rs wrote (ROOMKIT_API_DEFAULTS)",
+    )
+    parser.add_argument(
+        "--hidden",
+        type=Path,
+        required=True,
+        help="the hidden public items rs-surface.py --hidden wrote",
     )
     parser.add_argument(
         "--rules-only", action="store_true", help="apply the rules, none of the entries"
@@ -211,6 +223,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
             python,
             load_mapping(args.mapping, args.rules_only),
             load_defaults(args.defaults),
+            load_hidden(args.hidden),
         )
     except ParityError as error:
         print(f"api-parity: {error}", file=log)

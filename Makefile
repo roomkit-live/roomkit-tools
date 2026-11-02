@@ -8,10 +8,11 @@ PYTHON ?= python3
 TARGET_DIR := $(or $(CARGO_TARGET_DIR),target)
 ADAPTER_TARGET_DIR := $(or $(CARGO_TARGET_DIR),adapters/roomkit/target)
 API_REPORT := $(TARGET_DIR)/api-parity
+HIDDEN_TARGET_DIR := $(TARGET_DIR)/api-hidden
 ADAPTER_SURFACE := api/roomkit-adapter-surface.json
 API_PARITY_FLAGS ?=
 
-.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-parity api-adapter-surface api-adapter-check
+.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-hidden api-parity api-adapter-surface api-adapter-check
 
 all: fmt-check clippy test doc deny check-core-deps examples api-test api-parity
 
@@ -75,21 +76,32 @@ api-snapshot:
 api-test:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts/tests
 
+# The JSON rustdoc writes with --document-hidden-items, from which the gate
+# lists the public items #[doc(hidden)] hides. Both options are unstable:
+# RUSTC_BOOTSTRAP=1 lets the pinned rustdoc take them for this build only, in
+# a target directory of its own, which leaves the HTML documentation alone.
+api-hidden:
+	RUSTC_BOOTSTRAP=1 RUSTDOCFLAGS="-Z unstable-options --output-format json --document-hidden-items" \
+		$(CARGO) doc --workspace --no-deps --all-features --locked --target-dir $(HIDDEN_TARGET_DIR)
+
 # The parity gate: the crates' public surface read from rustdoc's HTML, with the
 # RoomKit adapter's committed surface, against the Python snapshots through
 # api/mapping.toml, and the defaults of the structs standing for Python's
-# keywords, which a test dumps since rustdoc shows none. It fails on a
-# difference no entry covers; pass API_PARITY_FLAGS=--strict to fail on a
-# pending one too. The report, the surface, the defaults and the findings as
-# JSON stay in $(API_REPORT).
-api-parity: doc
+# keywords, which a test dumps since rustdoc shows none. The public items
+# #[doc(hidden)] hides are each listed in the mapping with their decision. It
+# fails on a difference no entry covers; pass API_PARITY_FLAGS=--strict to fail
+# on a pending one too. The report, the surface, the hidden items, the defaults
+# and the findings as JSON stay in $(API_REPORT).
+api-parity: doc api-hidden
 	@mkdir -p $(API_REPORT)
 	@rm -f $(API_REPORT)/rs-defaults.json
 	ROOMKIT_API_DEFAULTS=$(abspath $(API_REPORT))/rs-defaults.json $(CARGO) test --quiet --locked --all-features \
 		--package roomkit-tools-examples --test api_defaults
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(TARGET_DIR)/doc > $(API_REPORT)/rs-surface.json
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --hidden --doc $(HIDDEN_TARGET_DIR)/doc > $(API_REPORT)/rs-hidden.json
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/api-parity.py $(API_REPORT)/rs-surface.json $(ADAPTER_SURFACE) \
-		--defaults $(API_REPORT)/rs-defaults.json $(API_PARITY_FLAGS) --json $(API_REPORT)/report.json
+		--defaults $(API_REPORT)/rs-defaults.json --hidden $(API_REPORT)/rs-hidden.json \
+		$(API_PARITY_FLAGS) --json $(API_REPORT)/report.json
 
 # The RoomKit adapter's surface is committed: its engine source is not public.
 # Rewrite it after changing the adapter; roomkit-check checks it is current.

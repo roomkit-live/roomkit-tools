@@ -41,11 +41,18 @@ class Finding:
 
 class Comparison:
     def __init__(
-        self, surface: Surface, python: Python, mapping: Mapping, defaults: Defaults | None = None
+        self,
+        surface: Surface,
+        python: Python,
+        mapping: Mapping,
+        defaults: Defaults | None = None,
+        hidden: list[str] | None = None,
     ) -> None:
         self.surface, self.python, self.rules = surface, python, mapping.rules
         # The Rust defaults dump; None compares no default value.
         self.defaults = defaults
+        # The public items hidden from the documentation, each a finding.
+        self.hidden = hidden or []
         self.rust = RustSide(surface, mapping.rules)
         self.findings: list[Finding] = []
         self.applied: set[int] = set()
@@ -70,6 +77,9 @@ class Comparison:
             self._group(python, items)
         wire.compare(self)
         leftovers.sweep(self)
+        for path in self.hidden:
+            detail = "a public item hidden from the documentation: [[hidden]] lists it"
+            self.find("rust", path, "hidden", detail, path, None)
         return self.findings
 
     def find(

@@ -19,6 +19,8 @@
 # - [[exception]]: findings the maintainer approved (`approved`, `reason`);
 # - [[missing]]: a feature one side has and the other lacks, recorded, not
 #   ported (`approved`, `reason`), its `unmatched` or `uncompared` findings;
+# - [[hidden]]: the public items #[doc(hidden)] hides from the documentation
+#   (`reason`), their `hidden` findings, which no other table covers;
 # - [[pending]]: findings awaiting the decision (`reason`), in the separate
 #   list at the end of this file. A pending entry naming both counterparts
 #   (`rust` and `python`) also pairs them, so their members are compared
@@ -31,8 +33,9 @@
 # not say (the other side's call or name, a struct's fields, both defaults);
 # the JSON a Python call exchanges is written `json:<Type>.<property>`. A key
 # no finding has, or an entry naming what is gone, is dead and fails the gate.
-# Every rule and every [[map]], [[exception]] and [[missing]] entry names in
-# `decision` where the maintainer decided it; the gate refuses one without.
+# Every rule and every [[map]], [[exception]], [[missing]] and [[hidden]]
+# entry names in `decision` where the maintainer decided it; the gate refuses
+# one without.
 # A rule with no precedent and no decision yet reads "TODO: maintainer", and
 # the gate fails while one is left.
 
@@ -228,6 +231,45 @@ decision = "luge-hitl:76e988fe Q9"
 reason = "Python only: the RoomKit ViewImage adapter; roomkit-ai's ToolOutput carries Text or Json, not an image, so Rust has no image adapter"
 covers = [
   "python roomkit_tools.ViewImage (unmatched)",
+]
+
+# ---------------------------------------------------------------------------
+# HIDDEN: the public items #[doc(hidden)] hides from the documentation, which
+# rustdoc shows on no page; each is listed with its decision.
+# ---------------------------------------------------------------------------
+
+[[hidden]]
+decision = "luge-hitl:76e988fe A11"
+reason = "the plumbing the tool crates and the bindings share, which Python has no name for and a host never needs: core's envelope constructors, workspace path rules, identifier order and revision spelling; the contract traits with their decode and render; the scopes' and the command environment's validate; the image crate's workspace and decoder"
+covers = [
+  "rust roomkit_tools_core::Definition::new (hidden)",
+  "rust roomkit_tools_core::Output::new (hidden)",
+  "rust roomkit_tools_core::WorkspaceRoot (hidden)",
+  "rust roomkit_tools_core::identifiers::creation_order (hidden)",
+  "rust roomkit_tools_core::revision::sha256 (hidden)",
+  "rust roomkit_tools_process::CommandEnv::validate (hidden)",
+  "rust roomkit_tools_image::ImageWorkspace (hidden)",
+  "rust roomkit_tools_image::decode_rgb (hidden)",
+  "rust roomkit_tools_docs::DocsContract (hidden)",
+  "rust roomkit_tools_docs::decode (hidden)",
+  "rust roomkit_tools_docs::render (hidden)",
+  "rust roomkit_tools_plans::PlanContract (hidden)",
+  "rust roomkit_tools_plans::PlanScope::validate (hidden)",
+  "rust roomkit_tools_plans::decode (hidden)",
+  "rust roomkit_tools_plans::render (hidden)",
+  "rust roomkit_tools_agents::AgentContract (hidden)",
+  "rust roomkit_tools_agents::AgentScope::validate (hidden)",
+  "rust roomkit_tools_agents::decode (hidden)",
+  "rust roomkit_tools_agents::render (hidden)",
+]
+
+[[hidden]]
+decision = "TODO: maintainer"
+reason = "hidden rather than given a Python counterpart: ShellTool::has_output_store, which only the RoomKit adapter reads, and ImageMime::as_str and ImagePayload::data_url, which nothing outside the image crate uses"
+covers = [
+  "rust roomkit_tools_process::ShellTool::has_output_store (hidden)",
+  "rust roomkit_tools_image::ImageMime::as_str (hidden)",
+  "rust roomkit_tools_image::ImagePayload::data_url (hidden)",
 ]
 
 # ---------------------------------------------------------------------------

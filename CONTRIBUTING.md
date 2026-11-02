@@ -131,6 +131,12 @@ Python is the reference.
   `make api-parity API_PARITY_FLAGS=--strict` fails while one is left. The
   gate and its tests need only `python3` (3.11 or newer) and its standard
   library.
+- A public item hidden with `#[doc(hidden)]` is on no rustdoc page. The
+  gate lists them from the JSON rustdoc writes with
+  `--document-hidden-items`, unstable options the pinned toolchain takes
+  for that build only (`RUSTC_BOOTSTRAP=1`, `make api-hidden`), and each
+  needs a `[[hidden]]` entry naming its decision. The internal
+  `roomkit-tools-http` crate is out of scope and must show no public item.
 - `make hooks` enables a pre-push hook that runs `make api-test api-parity`
   when the pushed commits change what the gate reads: `crates/`,
   `adapters/`, `python/roomkit_tools/`, `api/`, `scripts/`, the defaults
