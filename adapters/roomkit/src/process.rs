@@ -11,7 +11,7 @@ macro_rules! process_toolset {
         $(#[$doc])*
         #[derive(Clone, Debug)]
         pub struct $name {
-            manager: ProcessSession,
+            session: ProcessSession,
         }
 
         impl $name {
@@ -19,8 +19,8 @@ macro_rules! process_toolset {
             ///
             /// Pass clones of the same session to the selected process
             /// adapters. The host closes that session once its agents are done.
-            pub fn new(manager: ProcessSession) -> Self {
-                Self { manager }
+            pub fn new(session: ProcessSession) -> Self {
+                Self { session }
             }
         }
 
@@ -30,11 +30,11 @@ macro_rules! process_toolset {
             }
 
             fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {
-                let manager = self.manager.clone();
+                let session = self.session.clone();
                 // Neither owner nor room identity is accepted from model arguments.
                 let owner = || current_owner("process");
                 serve($wire, name, arguments, owner, move |owner, input, cancel| async move {
-                    manager.$method(Some(&owner), input, &cancel).await.map_err(|error| tool_error(&error))
+                    session.$method(Some(&owner), input, &cancel).await.map_err(|error| tool_error(&error))
                 })
             }
         }

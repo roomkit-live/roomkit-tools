@@ -58,6 +58,9 @@ part of an existing published preview.
   is the standalone owner, the one `ShellTool::shell` files archives under,
   as Python's `owner=None`.
 - Rust: `OutputStore::list` is async, as Python's `OutputStore.list`.
+- Rust RoomKit adapter: the process toolsets take `session` and
+  `OutputReadToolset` and `OutputForgetToolset` take `store`, as Python's
+  `ProcessStart(session)` and `OutputRead(store)`.
 
 ### Added
 

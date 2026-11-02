@@ -292,7 +292,7 @@
       "receiver": null,
       "params": [
        {
-        "name": "tool",
+        "name": "store",
         "type": "OutputStore"
        }
       ],
@@ -319,7 +319,7 @@
       "receiver": null,
       "params": [
        {
-        "name": "tool",
+        "name": "store",
         "type": "OutputStore"
        }
       ],
@@ -508,7 +508,7 @@
       "receiver": null,
       "params": [
        {
-        "name": "manager",
+        "name": "session",
         "type": "ProcessSession"
        }
       ],
@@ -535,7 +535,7 @@
       "receiver": null,
       "params": [
        {
-        "name": "manager",
+        "name": "session",
         "type": "ProcessSession"
        }
       ],
@@ -562,7 +562,7 @@
       "receiver": null,
       "params": [
        {
-        "name": "manager",
+        "name": "session",
         "type": "ProcessSession"
        }
       ],
@@ -589,7 +589,7 @@
       "receiver": null,
       "params": [
        {
-        "name": "manager",
+        "name": "session",
         "type": "ProcessSession"
        }
       ],
@@ -616,7 +616,7 @@
       "receiver": null,
       "params": [
        {
-        "name": "manager",
+        "name": "session",
         "type": "ProcessSession"
        }
       ],

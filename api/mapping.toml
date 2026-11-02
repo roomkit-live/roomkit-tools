@@ -860,17 +860,15 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_roomkit::OutputForgetToolset / roomkit_tools.OutputForget: name (2)"
+reason = "roomkit_tools_roomkit::OutputForgetToolset / roomkit_tools.OutputForget: name"
 covers = [
   "rust roomkit_tools_roomkit::OutputForgetToolset (name)",  # named OutputForget in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::OutputForgetToolset::new(tool) (name)",  # the one parameter left on each side: named store in Python
 ]
 
 [[pending]]
-reason = "roomkit_tools_roomkit::OutputReadToolset / roomkit_tools.OutputRead: name (2)"
+reason = "roomkit_tools_roomkit::OutputReadToolset / roomkit_tools.OutputRead: name"
 covers = [
   "rust roomkit_tools_roomkit::OutputReadToolset (name)",  # named OutputRead in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::OutputReadToolset::new(tool) (name)",  # the one parameter left on each side: named store in Python
 ]
 
 [[pending]]
@@ -916,38 +914,33 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_roomkit::ProcessReadToolset / roomkit_tools.ProcessRead: name (2)"
+reason = "roomkit_tools_roomkit::ProcessReadToolset / roomkit_tools.ProcessRead: name"
 covers = [
   "rust roomkit_tools_roomkit::ProcessReadToolset (name)",  # named ProcessRead in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::ProcessReadToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
 ]
 
 [[pending]]
-reason = "roomkit_tools_roomkit::ProcessStartToolset / roomkit_tools.ProcessStart: name (2)"
+reason = "roomkit_tools_roomkit::ProcessStartToolset / roomkit_tools.ProcessStart: name"
 covers = [
   "rust roomkit_tools_roomkit::ProcessStartToolset (name)",  # named ProcessStart in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::ProcessStartToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
 ]
 
 [[pending]]
-reason = "roomkit_tools_roomkit::ProcessStatusToolset / roomkit_tools.ProcessStatus: name (2)"
+reason = "roomkit_tools_roomkit::ProcessStatusToolset / roomkit_tools.ProcessStatus: name"
 covers = [
   "rust roomkit_tools_roomkit::ProcessStatusToolset (name)",  # named ProcessStatus in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::ProcessStatusToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
 ]
 
 [[pending]]
-reason = "roomkit_tools_roomkit::ProcessStopToolset / roomkit_tools.ProcessStop: name (2)"
+reason = "roomkit_tools_roomkit::ProcessStopToolset / roomkit_tools.ProcessStop: name"
 covers = [
   "rust roomkit_tools_roomkit::ProcessStopToolset (name)",  # named ProcessStop in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::ProcessStopToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
 ]
 
 [[pending]]
-reason = "roomkit_tools_roomkit::ProcessWriteToolset / roomkit_tools.ProcessWrite: name (2)"
+reason = "roomkit_tools_roomkit::ProcessWriteToolset / roomkit_tools.ProcessWrite: name"
 covers = [
   "rust roomkit_tools_roomkit::ProcessWriteToolset (name)",  # named ProcessWrite in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::ProcessWriteToolset::new(manager) (name)",  # the one parameter left on each side: named session in Python
 ]
 
 [[pending]]

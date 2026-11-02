@@ -30,12 +30,12 @@ fn json_answer(answer: Result<ToolResult, ToolError>) -> Value {
 #[tokio::test]
 async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
     let fixture = tempfile::tempdir().unwrap();
-    let manager = ProcessSession::new(fixture.path()).await.unwrap();
-    let start = ProcessStartToolset::new(manager.clone());
-    let read = ProcessReadToolset::new(manager.clone());
-    let write = ProcessWriteToolset::new(manager.clone());
-    let status = ProcessStatusToolset::new(manager.clone());
-    let stop = ProcessStopToolset::new(manager.clone());
+    let session = ProcessSession::new(fixture.path()).await.unwrap();
+    let start = ProcessStartToolset::new(session.clone());
+    let read = ProcessReadToolset::new(session.clone());
+    let write = ProcessWriteToolset::new(session.clone());
+    let status = ProcessStatusToolset::new(session.clone());
+    let stop = ProcessStopToolset::new(session.clone());
     let (room, agent) = ("example", "assistant");
     let started = json_answer(
         call::run(
@@ -126,13 +126,13 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
     );
     assert_eq!(stopped["data"]["forgotten"], true);
     // The host, not the adapters, closes the shared session.
-    assert!(manager.close().await);
+    assert!(session.close().await);
 }
 
 #[tokio::test]
 async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
     let fixture = tempfile::tempdir().unwrap();
-    let manager = ProcessSession::new(fixture.path()).await.unwrap();
+    let session = ProcessSession::new(fixture.path()).await.unwrap();
     let model = ScriptedProvider::new([
         ScriptedRound::calling("", [("p1", "process_start", r#"{"command":"cat"}"#)]),
         ScriptedRound::calling(
@@ -151,11 +151,11 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
     ]);
     let id = ChannelId::new("assistant").unwrap();
     let tools: Vec<ToolEntry> = vec![
-        ToolEntry::Tool(Arc::new(ProcessStartToolset::new(manager.clone()))),
-        ToolEntry::Tool(Arc::new(ProcessStatusToolset::new(manager.clone()))),
-        ToolEntry::Tool(Arc::new(ProcessWriteToolset::new(manager.clone()))),
-        ToolEntry::Tool(Arc::new(ProcessReadToolset::new(manager.clone()))),
-        ToolEntry::Tool(Arc::new(ProcessStopToolset::new(manager.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessStartToolset::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessStatusToolset::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessWriteToolset::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessReadToolset::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessStopToolset::new(session.clone()))),
     ];
     let agent = common::agent(&id, &model, tools).unwrap();
     let kit = RoomKit::new(roomkit::RoomKitOptions::default());
@@ -219,7 +219,7 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
     let read = result_of(6, "p5");
     assert_eq!(read["data"]["status"]["state"], "finished");
     kit.close().await.unwrap();
-    assert!(manager.close().await);
+    assert!(session.close().await);
 }
 
 #[tokio::test]
@@ -236,9 +236,9 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
         ),
         ScriptedRound::answering("The command was refused."),
     ]);
-    let manager = ProcessSession::new(fixture.path()).await.unwrap();
+    let session = ProcessSession::new(fixture.path()).await.unwrap();
     let agent_id = ChannelId::new("assistant").unwrap();
-    let start = ToolEntry::Tool(Arc::new(ProcessStartToolset::new(manager.clone())));
+    let start = ToolEntry::Tool(Arc::new(ProcessStartToolset::new(session.clone())));
     let agent = common::agent(&agent_id, &model, vec![start]).unwrap();
     let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     common::refuse(&kit, &["process_start"], "Processes disabled").unwrap();
@@ -275,5 +275,5 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
             .any(|m| m.tool_result().is_some() && m.text().contains("Processes disabled"))
     );
     kit.close().await.unwrap();
-    assert!(manager.close().await);
+    assert!(session.close().await);
 }

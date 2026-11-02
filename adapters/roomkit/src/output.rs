@@ -13,14 +13,14 @@ macro_rules! owned_toolset {
         $(#[$doc])*
         #[derive(Clone, Debug)]
         pub struct $name {
-            tool: Arc<$tool>,
+            store: Arc<$tool>,
         }
 
         impl $name {
             /// Select one capability. The host closes the shared `OutputStore`
             /// after its shell calls and process sessions have finished.
-            pub fn new(tool: $tool) -> Self {
-                Self { tool: Arc::new(tool) }
+            pub fn new(store: $tool) -> Self {
+                Self { store: Arc::new(store) }
             }
         }
 
@@ -30,10 +30,10 @@ macro_rules! owned_toolset {
             }
 
             fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {
-                let tool = Arc::clone(&self.tool);
+                let store = Arc::clone(&self.store);
                 let owner = || current_owner($family);
                 serve($wire, name, arguments, owner, move |owner, input, cancel| async move {
-                    tool.$method(Some(&owner), input, &cancel).await.map_err(|error| tool_error(&error))
+                    store.$method(Some(&owner), input, &cancel).await.map_err(|error| tool_error(&error))
                 })
             }
         }

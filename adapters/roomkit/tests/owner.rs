@@ -59,17 +59,17 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
     let store = OutputStore::new(root.path(), OutputLimits::default())
         .await
         .unwrap();
-    let manager = ProcessSession::new(root.path())
+    let session = ProcessSession::new(root.path())
         .await
         .unwrap()
         .with_output_store(store.clone())
         .unwrap();
-    let toolset = ProcessStartToolset::new(manager.clone());
+    let toolset = ProcessStartToolset::new(session.clone());
     let started = start(&toolset, "salle \"é\"", "agent", "printf saved; sleep 60").await;
     let id = started["process_id"].as_str().unwrap();
     let owner = roomkit_owner("salle \"é\"", "agent");
     let cancel = CancellationToken::new();
-    let listed = manager
+    let listed = session
         .status(Some(&owner), ProcessStatusInput::default(), &cancel)
         .await
         .unwrap()
@@ -81,15 +81,15 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
         process_id: id.into(),
         forget: false,
     };
-    let stopped = manager.stop(Some(&owner), stop, &cancel).await.unwrap();
+    let stopped = session.stop(Some(&owner), stop, &cancel).await.unwrap();
     assert_eq!(stopped.data.status.state, ProcessState::Finished);
-    let page = manager
+    let page = session
         .read(Some(&owner), ProcessReadInput::new(id), &cancel)
         .await
         .unwrap();
     assert_eq!(page.data.stdout.text, "saved");
-    assert!(manager.close_owner(&owner).await);
-    let listed = manager
+    assert!(session.close_owner(&owner).await);
+    let listed = session
         .status(Some(&owner), ProcessStatusInput::default(), &cancel)
         .await
         .unwrap();
@@ -104,7 +104,7 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
             .unwrap();
     }
     assert_eq!(store.list(Some(&owner), &cancel).await.unwrap().len(), 0);
-    assert!(manager.close().await);
+    assert!(session.close().await);
     assert!(store.close().await);
 }
 
@@ -128,7 +128,7 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     let store = OutputStore::new(root.path(), OutputLimits::default())
         .await
         .unwrap();
-    let manager = ProcessSession::new(root.path()).await.unwrap();
+    let session = ProcessSession::new(root.path()).await.unwrap();
     let shell = ShellTool::new(root.path()).await.unwrap();
     let archiving = ShellToolset::new(shell.with_output_store(store.clone()));
     let shell_refusal = "shell archive tools require a conversation and an acting agent";
@@ -160,11 +160,11 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     );
     let process_refusal = "process tools require a conversation and an acting agent";
     let process = json!({"process_id":"p1"});
-    let start = ProcessStartToolset::new(manager.clone());
-    let status = ProcessStatusToolset::new(manager.clone());
-    let read = ProcessReadToolset::new(manager.clone());
-    let write = ProcessWriteToolset::new(manager.clone());
-    let stop = ProcessStopToolset::new(manager.clone());
+    let start = ProcessStartToolset::new(session.clone());
+    let status = ProcessStatusToolset::new(session.clone());
+    let read = ProcessReadToolset::new(session.clone());
+    let write = ProcessWriteToolset::new(session.clone());
+    let stop = ProcessStopToolset::new(session.clone());
     for refusal in [
         refusal_outside_roomkit(&read, "process_read", json!({})).await,
         refusal_outside_roomkit(
@@ -188,7 +188,7 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     // Nothing ran: the refusal comes before any effect.
     assert!(!root.path().join("shell-ran").exists());
     assert!(!root.path().join("process-ran").exists());
-    assert!(manager.close().await);
+    assert!(session.close().await);
     assert!(store.close().await);
 }
 
