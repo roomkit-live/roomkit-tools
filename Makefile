@@ -16,7 +16,6 @@ HIDDEN_TARGET_DIR = $(TARGET_DIR)/api-hidden
 ADAPTER_SURFACE := api/roomkit-adapter-surface.json
 ADAPTER_HIDDEN := api/roomkit-adapter-hidden.json
 HIDDEN_FLAGS := RUSTC_BOOTSTRAP=1 RUSTDOCFLAGS="-Z unstable-options --output-format json --document-hidden-items"
-API_PARITY_FLAGS ?=
 
 .PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-hidden api-parity api-adapter-doc api-adapter-surface api-adapter-check
 
@@ -95,8 +94,11 @@ api-hidden:
 # #[doc(hidden)] hides, the crates' and the adapter's committed ones, are each
 # listed in the mapping with their decision. It
 # fails on a difference no entry covers, and on one awaiting the maintainer (a
-# [[pending]] entry or a TODO decision). The report, the surface, the hidden
-# items, the defaults and the findings as JSON stay in $(API_REPORT).
+# [[pending]] entry or a TODO decision). It takes no flag from the
+# environment, so nothing turns a failing verdict into success where it runs
+# (here, CI and the pre-push hook); run scripts/api-parity.py for --verbose or
+# --pending. The report, the surface, the hidden items, the defaults and the
+# findings as JSON stay in $(API_REPORT).
 api-parity: doc api-hidden
 	@mkdir -p $(API_REPORT)
 	@rm -f $(API_REPORT)/rs-defaults.json
@@ -106,7 +108,7 @@ api-parity: doc api-hidden
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --hidden --doc $(HIDDEN_TARGET_DIR)/doc > $(API_REPORT)/rs-hidden.json
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/api-parity.py $(API_REPORT)/rs-surface.json $(ADAPTER_SURFACE) \
 		--defaults $(API_REPORT)/rs-defaults.json --hidden $(API_REPORT)/rs-hidden.json --hidden $(ADAPTER_HIDDEN) \
-		$(API_PARITY_FLAGS) --json $(API_REPORT)/report.json
+		--json $(API_REPORT)/report.json
 
 # The RoomKit adapter's surface and hidden items are committed: its engine
 # source is not public, so CI cannot read them. Rewrite them after changing the

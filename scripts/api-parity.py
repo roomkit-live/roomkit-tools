@@ -162,8 +162,9 @@ decided.
 
 The gate fails (exit 1) on a finding no entry covers, a dead entry, a
 decision awaiting the maintainer, or a `[[pending]]` entry: a new difference
-is a red gate until the maintainer decides it. An input it cannot read whole
-exits 2.
+is a red gate until the maintainer decides it. `--verbose`, `--json` and
+`--pending` report more and exit as the gate does: no flag turns a failing
+verdict into success. An input it cannot read whole exits 2.
 
 Usage: python3 scripts/api-parity.py SURFACE... --defaults FILE --hidden FILE [--hidden FILE]...
                                      [--python DIR]...
@@ -222,7 +223,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     parser.add_argument(
         "--pending",
         action="store_true",
-        help="print [[pending]] entries for the findings without one",
+        help="print [[pending]] entries for the findings without one; exits as the gate does",
     )
     args = parser.parse_args(argv)
     try:
@@ -239,7 +240,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
         return 2
     if args.pending:
         out.write(pending_toml(report.uncovered))
-        return 0
+        return 0 if report.passed() else 1
     out.write(render(report, verbose=args.verbose))
     if args.json:
         args.json.write_text(

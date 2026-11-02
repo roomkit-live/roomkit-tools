@@ -349,7 +349,7 @@ def _rule_tables(table: dict) -> tuple[dict[str, dict], dict[str, str]]:
 
 def undecided(decision: str) -> bool:
     """A decision left to the maintainer, `UNDECIDED`."""
-    return decision.strip().startswith("TODO")
+    return decision.strip().lower().startswith("todo")
 
 
 def parse_key(key: str) -> tuple[str, str, str]:

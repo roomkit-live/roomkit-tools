@@ -1665,6 +1665,13 @@ class Decisions(unittest.TestCase):
             with self.subTest(entry=entry), self.assertRaises(ParityError):
                 Mapping.from_table(tomllib.loads(mapping_text(entry)))
 
+    def test_a_todo_decision_is_undecided_whatever_its_case(self):
+        for decision in ("TODO: maintainer", "todo: maintainer", " Todo: maintainer"):
+            rules = f'optional = {{ type = "Option", default = "None", decision = "{decision}" }}'
+            with self.subTest(decision=decision):
+                report = run(Entries.ITEMS, Entries.SPECS, contracts=Entries.CONTRACTS, rules=rules)
+                self.assertEqual(report.undecided, ["[rules] optional"])
+
     def test_a_decision_left_to_the_maintainer_fails_the_gate(self):
         rules = 'optional = { type = "Option", default = "None", decision = "TODO: maintainer" }'
         report = run(Entries.ITEMS, Entries.SPECS, contracts=Entries.CONTRACTS, rules=rules)
@@ -1732,6 +1739,21 @@ class Command(unittest.TestCase):
         self.assertEqual(status, 0, out)
         self.assertIn("Gate: passed.", out)
 
+    def test_no_flag_turns_a_failing_verdict_into_success(self):
+        """A report-only flag still exits with the gate's verdict."""
+        for flags in (("--pending",), ("--verbose",), ("--json", str(self.dir / "r.json"))):
+            with self.subTest(flags=flags):
+                self.assertEqual(self._main(Entries.PAIRS, *flags)[0], 1)
+
+    def test_the_gates_recipe_takes_no_flag_from_the_environment(self):
+        """make api-parity, which CI and the pre-push hook run, passes the
+        gate no variable the environment or MAKEFLAGS could set."""
+        makefile = (HERE.parents[1] / "Makefile").read_text(encoding="utf-8")
+        recipe = makefile.split("\napi-parity:", 1)[1].split("\n\n", 1)[0]
+        command = recipe.split("scripts/api-parity.py", 1)[1]
+        self.assertIn("--json", command)
+        self.assertNotIn("FLAGS", command)
+
     def test_a_pending_entry_fails_the_gate(self):
         """A difference awaiting the maintainer is a red gate."""
         status, out = self._main(Entries.PAIRS)
@@ -1745,7 +1767,7 @@ class Command(unittest.TestCase):
 
     def test_pending_prints_the_entries_the_mapping_lacks(self):
         status, out = self._main("", "--pending")
-        self.assertEqual(status, 0)
+        self.assertEqual(status, 1)
         entries = tomllib.loads(out)["pending"]
         covered = {key for entry in entries for key in entry["covers"]}
         self.assertEqual(
