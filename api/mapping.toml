@@ -117,10 +117,12 @@ builtin_errors = { "roomkit_tools_core::ToolError::Cancelled" = "asyncio.Cancell
 
 # The Python modules a Rust crate's items are looked for in, in order.
 [rules.packages]
-decision = "roomkit-rs api/mapping.toml [rules.packages]: the Python packages a Rust module's items are looked for in"
+decision = "roomkit-rs api/mapping.toml [rules.packages]: the Python packages a Rust module's items are looked for in; roomkit_tools_process in the modules defining its Python names only: luge-hitl:c9eeeeb3 Q11"
 roomkit_tools_core = ["roomkit_tools"]
 roomkit_tools_fs = ["roomkit_tools", "roomkit_tools.fs", "roomkit_tools.workspace"]
-roomkit_tools_process = ["roomkit_tools", "roomkit_tools.process", "roomkit_tools.output"]
+# Only where Python defines them: the top-level ProcessStatus is the RoomKit
+# adapter, while Rust's ProcessStatus is a contract type, JSON in Python.
+roomkit_tools_process = ["roomkit_tools.process", "roomkit_tools.output"]
 roomkit_tools_web = ["roomkit_tools", "roomkit_tools.web"]
 roomkit_tools_search = ["roomkit_tools", "roomkit_tools.search"]
 roomkit_tools_code = ["roomkit_tools", "roomkit_tools.code"]
@@ -284,12 +286,6 @@ covers = [
 # approved. Each covers the findings of a pair of counterparts, or of an item
 # on one side only.
 # ---------------------------------------------------------------------------
-
-[[pending]]
-reason = "roomkit_tools_process::ProcessStatus / roomkit_tools.ProcessStatus: meaning"
-covers = [
-  "rust roomkit_tools_process::ProcessStatus (meaning)",  # a contract type; Python's roomkit_tools.ProcessStatus is the RoomKit adapter class, which Rust's roomkit_tools_roomkit::ProcessStatus now pairs with
-]
 
 [[pending]]
 reason = "roomkit_tools_web::WebFetchTool / roomkit_tools.WebFetchTool: async"
