@@ -9,7 +9,13 @@ from contextlib import nullcontext
 from pathlib import Path
 from unittest.mock import patch
 
-from roomkit_tools import AccessRefusedError, InvalidInputError, WebFetchTool, _native
+from roomkit_tools import (
+    AccessRefusedError,
+    InvalidInputError,
+    LimitExceededError,
+    WebFetchTool,
+    _native,
+)
 from test_contracts import ERRORS, pointer
 from web_helpers import FIXTURE, WebServer
 
@@ -133,3 +139,22 @@ class NamedParametersTests(unittest.TestCase):
                 "max_timeout_ms",
             ],
         )
+
+    def test_create_takes_the_constructors_parameters(self):
+        create = inspect.signature(WebFetchTool.create).parameters
+        init = dict(inspect.signature(WebFetchTool.__init__).parameters)
+        init.pop("self")
+        self.assertEqual(
+            [(name, p.kind, p.default) for name, p in create.items()],
+            [(name, p.kind, p.default) for name, p in init.items()],
+        )
+
+    def test_a_limit_given_to_create_reaches_the_tool(self):
+        async def fetch():
+            tool = await WebFetchTool.create(allowed_origins=[], max_url_bytes=32)
+            with self.assertRaises(LimitExceededError):
+                await tool.fetch("https://example.com/" + "a" * 64)
+            with self.assertRaises(AccessRefusedError):
+                await tool.fetch("https://example.com/")
+
+        asyncio.run(fetch())

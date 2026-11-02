@@ -239,3 +239,23 @@ class NamedParametersTests(unittest.TestCase):
                 "max_timeout_ms",
             ],
         )
+
+    def test_create_takes_the_constructors_parameters(self):
+        create = inspect.signature(WebSearchTool.create).parameters
+        init = dict(inspect.signature(WebSearchTool.__init__).parameters)
+        init.pop("self")
+        self.assertEqual(
+            [(name, p.kind, p.default) for name, p in create.items()],
+            [(name, p.kind, p.default) for name, p in init.items()],
+        )
+
+    def test_a_limit_given_to_create_reaches_the_tool(self):
+        async def search():
+            backend = ExaSearch(allowed_origins=[])
+            tool = await WebSearchTool.create(backend=backend, max_query_bytes=4)
+            with self.assertRaises(InvalidInputError):
+                await tool.search("a query longer than four bytes")
+            with self.assertRaises(AccessRefusedError):
+                await tool.search("abcd")
+
+        asyncio.run(search())
