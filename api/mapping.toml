@@ -53,9 +53,10 @@ factory = "create"
 # A builder, `with_<x>(self, value)`: one of a constructor's keywords.
 builder_prefix = "with_"
 # The RoomKit engine's tool protocol: Python's `definition` property and
-# `handler` are the Rust adapter's `Toolset` implementation, a struct named
-# with the suffix standing for the Python RoomKit tool named without it.
-toolset = { trait = "Toolset", suffix = "Toolset", members = ["definition", "handler"] }
+# `handler` are the Rust adapter's implementation of roomkit_ai's `Tool`, the
+# Rust form of that protocol, a struct named with the suffix standing for the
+# Python RoomKit tool named without it.
+toolset = { trait = "Tool", suffix = "Toolset", members = ["definition", "handler"] }
 # The Rust types a Python builtin stands for: the envelope a call returns
 # and a tool definition, which Python returns as dicts.
 builtins = { "roomkit_tools_core::Output" = "dict", "roomkit_tools_core::Definition" = "dict" }
@@ -775,4 +776,10 @@ covers = [
 reason = "no Rust item / roomkit_tools.roomkit_agents.RoomKitAgentBackend: unmatched"
 covers = [
   "python roomkit_tools.roomkit_agents.RoomKitAgentBackend (unmatched)",  # no Rust item
+]
+
+[[pending]]
+reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool: unmatched"
+covers = [
+  "rust roomkit_tools_process::ShellTool::has_output_store (unmatched)",  # no Python member: added for hosts with the adapter's move to the Tool protocol
 ]

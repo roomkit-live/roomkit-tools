@@ -67,7 +67,8 @@ The rules, which apply with no entry, each forced by the language:
   (`Output` and `Definition` are the dicts a call returns); a member of it
   is a finding;
 - the RoomKit tool protocol: Python's RoomKit tool members (`definition`,
-  `handler`) are the engine's `Toolset` implementation (`[rules] toolset`);
+  `handler`) are the Rust adapter's implementation of the engine's `Tool`
+  trait, the Rust form of that protocol (`[rules] toolset`);
   a struct implementing it, named with the toolset suffix, is compared with
   the Python RoomKit tool named without it, the suffix itself a name
   finding;
