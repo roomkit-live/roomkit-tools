@@ -7,7 +7,7 @@ use roomkit_tools_docs::{
     DocsReadResult, DocsReadTool, DocsSearchInput, DocsSearchResult, DocsSearchTool, FileDocs,
     FileDocsLimits,
 };
-use roomkit_tools_roomkit::{DocsListToolset, DocsReadToolset, DocsSearchToolset};
+use roomkit_tools_roomkit::{DocsList, DocsRead, DocsSearch};
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex, PoisonError};
 use tokio_util::sync::CancellationToken;
@@ -33,9 +33,9 @@ async fn selected_tools_use_actual_schemas_and_share_the_host_snapshot() {
     .unwrap();
     let backend: Arc<dyn DocsBackend> =
         Arc::new(FileDocs::new(root.path(), FileDocsLimits::default()).unwrap());
-    let lister = DocsListToolset::new(DocsListTool::new(Arc::clone(&backend)));
-    let searcher = DocsSearchToolset::new(DocsSearchTool::new(Arc::clone(&backend)));
-    let reader = DocsReadToolset::new(DocsReadTool::new(backend));
+    let lister = DocsList::new(DocsListTool::new(Arc::clone(&backend)));
+    let searcher = DocsSearch::new(DocsSearchTool::new(Arc::clone(&backend)));
+    let reader = DocsRead::new(DocsReadTool::new(backend));
     assert_eq!(
         lister.definition().parameters,
         DocsListTool::definition().input_schema
@@ -124,7 +124,7 @@ impl DocsBackend for Pending {
 async fn dropping_a_call_cancels_the_token_the_host_backend_holds() {
     let backend = Pending::default();
     let token = Arc::clone(&backend.token);
-    let tool = DocsListToolset::new(DocsListTool::new(Arc::new(backend)));
+    let tool = DocsList::new(DocsListTool::new(Arc::new(backend)));
     let mut call = tool.handler("docs_list".into(), Metadata::new());
     // Poll once, so the backend receives its token.
     let answered = tokio::select! {

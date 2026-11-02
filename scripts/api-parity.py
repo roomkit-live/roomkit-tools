@@ -77,10 +77,8 @@ The rules, which apply with no entry, each forced by the language:
   is a finding;
 - the RoomKit tool protocol: Python's RoomKit tool members (`definition`,
   `handler`) are the Rust adapter's implementation of the engine's `Tool`
-  trait, the Rust form of that protocol (`[rules] toolset`);
-  a struct implementing it, named with the toolset suffix, is compared with
-  the Python RoomKit tool named without it, the suffix itself a name
-  finding;
+  trait, the Rust form of that protocol (`[rules] tool_protocol`); an
+  adapter has its Python RoomKit tool's name;
 - a rule naming a Rust item or variant that is gone, or that no comparison
   reads, is a finding no entry covers.
 

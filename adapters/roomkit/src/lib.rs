@@ -1,35 +1,34 @@
 //! Individually selectable tools for RoomKit Rust.
 //!
 //! Each adapter is a RoomKit [`Tool`], the Rust form of
-//! Python's Tool protocol. Declare each of [`ReadToolset`], [`ListToolset`],
-//! [`GlobToolset`] and [`GrepToolset`], [`WriteToolset`], [`EditToolset`] and
-//! [`ShellToolset`] independently in an AI channel's
+//! Python's Tool protocol. Declare each of [`Read`], [`List`],
+//! [`Glob`] and [`Grep`], [`Write`], [`Edit`] and
+//! [`Shell`] independently in an AI channel's
 //! `AiChannelOptions::tools`, as `ToolEntry::Tool(Arc::new(..))`. RoomKit
 //! retains argument validation, policies, hooks, timeouts and turn
 //! cancellation; dropping a call cancels it. The filesystem implementation
 //! remains usable without RoomKit. [`roomkit_owner`] names the owner under
 //! which the shell, process and output adapters keep a room and agent's jobs
 //! and archives.
+//!
+//! Each adapter has the name of its Python RoomKit tool (`Read`, `Write`,
+//! `Shell`, `ProcessStart`, ...). Where `std::io::Read` or `std::io::Write`
+//! is in scope, name the adapter by path, `roomkit_tools_roomkit::Read`.
 
 mod bridge;
 #[cfg(feature = "plans")]
 mod plans;
 #[cfg(feature = "plans")]
-pub use plans::{
-    PlanCreateToolset, PlanDeleteToolset, PlanListToolset, PlanReadToolset, PlanUpdateToolset,
-};
+pub use plans::{PlanCreate, PlanDelete, PlanList, PlanRead, PlanUpdate};
 #[cfg(feature = "docs")]
 mod docs;
 #[cfg(feature = "docs")]
-pub use docs::{DocsListToolset, DocsReadToolset, DocsSearchToolset};
+pub use docs::{DocsList, DocsRead, DocsSearch};
 mod output;
 mod process;
-pub use output::{OutputForgetToolset, OutputReadToolset, ShellToolset};
+pub use output::{OutputForget, OutputRead, Shell};
 
-pub use process::{
-    ProcessReadToolset, ProcessStartToolset, ProcessStatusToolset, ProcessStopToolset,
-    ProcessWriteToolset,
-};
+pub use process::{ProcessRead, ProcessStart, ProcessStatus, ProcessStop, ProcessWrite};
 
 use std::sync::Arc;
 
@@ -46,10 +45,10 @@ use roomkit_tools_web::WebFetchTool;
 
 use bridge::{ai_tool, anyone, serve, tool_error};
 
-/// The owner key of the shell, process and output toolsets for the calls of
+/// The owner key of the shell, process and output adapters for the calls of
 /// the agent `channel_id` in the room `room_id`.
 ///
-/// Those toolsets file the jobs and archives of each call under this key:
+/// Those adapters file the jobs and archives of each call under this key:
 /// compact JSON of `[room_id, channel_id]`, the key Python's `roomkit_owner`
 /// also returns, so neither part can be mistaken for the other. Pass it to
 /// [`ProcessSession`](roomkit_tools_process::ProcessSession) and
@@ -61,7 +60,7 @@ pub fn roomkit_owner(room_id: &str, channel_id: &str) -> String {
 
 // Each adapter exposes one capability. Composing tools remains the host's
 // choice; this macro only shares the RoomKit argument/result/lifecycle bridge.
-macro_rules! toolset {
+macro_rules! adapter {
     ($(#[$doc:meta])* $name:ident, $tool:ident, $method:ident, $wire:literal) => {
         $(#[$doc])*
         #[derive(Clone, Debug)]
@@ -91,82 +90,82 @@ macro_rules! toolset {
     };
 }
 
-toolset!(
+adapter!(
     /// Analyze Rust or Python syntax without executing code or following imports.
-    CodeOutlineToolset, CodeOutlineTool, outline, "code_outline"
+    CodeOutline, CodeOutlineTool, outline, "code_outline"
 );
 
-toolset!(
+adapter!(
     /// The `read` tool with its host-selected root and limits.
     ///
     /// Returns both structured `data` and numbered `text`. Dropping a call
     /// cancels its token; already-issued Tokio file operations may finish in
     /// the blocking pool.
-    ReadToolset, ReadTool, read, "read"
+    Read, ReadTool, read, "read"
 );
-toolset!(
+adapter!(
     /// The non-recursive `list` tool, independently selectable from `read`.
     ///
     /// Returns entry types, workspace-relative paths and continuation offsets.
-    /// Dropping a call uses the same lifecycle as [`ReadToolset`].
-    ListToolset, ListTool, list, "list"
+    /// Dropping a call uses the same lifecycle as [`Read`].
+    List, ListTool, list, "list"
 );
-toolset!(
+adapter!(
     /// The recursive `glob` path search, independently selectable.
     ///
     /// Keeps the tool's scan and output bounds and structured pagination.
-    /// Dropping a call uses the same lifecycle as [`ReadToolset`].
-    GlobToolset, GlobTool, glob, "glob"
+    /// Dropping a call uses the same lifecycle as [`Read`].
+    Glob, GlobTool, glob, "glob"
 );
-toolset!(
+adapter!(
     /// The `grep` text search, independently selectable.
     ///
     /// Keeps matching lines, file paths, skipped-file counts and pagination.
-    /// Dropping a call uses the same lifecycle as [`ReadToolset`].
-    GrepToolset, GrepTool, grep, "grep"
+    /// Dropping a call uses the same lifecycle as [`Read`].
+    Grep, GrepTool, grep, "grep"
 );
 
-toolset!(
+adapter!(
     /// Create or explicitly replace text files using a host-configured `write` tool.
     ///
     /// Share a `Workspace` with `edit` to serialize mutations. Dropping
     /// a call cancels it before commit; an already-started commit may finish.
-    WriteToolset, WriteTool, write, "write"
+    Write, WriteTool, write, "write"
 );
-toolset!(
+adapter!(
     /// Replace exact text using an independently selected `edit` tool.
     ///
     /// Preserves the tool's ambiguity checks, limits and mutation workspace.
     /// Dropping a call cancels it before commit; an already-started commit may finish.
-    EditToolset, EditTool, edit, "edit"
+    Edit, EditTool, edit, "edit"
 );
 
-toolset!(
+adapter!(
     /// Compare two files without writing, with complete bounded hunks.
-    DiffToolset, DiffTool, diff, "diff"
+    Diff, DiffTool, diff, "diff"
 );
-toolset!(
+adapter!(
     /// Prepare or apply exact structured changes under a shared mutation scope.
     ///
     /// A partial application returns structured completed/applied/failure fields.
     /// The host and model must inspect these; a served call is not proof that
     /// every requested change was applied. Dropping a call cancels between effects.
-    PatchToolset, PatchTool, patch, "patch"
+    Patch, PatchTool, patch, "patch"
 );
 
-toolset!(
+adapter!(
     /// Fetch textual HTTP content under host origin rules and resource bounds.
     /// Dropping a call cancels it; issued blocking conversion may finish later.
-    WebFetchToolset, WebFetchTool, fetch, "web_fetch"
+    WebFetch, WebFetchTool, fetch, "web_fetch"
 );
 
-toolset!(
+adapter!(
     /// Search using the host-selected backend, preserving typed results and citations.
-    WebSearchToolset, WebSearchTool, search, "web_search"
+    WebSearch, WebSearchTool, search, "web_search"
 );
 
 #[cfg(feature = "ocr")]
-toolset!(
+adapter!(
     /// Transcribe local images using a separately configured recognition backend.
-    OcrToolset, OcrTool, ocr, "ocr"
+    Ocr, OcrTool, ocr, "ocr"
 );

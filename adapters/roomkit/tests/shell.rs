@@ -14,7 +14,7 @@ use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{AiChannelOptions, ToolEntry, ToolResult};
 use roomkit_tools_process::ShellTool;
-use roomkit_tools_roomkit::ShellToolset;
+use roomkit_tools_roomkit::Shell;
 use serde_json::{Value, json};
 
 #[tokio::test]
@@ -34,7 +34,7 @@ async fn real_agent_receives_shell_output_or_a_policy_refusal() {
             ScriptedRound::answering("The command completed."),
         ]);
         let id = ChannelId::new("assistant").unwrap();
-        let shell = ShellToolset::new(ShellTool::new(root.path()).await.unwrap());
+        let shell = Shell::new(ShellTool::new(root.path()).await.unwrap());
         let agent = common::agent(&id, &model, vec![ToolEntry::Tool(Arc::new(shell))]).unwrap();
         let kit = RoomKit::new(roomkit::RoomKitOptions::default());
         if refused {
@@ -110,7 +110,7 @@ fn alive(pid: &str) -> bool {
 #[tokio::test]
 async fn roomkit_dropping_a_running_shell_call_kills_its_process() {
     let root = tempfile::tempdir().unwrap();
-    let shell = ShellToolset::new(ShellTool::new(root.path()).await.unwrap());
+    let shell = Shell::new(ShellTool::new(root.path()).await.unwrap());
     // RoomKit drops a call past its bound per call; dropping it cancels the shell.
     let options = AiChannelOptions {
         tool_timeout: Some(Duration::from_secs(2)),
@@ -143,7 +143,7 @@ async fn roomkit_dropping_a_running_shell_call_kills_its_process() {
 #[tokio::test]
 async fn timeout_is_a_structured_result() {
     let root = tempfile::tempdir().unwrap();
-    let shell = ShellToolset::new(ShellTool::new(root.path()).await.unwrap());
+    let shell = Shell::new(ShellTool::new(root.path()).await.unwrap());
     let ToolResult::Json(result) = call::run(
         &shell,
         "example",

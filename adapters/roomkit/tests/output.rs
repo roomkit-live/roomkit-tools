@@ -5,7 +5,7 @@ mod call;
 
 use roomkit_ai::{ToolError, ToolResult};
 use roomkit_tools_process::{OutputLimits, OutputStore, ShellTool};
-use roomkit_tools_roomkit::{OutputForgetToolset, OutputReadToolset, ShellToolset};
+use roomkit_tools_roomkit::{OutputForget, OutputRead, Shell};
 use serde_json::json;
 
 #[tokio::test]
@@ -14,14 +14,14 @@ async fn archived_shell_output_uses_room_and_agent_scope() {
     let store = OutputStore::new(Some(root.path()), OutputLimits::default())
         .await
         .unwrap();
-    let shell = ShellToolset::new(
+    let shell = Shell::new(
         ShellTool::new(root.path())
             .await
             .unwrap()
             .with_output_store(store.clone()),
     );
-    let read = OutputReadToolset::new(store.clone());
-    let forget = OutputForgetToolset::new(store.clone());
+    let read = OutputRead::new(store.clone());
+    let forget = OutputForget::new(store.clone());
     let ToolResult::Json(result) = call::run(
         &shell,
         "one",

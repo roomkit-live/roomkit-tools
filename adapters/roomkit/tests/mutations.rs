@@ -15,7 +15,7 @@ use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
 use roomkit_tools_fs::{EditTool, ReadTool, Workspace, WriteTool};
-use roomkit_tools_roomkit::{EditToolset, ReadToolset, WriteToolset};
+use roomkit_tools_roomkit::{Edit, Read, Write};
 use serde_json::{Value, json};
 
 fn script() -> [ScriptedRound; 6] {
@@ -63,13 +63,11 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
     let model = ScriptedProvider::new(script());
     let id = ChannelId::new("assistant").unwrap();
     let tools: Vec<ToolEntry> = vec![
-        ToolEntry::Tool(Arc::new(WriteToolset::new(WriteTool::from_workspace(
+        ToolEntry::Tool(Arc::new(Write::new(WriteTool::from_workspace(
             workspace.clone(),
         )))),
-        ToolEntry::Tool(Arc::new(EditToolset::new(EditTool::from_workspace(
-            workspace,
-        )))),
-        ToolEntry::Tool(Arc::new(ReadToolset::new(
+        ToolEntry::Tool(Arc::new(Edit::new(EditTool::from_workspace(workspace)))),
+        ToolEntry::Tool(Arc::new(Read::new(
             ReadTool::new(root.path()).await.unwrap(),
         ))),
     ];
@@ -185,10 +183,10 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("notes");
     std::fs::write(&path, "count=1\nowner=Alex\n").unwrap();
-    let read = ReadToolset::new(ReadTool::new(root.path()).await.unwrap());
+    let read = Read::new(ReadTool::new(root.path()).await.unwrap());
     let workspace = Workspace::new(root.path()).await.unwrap();
-    let edit = EditToolset::new(EditTool::from_workspace(workspace.clone()));
-    let write = WriteToolset::new(WriteTool::from_workspace(workspace));
+    let edit = Edit::new(EditTool::from_workspace(workspace.clone()));
+    let write = Write::new(WriteTool::from_workspace(workspace));
     let ToolResult::Json(original) = read
         .handler("read".into(), arguments(json!({"path":"notes", "limit":1})))
         .await
@@ -244,8 +242,8 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
 async fn adapters_keep_overwrite_and_ambiguity_refusals_and_decline_other_tools() {
     let root = tempfile::tempdir().unwrap();
     let workspace = Workspace::new(root.path()).await.unwrap();
-    let write = WriteToolset::new(WriteTool::from_workspace(workspace.clone()));
-    let edit = EditToolset::new(EditTool::from_workspace(workspace));
+    let write = Write::new(WriteTool::from_workspace(workspace.clone()));
+    let edit = Edit::new(EditTool::from_workspace(workspace));
     assert_eq!(write.definition().name, "write");
     assert_eq!(edit.definition().name, "edit");
     let make_write = || arguments(json!({"path":"orders", "content":"a a"}));

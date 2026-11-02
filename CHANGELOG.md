@@ -58,8 +58,8 @@ part of an existing published preview.
   is the standalone owner, the one `ShellTool::shell` files archives under,
   as Python's `owner=None`.
 - Rust: `OutputStore::list` is async, as Python's `OutputStore.list`.
-- Rust RoomKit adapter: the process toolsets take `session` and
-  `OutputReadToolset` and `OutputForgetToolset` take `store`, as Python's
+- Rust RoomKit adapter: the process adapters take `session` and
+  `OutputRead` and `OutputForget` take `store`, as Python's
   `ProcessStart(session)` and `OutputRead(store)`.
 - Rust: the limits, policy and configuration structs a host builds are no
   longer `#[non_exhaustive]`, so `ReadLimits { max_lines: 200,
@@ -85,6 +85,15 @@ part of an existing published preview.
   `rec.onnx` and `dict.txt`, as Python's `RustoOcr(models)`, instead of the
   three paths; `RustoConfig::new(models)` defaults `model_name`
   (`ppocrv6`), `threads` (2) and `detection_max_edge` (960).
+- Rust RoomKit adapter: each adapter takes the name of its Python RoomKit
+  tool, `<X>Toolset` becoming `<X>`: `ReadToolset::new(tool)` is
+  `Read::new(tool)`, and likewise `List`, `Glob`, `Grep`, `Diff`, `Edit`,
+  `Write`, `Patch`, `CodeOutline`, `Shell`, `Ocr`, `WebFetch`, `WebSearch`,
+  `ProcessStart`, `ProcessStatus`, `ProcessRead`, `ProcessWrite`,
+  `ProcessStop`, `OutputRead`, `OutputForget`, `DocsList`, `DocsSearch`,
+  `DocsRead`, `PlanCreate`, `PlanRead`, `PlanList`, `PlanUpdate` and
+  `PlanDelete`. Name `Read` and `Write` by path where `std::io`'s are in
+  scope.
 - Rust: the documentation and plan tools' `execute` is `call`, as Python's:
   `DocsListTool::call(input, &cancel)`, `PlanCreateTool::call(&scope, input,
   &cancel)`.

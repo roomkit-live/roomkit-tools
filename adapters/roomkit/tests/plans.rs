@@ -8,9 +8,7 @@ use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_plans::{
     MemoryPlanBackend, PlanCreateTool, PlanDeleteTool, PlanListTool, PlanReadTool, PlanUpdateTool,
 };
-use roomkit_tools_roomkit::{
-    PlanCreateToolset, PlanDeleteToolset, PlanListToolset, PlanReadToolset, PlanUpdateToolset,
-};
+use roomkit_tools_roomkit::{PlanCreate, PlanDelete, PlanList, PlanRead, PlanUpdate};
 use serde_json::{Value, json};
 use std::sync::Arc;
 
@@ -24,11 +22,11 @@ fn data(output: Result<ToolResult, ToolError>) -> Value {
 #[tokio::test]
 async fn scoped_crud_adapters_share_the_host_store_by_room_and_agent() {
     let store = Arc::new(MemoryPlanBackend::default());
-    let creator = PlanCreateToolset::new(PlanCreateTool::new(store.clone()));
-    let reader = PlanReadToolset::new(PlanReadTool::new(store.clone()));
-    let updater = PlanUpdateToolset::new(PlanUpdateTool::new(store.clone()));
-    let lister = PlanListToolset::new(PlanListTool::new(store.clone()));
-    let deleter = PlanDeleteToolset::new(PlanDeleteTool::new(store));
+    let creator = PlanCreate::new(PlanCreateTool::new(store.clone()));
+    let reader = PlanRead::new(PlanReadTool::new(store.clone()));
+    let updater = PlanUpdate::new(PlanUpdateTool::new(store.clone()));
+    let lister = PlanList::new(PlanListTool::new(store.clone()));
+    let deleter = PlanDelete::new(PlanDeleteTool::new(store));
     assert_eq!(
         creator.definition().parameters,
         PlanCreateTool::definition().input_schema
@@ -81,7 +79,7 @@ async fn scoped_crud_adapters_share_the_host_store_by_room_and_agent() {
 #[tokio::test]
 async fn plan_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     let store = Arc::new(MemoryPlanBackend::default());
-    let creator = PlanCreateToolset::new(PlanCreateTool::new(store));
+    let creator = PlanCreate::new(PlanCreateTool::new(store));
     let arguments: Metadata =
         serde_json::from_value(json!({"title":"Inspect","objective":"Check boundary","steps":[]}))
             .unwrap();

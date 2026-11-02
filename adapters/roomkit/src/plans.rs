@@ -9,7 +9,7 @@ use roomkit_tools_plans::{
 
 use crate::bridge::{ai_tool, current_caller, serve, tool_error};
 
-macro_rules! toolset {
+macro_rules! adapter {
     ($name:ident, $tool:ident, $wire:literal) => {
         #[doc = concat!("Independently selected `", $wire, "` adapter with trusted owner scope.")]
         #[derive(Clone, Debug)]
@@ -47,8 +47,8 @@ macro_rules! toolset {
         }
     };
 }
-toolset!(PlanCreateToolset, PlanCreateTool, "plan_create");
-toolset!(PlanReadToolset, PlanReadTool, "plan_read");
-toolset!(PlanListToolset, PlanListTool, "plan_list");
-toolset!(PlanUpdateToolset, PlanUpdateTool, "plan_update");
-toolset!(PlanDeleteToolset, PlanDeleteTool, "plan_delete");
+adapter!(PlanCreate, PlanCreateTool, "plan_create");
+adapter!(PlanRead, PlanReadTool, "plan_read");
+adapter!(PlanList, PlanListTool, "plan_list");
+adapter!(PlanUpdate, PlanUpdateTool, "plan_update");
+adapter!(PlanDelete, PlanDeleteTool, "plan_delete");

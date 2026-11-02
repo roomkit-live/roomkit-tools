@@ -15,7 +15,7 @@ use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
 use roomkit_tools_fs::{GlobTool, GrepTool, ListTool, ReadTool};
-use roomkit_tools_roomkit::{GlobToolset, GrepToolset, ListToolset, ReadToolset};
+use roomkit_tools_roomkit::{Glob, Grep, List, Read};
 use serde_json::{Value, json};
 
 fn arguments(input: &Value) -> Metadata {
@@ -38,19 +38,19 @@ async fn only_this_tool<T: Tool>(tool: T, name: &str, input: Value) {
 async fn each_adapter_exposes_only_its_own_capability_and_declines_other_calls() {
     let root = tempfile::tempdir().unwrap();
     only_this_tool(
-        ListToolset::new(ListTool::new(root.path()).await.unwrap()),
+        List::new(ListTool::new(root.path()).await.unwrap()),
         "list",
         json!({}),
     )
     .await;
     only_this_tool(
-        GlobToolset::new(GlobTool::new(root.path()).await.unwrap()),
+        Glob::new(GlobTool::new(root.path()).await.unwrap()),
         "glob",
         json!({"pattern":"*.txt"}),
     )
     .await;
     only_this_tool(
-        GrepToolset::new(GrepTool::new(root.path()).await.unwrap()),
+        Grep::new(GrepTool::new(root.path()).await.unwrap()),
         "grep",
         json!({"pattern":"Saturday"}),
     )
@@ -61,7 +61,7 @@ async fn each_adapter_exposes_only_its_own_capability_and_declines_other_calls()
 async fn grep_context_reaches_roomkit_without_changing_match_pagination() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("notes"), "first\nhit\nlast\n").unwrap();
-    let grep = GrepToolset::new(GrepTool::new(root.path()).await.unwrap());
+    let grep = Grep::new(GrepTool::new(root.path()).await.unwrap());
     assert_eq!(
         grep.definition().parameters,
         GrepTool::definition().input_schema
@@ -112,16 +112,16 @@ async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>) {
     ]);
     let id = ChannelId::new("assistant").unwrap();
     let tools: Vec<ToolEntry> = vec![
-        ToolEntry::Tool(Arc::new(ListToolset::new(
+        ToolEntry::Tool(Arc::new(List::new(
             ListTool::new(root.path()).await.unwrap(),
         ))),
-        ToolEntry::Tool(Arc::new(GlobToolset::new(
+        ToolEntry::Tool(Arc::new(Glob::new(
             GlobTool::new(root.path()).await.unwrap(),
         ))),
-        ToolEntry::Tool(Arc::new(GrepToolset::new(
+        ToolEntry::Tool(Arc::new(Grep::new(
             GrepTool::new(root.path()).await.unwrap(),
         ))),
-        ToolEntry::Tool(Arc::new(ReadToolset::new(
+        ToolEntry::Tool(Arc::new(Read::new(
             ReadTool::new(root.path()).await.unwrap(),
         ))),
     ];

@@ -11,7 +11,7 @@ use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
 use roomkit_tools_fs::{DiffTool, PatchTool, Workspace};
-use roomkit_tools_roomkit::{DiffToolset, PatchToolset};
+use roomkit_tools_roomkit::{Diff, Patch};
 use serde_json::{Value, json};
 
 fn changes() -> Value {
@@ -64,10 +64,10 @@ async fn scenario(refused: bool) -> Vec<Value> {
     let model = ScriptedProvider::new(script());
     let id = ChannelId::new("assistant").unwrap();
     let tools: Vec<ToolEntry> = vec![
-        ToolEntry::Tool(Arc::new(DiffToolset::new(
+        ToolEntry::Tool(Arc::new(Diff::new(
             DiffTool::new(root.path()).await.unwrap(),
         ))),
-        ToolEntry::Tool(Arc::new(PatchToolset::new(PatchTool::from_workspace(
+        ToolEntry::Tool(Arc::new(Patch::new(PatchTool::from_workspace(
             Workspace::new(root.path()).await.unwrap(),
         )))),
     ];
@@ -173,8 +173,8 @@ fn arguments(input: Value) -> Metadata {
 async fn each_adapter_serves_only_its_own_tool() {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("same"), "x").unwrap();
-    let patch = PatchToolset::new(PatchTool::new(root.path()).await.unwrap());
-    let diff = DiffToolset::new(DiffTool::new(root.path()).await.unwrap());
+    let patch = Patch::new(PatchTool::new(root.path()).await.unwrap());
+    let diff = Diff::new(DiffTool::new(root.path()).await.unwrap());
     let compare = json!({"old_path":"same","new_path":"same"});
     assert!(matches!(
         patch

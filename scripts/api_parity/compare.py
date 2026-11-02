@@ -109,18 +109,6 @@ class Comparison:
             self.roles[path] = role
             return None
         modules = self.rules.modules_for(path)
-        toolset = self.rules.toolset
-        if (
-            item["kind"] == "struct"
-            and toolset.trait in item.get("impls", [])
-            and name.endswith(toolset.suffix)
-        ):
-            short = self.rules.python_type_name(name.removesuffix(toolset.suffix))
-            python = self.python.find(modules, short)
-            if python is not None:
-                detail = f"named {short} in Python: the {toolset.suffix} suffix"
-                self.find("rust", path, "name", detail, path, python)
-            return python
         wanted = name if item["kind"] in ("fn", "constant") else self.rules.python_type_name(name)
         return self.python.find(modules, wanted)
 
@@ -194,8 +182,8 @@ class Comparison:
                 continue  # an async factory's __init__ wraps the native object it built
             if any(base.get(member) == member_spec for base in bases):
                 continue  # compared on the base
-            if member in self.rules.toolset.members and not _static(member_spec):
-                self._toolset_member(python, member, items)
+            if member in self.rules.tool_protocol.members and not _static(member_spec):
+                self._protocol_member(python, member, items)
             elif member == constructor:
                 constructors.compare(self, python, member, member_spec, items, used)
             elif calls.compare(self, python, member, spec, pool, used):
@@ -244,8 +232,8 @@ class Comparison:
                     pool.setdefault(name, []).append(Member(trait, method, True, False))
         return pool
 
-    def _toolset_member(self, python: str, member: str, items: list[dict]) -> None:
-        trait = self.rules.toolset.trait
+    def _protocol_member(self, python: str, member: str, items: list[dict]) -> None:
+        trait = self.rules.tool_protocol.trait
         if not any(trait in item.get("impls", []) for item in items):
             detail = f"the RoomKit tool protocol: no Rust item standing for it implements {trait}"
             self.find("python", f"{python}.{member}", "unmatched", detail, items[0]["path"], python)

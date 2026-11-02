@@ -2,7 +2,7 @@
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_code::CodeOutlineTool;
-use roomkit_tools_roomkit::CodeOutlineToolset;
+use roomkit_tools_roomkit::CodeOutline;
 use serde_json::json;
 
 #[tokio::test]
@@ -13,7 +13,7 @@ async fn definitions_results_and_declined_calls_follow_the_native_outline() {
         "struct Service;\nimpl Service { fn run(&self) {} }\n",
     )
     .unwrap();
-    let tool = CodeOutlineToolset::new(CodeOutlineTool::new(root.path()).await.unwrap());
+    let tool = CodeOutline::new(CodeOutlineTool::new(root.path()).await.unwrap());
     assert_eq!(tool.definition().name, "code_outline");
     assert_eq!(
         tool.definition().parameters,

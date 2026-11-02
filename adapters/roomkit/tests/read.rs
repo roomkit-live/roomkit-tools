@@ -15,21 +15,21 @@ use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
 use roomkit_tools_fs::{ReadLimits, ReadTool};
-use roomkit_tools_roomkit::ReadToolset;
+use roomkit_tools_roomkit::Read;
 use serde_json::{Value, json};
 
 fn arguments(arguments: Value) -> Metadata {
     serde_json::from_value(arguments).unwrap()
 }
 
-async fn fixture() -> (tempfile::TempDir, ReadToolset) {
+async fn fixture() -> (tempfile::TempDir, Read) {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(
         root.path().join("hours.txt"),
         "Monday: closed\nTuesday: 08:30-18:00\n",
     )
     .unwrap();
-    let tools = ReadToolset::new(ReadTool::new(root.path()).await.unwrap());
+    let tools = Read::new(ReadTool::new(root.path()).await.unwrap());
     (root, tools)
 }
 
@@ -92,7 +92,7 @@ async fn reports_limits_as_safe_failures_and_io_as_diagnostic_errors() {
         max_file_bytes: 1,
         ..ReadLimits::default()
     };
-    let tools = ReadToolset::new(
+    let tools = Read::new(
         ReadTool::new(root.path())
             .await
             .unwrap()
@@ -111,7 +111,7 @@ async fn reports_limits_as_safe_failures_and_io_as_diagnostic_errors() {
 
 /// Run the public RoomKit agent and return the outcome delivered to the chat and what
 /// the second model request actually received from the tool.
-async fn turn(tools: ReadToolset, arguments: &str, blocked: bool) -> (ToolCallOutcome, String) {
+async fn turn(tools: Read, arguments: &str, blocked: bool) -> (ToolCallOutcome, String) {
     let model = ScriptedProvider::new([
         ScriptedRound::calling("", [("read_hours", "read", arguments)]),
         ScriptedRound::answering("Answer after the tool result."),

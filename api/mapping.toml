@@ -71,9 +71,9 @@ union_constructor = { prefix = "from_", decision = "luge-hitl:76e988fe Q6" }
 builder_prefix = "with_"
 # The RoomKit engine's tool protocol: Python's `definition` property and
 # `handler` are the Rust adapter's implementation of roomkit_ai's `Tool`, the
-# Rust form of that protocol, a struct named with the suffix standing for the
-# Python RoomKit tool named without it.
-toolset = { trait = "Tool", suffix = "Toolset", members = ["definition", "handler"] }
+# Rust form of that protocol. Each adapter has the name of its Python
+# RoomKit tool.
+tool_protocol = { trait = "Tool", members = ["definition", "handler"] }
 # The Rust types a Python builtin stands for: the envelope a call returns
 # and a tool definition, which Python returns as dicts.
 builtins = { "roomkit_tools_core::Output" = "dict", "roomkit_tools_core::Definition" = "dict" }
@@ -269,36 +269,36 @@ covers = ["rust roomkit_tools_ocr_rusto::RustoOcr::lazy (name)"]
 [[pending]]
 reason = "roomkit_tools_agents::AgentFollowupTool / roomkit_tools.AgentFollowup: unmatched (2)"
 covers = [
-  "python roomkit_tools.AgentFollowup.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
-  "python roomkit_tools.AgentFollowup.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.AgentFollowup.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
+  "python roomkit_tools.AgentFollowup.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
 ]
 
 [[pending]]
 reason = "roomkit_tools_agents::AgentSendTool / roomkit_tools.AgentSend: unmatched (2)"
 covers = [
-  "python roomkit_tools.AgentSend.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
-  "python roomkit_tools.AgentSend.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.AgentSend.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
+  "python roomkit_tools.AgentSend.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
 ]
 
 [[pending]]
 reason = "roomkit_tools_agents::CancelTaskTool / roomkit_tools.CancelTask: unmatched (2)"
 covers = [
-  "python roomkit_tools.CancelTask.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
-  "python roomkit_tools.CancelTask.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.CancelTask.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
+  "python roomkit_tools.CancelTask.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
 ]
 
 [[pending]]
 reason = "roomkit_tools_agents::DelegateTaskTool / roomkit_tools.DelegateTask: unmatched (2)"
 covers = [
-  "python roomkit_tools.DelegateTask.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
-  "python roomkit_tools.DelegateTask.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.DelegateTask.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
+  "python roomkit_tools.DelegateTask.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
 ]
 
 [[pending]]
 reason = "roomkit_tools_agents::TaskStatusTool / roomkit_tools.TaskStatus: unmatched (2)"
 covers = [
-  "python roomkit_tools.TaskStatus.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
-  "python roomkit_tools.TaskStatus.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Toolset
+  "python roomkit_tools.TaskStatus.definition (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
+  "python roomkit_tools.TaskStatus.handler (unmatched)",  # the RoomKit tool protocol: no Rust item standing for it implements Tool
 ]
 
 [[pending]]
@@ -392,195 +392,6 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_roomkit::CodeOutlineToolset / roomkit_tools.CodeOutline: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::CodeOutlineToolset (name)",  # named CodeOutline in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::CodeOutlineToolset::new(tool) (form)",  # takes a built CodeOutlineTool; Python's roomkit_tools.CodeOutline takes roomkit_tools.CodeOutlineTool.create's parameters (root, max_file_bytes, max_output_bytes, max_symbols, max_scan_symbols, max_scan_nodes, max_depth, max_signature_bytes, default_timeout_ms, max_timeout_ms)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::DiffToolset / roomkit_tools.Diff: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::DiffToolset (name)",  # named Diff in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::DiffToolset::new(tool) (form)",  # takes a built DiffTool; Python's roomkit_tools.Diff takes roomkit_tools.DiffTool.create's parameters (root, max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::DocsListToolset / roomkit_tools.DocsList: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::DocsListToolset (name)",  # named DocsList in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::DocsListToolset::new(tool) (form)",  # takes a built DocsListTool; Python's roomkit_tools.DocsList is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::DocsReadToolset / roomkit_tools.DocsRead: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::DocsReadToolset (name)",  # named DocsRead in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::DocsReadToolset::new(tool) (form)",  # takes a built DocsReadTool; Python's roomkit_tools.DocsRead is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::DocsSearchToolset / roomkit_tools.DocsSearch: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::DocsSearchToolset (name)",  # named DocsSearch in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::DocsSearchToolset::new(tool) (form)",  # takes a built DocsSearchTool; Python's roomkit_tools.DocsSearch is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::EditToolset / roomkit_tools.Edit: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::EditToolset (name)",  # named Edit in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::EditToolset::new(tool) (form)",  # takes a built EditTool; Python's roomkit_tools.Edit takes roomkit_tools.EditTool.create's parameters (root, max_file_bytes)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::GlobToolset / roomkit_tools.Glob: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::GlobToolset (name)",  # named Glob in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::GlobToolset::new(tool) (form)",  # takes a built GlobTool; Python's roomkit_tools.Glob takes roomkit_tools.GlobTool.create's parameters (root, max_matches, max_output_bytes, max_scan_entries, max_depth)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::GrepToolset / roomkit_tools.Grep: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::GrepToolset (name)",  # named Grep in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::GrepToolset::new(tool) (form)",  # takes a built GrepTool; Python's roomkit_tools.Grep takes roomkit_tools.GrepTool.create's parameters (root, max_matches, max_output_bytes, max_scan_entries, max_depth, max_file_bytes, max_total_bytes, max_context_lines, max_line_bytes)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::ListToolset / roomkit_tools.List: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::ListToolset (name)",  # named List in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::ListToolset::new(tool) (form)",  # takes a built ListTool; Python's roomkit_tools.List takes roomkit_tools.ListTool.create's parameters (root, max_entries, max_output_bytes, max_scan_entries)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::OcrToolset / roomkit_tools.Ocr: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::OcrToolset (name)",  # named Ocr in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::OcrToolset::new(tool) (form)",  # takes a built OcrTool; Python's roomkit_tools.Ocr takes roomkit_tools.OcrTool.create's parameters (root, backend, max_file_bytes, max_dimension, max_pixels, max_decode_bytes, max_output_bytes, max_blocks, default_timeout_ms, max_timeout_ms)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::OutputForgetToolset / roomkit_tools.OutputForget: name"
-covers = [
-  "rust roomkit_tools_roomkit::OutputForgetToolset (name)",  # named OutputForget in Python: the Toolset suffix
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::OutputReadToolset / roomkit_tools.OutputRead: name"
-covers = [
-  "rust roomkit_tools_roomkit::OutputReadToolset (name)",  # named OutputRead in Python: the Toolset suffix
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PatchToolset / roomkit_tools.Patch: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::PatchToolset (name)",  # named Patch in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::PatchToolset::new(tool) (form)",  # takes a built PatchTool; Python's roomkit_tools.Patch takes roomkit_tools.PatchTool.create's parameters (root, max_changes, max_input_bytes, max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanCreateToolset / roomkit_tools.PlanCreate: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanCreateToolset (name)",  # named PlanCreate in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::PlanCreateToolset::new(tool) (form)",  # takes a built PlanCreateTool; Python's roomkit_tools.PlanCreate is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanDeleteToolset / roomkit_tools.PlanDelete: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanDeleteToolset (name)",  # named PlanDelete in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::PlanDeleteToolset::new(tool) (form)",  # takes a built PlanDeleteTool; Python's roomkit_tools.PlanDelete is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanListToolset / roomkit_tools.PlanList: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanListToolset (name)",  # named PlanList in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::PlanListToolset::new(tool) (form)",  # takes a built PlanListTool; Python's roomkit_tools.PlanList is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanReadToolset / roomkit_tools.PlanRead: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanReadToolset (name)",  # named PlanRead in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::PlanReadToolset::new(tool) (form)",  # takes a built PlanReadTool; Python's roomkit_tools.PlanRead is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::PlanUpdateToolset / roomkit_tools.PlanUpdate: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::PlanUpdateToolset (name)",  # named PlanUpdate in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::PlanUpdateToolset::new(tool) (form)",  # takes a built PlanUpdateTool; Python's roomkit_tools.PlanUpdate is that tool itself, built from (backend)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::ProcessReadToolset / roomkit_tools.ProcessRead: name"
-covers = [
-  "rust roomkit_tools_roomkit::ProcessReadToolset (name)",  # named ProcessRead in Python: the Toolset suffix
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::ProcessStartToolset / roomkit_tools.ProcessStart: name"
-covers = [
-  "rust roomkit_tools_roomkit::ProcessStartToolset (name)",  # named ProcessStart in Python: the Toolset suffix
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::ProcessStatusToolset / roomkit_tools.ProcessStatus: name"
-covers = [
-  "rust roomkit_tools_roomkit::ProcessStatusToolset (name)",  # named ProcessStatus in Python: the Toolset suffix
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::ProcessStopToolset / roomkit_tools.ProcessStop: name"
-covers = [
-  "rust roomkit_tools_roomkit::ProcessStopToolset (name)",  # named ProcessStop in Python: the Toolset suffix
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::ProcessWriteToolset / roomkit_tools.ProcessWrite: name"
-covers = [
-  "rust roomkit_tools_roomkit::ProcessWriteToolset (name)",  # named ProcessWrite in Python: the Toolset suffix
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::ReadToolset / roomkit_tools.Read: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::ReadToolset (name)",  # named Read in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::ReadToolset::new(tool) (form)",  # takes a built ReadTool; Python's roomkit_tools.Read takes roomkit_tools.ReadTool.create's parameters (root, max_file_bytes, max_output_bytes, max_lines)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::ShellToolset / roomkit_tools.Shell: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::ShellToolset (name)",  # named Shell in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::ShellToolset::new(tool) (form)",  # takes a built ShellTool; Python's roomkit_tools.Shell takes roomkit_tools.ShellTool.create's parameters (root, outputs, inherit_env, env, max_command_bytes, max_output_bytes, default_timeout_ms, max_timeout_ms)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::WebFetchToolset / roomkit_tools.WebFetch: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::WebFetchToolset (name)",  # named WebFetch in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::WebFetchToolset::new(tool) (form)",  # takes a built WebFetchTool; Python's roomkit_tools.WebFetch takes roomkit_tools.WebFetchTool.__init__'s parameters (**configuration)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::WebSearchToolset / roomkit_tools.WebSearch: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::WebSearchToolset (name)",  # named WebSearch in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::WebSearchToolset::new(tool) (form)",  # takes a built WebSearchTool; Python's roomkit_tools.WebSearch takes roomkit_tools.WebSearchTool.__init__'s parameters (backend, **configuration)
-]
-
-[[pending]]
-reason = "roomkit_tools_roomkit::WriteToolset / roomkit_tools.Write: name, form"
-covers = [
-  "rust roomkit_tools_roomkit::WriteToolset (name)",  # named Write in Python: the Toolset suffix
-  "rust roomkit_tools_roomkit::WriteToolset::new(tool) (form)",  # takes a built WriteTool; Python's roomkit_tools.Write takes roomkit_tools.WriteTool.create's parameters (root, max_file_bytes)
-]
-
-[[pending]]
 reason = "roomkit_tools_search::BackendOutput / no Python name: unmatched, uncompared"
 covers = [
   "rust roomkit_tools_search::BackendOutput::results (unmatched)",  # a contract type's own member: no Python counterpart
@@ -660,4 +471,130 @@ covers = [
 reason = "roomkit_tools_process::ShellTool / roomkit_tools.ShellTool: unmatched"
 covers = [
   "rust roomkit_tools_process::ShellTool::has_output_store (unmatched)",  # no Python member: added for hosts with the adapter's move to the Tool protocol
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::CodeOutline / roomkit_tools.CodeOutline: form"
+covers = [
+  "rust roomkit_tools_roomkit::CodeOutline::new(tool) (form)",  # takes a built CodeOutlineTool; Python's roomkit_tools.CodeOutline takes roomkit_tools.CodeOutlineTool.create's parameters (root, max_file_bytes, max_output_bytes, max_symbols, max_scan_symbols, max_scan_nodes, max_depth, max_signature_bytes, default_timeout_ms, max_timeout_ms)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::Diff / roomkit_tools.Diff: form"
+covers = [
+  "rust roomkit_tools_roomkit::Diff::new(tool) (form)",  # takes a built DiffTool; Python's roomkit_tools.Diff takes roomkit_tools.DiffTool.create's parameters (root, max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::DocsList / roomkit_tools.DocsList: form"
+covers = [
+  "rust roomkit_tools_roomkit::DocsList::new(tool) (form)",  # takes a built DocsListTool; Python's roomkit_tools.DocsList is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::DocsRead / roomkit_tools.DocsRead: form"
+covers = [
+  "rust roomkit_tools_roomkit::DocsRead::new(tool) (form)",  # takes a built DocsReadTool; Python's roomkit_tools.DocsRead is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::DocsSearch / roomkit_tools.DocsSearch: form"
+covers = [
+  "rust roomkit_tools_roomkit::DocsSearch::new(tool) (form)",  # takes a built DocsSearchTool; Python's roomkit_tools.DocsSearch is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::Edit / roomkit_tools.Edit: form"
+covers = [
+  "rust roomkit_tools_roomkit::Edit::new(tool) (form)",  # takes a built EditTool; Python's roomkit_tools.Edit takes roomkit_tools.EditTool.create's parameters (root, max_file_bytes)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::Glob / roomkit_tools.Glob: form"
+covers = [
+  "rust roomkit_tools_roomkit::Glob::new(tool) (form)",  # takes a built GlobTool; Python's roomkit_tools.Glob takes roomkit_tools.GlobTool.create's parameters (root, max_matches, max_output_bytes, max_scan_entries, max_depth)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::Grep / roomkit_tools.Grep: form"
+covers = [
+  "rust roomkit_tools_roomkit::Grep::new(tool) (form)",  # takes a built GrepTool; Python's roomkit_tools.Grep takes roomkit_tools.GrepTool.create's parameters (root, max_matches, max_output_bytes, max_scan_entries, max_depth, max_file_bytes, max_total_bytes, max_context_lines, max_line_bytes)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::List / roomkit_tools.List: form"
+covers = [
+  "rust roomkit_tools_roomkit::List::new(tool) (form)",  # takes a built ListTool; Python's roomkit_tools.List takes roomkit_tools.ListTool.create's parameters (root, max_entries, max_output_bytes, max_scan_entries)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::Ocr / roomkit_tools.Ocr: form"
+covers = [
+  "rust roomkit_tools_roomkit::Ocr::new(tool) (form)",  # takes a built OcrTool; Python's roomkit_tools.Ocr takes roomkit_tools.OcrTool.create's parameters (root, backend, max_file_bytes, max_dimension, max_pixels, max_decode_bytes, max_output_bytes, max_blocks, default_timeout_ms, max_timeout_ms)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::Patch / roomkit_tools.Patch: form"
+covers = [
+  "rust roomkit_tools_roomkit::Patch::new(tool) (form)",  # takes a built PatchTool; Python's roomkit_tools.Patch takes roomkit_tools.PatchTool.create's parameters (root, max_changes, max_input_bytes, max_file_bytes, max_lines, max_comparison_cells, max_output_bytes, max_context_lines)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanCreate / roomkit_tools.PlanCreate: form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanCreate::new(tool) (form)",  # takes a built PlanCreateTool; Python's roomkit_tools.PlanCreate is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanDelete / roomkit_tools.PlanDelete: form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanDelete::new(tool) (form)",  # takes a built PlanDeleteTool; Python's roomkit_tools.PlanDelete is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanList / roomkit_tools.PlanList: form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanList::new(tool) (form)",  # takes a built PlanListTool; Python's roomkit_tools.PlanList is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanRead / roomkit_tools.PlanRead: form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanRead::new(tool) (form)",  # takes a built PlanReadTool; Python's roomkit_tools.PlanRead is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::PlanUpdate / roomkit_tools.PlanUpdate: form"
+covers = [
+  "rust roomkit_tools_roomkit::PlanUpdate::new(tool) (form)",  # takes a built PlanUpdateTool; Python's roomkit_tools.PlanUpdate is that tool itself, built from (backend)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::Read / roomkit_tools.Read: form"
+covers = [
+  "rust roomkit_tools_roomkit::Read::new(tool) (form)",  # takes a built ReadTool; Python's roomkit_tools.Read takes roomkit_tools.ReadTool.create's parameters (root, max_file_bytes, max_output_bytes, max_lines)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::Shell / roomkit_tools.Shell: form"
+covers = [
+  "rust roomkit_tools_roomkit::Shell::new(tool) (form)",  # takes a built ShellTool; Python's roomkit_tools.Shell takes roomkit_tools.ShellTool.create's parameters (root, outputs, inherit_env, env, max_command_bytes, max_output_bytes, default_timeout_ms, max_timeout_ms)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::WebFetch / roomkit_tools.WebFetch: form"
+covers = [
+  "rust roomkit_tools_roomkit::WebFetch::new(tool) (form)",  # takes a built WebFetchTool; Python's roomkit_tools.WebFetch takes roomkit_tools.WebFetchTool.__init__'s parameters (**configuration)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::WebSearch / roomkit_tools.WebSearch: form"
+covers = [
+  "rust roomkit_tools_roomkit::WebSearch::new(tool) (form)",  # takes a built WebSearchTool; Python's roomkit_tools.WebSearch takes roomkit_tools.WebSearchTool.__init__'s parameters (backend, **configuration)
+]
+
+[[pending]]
+reason = "roomkit_tools_roomkit::Write / roomkit_tools.Write: form"
+covers = [
+  "rust roomkit_tools_roomkit::Write::new(tool) (form)",  # takes a built WriteTool; Python's roomkit_tools.Write takes roomkit_tools.WriteTool.create's parameters (root, max_file_bytes)
 ]

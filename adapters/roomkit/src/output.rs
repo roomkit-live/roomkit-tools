@@ -8,7 +8,7 @@ use roomkit_tools_process::{OutputStore, ShellTool};
 
 use crate::bridge::{ai_tool, current_owner, serve, tool_error};
 
-macro_rules! owned_toolset {
+macro_rules! owned_adapter {
     ($(#[$doc:meta])* $name:ident, $tool:ident, $definition:ident, $method:ident, $wire:literal, $family:literal) => {
         $(#[$doc])*
         #[derive(Clone, Debug)]
@@ -47,11 +47,11 @@ macro_rules! owned_toolset {
 /// no archive and needs no caller, as Python's `Shell`. Dropping a call
 /// requests process cleanup, not archive deletion.
 #[derive(Clone, Debug)]
-pub struct ShellToolset {
+pub struct Shell {
     tool: Arc<ShellTool>,
 }
 
-impl ShellToolset {
+impl Shell {
     /// Select the shell. The host closes its `OutputStore`, if any, after its
     /// shell calls and process sessions have finished.
     pub fn new(tool: ShellTool) -> Self {
@@ -61,7 +61,7 @@ impl ShellToolset {
     }
 }
 
-impl Tool for ShellToolset {
+impl Tool for Shell {
     fn definition(&self) -> AiTool {
         ai_tool(ShellTool::definition())
     }
@@ -86,11 +86,11 @@ impl Tool for ShellToolset {
     }
 }
 
-owned_toolset!(
+owned_adapter!(
     /// Read retained output owned by the current conversation and agent.
-    OutputReadToolset, OutputStore, read_definition, read, "output_read", "output"
+    OutputRead, OutputStore, read_definition, read, "output_read", "output"
 );
-owned_toolset!(
+owned_adapter!(
     /// Explicitly release a finished output owned by the current conversation and agent.
-    OutputForgetToolset, OutputStore, forget_definition, forget, "output_forget", "output"
+    OutputForget, OutputStore, forget_definition, forget, "output_forget", "output"
 );

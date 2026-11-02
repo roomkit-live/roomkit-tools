@@ -3,7 +3,7 @@
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError};
 use roomkit_tools_ocr::{DecodedImage, OcrBackend, OcrBlock, OcrEngine, OcrIdentity, OcrTool};
-use roomkit_tools_roomkit::OcrToolset;
+use roomkit_tools_roomkit::Ocr;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
@@ -31,7 +31,7 @@ async fn optional_schema_validation_and_declined_calls() {
     let native = OcrTool::new(root.path(), OcrEngine::new(Fixture).unwrap())
         .await
         .unwrap();
-    let tool = OcrToolset::new(native);
+    let tool = Ocr::new(native);
     assert_eq!(tool.definition().name, "ocr");
     assert_eq!(
         tool.definition().parameters,

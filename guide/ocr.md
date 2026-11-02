@@ -72,7 +72,7 @@ Add `--live` and configure `OPENAI_BASE_URL`, `OPENAI_MODEL` and, when required,
 
 Select `roomkit-tools-ocr` for the contract/executor and
 `roomkit-tools-ocr-rusto` only when using that engine. The RoomKit Rust adapter
-exposes `OcrToolset` behind its optional `ocr` Cargo feature; it does not depend
+exposes `Ocr` behind its optional `ocr` Cargo feature; it does not depend
 on RustO. All crates in this source tree require Rust 1.94+.
 
 ```rust,ignore
@@ -81,7 +81,7 @@ use std::sync::Arc;
 use roomkit_ai::ToolEntry;
 use roomkit_tools_ocr::{OcrTool, OcrInput};
 use roomkit_tools_ocr_rusto::{RustoOcr, RustoConfig};
-use roomkit_tools_roomkit::OcrToolset;
+use roomkit_tools_roomkit::Ocr;
 
 // `models` holds det.onnx, rec.onnx and dict.txt, as for Python's RustoOcr.
 let engine = RustoOcr::lazy(RustoConfig {
@@ -90,7 +90,7 @@ let engine = RustoOcr::lazy(RustoConfig {
 })?;
 let tool = OcrTool::new("./documents", engine).await?;
 // Declare it in your RoomKit Rust agent's `AiChannelOptions::tools`.
-let ocr = ToolEntry::Tool(Arc::new(OcrToolset::new(tool)));
+let ocr = ToolEntry::Tool(Arc::new(Ocr::new(tool)));
 ```
 
 A complete standalone Rust example is available:

@@ -11,8 +11,8 @@ use roomkit_tools_process::{
     ProcessStatusInput, ProcessStopInput, ShellTool,
 };
 use roomkit_tools_roomkit::{
-    OutputForgetToolset, OutputReadToolset, ProcessReadToolset, ProcessStartToolset,
-    ProcessStatusToolset, ProcessStopToolset, ProcessWriteToolset, ShellToolset, roomkit_owner,
+    OutputForget, OutputRead, ProcessRead, ProcessStart, ProcessStatus, ProcessStop, ProcessWrite,
+    Shell, roomkit_owner,
 };
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
@@ -38,7 +38,7 @@ fn roomkit_owner_returns_the_shared_fixture_keys() {
 }
 
 #[expect(clippy::panic, reason = "a result other than JSON must fail the test")]
-async fn start(toolset: &ProcessStartToolset, room: &str, agent: &str, command: &str) -> Value {
+async fn start(toolset: &ProcessStart, room: &str, agent: &str, command: &str) -> Value {
     let started = call::run(
         toolset,
         room,
@@ -64,7 +64,7 @@ async fn host_reaches_toolset_jobs_and_archives_through_roomkit_owner() {
         .unwrap()
         .with_output_store(store.clone())
         .unwrap();
-    let toolset = ProcessStartToolset::new(session.clone());
+    let toolset = ProcessStart::new(session.clone());
     let started = start(&toolset, "salle \"é\"", "agent", "printf saved; sleep 60").await;
     let id = started["process_id"].as_str().unwrap();
     let owner = roomkit_owner("salle \"é\"", "agent");
@@ -127,7 +127,7 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
         .unwrap();
     let session = ProcessSession::new(root.path()).await.unwrap();
     let shell = ShellTool::new(root.path()).await.unwrap();
-    let archiving = ShellToolset::new(shell.with_output_store(store.clone()));
+    let archiving = Shell::new(shell.with_output_store(store.clone()));
     let shell_refusal = "shell archive tools require a conversation and an acting agent";
     assert_eq!(
         refusal_outside_roomkit(&archiving, "shell", json!({"command":"touch shell-ran"})).await,
@@ -141,8 +141,8 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     );
     let output_refusal = "output tools require a conversation and an acting agent";
     let archive = json!({"archive_id":"a1"});
-    let read = OutputReadToolset::new(store.clone());
-    let forget = OutputForgetToolset::new(store.clone());
+    let read = OutputRead::new(store.clone());
+    let forget = OutputForget::new(store.clone());
     assert_eq!(
         refusal_outside_roomkit(&read, "output_read", archive.clone()).await,
         output_refusal
@@ -157,11 +157,11 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     );
     let process_refusal = "process tools require a conversation and an acting agent";
     let process = json!({"process_id":"p1"});
-    let start = ProcessStartToolset::new(session.clone());
-    let status = ProcessStatusToolset::new(session.clone());
-    let read = ProcessReadToolset::new(session.clone());
-    let write = ProcessWriteToolset::new(session.clone());
-    let stop = ProcessStopToolset::new(session.clone());
+    let start = ProcessStart::new(session.clone());
+    let status = ProcessStatus::new(session.clone());
+    let read = ProcessRead::new(session.clone());
+    let write = ProcessWrite::new(session.clone());
+    let stop = ProcessStop::new(session.clone());
     for refusal in [
         refusal_outside_roomkit(&read, "process_read", json!({})).await,
         refusal_outside_roomkit(
@@ -194,7 +194,7 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
 #[tokio::test]
 async fn a_shell_without_archives_runs_outside_a_roomkit_tool_call() {
     let root = tempfile::tempdir().unwrap();
-    let shell = ShellToolset::new(ShellTool::new(root.path()).await.unwrap());
+    let shell = Shell::new(ShellTool::new(root.path()).await.unwrap());
     let arguments: Metadata = serde_json::from_value(json!({"command":"printf ran"})).unwrap();
     let Ok(ToolResult::Json(result)) = shell.handler("shell".into(), arguments).await else {
         unreachable!("the shell answers outside RoomKit");

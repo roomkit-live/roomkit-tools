@@ -123,4 +123,4 @@ See the tool-family guides for exact resource and cancellation boundaries.
 
 OCR uses the separate `roomkit-tools-ocr` contract and optional
 `roomkit-tools-ocr-rusto` engine. Enable the adapter's `ocr` feature for
-`OcrToolset`. See [OCR](ocr.md) for model configuration and native-worker ownership.
+`Ocr`. See [OCR](ocr.md) for model configuration and native-worker ownership.

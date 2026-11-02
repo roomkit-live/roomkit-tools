@@ -11,9 +11,9 @@
  "crates": {
   "roomkit_tools_roomkit": [
    {
-    "path": "roomkit_tools_roomkit::CodeOutlineToolset",
+    "path": "roomkit_tools_roomkit::CodeOutline",
     "kind": "struct",
-    "decl": "pub struct CodeOutlineToolset { }",
+    "decl": "pub struct CodeOutline { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -39,9 +39,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::DiffToolset",
+    "path": "roomkit_tools_roomkit::Diff",
     "kind": "struct",
-    "decl": "pub struct DiffToolset { }",
+    "decl": "pub struct Diff { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -67,9 +67,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::DocsListToolset",
+    "path": "roomkit_tools_roomkit::DocsList",
     "kind": "struct",
-    "decl": "pub struct DocsListToolset { }",
+    "decl": "pub struct DocsList { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -95,9 +95,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::DocsReadToolset",
+    "path": "roomkit_tools_roomkit::DocsRead",
     "kind": "struct",
-    "decl": "pub struct DocsReadToolset { }",
+    "decl": "pub struct DocsRead { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -123,9 +123,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::DocsSearchToolset",
+    "path": "roomkit_tools_roomkit::DocsSearch",
     "kind": "struct",
-    "decl": "pub struct DocsSearchToolset { }",
+    "decl": "pub struct DocsSearch { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -151,9 +151,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::EditToolset",
+    "path": "roomkit_tools_roomkit::Edit",
     "kind": "struct",
-    "decl": "pub struct EditToolset { }",
+    "decl": "pub struct Edit { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -179,9 +179,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::GlobToolset",
+    "path": "roomkit_tools_roomkit::Glob",
     "kind": "struct",
-    "decl": "pub struct GlobToolset { }",
+    "decl": "pub struct Glob { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -207,9 +207,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::GrepToolset",
+    "path": "roomkit_tools_roomkit::Grep",
     "kind": "struct",
-    "decl": "pub struct GrepToolset { }",
+    "decl": "pub struct Grep { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -235,9 +235,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::ListToolset",
+    "path": "roomkit_tools_roomkit::List",
     "kind": "struct",
-    "decl": "pub struct ListToolset { }",
+    "decl": "pub struct List { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -263,9 +263,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::OcrToolset",
+    "path": "roomkit_tools_roomkit::Ocr",
     "kind": "struct",
-    "decl": "pub struct OcrToolset { }",
+    "decl": "pub struct Ocr { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -291,9 +291,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::OutputForgetToolset",
+    "path": "roomkit_tools_roomkit::OutputForget",
     "kind": "struct",
-    "decl": "pub struct OutputForgetToolset { }",
+    "decl": "pub struct OutputForget { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -319,9 +319,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::OutputReadToolset",
+    "path": "roomkit_tools_roomkit::OutputRead",
     "kind": "struct",
-    "decl": "pub struct OutputReadToolset { }",
+    "decl": "pub struct OutputRead { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -347,9 +347,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::PatchToolset",
+    "path": "roomkit_tools_roomkit::Patch",
     "kind": "struct",
-    "decl": "pub struct PatchToolset { }",
+    "decl": "pub struct Patch { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -375,9 +375,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::PlanCreateToolset",
+    "path": "roomkit_tools_roomkit::PlanCreate",
     "kind": "struct",
-    "decl": "pub struct PlanCreateToolset { }",
+    "decl": "pub struct PlanCreate { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -403,9 +403,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::PlanDeleteToolset",
+    "path": "roomkit_tools_roomkit::PlanDelete",
     "kind": "struct",
-    "decl": "pub struct PlanDeleteToolset { }",
+    "decl": "pub struct PlanDelete { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -431,9 +431,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::PlanListToolset",
+    "path": "roomkit_tools_roomkit::PlanList",
     "kind": "struct",
-    "decl": "pub struct PlanListToolset { }",
+    "decl": "pub struct PlanList { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -459,9 +459,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::PlanReadToolset",
+    "path": "roomkit_tools_roomkit::PlanRead",
     "kind": "struct",
-    "decl": "pub struct PlanReadToolset { }",
+    "decl": "pub struct PlanRead { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -487,9 +487,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::PlanUpdateToolset",
+    "path": "roomkit_tools_roomkit::PlanUpdate",
     "kind": "struct",
-    "decl": "pub struct PlanUpdateToolset { }",
+    "decl": "pub struct PlanUpdate { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -515,9 +515,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::ProcessReadToolset",
+    "path": "roomkit_tools_roomkit::ProcessRead",
     "kind": "struct",
-    "decl": "pub struct ProcessReadToolset { }",
+    "decl": "pub struct ProcessRead { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -543,9 +543,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::ProcessStartToolset",
+    "path": "roomkit_tools_roomkit::ProcessStart",
     "kind": "struct",
-    "decl": "pub struct ProcessStartToolset { }",
+    "decl": "pub struct ProcessStart { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -571,9 +571,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::ProcessStatusToolset",
+    "path": "roomkit_tools_roomkit::ProcessStatus",
     "kind": "struct",
-    "decl": "pub struct ProcessStatusToolset { }",
+    "decl": "pub struct ProcessStatus { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -599,9 +599,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::ProcessStopToolset",
+    "path": "roomkit_tools_roomkit::ProcessStop",
     "kind": "struct",
-    "decl": "pub struct ProcessStopToolset { }",
+    "decl": "pub struct ProcessStop { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -627,9 +627,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::ProcessWriteToolset",
+    "path": "roomkit_tools_roomkit::ProcessWrite",
     "kind": "struct",
-    "decl": "pub struct ProcessWriteToolset { }",
+    "decl": "pub struct ProcessWrite { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -655,9 +655,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::ReadToolset",
+    "path": "roomkit_tools_roomkit::Read",
     "kind": "struct",
-    "decl": "pub struct ReadToolset { }",
+    "decl": "pub struct Read { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -683,9 +683,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::ShellToolset",
+    "path": "roomkit_tools_roomkit::Shell",
     "kind": "struct",
-    "decl": "pub struct ShellToolset { }",
+    "decl": "pub struct Shell { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -711,9 +711,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::WebFetchToolset",
+    "path": "roomkit_tools_roomkit::WebFetch",
     "kind": "struct",
-    "decl": "pub struct WebFetchToolset { }",
+    "decl": "pub struct WebFetch { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -739,9 +739,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::WebSearchToolset",
+    "path": "roomkit_tools_roomkit::WebSearch",
     "kind": "struct",
-    "decl": "pub struct WebSearchToolset { }",
+    "decl": "pub struct WebSearch { }",
     "non_exhaustive": false,
     "methods": [
      {
@@ -767,9 +767,9 @@
     "fields": []
    },
    {
-    "path": "roomkit_tools_roomkit::WriteToolset",
+    "path": "roomkit_tools_roomkit::Write",
     "kind": "struct",
-    "decl": "pub struct WriteToolset { }",
+    "decl": "pub struct Write { }",
     "non_exhaustive": false,
     "methods": [
      {

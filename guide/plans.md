@@ -117,8 +117,8 @@ one store; independent instances do not. The crate has no RoomKit, Python or
 filesystem dependency and does not require a particular async runtime.
 
 `cargo run --example plan_progress` checks standalone CRUD. For RoomKit Rust,
-enable the optional adapter's `plans` feature and select `PlanCreateToolset`,
-`PlanReadToolset`, `PlanListToolset`, `PlanUpdateToolset` or `PlanDeleteToolset`.
+enable the optional adapter's `plans` feature and select `PlanCreate`,
+`PlanRead`, `PlanList`, `PlanUpdate` or `PlanDelete`.
 Each wraps its corresponding configured native tool and derives the scope from
 the room and agent of the current RoomKit tool call; a call made outside one is
 refused. Dropping a call cancels it; the host-owned backend is never erased by

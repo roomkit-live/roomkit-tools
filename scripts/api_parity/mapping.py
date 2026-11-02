@@ -47,7 +47,7 @@ _RULES_REQUIRED = {
     "cancellation",
     "factory",
     "builder_prefix",
-    "toolset",
+    "tool_protocol",
 }
 # The rules a mapping may add as tables, each with its settings.
 _TABLE_RULES = {
@@ -70,13 +70,11 @@ def snake_name(name: str) -> str:
 
 
 @dataclass(frozen=True)
-class Toolset:
-    """The RoomKit engine's tool protocol: a Rust struct implementing
-    `trait` stands for the Python RoomKit tool named without `suffix`, and
-    the trait's implementation for the Python `members`."""
+class ToolProtocol:
+    """The RoomKit engine's tool protocol: a Rust adapter's implementation
+    of `trait` stands for the Python RoomKit tool's `members`."""
 
     trait: str
-    suffix: str
     members: tuple[str, ...]
 
 
@@ -90,7 +88,7 @@ class Rules:
     cancellation: str
     factory: str
     builder_prefix: str
-    toolset: Toolset
+    tool_protocol: ToolProtocol
     # By the Rust type's path: the Python builtin it stands for.
     builtins: dict[str, str] = field(default_factory=dict)
     # By the error variant's path: the Python builtin exception it stands for.
@@ -110,9 +108,9 @@ class Rules:
             ((tokens(rust), python) for rust, python in _plain(table["acronyms"]).items()),
             key=lambda pair: -len(pair[0]),
         )
-        toolset = _plain(table["toolset"])
-        if set(toolset) != {"trait", "suffix", "members"}:
-            raise ParityError("[rules] toolset is { trait = name, suffix = name, members = [...] }")
+        protocol = _plain(table["tool_protocol"])
+        if set(protocol) != {"trait", "members"}:
+            raise ParityError("[rules] tool_protocol is { trait = name, members = [...] }")
         for name in ("builtins", "builtin_errors"):
             for path in _plain(table.get(name, {})):
                 if "::" not in path:
@@ -127,7 +125,7 @@ class Rules:
             cancellation=table["cancellation"],
             factory=table["factory"],
             builder_prefix=table["builder_prefix"],
-            toolset=Toolset(toolset["trait"], toolset["suffix"], tuple(toolset["members"])),
+            tool_protocol=ToolProtocol(protocol["trait"], tuple(protocol["members"])),
             builtins=_plain(table.get("builtins", {})),
             builtin_errors=_plain(table.get("builtin_errors", {})),
             decisions=_decisions(table),

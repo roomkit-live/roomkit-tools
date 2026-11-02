@@ -12,10 +12,7 @@ use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{ToolEntry, ToolError, ToolResult};
 use roomkit_tools_process::ProcessSession;
-use roomkit_tools_roomkit::{
-    ProcessReadToolset, ProcessStartToolset, ProcessStatusToolset, ProcessStopToolset,
-    ProcessWriteToolset,
-};
+use roomkit_tools_roomkit::{ProcessRead, ProcessStart, ProcessStatus, ProcessStop, ProcessWrite};
 use serde_json::{Value, json};
 
 /// The JSON a served call answered.
@@ -31,11 +28,11 @@ fn json_answer(answer: Result<ToolResult, ToolError>) -> Value {
 async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
     let fixture = tempfile::tempdir().unwrap();
     let session = ProcessSession::new(fixture.path()).await.unwrap();
-    let start = ProcessStartToolset::new(session.clone());
-    let read = ProcessReadToolset::new(session.clone());
-    let write = ProcessWriteToolset::new(session.clone());
-    let status = ProcessStatusToolset::new(session.clone());
-    let stop = ProcessStopToolset::new(session.clone());
+    let start = ProcessStart::new(session.clone());
+    let read = ProcessRead::new(session.clone());
+    let write = ProcessWrite::new(session.clone());
+    let status = ProcessStatus::new(session.clone());
+    let stop = ProcessStop::new(session.clone());
     let (room, agent) = ("example", "assistant");
     let started = json_answer(
         call::run(
@@ -151,11 +148,11 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
     ]);
     let id = ChannelId::new("assistant").unwrap();
     let tools: Vec<ToolEntry> = vec![
-        ToolEntry::Tool(Arc::new(ProcessStartToolset::new(session.clone()))),
-        ToolEntry::Tool(Arc::new(ProcessStatusToolset::new(session.clone()))),
-        ToolEntry::Tool(Arc::new(ProcessWriteToolset::new(session.clone()))),
-        ToolEntry::Tool(Arc::new(ProcessReadToolset::new(session.clone()))),
-        ToolEntry::Tool(Arc::new(ProcessStopToolset::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessStart::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessStatus::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessWrite::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessRead::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessStop::new(session.clone()))),
     ];
     let agent = common::agent(&id, &model, tools).unwrap();
     let kit = RoomKit::new(roomkit::RoomKitOptions::default());
@@ -238,7 +235,7 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
     ]);
     let session = ProcessSession::new(fixture.path()).await.unwrap();
     let agent_id = ChannelId::new("assistant").unwrap();
-    let start = ToolEntry::Tool(Arc::new(ProcessStartToolset::new(session.clone())));
+    let start = ToolEntry::Tool(Arc::new(ProcessStart::new(session.clone())));
     let agent = common::agent(&agent_id, &model, vec![start]).unwrap();
     let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     common::refuse(&kit, &["process_start"], "Processes disabled").unwrap();

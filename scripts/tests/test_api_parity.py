@@ -32,7 +32,7 @@ arguments = "arguments"
 cancellation = "CancellationToken"
 factory = "create"
 builder_prefix = "with_"
-toolset = { trait = "Toolset", suffix = "Toolset", members = ["definition", "handler"] }
+tool_protocol = { trait = "Tool", members = ["definition", "handler"] }
 {extra}
 [rules.packages]
 kit = ["pkg"]
@@ -712,30 +712,31 @@ class Errors(unittest.TestCase):
         self.assertIn("rust kit::KitError::Cancelled (rules)", uncovered(report))
 
 
-class Toolsets(unittest.TestCase):
-    def test_a_toolset_is_the_roomkit_tool_named_without_its_suffix(self):
+class ToolProtocol(unittest.TestCase):
+    def test_an_adapter_is_the_roomkit_tool_of_its_name(self):
+        """A Rust adapter implementing the engine's `Tool` is compared with
+        the Python RoomKit tool of its name: its `definition` and `handler`
+        are the trait's, its constructor takes the built tool."""
         items = read_tool() + [
             struct(
-                "kit_adapter::ReadToolset",
+                "kit_adapter::Read",
                 methods=[method("new", ("tool", "ReadTool"), receiver=None, returns="Self")],
-                impls=["Debug", "Toolset"],
+                impls=["Clone", "Debug", "Tool"],
             )
         ]
         specs = {
             **READ_SPEC,
             "pkg.adapter.Read": {
-                "__init__": ["def", "root", "*", "max_lines=None"],
+                "__init__": ["def", "tool"],
                 "definition": ["property"],
                 "handler": ["async def", "name", "arguments"],
             },
         }
-        report = run(items, specs, contracts=READ_CONTRACTS)
+        self.assertEqual(keys(run(items, specs, contracts=READ_CONTRACTS)), set())
+        specs["pkg.adapter.Read"]["__init__"] = ["def", "root", "*", "max_lines=None"]
         self.assertEqual(
-            keys(report),
-            {
-                "rust kit_adapter::ReadToolset (name)",
-                "rust kit_adapter::ReadToolset::new(tool) (form)",
-            },
+            keys(run(items, specs, contracts=READ_CONTRACTS)),
+            {"rust kit_adapter::Read::new(tool) (form)"},
         )
 
     def test_the_roomkit_protocol_without_a_toolset(self):
@@ -903,7 +904,7 @@ covers = ["rust kit::DocsListTool (name)"]
         self.assertEqual(
             [entry.decision for entry in mapping.entries], ["ref Q1", "ref Q1", "ref Q2"]
         )
-        self.assertEqual(mapping.rules.decisions, {"toolset": "ref Q3"})
+        self.assertEqual(mapping.rules.decisions, {"tool_protocol": "ref Q3"})
 
     def test_a_feature_on_one_side_only_is_missing_not_excepted(self):
         """A `[[missing]]` entry covers what one side has and the other lacks."""

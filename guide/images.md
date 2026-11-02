@@ -38,7 +38,7 @@ Rust hosts use `ViewImageTool::new(root).await?`, optionally `with_limits(...)`,
 then `view(ViewImageInput::new(path), &cancel).await?`.
 `result.data.image.data_url()` provides a data URL for multimodal transport.
 The pinned optional RoomKit **Rust** adapter currently has only text/JSON tool
-results, so it does not yet expose an image toolset.
+results, so it does not yet expose an image adapter.
 
 Static PNG, JPEG and WebP are detected from bytes, independently of extensions.
 The tool applies EXIF orientation, reduces oversized images while preserving

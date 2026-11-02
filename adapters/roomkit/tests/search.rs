@@ -2,7 +2,7 @@
 #![expect(clippy::unwrap_used, reason = "test assertions")]
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
-use roomkit_tools_roomkit::WebSearchToolset;
+use roomkit_tools_roomkit::WebSearch;
 use roomkit_tools_search::{
     BackendOutput, SearchBackend, SearchFuture, SearchInput, WebSearchTool,
 };
@@ -42,7 +42,7 @@ fn query(query: &str) -> Metadata {
 async fn search_is_independently_selectable_and_dropping_a_call_cancels_it() {
     let backend = Backend::default();
     let waiting = Arc::clone(&backend.waiting);
-    let tools = WebSearchToolset::new(WebSearchTool::new(Arc::new(backend)));
+    let tools = WebSearch::new(WebSearchTool::new(Arc::new(backend)));
     assert_eq!(tools.definition().name, "web_search");
     assert_eq!(
         tools.definition().parameters,
@@ -102,7 +102,7 @@ async fn native_openai_answer_preserves_citations_and_usage_through_roomkit() {
         config,
     )
     .unwrap();
-    let tools = WebSearchToolset::new(WebSearchTool::new(Arc::new(backend)));
+    let tools = WebSearch::new(WebSearchTool::new(Arc::new(backend)));
     let ToolResult::Json(result) = tools
         .handler("web_search".into(), query("query"))
         .await

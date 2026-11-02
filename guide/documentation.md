@@ -129,7 +129,7 @@ implementation dependency. Supply `Arc<dyn DocsBackend>` to `DocsListTool`,
 `call(arguments)`.
 
 The separate RoomKit Rust adapter's optional `docs` feature exposes
-`DocsListToolset`, `DocsSearchToolset` and `DocsReadToolset`. Construct each from its
+`DocsList`, `DocsSearch` and `DocsRead`. Construct each from its
 native facade. Dropping a call cancels it without invalidating the host-owned
 backend shared by other tools.
 

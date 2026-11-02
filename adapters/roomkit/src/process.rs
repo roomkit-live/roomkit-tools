@@ -6,7 +6,7 @@ use roomkit_tools_process::ProcessSession;
 
 use crate::bridge::{ai_tool, current_owner, serve, tool_error};
 
-macro_rules! process_toolset {
+macro_rules! process_adapter {
     ($(#[$doc:meta])* $name:ident, $definition:ident, $method:ident, $wire:literal) => {
         $(#[$doc])*
         #[derive(Clone, Debug)]
@@ -41,23 +41,23 @@ macro_rules! process_toolset {
     };
 }
 
-process_toolset!(
+process_adapter!(
     /// Start processes owned by the calling conversation and agent.
-    ProcessStartToolset, start_definition, start, "process_start"
+    ProcessStart, start_definition, start, "process_start"
 );
-process_toolset!(
+process_adapter!(
     /// Inspect or list only the calling conversation/agent's retained jobs.
-    ProcessStatusToolset, status_definition, status, "process_status"
+    ProcessStatus, status_definition, status, "process_status"
 );
-process_toolset!(
+process_adapter!(
     /// Read independently paged stdout and stderr from an owned process.
-    ProcessReadToolset, read_definition, read, "process_read"
+    ProcessRead, read_definition, read, "process_read"
 );
-process_toolset!(
+process_adapter!(
     /// Write stdin or send EOF to an owned process, with partial-effect reporting.
-    ProcessWriteToolset, write_definition, write, "process_write"
+    ProcessWrite, write_definition, write, "process_write"
 );
-process_toolset!(
+process_adapter!(
     /// Stop and optionally forget an owned process and its retained output.
-    ProcessStopToolset, stop_definition, stop, "process_stop"
+    ProcessStop, stop_definition, stop, "process_stop"
 );

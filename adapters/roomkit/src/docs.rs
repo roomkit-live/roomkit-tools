@@ -7,7 +7,7 @@ use roomkit_tools_docs::{DocsListTool, DocsReadTool, DocsSearchTool};
 
 use crate::bridge::{ai_tool, anyone, serve, tool_error};
 
-macro_rules! toolset {
+macro_rules! adapter {
     ($name:ident, $tool:ident, $wire:literal) => {
         #[doc = concat!("Independently selected `", $wire, "` documentation adapter.")]
         #[derive(Clone, Debug)]
@@ -41,6 +41,6 @@ macro_rules! toolset {
         }
     };
 }
-toolset!(DocsListToolset, DocsListTool, "docs_list");
-toolset!(DocsSearchToolset, DocsSearchTool, "docs_search");
-toolset!(DocsReadToolset, DocsReadTool, "docs_read");
+adapter!(DocsList, DocsListTool, "docs_list");
+adapter!(DocsSearch, DocsSearchTool, "docs_search");
+adapter!(DocsRead, DocsReadTool, "docs_read");

@@ -21,7 +21,7 @@ for symbol in result["data"]["symbols"]:
 
 Rust hosts use `CodeOutlineTool::new(root).await?` and
 `outline(CodeOutlineInput::new(path), &cancel).await?`; the optional Rust adapter
-is `CodeOutlineToolset`. See `examples/outline_code.rs` for outline-to-read and
+is `CodeOutline`. See `examples/outline_code.rs` for outline-to-read and
 `python examples/roomkit_outline.py` for a real scripted repair. Add `--live`
 with the [example provider configuration](../examples/README.md#use-a-live-model)
 for a model-driven run.

@@ -4,7 +4,7 @@
 mod web;
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
-use roomkit_tools_roomkit::WebFetchToolset;
+use roomkit_tools_roomkit::WebFetch;
 use roomkit_tools_web::{WebFetchPolicy, WebFetchTool};
 use serde_json::json;
 
@@ -19,7 +19,7 @@ async fn schema_result_policy_and_dropped_calls_preserve_native_contracts() {
         allowed_origins: Some(vec![server.origin.clone()]),
         private_origins: vec![server.origin.clone()],
     };
-    let tools = WebFetchToolset::new(WebFetchTool::new().with_policy(policy).unwrap());
+    let tools = WebFetch::new(WebFetchTool::new().with_policy(policy).unwrap());
     assert_eq!(tools.definition().name, "web_fetch");
     assert_eq!(
         tools.definition().parameters,
