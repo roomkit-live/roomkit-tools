@@ -422,6 +422,8 @@ dependencies = [
 [[package]]
 name = "htmlmark"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07d6a564e3874cca6834b3306f73abf8c1a91889942567b61cb9d97c6abc92fc"
 dependencies = [
  "html5ever",
 ]

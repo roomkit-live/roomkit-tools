@@ -51,7 +51,7 @@ non-2xx responses remain data if their body is supported. Transport failures,
 refused destinations, limits and unsupported content are typed tool errors.
 
 HTML conversion runs outside the async executor with two slots per tool
-(shared by clones), through the [`htmlmark`](../crates/htmlmark/README.md)
+(shared by clones), through the [`htmlmark`](https://github.com/sboily/htmlmark)
 crate. The Markdown follows CommonMark, with GitHub pipe tables and
 strikethrough; text that would read as Markdown syntax is escaped. The parser
 reads the page in 1 KiB chunks and stops building the document once it holds

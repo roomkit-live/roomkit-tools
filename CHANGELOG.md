@@ -41,10 +41,12 @@ part of an existing published preview.
 
 ### Added
 
-- `htmlmark` (`crates/htmlmark`): bounded, interruptible HTML to Markdown and
-  text conversion for untrusted pages, on html5ever with its own tree. A
-  property test reads its Markdown back with a CommonMark parser and checks
-  the page's text and links survive exactly.
+- `web_fetch` uses [`htmlmark`](https://crates.io/crates/htmlmark) 0.1:
+  bounded, interruptible HTML to Markdown and text conversion for untrusted
+  pages, on html5ever with its own tree. It was written here and is now
+  maintained in its own repository. A property test reads its Markdown back
+  with a CommonMark parser and checks the page's text and links survive
+  exactly, and two fuzz targets check its limits and the same property.
 - Add independently selectable `docs_list`, `docs_search` and `docs_read` in Rust,
   Python and both RoomKit adapters, over injected documentation backends.
 - Include an optional file backend with bounded immutable Markdown/text snapshots,
