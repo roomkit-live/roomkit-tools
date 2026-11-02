@@ -157,6 +157,31 @@ class WritesTheSurfaceAsJson(unittest.TestCase):
         )
 
 
+class ChecksACommittedSurface(unittest.TestCase):
+    """`--check FILE`: the committed surface is the one read, whatever
+    rustdoc wrote it."""
+
+    def _check(self, edit) -> int:
+        out = io.StringIO()
+        surface.main(["--doc", str(FIXTURES), "--crate", "fixture"], out=out, log=io.StringIO())
+        written = edit(json.loads(out.getvalue()))
+        with tempfile.TemporaryDirectory() as tmp:
+            committed = Path(tmp) / "surface.json"
+            committed.write_text(json.dumps(written), encoding="utf-8")
+            argv = ["--doc", str(FIXTURES), "--crate", "fixture", "--check", str(committed)]
+            return surface.main(argv, out=io.StringIO(), log=io.StringIO())
+
+    def test_another_rustdoc_reading_the_same_surface_passes(self) -> None:
+        self.assertEqual(self._check(lambda written: {**written, "rustdoc": "1.100.0"}), 0)
+
+    def test_another_surface_fails(self) -> None:
+        def drop_an_item(written: dict) -> dict:
+            written["crates"]["fixture"].pop()
+            return written
+
+        self.assertEqual(self._check(drop_an_item), 1)
+
+
 class FailsClosed(unittest.TestCase):
     """A page the reader cannot read is an error, never a smaller surface."""
 

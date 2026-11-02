@@ -3,24 +3,32 @@
 # "One public API"): the gate's tests and `make api-parity`, which reads the
 # crates' rustdoc and their defaults and compares them with the committed
 # Python snapshots. It runs when the pushed commits touch what the gate reads,
-# on the checked-out tree, which must be the pushed commit. It builds no
-# Python wheel: CI checks that the snapshots are those of the code.
+# on the checked-out tree, which must be the pushed commit, with neither
+# uncommitted nor untracked files where the gate reads. It builds no Python
+# wheel: CI checks that the snapshots are those of the code. When the commits
+# touch the RoomKit adapter, it also runs `make api-adapter-check`, which CI
+# cannot run (it needs the pinned roomkit-rs source).
 # `git push --no-verify` skips it.
 set -eu
 
 remote=$1
 zero=0000000000000000000000000000000000000000
 # What the gate reads: the crates, the adapter, the Python package and its
-# snapshots, the mapping, the gate itself and the defaults dump.
+# snapshots, the mapping, the gate itself, the defaults dump, and what
+# builds them: the workspace manifest and lock, the toolchain and the
+# Makefile.
 set -- crates adapters python/roomkit_tools api scripts \
     examples/tests/api_defaults.rs tests/python/public_api_names.json \
     tests/python/public_api_signatures.json tests/python/public_api_contracts.json \
     backends/rusto/python/tests/public_api_names.json \
-    backends/rusto/python/tests/public_api_signatures.json
+    backends/rusto/python/tests/public_api_signatures.json \
+    Cargo.toml Cargo.lock rust-toolchain.toml Makefile
+# What the RoomKit adapter's committed surface comes from: its source, the
+# surface itself and the reader that writes it.
+adapter="adapters api/roomkit-adapter-surface.json scripts/rs-surface.py"
 
 # The files a pushed ref, from its remote commit `old` to `new`, changes
-# among those the gate reads; a new branch's commits are those no remote ref
-# holds.
+# among those named; a new ref's commits are those no remote ref holds.
 touched() {
     new=$1 old=$2
     shift 2
@@ -31,17 +39,21 @@ touched() {
     fi
 }
 
-run=
+run= adapter_run=
 head=$(git rev-parse HEAD)
 while read -r local_ref local_sha _remote_ref remote_sha; do
-    [ "$local_sha" != "$zero" ] || continue
+    [ "$local_sha" != "$zero" ] || continue  # a deletion
     [ -n "$(touched "$local_sha" "$remote_sha" "$@")" ] || continue
-    if [ "$local_sha" != "$head" ]; then
+    # An annotated tag names its tag object: the gate checks its commit.
+    commit=$(git rev-parse --verify --quiet "$local_sha^{commit}" || true)
+    if [ "$commit" != "$head" ]; then
         echo "pre-push: $local_ref changes the public API but is not the checked-out commit;" \
             "check it out to push it, or push with --no-verify" >&2
         exit 1
     fi
     run=1
+    # shellcheck disable=SC2086 # the adapter's paths, one word each
+    [ -z "$(touched "$local_sha" "$remote_sha" $adapter)" ] || adapter_run=1
 done
 [ -n "$run" ] || exit 0
 
@@ -50,6 +62,20 @@ if ! git diff --quiet HEAD -- "$@"; then
         "pushed commit; commit or stash them" >&2
     exit 1
 fi
+if [ -n "$(git ls-files --others --exclude-standard -- "$@")" ]; then
+    echo "pre-push: untracked files where the gate reads would be checked, not the" \
+        "pushed commit; commit, ignore or remove them" >&2
+    exit 1
+fi
 cd "$(git rev-parse --show-toplevel)"
 echo "pre-push: public API parity gate (make api-test api-parity)" >&2
-exec ${MAKE:-make} --no-print-directory api-test api-parity
+${MAKE:-make} --no-print-directory api-test api-parity
+[ -n "$adapter_run" ] || exit 0
+echo "pre-push: the RoomKit adapter's committed surface (make api-adapter-check)" >&2
+if ! ${MAKE:-make} --no-print-directory api-adapter-check; then
+    echo "pre-push: make api-adapter-check failed or could not run:" \
+        "api/roomkit-adapter-surface.json must be the adapter's current surface" \
+        "(make api-adapter-surface), and the check needs read access to the pinned" \
+        "roomkit-rs source, which CI has not; push with --no-verify to skip it" >&2
+    exit 1
+fi

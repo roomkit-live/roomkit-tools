@@ -5,14 +5,18 @@ DENY_FLAGS ?=
 ROOMKIT_MANIFEST := adapters/roomkit/Cargo.toml
 PYTHON_MANIFEST := bindings/python/Cargo.toml
 PYTHON ?= python3
-TARGET_DIR := $(or $(CARGO_TARGET_DIR),target)
-ADAPTER_TARGET_DIR := $(or $(CARGO_TARGET_DIR),adapters/roomkit/target)
-API_REPORT := $(TARGET_DIR)/api-parity
-HIDDEN_TARGET_DIR := $(TARGET_DIR)/api-hidden
+# The directory cargo builds a workspace in, as cargo resolves it
+# (CARGO_TARGET_DIR, build.target-dir or the default), read once when used.
+cargo_target = $(shell $(CARGO) metadata --no-deps --format-version 1 $(1) | \
+	$(PYTHON) -c 'import json, sys; print(json.load(sys.stdin)["target_directory"])')
+TARGET_DIR = $(eval TARGET_DIR := $$(call cargo_target,))$(TARGET_DIR)
+ADAPTER_TARGET_DIR = $(eval ADAPTER_TARGET_DIR := $$(call cargo_target,--manifest-path $(ROOMKIT_MANIFEST)))$(ADAPTER_TARGET_DIR)
+API_REPORT = $(TARGET_DIR)/api-parity
+HIDDEN_TARGET_DIR = $(TARGET_DIR)/api-hidden
 ADAPTER_SURFACE := api/roomkit-adapter-surface.json
 API_PARITY_FLAGS ?=
 
-.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-hidden api-parity api-adapter-surface api-adapter-check
+.PHONY: all fmt fmt-check clippy test doc deny check-core-deps examples msrv msrv-toolchain hooks roomkit-check roomkit-msrv python-check python-msrv api-snapshot api-test api-hidden api-parity api-adapter-doc api-adapter-surface api-adapter-check
 
 all: fmt-check clippy test doc deny check-core-deps examples api-test api-parity
 
@@ -60,7 +64,6 @@ roomkit-check:
 	$(CARGO) fmt --manifest-path $(ROOMKIT_MANIFEST) --all -- --check
 	$(CARGO) clippy --manifest-path $(ROOMKIT_MANIFEST) --all-targets --all-features --locked -- -D warnings
 	$(CARGO) test --manifest-path $(ROOMKIT_MANIFEST) --all-features --locked
-	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(ROOMKIT_MANIFEST) --no-deps --all-features --locked
 	$(MAKE) --no-print-directory api-adapter-check
 
 roomkit-msrv:
@@ -103,18 +106,23 @@ api-parity: doc api-hidden
 		--defaults $(API_REPORT)/rs-defaults.json --hidden $(API_REPORT)/rs-hidden.json \
 		$(API_PARITY_FLAGS) --json $(API_REPORT)/report.json
 
-# The RoomKit adapter's surface is committed: its engine source is not public.
-# Rewrite it after changing the adapter; roomkit-check checks it is current.
-api-adapter-surface:
+# The RoomKit adapter's surface is committed: its engine source is not public,
+# so CI cannot read it. Rewrite it after changing the adapter; roomkit-check and
+# the pre-push hook check it is current. Both need read access to the pinned
+# roomkit-rs source.
+api-adapter-doc:
 	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --manifest-path $(ROOMKIT_MANIFEST) --no-deps --all-features --locked
+
+api-adapter-surface: api-adapter-doc
 	@mkdir -p $(API_REPORT)
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(ADAPTER_TARGET_DIR)/doc --crate roomkit_tools_roomkit > $(API_REPORT)/adapter-surface.json
 	cp $(API_REPORT)/adapter-surface.json $(ADAPTER_SURFACE)
 
-api-adapter-check:
-	@mkdir -p $(API_REPORT)
-	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(ADAPTER_TARGET_DIR)/doc --crate roomkit_tools_roomkit > $(API_REPORT)/adapter-surface.json
-	@cmp -s $(API_REPORT)/adapter-surface.json $(ADAPTER_SURFACE) || { \
+# The surface read against the committed one, the rustdoc version aside: a
+# toolchain bump that reads the same surface leaves it current.
+api-adapter-check: api-adapter-doc
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) scripts/rs-surface.py --doc $(ADAPTER_TARGET_DIR)/doc --crate roomkit_tools_roomkit \
+		--check $(ADAPTER_SURFACE) > /dev/null || { \
 		echo "$(ADAPTER_SURFACE) is not the adapter's current surface: run make api-adapter-surface" >&2; exit 1; \
 	}
 

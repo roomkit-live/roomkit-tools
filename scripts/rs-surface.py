@@ -27,10 +27,11 @@ between releases: a toolchain bump that breaks the reader fails here, and its
 fix lands with the bump.
 
 The HTML reader is a copy of roomkit-rs's `scripts/rs-surface.py`; the crates
-in scope, the constants' values, the internal crate's check and `--hidden`
-are this repository's.
+in scope, the constants' values, the internal crate's check, `--hidden` and
+`--check` are this repository's. `--check FILE` compares the surface read
+with a committed one, the rustdoc version aside.
 
-Usage: python3 scripts/rs-surface.py [--doc target/doc] [--crate NAME]... > surface.json
+Usage: python3 scripts/rs-surface.py [--doc target/doc] [--crate NAME]... [--check FILE] > surface.json
        python3 scripts/rs-surface.py --hidden --doc DIR [--crate NAME]... > hidden.json
 """
 
@@ -621,6 +622,7 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     parser.add_argument("--doc", type=Path, default=Path("target/doc"), help="rustdoc's output directory")
     parser.add_argument("--crate", action="append", dest="crates", help="a crate to read, instead of the workspace crates in scope")
     parser.add_argument("--hidden", action="store_true", help="list the hidden public items, from rustdoc's JSON")
+    parser.add_argument("--check", type=Path, help="fail unless this committed surface is the one read, rustdoc's version aside")
     args = parser.parse_args(argv)
     names = args.crates or list(CRATES)
     try:
@@ -633,6 +635,8 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     except SurfaceError as error:
         print(f"rs-surface: {error}", file=log)
         return 1
+    if args.check:
+        return _check(args.check, crates, log)
     summary = counts(crates)
     json.dump({"rustdoc": version, "counts": summary, "crates": crates}, out, indent=1, ensure_ascii=False)
     out.write("\n")
@@ -640,6 +644,20 @@ def main(argv: list[str] | None = None, out: TextIO = sys.stdout, log: TextIO = 
     print(f"rs-surface: rustdoc {version}: {summary['items']} items ({by_crate}); "
           + ", ".join(f"{count} {name.replace('_', ' ')}" for name, count in summary.items() if name != "items"),
           file=log)
+    return 0
+
+
+def _check(committed: Path, crates: dict[str, list[dict]], log: TextIO) -> int:
+    """Whether a committed surface holds the crates read: a newer rustdoc
+    that reads the same surface leaves it current."""
+    try:
+        written = json.loads(committed.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        print(f"rs-surface: {committed}: {error}", file=log)
+        return 1
+    if not isinstance(written, dict) or written.get("crates") != crates:
+        print(f"rs-surface: {committed} is not the current surface", file=log)
+        return 1
     return 0
 
 

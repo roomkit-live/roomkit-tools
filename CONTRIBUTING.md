@@ -140,16 +140,23 @@ Python is the reference.
 - `make hooks` enables a pre-push hook that runs `make api-test api-parity`
   when the pushed commits change what the gate reads: `crates/`,
   `adapters/`, `python/roomkit_tools/`, `api/`, `scripts/`, the defaults
-  test and the Python snapshots. It checks the checked-out tree, so it
-  refuses to push another commit, or with uncommitted changes there. It
-  builds no wheel: CI checks the snapshots. It takes about a second on a
-  built target directory and under a minute on an empty one on a large
-  machine; `git push --no-verify` skips it.
+  test, the Python snapshots, the root `Cargo.toml` and `Cargo.lock`,
+  `rust-toolchain.toml` and the `Makefile`. It checks the checked-out tree,
+  so it refuses to push another commit (an annotated tag is checked by its
+  commit), or with uncommitted or untracked files there. It builds no
+  wheel: CI checks the snapshots. It takes about a second on a built target
+  directory and under a minute on an empty one on a large machine;
+  `git push --no-verify` skips it.
 - A change to the Python public API rewrites the snapshot with
   `make api-snapshot` in the same commit; the Python tests fail while the
   snapshot differs from the code. A change to the RoomKit adapter's public API
   rewrites `api/roomkit-adapter-surface.json` with
-  `make api-adapter-surface`, which `make roomkit-check` verifies.
+  `make api-adapter-surface`. CI cannot check that file: the adapter's
+  engine source is not public. `make roomkit-check` checks it, and so does
+  the pre-push hook when the pushed commits change `adapters/`, the file or
+  `scripts/rs-surface.py`: it runs `make api-adapter-check`, and refuses the
+  push when the check fails or cannot run without the pinned roomkit-rs
+  source. The check ignores the rustdoc version the file names.
 
 ## Implementation boundaries
 

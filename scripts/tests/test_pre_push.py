@@ -25,7 +25,11 @@ class PrePush(unittest.TestCase):
         self.repo = self.tmp / "repo"
         self.log = self.tmp / "make.log"
         fake = self.tmp / "make"
-        fake.write_text(f'#!/bin/sh\necho "$PWD $*" >> {self.log}\nexit "${{FAKE_STATUS:-0}}"\n')
+        fake.write_text(
+            f'#!/bin/sh\necho "$PWD $*" >> {self.log}\n'
+            'case "$*" in *api-adapter-check*) exit "${FAKE_ADAPTER_STATUS:-0}";; esac\n'
+            'exit "${FAKE_STATUS:-0}"\n'
+        )
         fake.chmod(0o755)
         self.env = {
             **os.environ,
@@ -64,12 +68,23 @@ class PrePush(unittest.TestCase):
 
     def push(self, local: str, remote: str, *, cwd: Path | None = None, status: int = 0):
         """Run the hook as `git push origin` would for one branch."""
-        line = f"refs/heads/main {local} refs/heads/main {remote}\n"
+        return self.push_lines(
+            f"refs/heads/main {local} refs/heads/main {remote}\n", cwd=cwd, status=status
+        )
+
+    def push_lines(
+        self, lines: str, *, cwd: Path | None = None, status: int = 0, adapter_status: int = 0
+    ):
+        """Run the hook with the lines git gives it, one per pushed ref."""
         return subprocess.run(
             ["sh", str(HOOK), "origin", "https://example.com/repo.git"],
             cwd=cwd or self.repo,
-            env={**self.env, "FAKE_STATUS": str(status)},
-            input=line,
+            env={
+                **self.env,
+                "FAKE_STATUS": str(status),
+                "FAKE_ADAPTER_STATUS": str(adapter_status),
+            },
+            input=lines,
             capture_output=True,
             text=True,
         )
@@ -97,13 +112,18 @@ class PrePush(unittest.TestCase):
             "examples/tests/api_defaults.rs",
             "tests/python/public_api_signatures.json",
             "backends/rusto/python/tests/public_api_signatures.json",
+            "Cargo.toml",
+            "Cargo.lock",
+            "rust-toolchain.toml",
+            "Makefile",
         ):
             with self.subTest(path=path):
                 base = self.git("rev-parse", "HEAD")
                 head = self.commit(path, path)
                 self.log.unlink(missing_ok=True)
                 self.assertEqual(self.push(head, base).returncode, 0)
-                self.assertEqual(len(self.made()), 1)
+                gate = f"{self.repo} --no-print-directory api-test api-parity"
+                self.assertEqual(self.made()[:1], [gate])
 
     def test_a_new_branch_is_read_from_the_commits_no_remote_has(self):
         head = self.commit("crates/kit/src/lib.rs", "pub fn f() {}")
@@ -129,6 +149,76 @@ class PrePush(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("uncommitted", result.stderr)
         self.assertEqual(self.made(), [])
+
+    def test_untracked_files_where_the_gate_reads_are_refused(self):
+        head = self.commit("crates/kit/src/lib.rs", "pub fn f() {}")
+        (self.repo / "crates/kit/src/new.rs").write_text("pub fn g() {}")
+        result = self.push(head, self.first)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("untracked", result.stderr)
+        self.assertEqual(self.made(), [])
+
+    def test_a_dirty_root_manifest_is_refused(self):
+        self.commit("Cargo.toml", "[workspace]\n")
+        head = self.commit("crates/kit/src/lib.rs", "pub fn f() {}")
+        (self.repo / "Cargo.toml").write_text("[workspace]\nmembers = []\n")
+        result = self.push(head, self.first)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("uncommitted", result.stderr)
+
+    def test_an_annotated_tag_of_the_checked_out_commit_runs_the_gate(self):
+        head = self.commit("crates/kit/src/lib.rs", "pub fn f() {}")
+        self.git("tag", "-a", "v1", "-m", "release")
+        tag = self.git("rev-parse", "v1")
+        self.assertNotEqual(tag, head)
+        result = self.push_lines(f"refs/tags/v1 {tag} refs/tags/v1 {ZERO}\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.made(), [f"{self.repo} --no-print-directory api-test api-parity"])
+
+    def test_a_deletion_runs_nothing(self):
+        result = self.push_lines(f"(delete) {ZERO} refs/heads/old {self.first}\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.made(), [])
+
+    def test_several_refs_run_the_gate_once_or_refuse_another_commit(self):
+        head = self.commit("crates/kit/src/lib.rs", "pub fn f() {}")
+        self.git("tag", "v1")
+        lines = (
+            f"refs/heads/main {head} refs/heads/main {self.first}\n"
+            f"refs/tags/v1 {head} refs/tags/v1 {ZERO}\n"
+        )
+        self.assertEqual(self.push_lines(lines).returncode, 0)
+        self.assertEqual(len(self.made()), 1)
+        self.log.unlink()
+        older = head
+        newer = self.commit("crates/kit/src/lib.rs", "pub fn g() {}")
+        lines = (
+            f"refs/heads/main {newer} refs/heads/main {self.first}\n"
+            f"refs/heads/topic {older} refs/heads/topic {ZERO}\n"
+        )
+        result = self.push_lines(lines)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("refs/heads/topic", result.stderr)
+        self.assertEqual(self.made(), [])
+
+    def test_the_adapter_runs_its_surface_check(self):
+        head = self.commit("adapters/roomkit/src/lib.rs", "pub struct Read;")
+        result = self.push(head, self.first)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            self.made(),
+            [
+                f"{self.repo} --no-print-directory api-test api-parity",
+                f"{self.repo} --no-print-directory api-adapter-check",
+            ],
+        )
+        self.log.unlink()
+        result = self.push_lines(
+            f"refs/heads/main {head} refs/heads/main {self.first}\n", adapter_status=2
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("api-adapter-check", result.stderr)
+        self.assertIn("roomkit-rs", result.stderr)
 
     def test_in_a_worktree_the_gate_runs_on_the_worktree(self):
         tree = self.tmp / "tree"
