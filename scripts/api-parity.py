@@ -30,9 +30,12 @@ applies with no setting is declared all the same:
 - constructors: Python's constructor is an async factory (`[rules]
   factory`, `create`) when the class has one taking more than `**keywords`,
   since Python cannot await in `__init__`; else `__init__`. A factory
-  class's `__init__` is compared as a constructor too, unless it takes only
-  the native object the factory built: a parameter annotated with private
-  native types only, which the snapshot names in `__native__`.
+  taking the parameters `__init__` takes is Python's uniform async
+  constructor and is not compared: `__init__` is (`[rules]
+  uniform_factory`). A factory class's `__init__` is compared as a
+  constructor too, unless it takes only the native object the factory
+  built: a parameter annotated with private native types only, which the
+  snapshot names in `__native__`.
   Rust's is `new` and the builders (`[rules] builder_prefix`, `with_<x>(self,
   value)`), a builder standing for the keyword of its parameter's name, or
   for its struct's fields; a struct with public fields and no `new` is

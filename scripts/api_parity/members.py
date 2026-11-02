@@ -51,6 +51,8 @@ def compare(comparison: Comparison, python: str, spec: dict, items: list[dict]) 
     for member, member_spec in spec.items():
         if member in MARKERS:
             continue
+        if member == rules.factory and constructors.uniform_factory(comparison, spec):
+            continue  # Python's uniform async constructor; __init__ is compared
         if member == "__init__" and constructor == rules.factory:
             if not _wraps_native(spec):
                 constructors.compare(comparison, python, member, member_spec, items, used)

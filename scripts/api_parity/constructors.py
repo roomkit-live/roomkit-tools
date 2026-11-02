@@ -2,7 +2,8 @@
 
 Python's constructor is an async factory (`[rules] factory`) when the class
 has one taking more than `**keywords`, Python being unable to await in
-`__init__`; else `__init__`. Rust's is `new` and the builders, a model's
+`__init__`, unless the factory takes what `__init__` takes (`[rules]
+uniform_factory`); else `__init__`. Rust's is `new` and the builders, a model's
 fields, or the Rust method an entry pairs with it.
 """
 
@@ -20,14 +21,32 @@ if TYPE_CHECKING:
 
 
 def python_constructor(comparison: Comparison, spec: dict) -> str | None:
+    """Python's constructor: the async factory, unless it is the uniform one
+    (`uniform_factory`); else `__init__`."""
     factory = spec.get(comparison.rules.factory)
     if (
         factory
         and factory[0] == "async classmethod"
         and not all(t.startswith("**") for t in factory[1:])
+        and not uniform_factory(comparison, spec)
     ):
         return comparison.rules.factory
     return "__init__" if "__init__" in spec else None
+
+
+def uniform_factory(comparison: Comparison, spec: dict) -> bool:
+    """`[rules] uniform_factory`: an async factory taking the parameters
+    `__init__` takes is Python's uniform async constructor, not compared;
+    `__init__` is compared with Rust's `new`."""
+    python = comparison.rules.setting("uniform_factory", "python")
+    factory = spec.get(comparison.rules.factory)
+    return (
+        python is not None
+        and factory is not None
+        and factory[0] == "async classmethod"
+        and python in spec
+        and spec[python][1:] == factory[1:]
+    )
 
 
 def compare(

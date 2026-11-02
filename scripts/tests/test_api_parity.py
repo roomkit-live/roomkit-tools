@@ -740,6 +740,35 @@ class Members(unittest.TestCase):
             {"rust kit::EditTool::from_store (unmatched)"},
         )
 
+    UNIFORM = 'uniform_factory = { python = "__init__", decision = "ref" }\n'
+    FETCH = [
+        struct(
+            "kit::FetchTool",
+            methods=[
+                method("new", receiver=None, returns="Self"),
+                method("with_limits", ("limits", "FetchLimits"), receiver="self", returns="Self"),
+            ],
+        ),
+        struct("kit::FetchLimits", fields=[("max_bytes", "usize")], impls=["Default"]),
+    ]
+
+    def test_a_factory_taking_the_constructors_parameters_is_the_uniform_one(self):
+        """`[rules] uniform_factory`: an async `create` taking what
+        `__init__` takes is Python's uniform async constructor; `__init__` is
+        compared with Rust's `new`. A `create` taking more keeps its finding."""
+        specs = {
+            "pkg.FetchTool": {
+                "__init__": ["def", "*", "max_bytes=None"],
+                "create": ["async classmethod", "*", "max_bytes=None"],
+            }
+        }
+        self.assertEqual(keys(run(self.FETCH, specs, rules=self.UNIFORM)), set())
+        create = "rust kit::FetchTool::new (async) [pkg.FetchTool.create]"
+        self.assertEqual(keys(run(self.FETCH, specs)), {create})
+        specs["pkg.FetchTool"]["create"].append("strict=False")
+        found = keys(run(self.FETCH, specs, rules=self.UNIFORM))
+        self.assertIn(create, found)
+
     def test_a_factory_classs_init_is_compared_unless_it_wraps_the_native_object(self):
         """With an async factory, Python's `__init__` taking only the native
         object it built (`__native__` names it: its annotation is a private
