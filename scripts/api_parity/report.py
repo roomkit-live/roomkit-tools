@@ -11,17 +11,17 @@ from api_parity.cover import Report
 def render(report: Report, *, strict: bool, verbose: bool) -> str:
     lines: list[str] = []
     out = lines.append
-    tables = ("map", "exception", "pending")
+    tables = ("map", "exception", "missing", "pending")
     counts = ", ".join(f"{len(report.mapping.of(t))} [[{t}]]" for t in tables)
     rustdoc = ", ".join(version for version in report.surface.rustdoc if version) or "unknown"
     out(f"API parity: Rust crates (rustdoc {rustdoc}) against the Python snapshot")
     out(f"Rust: {len(report.surface.items)} items. Python: {len(report.python.names())} names.")
     out(f"Mapping: {counts}.")
-    pending = len(report.pending)
-    excepted = len(report.findings) - pending - len(report.uncovered)
+    pending, missing = len(report.pending), len(report.missing)
+    excepted = len(report.covered_by("exception"))
     out(
         f"Findings: {len(report.findings)}; {pending} pending, {excepted} excepted, "
-        f"{len(report.uncovered)} without an entry."
+        f"{missing} on one side only, {len(report.uncovered)} without an entry."
     )
     out("")
     _findings(out, "Findings without an entry", report.uncovered)
@@ -108,8 +108,11 @@ def as_json(report: Report) -> dict:
         "findings": [finding(f) for f in report.findings],
         "uncovered": [finding(f) for f in report.uncovered],
         "dead": [{"entry": d.entry, "path": d.path, "why": d.why} for d in report.dead],
-        "pending": [
-            {"entry": e.name, "reason": e.reason, "covered": [finding(f) for f in e.covered]}
-            for e in report.mapping.of("pending")
-        ],
+        **{
+            table: [
+                {"entry": e.name, "reason": e.reason, "covered": [finding(f) for f in e.covered]}
+                for e in report.mapping.of(table)
+            ]
+            for table in ("missing", "pending")
+        },
     }

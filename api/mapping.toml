@@ -14,6 +14,8 @@
 # written. Until it is taken, it is a finding the gate fails on, unless an
 # entry covers it:
 # - [[exception]]: findings the maintainer approved (`approved`, `reason`);
+# - [[missing]]: a feature one side has and the other lacks, recorded, not
+#   ported (`approved`, `reason`), its `unmatched` or `uncompared` findings;
 # - [[pending]]: findings awaiting the decision (`reason`), in the separate
 #   list at the end of this file. A pending entry naming both counterparts
 #   (`rust` and `python`) also pairs them, so their members are compared
@@ -24,6 +26,8 @@
 # An entry covers findings by key, `<rust|python> <path> (<kind>)`; the JSON
 # a Python call exchanges is written `json:<Type>.<property>`. A key no
 # finding has, or an entry naming what is gone, is dead and fails the gate.
+# An entry, and a rule written as a table, names in `decision` where the
+# maintainer decided it.
 
 [rules]
 # Rust's casing of an acronym in a type's name (rust-lang RFC 430), and

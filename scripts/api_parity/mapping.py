@@ -28,12 +28,16 @@ KINDS = {
     "result": "a call takes or returns another type than its contract or its class",
     "rules": "a rule names what is gone or never read",
 }
-# Each table's keys: those it requires, and those it may hold.
+# Each table's keys: those it requires, and those it may hold. `decision`
+# names where the maintainer decided an entry.
 _KEYS = {
-    "map": ({"rust", "python", "approved", "reason"}, {"params"}),
-    "exception": ({"covers", "approved", "reason"}, set()),
+    "map": ({"rust", "python", "approved", "reason"}, {"params", "decision"}),
+    "exception": ({"covers", "approved", "reason"}, {"decision"}),
+    "missing": ({"covers", "approved", "reason"}, {"decision"}),
     "pending": ({"covers", "reason"}, {"rust", "python"}),
 }
+# The kinds a `[[missing]]` entry covers: a feature one side lacks.
+_MISSING_KINDS = {"unmatched", "uncompared"}
 _RULES_REQUIRED = {
     "acronyms",
     "packages",
@@ -83,6 +87,8 @@ class Rules:
     builtins: dict[str, str] = field(default_factory=dict)
     # By the error variant's path: the Python builtin exception it stands for.
     builtin_errors: dict[str, str] = field(default_factory=dict)
+    # By rule: where the maintainer decided it, a rule table's `decision`.
+    decisions: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_table(cls, table: dict) -> Rules:
@@ -91,19 +97,20 @@ class Rules:
             unknown = sorted(set(table) - _RULES)
             raise ParityError(f"[rules]: missing {missing}, unknown {unknown}")
         acronyms = sorted(
-            ((tokens(rust), python) for rust, python in table["acronyms"].items()),
+            ((tokens(rust), python) for rust, python in _plain(table["acronyms"]).items()),
             key=lambda pair: -len(pair[0]),
         )
-        toolset = table["toolset"]
+        toolset = _plain(table["toolset"])
         if set(toolset) != {"trait", "suffix", "members"}:
             raise ParityError("[rules] toolset is { trait = name, suffix = name, members = [...] }")
         for name in ("builtins", "builtin_errors"):
-            for path in table.get(name, {}):
+            for path in _plain(table.get(name, {})):
                 if "::" not in path:
                     raise ParityError(f"[rules] {name}: {path!r} is no Rust path")
+        packages = _plain(table["packages"])
         return cls(
             acronyms=acronyms,
-            packages={crate: list(modules) for crate, modules in table["packages"].items()},
+            packages={crate: list(modules) for crate, modules in packages.items()},
             options_suffixes=tuple(table["options_suffixes"]),
             input_suffix=table["input_suffix"],
             arguments=table["arguments"],
@@ -111,8 +118,9 @@ class Rules:
             factory=table["factory"],
             builder_prefix=table["builder_prefix"],
             toolset=Toolset(toolset["trait"], toolset["suffix"], tuple(toolset["members"])),
-            builtins=dict(table.get("builtins", {})),
-            builtin_errors=dict(table.get("builtin_errors", {})),
+            builtins=_plain(table.get("builtins", {})),
+            builtin_errors=_plain(table.get("builtin_errors", {})),
+            decisions=_decisions(table),
         )
 
     def python_type_name(self, rust: str) -> str:
@@ -147,6 +155,7 @@ class Entry:
     params: dict[str, str] = field(default_factory=dict)
     reason: str = ""
     approved: str | None = None
+    decision: str | None = None
     covered: list = field(default_factory=list)
 
     @property
@@ -209,6 +218,13 @@ def entry(table: str, index: int, raw: dict) -> Entry:
             )
     if table != "map" and not covers:
         raise ParityError(f"{where}: covers no finding")
+    if table == "missing" and (
+        kinds := sorted({parse_key(key)[2] for key in covers} - _MISSING_KINDS)
+    ):
+        raise ParityError(f"{where}: covers {kinds}, not a feature on one side only")
+    decision = raw.get("decision")
+    if decision is not None and (not isinstance(decision, str) or not decision.strip()):
+        raise ParityError(f"{where}: decision names its source")
     params = raw.get("params", {})
     if not isinstance(params, dict):
         raise ParityError(f"{where}: params is a table of Rust names to Python names")
@@ -221,7 +237,26 @@ def entry(table: str, index: int, raw: dict) -> Entry:
         params=dict(params),
         reason=str(raw["reason"]),
         approved=str(raw["approved"]) if "approved" in raw else None,
+        decision=decision,
     )
+
+
+def _plain(rule: dict) -> dict:
+    """A rule table without its `decision`."""
+    return {key: value for key, value in rule.items() if key != "decision"}
+
+
+def _decisions(table: dict) -> dict[str, str]:
+    """Each rule table's `decision`: where the maintainer decided the rule."""
+    found = {}
+    for name, rule in table.items():
+        if not isinstance(rule, dict) or "decision" not in rule:
+            continue
+        decision = rule["decision"]
+        if not isinstance(decision, str) or not decision.strip():
+            raise ParityError(f"[rules] {name}: decision names its source")
+        found[name] = decision
+    return found
 
 
 def parse_key(key: str) -> tuple[str, str, str]:

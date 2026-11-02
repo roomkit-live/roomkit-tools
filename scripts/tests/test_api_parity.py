@@ -711,9 +711,40 @@ covers = ["rust kit::DocsListTool (name)"]
             '[[pending]]\nrust = "kit::X"\nreason = "r"\ncovers = ["rust kit::X (name)"]\n',
             '[[exception]]\napproved = "soon"\nreason = "r"\ncovers = ["rust kit::X (name)"]\n',
             '[[pending]]\nreason = "r"\ncovers = ["rust kit::X (name)"]\nlot = 2\n',
+            '[[exception]]\napproved = 2026-11-02\nreason = "r"\ndecision = ""\n'
+            'covers = ["rust kit::X (name)"]\n',
+            '[[missing]]\napproved = 2026-11-02\nreason = "r"\ncovers = ["rust kit::X (name)"]\n',
         ):
             with self.subTest(entry=entry), self.assertRaises(ParityError):
                 Mapping.from_table(tomllib.loads(mapping_text(entry)))
+
+    def test_an_entry_and_a_rule_name_their_decision(self):
+        """`decision` names where an entry or a rule was decided."""
+        pairs = self.PAIRS.replace("[[pending]]", "[[map]]").replace(
+            'reason = "name"', 'approved = 2026-11-02\nreason = "r"\ndecision = "ref Q1"'
+        )
+        entries = "\n".join(line for line in pairs.splitlines() if not line.startswith("covers"))
+        entries += (
+            '\n[[exception]]\napproved = 2026-11-02\nreason = "r"\ndecision = "ref Q2"\n'
+            'covers = ["rust kit::X (name)"]\n'
+        )
+        rules = RULES.replace('"handler"] }', '"handler"], decision = "ref Q3" }')
+        mapping = Mapping.from_table(tomllib.loads(rules.replace("{extra}", "") + entries))
+        self.assertEqual(
+            [entry.decision for entry in mapping.entries], ["ref Q1", "ref Q1", "ref Q2"]
+        )
+        self.assertEqual(mapping.rules.decisions, {"toolset": "ref Q3"})
+
+    def test_a_feature_on_one_side_only_is_missing_not_excepted(self):
+        """A `[[missing]]` entry covers what one side has and the other lacks."""
+        missing = (
+            '[[missing]]\napproved = 2026-11-02\nreason = "Rust only"\ndecision = "ref Q9"\n'
+            'covers = ["rust kit::DocsListTool (unmatched)", "python pkg.DocsList (unmatched)"]\n'
+        )
+        report = run(self.ITEMS, self.SPECS, contracts=self.CONTRACTS, mapping=missing)
+        self.assertEqual(uncovered(report), set())
+        self.assertEqual(len(report.missing), 2)
+        self.assertTrue(report.passed(strict=True))
 
 
 class Command(unittest.TestCase):

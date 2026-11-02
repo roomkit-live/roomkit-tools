@@ -90,11 +90,15 @@ and none silenced:
 What a rule does not give, an entry of `api/mapping.toml` does: `[[map]]`
 names the Python counterpart of a Rust item or member, a mapping the
 maintainer approved as forced by the language; `[[exception]]` covers
-approved one-sided findings; `[[pending]]` covers the findings awaiting a
+approved one-sided findings; `[[missing]]` covers a feature one side has
+and the other lacks, recorded rather than ported (`unmatched` and
+`uncompared` findings only); `[[pending]]` covers the findings awaiting a
 decision, and, naming both counterparts, pairs two items or members whose
 name difference awaits it. An entry covers findings by key,
 `<rust|python> <path> (<kind>)`; a key no finding has, a pairing the rules
-already make, or an entry naming what is gone, is dead.
+already make, or an entry naming what is gone, is dead. An entry, and a
+rule written as a table, names in `decision` where the maintainer decided
+it.
 
 The gate fails (exit 1) on a finding no entry covers or a dead entry;
 `--strict` also on any `[[pending]]` entry left. An input it cannot read

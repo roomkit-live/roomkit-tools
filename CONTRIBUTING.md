@@ -102,7 +102,9 @@ Python is the reference.
 - Any other difference needs a maintainer's decision before it is written,
   whatever the reason. The decision either changes the code (Python first
   when Python changes, then Rust) or records the difference as approved in
-  `api/mapping.toml`. A difference is never shipped undiscussed.
+  `api/mapping.toml`: a rule, a `[[map]]` or `[[exception]]` entry, or a
+  `[[missing]]` entry for a feature only one side has. Each names its source
+  in `decision`. A difference is never shipped undiscussed.
 - `make api-parity` enforces this: it reads the crates' public surface from
   rustdoc and fails on any difference no entry of `api/mapping.toml` covers,
   and on an entry that no longer covers anything. The differences found

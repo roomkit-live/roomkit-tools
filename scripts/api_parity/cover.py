@@ -27,7 +27,15 @@ class Report:
 
     @property
     def pending(self) -> list[Finding]:
-        return [finding for entry in self.mapping.of("pending") for finding in entry.covered]
+        return self.covered_by("pending")
+
+    @property
+    def missing(self) -> list[Finding]:
+        """The features one side lacks, recorded, not ported."""
+        return self.covered_by("missing")
+
+    def covered_by(self, table: str) -> list[Finding]:
+        return [finding for entry in self.mapping.of(table) for finding in entry.covered]
 
     def passed(self, strict: bool) -> bool:
         """No finding without an entry and no dead entry; `strict`, no
