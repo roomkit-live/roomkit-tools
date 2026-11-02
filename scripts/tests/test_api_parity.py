@@ -357,6 +357,39 @@ class Parameters(unittest.TestCase):
         report = run(items, spec)
         self.assertEqual(keys(report), {"rust kit::Tool::new(manager) (name)"})
 
+    def test_an_option_stands_for_pythons_none_default(self):
+        """`[rules] optional`: Rust has no optional call arguments; an
+        `Option<T>` parameter is Python's `=None`, and no other default."""
+        items = [
+            struct(
+                "kit::Store",
+                methods=[
+                    method("new", ("parent", "Option<&Path>"), receiver=None, returns="Self"),
+                    method("list", ("owner", "Option<&str>"), is_async=True),
+                    method("forget", ("owner", "Option<&str>"), is_async=True),
+                ],
+            )
+        ]
+        specs = {
+            "pkg.Store": {
+                "__init__": ["def", "parent=None"],
+                "list": ["async def", "*", "owner=None"],
+                "forget": ["async def", "*", "owner='me'"],
+            }
+        }
+        rule = 'optional = { type = "Option", default = "None", decision = "ref" }'
+        self.assertEqual(
+            keys(run(items, specs, rules=rule)), {"rust kit::Store::forget(owner) (defaulted)"}
+        )
+        self.assertEqual(
+            keys(run(items, specs)),
+            {
+                "rust kit::Store::new(parent) (defaulted)",
+                "rust kit::Store::list(owner) (defaulted)",
+                "rust kit::Store::forget(owner) (defaulted)",
+            },
+        )
+
     def test_a_trait_against_a_protocol_compares_no_default(self):
         items = [
             trait(

@@ -76,9 +76,18 @@ def _requiredness(
         comparison.find(
             "rust", found.path, "required", "Python requires it; Rust defaults it", *pairs
         )
-    elif not param.required and found.required:
+    elif not param.required and found.required and not _optional(comparison, param, found):
         detail = f"Python defaults it ({param.name}={param.default}); Rust requires it"
         comparison.find("rust", found.path, "defaulted", detail, *pairs)
+
+
+def _optional(comparison: Comparison, param: PythonParam, found: RustParam) -> bool:
+    """`[rules] optional`: Rust has no optional call arguments, so an
+    `Option<T>` parameter stands for Python's `=None`."""
+    rules = comparison.rules
+    return param.default == rules.setting("optional", "default") and base_type(
+        found.type
+    ) == rules.setting("optional", "type")
 
 
 def _variadic(

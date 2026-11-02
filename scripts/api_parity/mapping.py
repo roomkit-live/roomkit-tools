@@ -49,7 +49,11 @@ _RULES_REQUIRED = {
     "builder_prefix",
     "toolset",
 }
-_RULES = _RULES_REQUIRED | {"builtins", "builtin_errors"}
+# The rules a mapping may add as tables, each with its settings.
+_TABLE_RULES = {
+    "optional": {"type", "default"},
+}
+_RULES = _RULES_REQUIRED | {"builtins", "builtin_errors"} | set(_TABLE_RULES)
 
 
 def tokens(name: str) -> list[str]:
@@ -89,6 +93,8 @@ class Rules:
     builtin_errors: dict[str, str] = field(default_factory=dict)
     # By rule: where the maintainer decided it, a rule table's `decision`.
     decisions: dict[str, str] = field(default_factory=dict)
+    # The table rules the mapping holds (`_TABLE_RULES`), by name: their settings.
+    tables: dict[str, dict[str, str]] = field(default_factory=dict)
 
     @classmethod
     def from_table(cls, table: dict) -> Rules:
@@ -121,7 +127,12 @@ class Rules:
             builtins=_plain(table.get("builtins", {})),
             builtin_errors=_plain(table.get("builtin_errors", {})),
             decisions=_decisions(table),
+            tables=_table_rules(table),
         )
+
+    def setting(self, rule: str, name: str) -> str | None:
+        """A table rule's setting, or None when the mapping has not the rule."""
+        return self.tables.get(rule, {}).get(name)
 
     def python_type_name(self, rust: str) -> str:
         """A Rust type's name with its acronyms in Python's casing."""
@@ -244,6 +255,18 @@ def entry(table: str, index: int, raw: dict) -> Entry:
 def _plain(rule: dict) -> dict:
     """A rule table without its `decision`."""
     return {key: value for key, value in rule.items() if key != "decision"}
+
+
+def _table_rules(table: dict) -> dict[str, dict[str, str]]:
+    found = {}
+    for name, settings in _TABLE_RULES.items():
+        if name not in table:
+            continue
+        rule = table[name]
+        if not isinstance(rule, dict) or set(_plain(rule)) != settings:
+            raise ParityError(f"[rules] {name} is a table of {', '.join(sorted(settings))}")
+        found[name] = {key: str(value) for key, value in _plain(rule).items()}
+    return found
 
 
 def _decisions(table: dict) -> dict[str, str]:

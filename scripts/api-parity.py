@@ -41,6 +41,8 @@ The rules, which apply with no entry, each forced by the language:
   parameter is a positional Rust one. Defaults' values are not compared. A
   struct a caller builds keeps no `#[non_exhaustive]` (roomkit-rs convention
   9): that refuses struct update outside its crate;
+- optional arguments: Rust has none, so an `Option<T>` parameter stands for
+  Python's `=None` (`[rules] optional`), and for no other default;
 - a dict for a struct: Python's `arguments` (`[rules] arguments`), the
   schema-shaped dict a call takes, is the Rust `<X>Input` parameter whole;
 - contract types: a Rust type deriving `JsonSchema` is the JSON a Python call

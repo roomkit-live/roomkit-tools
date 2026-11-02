@@ -39,6 +39,10 @@ options_suffixes = ["Limits", "Config", "Policy", "Env"]
 # A struct whose name ends with this stands for a call's arguments: its
 # fields are the Python method's parameters.
 input_suffix = "Input"
+# Rust has no optional call arguments: an Option<T> parameter stands for
+# Python's `=None`, as roomkit-rs's SkillRegistry::copy(names: Option<&[String]>)
+# stands for Python's copy(names=None).
+optional = { type = "Option", default = "None", decision = "roomkit-rs names table: SkillRegistry::copy(names: Option<&[String]>), Rust has no optional call arguments (approved 2026-10-30)" }
 # Python's schema-shaped dict of a call's arguments, the Input struct whole.
 arguments = "arguments"
 # The cancellation token a Rust call takes; Python cancels the awaiting task.
@@ -469,30 +473,21 @@ covers = [
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async, defaulted (4), unmatched (4)"
+reason = "roomkit_tools_process::OutputStore / roomkit_tools.OutputStore: async, unmatched (4)"
 covers = [
   "rust roomkit_tools_process::OutputStore::new (async)",  # async in Rust, not in Python
-  "rust roomkit_tools_process::OutputStore::new(parent) (defaulted)",  # Python defaults it (parent=None); Rust requires it
   "python roomkit_tools.OutputStore.call (unmatched)",  # no Rust method
   "python roomkit_tools.OutputStore.definition (unmatched)",  # no Rust method
-  "rust roomkit_tools_process::OutputStore::forget(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::OutputStore::list(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::OutputStore::read(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::OutputStore::read_definition (unmatched)",  # no Python member
   "rust roomkit_tools_process::OutputStore::forget_definition (unmatched)",  # no Python member
 ]
 
 [[pending]]
-reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: async, unmatched (9), defaulted (5)"
+reason = "roomkit_tools_process::ProcessSession / roomkit_tools.ProcessSession: async, unmatched (9)"
 covers = [
   "rust roomkit_tools_process::ProcessSession::new (async)",  # async in Rust, not in Python
   "python roomkit_tools.ProcessSession.call (unmatched)",  # no Rust method
   "python roomkit_tools.ProcessSession.definition (unmatched)",  # no Rust method
-  "rust roomkit_tools_process::ProcessSession::read(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::ProcessSession::start(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::ProcessSession::status(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::ProcessSession::stop(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
-  "rust roomkit_tools_process::ProcessSession::write(owner) (defaulted)",  # Python defaults it (owner=None); Rust requires it
   "rust roomkit_tools_process::ProcessSession::start_definition (unmatched)",  # no Python member
   "rust roomkit_tools_process::ProcessSession::status_definition (unmatched)",  # no Python member
   "rust roomkit_tools_process::ProcessSession::read_definition (unmatched)",  # no Python member
