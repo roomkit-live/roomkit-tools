@@ -42,6 +42,9 @@
 # "TODO: maintainer", carries no `approved` date, and the gate fails while one
 # is left; once decided, an entry carries the date it was approved.
 
+# Not compared, so no finding names it: the key order of a tool's schema, which
+# may differ between the languages (luge-hitl:644a12c1 Q39).
+
 [rules]
 # Rust's casing of an acronym in a type's name (rust-lang RFC 430), and
 # Python's.
