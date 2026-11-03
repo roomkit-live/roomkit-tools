@@ -6,7 +6,8 @@ part of an existing published preview.
 
 ## Unreleased
 
-- The RoomKit Rust adapter follows roomkit-rs 9830bc4. Its API is unchanged.
+- The RoomKit Rust adapter follows roomkit-rs 9830bc4, which changes no existing
+  adapter's API.
 - The RoomKit Rust adapter adds `ViewImage`, behind its optional `image` Cargo
   feature: the text and image parts of Python's adapter, on that engine's image
   results.

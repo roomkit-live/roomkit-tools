@@ -93,7 +93,7 @@ roomkit-tools-fs = { git = "https://github.com/roomkit-live/roomkit-tools", rev 
 ```
 
 Each adapter implements RoomKit's `Tool` trait, the Rust form of Python's Tool
-protocol, for filesystem, outline, command, process, output, web-fetch and
+protocol, for filesystem, outline, image, command, process, output, web-fetch and
 search tools. Declare them individually in an AI channel's
 `AiChannelOptions::tools` as `ToolEntry::Tool(Arc::new(adapter))`, and supply
 roots, limits and lifetimes. An adapter serves only its own tool's name and
