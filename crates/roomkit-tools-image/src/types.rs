@@ -40,7 +40,7 @@ pub enum ImageMime {
 
 impl ImageMime {
     /// The MIME string used on the wire. Python reads it from the JSON; this
-    /// helper is the crate's, hidden from the public API.
+    /// helper is for sibling crates, hidden from the public API.
     #[doc(hidden)]
     pub fn as_str(self) -> &'static str {
         match self {

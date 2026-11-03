@@ -1,0 +1,24 @@
+{
+  "description": "view_image through the RoomKit adapters of Python and Rust, on the same file: the exact text part, json.dumps(..., ensure_ascii=False) in Python's key order, the image part, and the words of a refusal and of a failure. The path carries characters JSON and the tool's text each escape.",
+  "png": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DwHwyBNAgwAABIyQj4ccUx4AAAAABJRU5ErkJggg==",
+  "path": "photos/\u00e9t\u00e9 \"1\"\tback\\slash\u007f\u0001\b\f\n\r\u2028\ud83d\ude00.png",
+  "text_part": "{\"data\": {\"path\": \"photos/\u00e9t\u00e9 \\\"1\\\"\\tback\\\\slash\u007f\\u0001\\b\\f\\n\\r\u2028\ud83d\ude00.png\", \"revision\": \"sha256:620edd992210ef75c3db8d80aab7b51249446c5ac83eb465ab79ff328a44e4c5\", \"source_mime_type\": \"image/png\", \"input_bytes\": 76, \"original_width\": 2, \"original_height\": 2, \"width\": 2, \"height\": 2, \"orientation_applied\": false, \"resized\": false, \"output_bytes\": 86}, \"text\": \"Image \\\"photos/\u00e9t\u00e9 \\\\\\\"1\\\\\\\"\\\\tback\\\\\\\\slash\\\\u{7f}\\\\u{1}\\\\u{8}\\\\u{c}\\\\n\\\\r\\\\u{2028}\ud83d\ude00.png\\\": 2x2 image/png -> 2x2 PNG preview; orientation_applied=false, resized=false, output_bytes=86. Pixels are attached separately.\\n\"}",
+  "image_part": {
+    "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAHUlEQVR4AQESAO3/AP8AAP8A/wD/AAAA//////8ASMkI+FcVsBUAAAAASUVORK5CYII=",
+    "mime_type": "image/png"
+  },
+  "refusals": [
+    {
+      "path": "../outside.png",
+      "message": "Access refused: path is outside the workspace root"
+    },
+    {
+      "path": "",
+      "message": "Invalid input: path must be nonempty, NUL-free and at most 4096 bytes"
+    }
+  ],
+  "failure": {
+    "max_image_bytes": 1,
+    "message": "Limit exceeded: PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound"
+  }
+}

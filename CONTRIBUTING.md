@@ -68,6 +68,7 @@ validation and do not replace deterministic tests.
 | `crates/roomkit-tools-plans/tests/fixtures/plans.json` | Plan CRUD envelopes, stable step IDs, revisions and list/delete state |
 | `tests/fixtures/image.json` | Complete image payloads, metadata and refusals |
 | `tests/fixtures/roomkit_owner.json` | RoomKit owner keys, identical in the Rust adapter and in Python |
+| `tests/fixtures/roomkit_view_image.json` | `view_image` through RoomKit: the exact text and image parts and refusal words, identical in the Rust adapter and in Python |
 
 A fixture that a crate's own tests read lives in that crate's `tests/`
 directory, since a published crate ships only its own directory; the Python

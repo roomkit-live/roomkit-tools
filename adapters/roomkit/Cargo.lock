@@ -1386,12 +1386,14 @@ dependencies = [
 name = "roomkit-tools-roomkit"
 version = "0.1.0-alpha.16"
 dependencies = [
+ "base64",
  "roomkit",
  "roomkit-ai",
  "roomkit-tools-code",
  "roomkit-tools-core",
  "roomkit-tools-docs",
  "roomkit-tools-fs",
+ "roomkit-tools-image",
  "roomkit-tools-ocr",
  "roomkit-tools-plans",
  "roomkit-tools-process",

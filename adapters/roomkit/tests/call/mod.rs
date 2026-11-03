@@ -114,7 +114,7 @@ pub async fn turn<T: Tool + Clone>(
 /// Send one chat message into `room`, where the registered agent `agent`
 /// answers it, then wait until `kit` runs nothing more.
 #[expect(clippy::expect_used, reason = "a broken fixture must fail the test")]
-async fn ask(kit: &RoomKit, room: &RoomId, agent: &ChannelId) {
+pub async fn ask(kit: &RoomKit, room: &RoomId, agent: &ChannelId) {
     let chat = RecordingTransport::new(
         ChannelId::new("chat").expect("valid chat id"),
         ChannelType::WEBSOCKET,

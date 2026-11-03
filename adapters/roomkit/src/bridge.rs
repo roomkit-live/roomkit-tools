@@ -20,14 +20,8 @@ pub(crate) fn ai_tool(definition: Definition) -> AiTool {
     }
 }
 
-/// Serve the call `name` with `arguments` for the tool named `wire`.
-///
-/// A call to another tool is not this adapter's to serve, so RoomKit hands it
-/// to the next tool. `caller` then names who calls, from RoomKit's current
-/// call, or refuses, before the arguments are read, as Python's adapter
-/// checks the owner first. Arguments that do not fit the input are refused,
-/// as RoomKit refuses them. `run` gets the caller and a token cancelled when
-/// RoomKit drops the call; its output reaches the model as JSON.
+/// Serve the call `name` with `arguments` for the tool named `wire`, as
+/// [`serve_result`] does; `run`'s output reaches the model as JSON.
 pub(crate) fn serve<C, I, O, A, F, Fut>(
     wire: &'static str,
     name: String,
@@ -43,6 +37,39 @@ where
     F: FnOnce(C, I, CancellationToken) -> Fut + Send + 'static,
     Fut: Future<Output = Result<O, ToolError>> + Send + 'static,
 {
+    let run = move |caller, input, cancel| {
+        let running = run(caller, input, cancel);
+        async move {
+            serde_json::to_value(running.await?)
+                .map(ToolResult::Json)
+                .map_err(|error| ToolError::raised(&error))
+        }
+    };
+    serve_result(wire, name, arguments, caller, run)
+}
+
+/// Serve the call `name` with `arguments` for the tool named `wire`.
+///
+/// A call to another tool is not this adapter's to serve, so RoomKit hands it
+/// to the next tool. `caller` then names who calls, from RoomKit's current
+/// call, or refuses, before the arguments are read, as Python's adapter
+/// checks the owner first. Arguments that do not fit the input are refused,
+/// as RoomKit refuses them. `run` gets the caller and a token cancelled when
+/// RoomKit drops the call, and answers what the model reads.
+pub(crate) fn serve_result<C, I, A, F, Fut>(
+    wire: &'static str,
+    name: String,
+    arguments: Metadata,
+    caller: A,
+    run: F,
+) -> ToolFuture
+where
+    I: DeserializeOwned,
+    A: FnOnce() -> Result<C, ToolError> + Send + 'static,
+    C: Send + 'static,
+    F: FnOnce(C, I, CancellationToken) -> Fut + Send + 'static,
+    Fut: Future<Output = Result<ToolResult, ToolError>> + Send + 'static,
+{
     Box::pin(async move {
         if name != wire {
             return Err(ToolError::unserved(format!(
@@ -54,10 +81,7 @@ where
         let input = roomkit_ai::arguments(&ToolCall::new(String::new(), name, arguments))?;
         let cancel = CancellationToken::new();
         let _cancel_on_drop = cancel.clone().drop_guard();
-        let output = run(caller, input, cancel).await?;
-        serde_json::to_value(output)
-            .map(ToolResult::Json)
-            .map_err(|error| ToolError::raised(&error))
+        run(caller, input, cancel).await
     })
 }
 

@@ -24,6 +24,10 @@ pub use plans::{PlanCreate, PlanDelete, PlanList, PlanRead, PlanUpdate};
 mod docs;
 #[cfg(feature = "docs")]
 pub use docs::{DocsList, DocsRead, DocsSearch};
+#[cfg(feature = "image")]
+mod image;
+#[cfg(feature = "image")]
+pub use image::ViewImage;
 mod output;
 mod process;
 pub use output::{OutputForget, OutputRead, Shell};
