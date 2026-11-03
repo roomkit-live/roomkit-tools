@@ -22,7 +22,7 @@ use roomkit::{RoomKit, RoomKitOptions};
 use roomkit_ai::{
     AiChannel, AiChannelOptions, AiContentPart, AiContext, AiImagePart, AiMessageContent,
     AiResponse, AiTextPart, AiToolCall, AiToolResultPart, MockAiProvider, MockAiProviderOptions,
-    Tool, ToolEntry, ToolError, ToolResult, ToolResultPart,
+    Tool, ToolEntry, ToolError, ToolFuture, ToolResult, ToolResultPart,
 };
 use roomkit_tools_image::{ViewImageLimits, ViewImageTool};
 use roomkit_tools_roomkit::ViewImage;
@@ -74,11 +74,10 @@ async fn definition_is_the_native_schema_and_another_name_is_unserved() {
     let root = workspace();
     let tool = ViewImage::new(ViewImageTool::new(root.path()).await.unwrap());
     let definition = tool.definition();
-    assert_eq!(definition.name, "view_image");
-    assert_eq!(
-        definition.parameters,
-        ViewImageTool::definition().input_schema
-    );
+    let native = ViewImageTool::definition();
+    assert_eq!(definition.name, native.name);
+    assert_eq!(definition.description, native.description);
+    assert_eq!(definition.parameters, native.input_schema);
     assert_eq!(
         tool.handler("read".into(), arguments("colors.png")).await,
         Err(ToolError::UnservedToolCall(
@@ -97,6 +96,46 @@ async fn answers_the_text_part_and_image_part_python_answers() {
         .await
         .unwrap();
     assert_eq!(answer, ToolResult::Parts(expected_parts()));
+}
+
+/// `call`, polled once: it has taken a worker slot and waits on its file.
+/// Nothing polls it further, so it keeps the slot until it is dropped.
+async fn started(mut call: ToolFuture) -> ToolFuture {
+    let answered = tokio::select! {
+        biased;
+        _ = &mut call => true,
+        () = std::future::ready(()) => false,
+    };
+    assert!(!answered, "the call waits on its file");
+    call
+}
+
+/// RoomKit cancels a call by dropping it. A call runs only as its caller polls
+/// it, and dropped, it gives up its slot. Where a dropped call in its decoder
+/// stops is `ViewImageTool::view`'s own guard: it has no effect a test can read.
+#[tokio::test]
+async fn a_dropped_call_gives_up_its_worker_slot() {
+    let root = workspace();
+    let path = fixture()["path"].as_str().unwrap().to_owned();
+    let tool = ViewImage::new(ViewImageTool::new(root.path()).await.unwrap());
+    let holding = [
+        started(tool.handler("view_image".into(), arguments(&path))).await,
+        started(tool.handler("view_image".into(), arguments(&path))).await,
+    ];
+    let queued: Metadata =
+        serde_json::from_value(json!({ "path": path, "timeout_ms": 50 })).unwrap();
+    assert_eq!(
+        tool.handler("view_image".into(), queued).await,
+        Err(ToolError::Failed(
+            "Limit exceeded: view_image deadline exceeded".into()
+        )),
+        "both slots stay held while the calls are alive"
+    );
+    drop(holding);
+    assert_eq!(
+        tool.handler("view_image".into(), arguments(&path)).await,
+        Ok(ToolResult::Parts(expected_parts()))
+    );
 }
 
 #[tokio::test]
