@@ -118,16 +118,20 @@ pub(crate) fn current_owner(tools: &str) -> Result<String, ToolError> {
     Ok(crate::roomkit_owner(&room, &agent))
 }
 
-/// A native error as the model reads it: invalid input and access refusals
-/// are refusals, limits and cancellation are failures.
+/// A native error as Python's binding and adapters give it to RoomKit, by its
+/// variant, in its public words, which leave out OS details and host paths:
+/// invalid input and access refusals are refusals, limits and cancellation are
+/// failures. The rest raises Python's class: the model reads the class, the
+/// observers the class and the words.
 pub(crate) fn tool_error(error: &roomkit_tools_core::ToolError) -> ToolError {
+    let words = error.to_string();
     match error {
         roomkit_tools_core::ToolError::InvalidInput(_)
-        | roomkit_tools_core::ToolError::AccessRefused(_) => ToolError::refused(error.to_string()),
+        | roomkit_tools_core::ToolError::AccessRefused(_) => ToolError::refused(words),
         roomkit_tools_core::ToolError::LimitExceeded(_)
         | roomkit_tools_core::ToolError::UnsupportedResource(_)
-        | roomkit_tools_core::ToolError::Cancelled => ToolError::failed(error.to_string()),
-        // Diagnostic causes reach RoomKit's observers, never the model.
-        _ => ToolError::raised(error),
+        | roomkit_tools_core::ToolError::Cancelled => ToolError::failed(words),
+        roomkit_tools_core::ToolError::Io { .. } => ToolError::raised_as("ToolIOError", words),
+        _ => ToolError::raised_as("ToolError", words),
     }
 }

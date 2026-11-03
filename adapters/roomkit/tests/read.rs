@@ -106,7 +106,13 @@ async fn reports_limits_as_safe_failures_and_io_as_diagnostic_errors() {
     let missing = tools
         .handler("read".into(), arguments(json!({"path":"missing.txt"})))
         .await;
-    assert!(matches!(missing, Err(ToolError::Raised { .. })));
+    assert_eq!(
+        missing,
+        Err(ToolError::Raised {
+            kind: "ToolIOError".into(),
+            message: "Unable to resolve the path".into(),
+        })
+    );
 }
 
 /// Run the public RoomKit agent and return the outcome delivered to the chat and what

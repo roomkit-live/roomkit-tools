@@ -1,0 +1,144 @@
+{
+  "description": "Each native error a RoomKit adapter maps, in Python and in Rust, through a real kit: what the handler raises and says, what the model reads, and what the host's ON_TOOL_CALL hook reads (error_detail, refused). Cancellation is not here: a RoomKit call is cancelled by dropping it, so nobody reads its words. To regenerate, run each case through Python's adapters, the reference, with a MockAIProvider calling the tool once.",
+  "files": {
+    "colors.png": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DwHwyBNAgwAABIyQj4ccUx4AAAAABJRU5ErkJggg==",
+    "notes.txt": "aGVsbG8K",
+    "binary.dat": "AP8A/w=="
+  },
+  "cases": [
+    {
+      "tool": "view_image",
+      "variant": "InvalidInput",
+      "arguments": {
+        "path": ""
+      },
+      "limits": {},
+      "raises": "ToolRefusedError",
+      "message": "Invalid input: path must be nonempty, NUL-free and at most 4096 bytes",
+      "model_reads": "Invalid input: path must be nonempty, NUL-free and at most 4096 bytes",
+      "error_detail": null,
+      "refused": true
+    },
+    {
+      "tool": "view_image",
+      "variant": "AccessRefused",
+      "arguments": {
+        "path": "../outside.png"
+      },
+      "limits": {},
+      "raises": "ToolRefusedError",
+      "message": "Access refused: path is outside the workspace root",
+      "model_reads": "Access refused: path is outside the workspace root",
+      "error_detail": null,
+      "refused": true
+    },
+    {
+      "tool": "view_image",
+      "variant": "LimitExceeded",
+      "arguments": {
+        "path": "colors.png"
+      },
+      "limits": {
+        "max_image_bytes": 1
+      },
+      "raises": "ToolFailedError",
+      "message": "Limit exceeded: PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound",
+      "model_reads": "Limit exceeded: PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound",
+      "error_detail": "Limit exceeded: PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound",
+      "refused": false
+    },
+    {
+      "tool": "view_image",
+      "variant": "UnsupportedResource",
+      "arguments": {
+        "path": "notes.txt"
+      },
+      "limits": {},
+      "raises": "ToolFailedError",
+      "message": "Unsupported resource: invalid or unsupported image data",
+      "model_reads": "Unsupported resource: invalid or unsupported image data",
+      "error_detail": "Unsupported resource: invalid or unsupported image data",
+      "refused": false
+    },
+    {
+      "tool": "view_image",
+      "variant": "Io",
+      "arguments": {
+        "path": "missing.png"
+      },
+      "limits": {},
+      "raises": "ToolIOError",
+      "message": "Unable to resolve the image path",
+      "model_reads": "{\"error\": \"Tool 'view_image' failed (ToolIOError)\"}",
+      "error_detail": "ToolIOError: Unable to resolve the image path",
+      "refused": false
+    },
+    {
+      "tool": "read",
+      "variant": "InvalidInput",
+      "arguments": {
+        "path": ""
+      },
+      "limits": {},
+      "raises": "ToolRefusedError",
+      "message": "Invalid input: path must not be empty",
+      "model_reads": "Invalid input: path must not be empty",
+      "error_detail": null,
+      "refused": true
+    },
+    {
+      "tool": "read",
+      "variant": "AccessRefused",
+      "arguments": {
+        "path": "../outside.txt"
+      },
+      "limits": {},
+      "raises": "ToolRefusedError",
+      "message": "Access refused: path is outside the workspace root",
+      "model_reads": "Access refused: path is outside the workspace root",
+      "error_detail": null,
+      "refused": true
+    },
+    {
+      "tool": "read",
+      "variant": "LimitExceeded",
+      "arguments": {
+        "path": "notes.txt"
+      },
+      "limits": {
+        "max_file_bytes": 1
+      },
+      "raises": "ToolFailedError",
+      "message": "Limit exceeded: file exceeds max_file_bytes",
+      "model_reads": "Limit exceeded: file exceeds max_file_bytes",
+      "error_detail": "Limit exceeded: file exceeds max_file_bytes",
+      "refused": false
+    },
+    {
+      "tool": "read",
+      "variant": "UnsupportedResource",
+      "arguments": {
+        "path": "binary.dat"
+      },
+      "limits": {},
+      "raises": "ToolFailedError",
+      "message": "Unsupported resource: file contains binary NUL bytes",
+      "model_reads": "Unsupported resource: file contains binary NUL bytes",
+      "error_detail": "Unsupported resource: file contains binary NUL bytes",
+      "refused": false
+    },
+    {
+      "tool": "read",
+      "variant": "Io",
+      "arguments": {
+        "path": "missing.txt"
+      },
+      "limits": {},
+      "raises": "ToolIOError",
+      "message": "Unable to resolve the path",
+      "model_reads": "{\"error\": \"Tool 'read' failed (ToolIOError)\"}",
+      "error_detail": "ToolIOError: Unable to resolve the path",
+      "refused": false
+    }
+  ]
+}

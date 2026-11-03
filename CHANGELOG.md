@@ -11,6 +11,9 @@ part of an existing published preview.
 - The RoomKit Rust adapter adds `ViewImage`, behind its optional `image` Cargo
   feature: the text and image parts of Python's adapter, on that engine's image
   results.
+- A RoomKit Rust adapter's I/O failure reads as Python's: the model reads
+  `Tool 'x' failed (ToolIOError)` and observers its public words, without the OS
+  detail.
 
 ## 0.1.0a16
 

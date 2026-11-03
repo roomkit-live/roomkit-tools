@@ -11,18 +11,18 @@
 
 #[expect(dead_code, reason = "this test takes only the module's `ask`")]
 mod call;
+mod scripted;
 
 use std::path::Path;
 use std::sync::Arc;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use roomkit::model::{ChannelId, Metadata, RoomId};
+use roomkit::model::Metadata;
 use roomkit::{RoomKit, RoomKitOptions};
 use roomkit_ai::{
-    AiChannel, AiChannelOptions, AiContentPart, AiContext, AiImagePart, AiMessageContent,
-    AiResponse, AiTextPart, AiToolCall, AiToolResultPart, MockAiProvider, MockAiProviderOptions,
-    Tool, ToolEntry, ToolError, ToolFuture, ToolResult, ToolResultPart,
+    AiImagePart, AiTextPart, AiToolResultPart, Tool, ToolError, ToolFuture, ToolResult,
+    ToolResultPart,
 };
 use roomkit_tools_image::{ViewImageLimits, ViewImageTool};
 use roomkit_tools_roomkit::ViewImage;
@@ -153,13 +153,16 @@ async fn refusals_and_io_errors_map_as_in_the_other_adapters() {
             "{refusal}"
         );
     }
-    // A file the tool cannot read is the tool's error: RoomKit reports its
-    // kind to the model and its message to the observers.
-    assert!(matches!(
+    // A file the tool cannot reach is the tool's error, in Python's class and
+    // words: RoomKit gives the model the class and its observers the words.
+    assert_eq!(
         tool.handler("view_image".into(), arguments("missing.png"))
             .await,
-        Err(ToolError::Raised { .. })
-    ));
+        Err(ToolError::Raised {
+            kind: "ToolIOError".into(),
+            message: "Unable to resolve the image path".into(),
+        })
+    );
 }
 
 #[tokio::test]
@@ -187,59 +190,11 @@ async fn a_limit_is_a_failure_in_python_s_words() {
     );
 }
 
-/// A model of `vision` that calls `view_image` on `path`, then answers.
-fn model_calling_view_image(vision: bool, path: &str) -> MockAiProvider {
-    let call = AiToolCall {
-        arguments: arguments(path),
-        ..AiToolCall::new("view-1", "view_image")
-    };
-    MockAiProvider::new(MockAiProviderOptions {
-        vision,
-        ai_responses: Some(vec![
-            AiResponse {
-                finish_reason: Some("tool_calls".into()),
-                tool_calls: vec![call],
-                ..AiResponse::new("")
-            },
-            AiResponse::new("Done"),
-        ]),
-        ..MockAiProviderOptions::default()
-    })
-}
-
-/// The tool's result in the request `context`.
-fn tool_result_in(context: &AiContext) -> AiToolResultPart {
-    context
-        .messages
-        .iter()
-        .find_map(|message| match &message.content {
-            AiMessageContent::Parts(parts) => parts.iter().find_map(|part| match part {
-                AiContentPart::ToolResult(result) => Some(result.clone()),
-                _ => None,
-            }),
-            AiMessageContent::Text(_) => None,
-        })
-        .expect("the request carries the tool's result")
-}
-
-/// What the model of `vision` reads of its call of `view_image` on `path`,
-/// through a real kit, as an integrator declares the tool.
+/// What the model of `vision` reads of its call of `view_image` on `path`.
 async fn model_reads(root: &Path, vision: bool, path: &str) -> AiToolResultPart {
     let tool = ViewImage::new(ViewImageTool::new(root).await.unwrap());
-    let model = model_calling_view_image(vision, path);
-    let agent = ChannelId::new("assistant").unwrap();
-    let options = AiChannelOptions {
-        tools: vec![ToolEntry::Tool(Arc::new(tool))],
-        ..AiChannelOptions::default()
-    };
     let kit = RoomKit::new(RoomKitOptions::default());
-    kit.register_channel(AiChannel::new(agent.clone(), model.clone(), options).unwrap())
-        .unwrap();
-    call::ask(&kit, &RoomId::new("vision").unwrap(), &agent).await;
-    kit.close().await.unwrap();
-    let requests = model.calls();
-    assert_eq!(requests.len(), 2, "the model calls the tool, then answers");
-    tool_result_in(&requests[1])
+    scripted::model_reads(&kit, Arc::new(tool), vision, "view_image", arguments(path)).await
 }
 
 #[tokio::test]
