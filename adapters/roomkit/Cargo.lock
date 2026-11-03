@@ -740,9 +740,11 @@ dependencies = [
  "defmt",
  "jiff-core",
  "jiff-static",
+ "log",
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
+ "windows-link",
 ]
 
 [[package]]
@@ -1217,10 +1219,11 @@ dependencies = [
 [[package]]
 name = "roomkit"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=5d884364e18c517dd178afc11b241fa820be74d4#5d884364e18c517dd178afc11b241fa820be74d4"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c#9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c"
 dependencies = [
  "futures-core",
  "getrandom 0.4.3",
+ "jiff",
  "roomkit-core",
  "scrypt",
  "serde",
@@ -1234,7 +1237,7 @@ dependencies = [
 [[package]]
 name = "roomkit-ai"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=5d884364e18c517dd178afc11b241fa820be74d4#5d884364e18c517dd178afc11b241fa820be74d4"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c#9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c"
 dependencies = [
  "futures-core",
  "roomkit",
@@ -1250,7 +1253,7 @@ dependencies = [
 [[package]]
 name = "roomkit-core"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=5d884364e18c517dd178afc11b241fa820be74d4#5d884364e18c517dd178afc11b241fa820be74d4"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c#9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c"
 dependencies = [
  "jiff",
  "serde",

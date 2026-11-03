@@ -5,3 +5,7 @@ allow-indexing-slicing-in-tests = true
 allow-dbg-in-tests = true
 allow-print-in-tests = true
 doc-valid-idents = ["RoomKit", "PyO3", "OpenCode", ".."]
+# The RoomKit adapter's tests return roomkit-rs's RoomKitError, 128 bytes since
+# its maps keep their members' order, as Python's dict does. roomkit-rs and
+# roomkit-tui raised their threshold to 136 for it.
+large-error-threshold = 136

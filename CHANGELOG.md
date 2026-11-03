@@ -6,6 +6,8 @@ part of an existing published preview.
 
 ## Unreleased
 
+- The RoomKit Rust adapter follows roomkit-rs 9830bc4. Its API is unchanged.
+
 ## 0.1.0a16
 
 ### Breaking changes
