@@ -71,9 +71,8 @@ their own, without RoomKit or a model.
 | Delegation | `delegate_task`, `task_status`, `cancel_task`, `agent_followup`, `agent_send` | [Agents](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/agents.md) |
 
 Every tool is available in Python and in RoomKit Python. The optional RoomKit
-Rust adapter covers the file, code, command, process, web, OCR, plan and
-documentation tools; image results and agent delegation are not available there
-yet.
+Rust adapter covers the file, code, command, process, web, image, OCR, plan and
+documentation tools; agent delegation is not available there yet.
 
 ## Quick start
 
@@ -303,7 +302,7 @@ says how.
 
 - Publication on PyPI.
 - Wheels for more platforms (macOS, ARM64).
-- Image results and agent delegation in the RoomKit Rust adapter.
+- Agent delegation in the RoomKit Rust adapter.
 
 ## Contributing
 

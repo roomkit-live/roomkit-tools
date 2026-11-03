@@ -110,13 +110,13 @@ standalone owner, as Python's `owner=None`, apart from every named owner,
 | Capability | Native Rust tool | RoomKit Rust adapter |
 | --- | --- | --- |
 | Files, outlines, shell/processes, output, web/search | Implemented | Implemented |
-| `view_image` | Implemented | Pending: pinned engine tool output supports text/JSON only |
+| `view_image` | Implemented | Implemented with optional `image` feature |
 | Documentation | Implemented, file backend with `files` feature | Implemented with optional `docs` feature |
 | Plan CRUD | Implemented | Implemented with optional `plans` feature |
 | Agent tools | Contracts and injected backend interface | Native RoomKit execution backend not implemented |
 
-RoomKit Python already supports image results and has a packaged agent backend.
-These differences are integration boundaries, not separate tool implementations.
+RoomKit Python has a packaged agent backend. This difference is an integration
+boundary, not a separate tool implementation.
 See [images](images.md), [plans](plans.md) and [agents](agents.md).
 
 ## Lifetimes and cancellation

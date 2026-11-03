@@ -21,7 +21,8 @@ The model calls `view_image` with `{"path": "screenshot.png"}` and an optional
 positive `timeout_ms`. The adapter returns `AITextPart` metadata and an `AIImagePart`
 containing actual pixels. RoomKit performs provider-specific multimodal encoding;
 base64 is not included in ordinary tool text. This tool supplies pixels, not OCR
-or a generated caption. The host must select a model that accepts images.
+or a generated caption. The host must select a model that accepts images: one that
+does not reads the metadata followed by `[image]`.
 
 Without RoomKit, inside an async function:
 
@@ -37,8 +38,22 @@ pixels = metadata["image"]  # mime_type and complete base64; deliver as image co
 Rust hosts use `ViewImageTool::new(root).await?`, optionally `with_limits(...)`,
 then `view(ViewImageInput::new(path), &cancel).await?`.
 `result.data.image.data_url()` provides a data URL for multimodal transport.
-The pinned optional RoomKit **Rust** adapter currently has only text/JSON tool
-results, so it does not yet expose an image adapter.
+
+The RoomKit **Rust** adapter exposes `ViewImage` behind its optional `image` Cargo
+feature. It answers as Python's does: `ToolResult::Parts`, the same metadata text
+and an image part with the data URL.
+
+```rust,ignore
+use std::sync::Arc;
+
+use roomkit_ai::ToolEntry;
+use roomkit_tools_image::ViewImageTool;
+use roomkit_tools_roomkit::ViewImage;
+
+let tool = ViewImageTool::new("./workspace").await?;
+// Declare it in your RoomKit Rust agent's `AiChannelOptions::tools`.
+let view_image = ToolEntry::Tool(Arc::new(ViewImage::new(tool)));
+```
 
 Static PNG, JPEG and WebP are detected from bytes, independently of extensions.
 The tool applies EXIF orientation, reduces oversized images while preserving
@@ -79,6 +94,8 @@ for a dangling link's own target). Root containment assumes a host-controlled
 workspace, not hostile concurrent path replacement or an OS sandbox.
 
 `cargo run --example view_image` checks native image preparation.
+`make roomkit-check` runs `adapters/roomkit/tests/image.rs`, which drives the Rust
+adapter through a kit, with a mock model that sees and one that does not.
 `python examples/roomkit_image.py` checks actual multimodal delivery with a
 scripted provider; it makes no visual-recognition claim. With the vLLM extra
 installed, `OPENAI_BASE_URL`, `OPENAI_MODEL` and optionally `OPENAI_API_KEY` set,
