@@ -29,8 +29,8 @@ roomkit-tools-image = { version = "0.1.0-alpha.16", path = "../../crates/roomkit
 roomkit-tools-code = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-code" }
 roomkit-tools-search = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-search" }
 roomkit-tools-web = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-web" }
-roomkit = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "b96ca1eafee4ea889fdcabb65189a492a214d81b" }
-roomkit-ai = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "b96ca1eafee4ea889fdcabb65189a492a214d81b" }
+roomkit = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "6f94ec6617bae4ae62adada40e830d8886c0a351" }
+roomkit-ai = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "6f94ec6617bae4ae62adada40e830d8886c0a351" }
 roomkit-tools-core = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-core" }
 roomkit-tools-fs = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-fs" }
 roomkit-tools-process = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-process" }
