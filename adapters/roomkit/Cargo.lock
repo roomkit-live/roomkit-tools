@@ -1219,7 +1219,7 @@ dependencies = [
 [[package]]
 name = "roomkit"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c#9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=c30375c02bc931ccfad843a411b7e62680cbde88#c30375c02bc931ccfad843a411b7e62680cbde88"
 dependencies = [
  "futures-core",
  "getrandom 0.4.3",
@@ -1237,7 +1237,7 @@ dependencies = [
 [[package]]
 name = "roomkit-ai"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c#9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=c30375c02bc931ccfad843a411b7e62680cbde88#c30375c02bc931ccfad843a411b7e62680cbde88"
 dependencies = [
  "futures-core",
  "roomkit",
@@ -1253,7 +1253,7 @@ dependencies = [
 [[package]]
 name = "roomkit-core"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c#9830bc4c1b10a2c9e1413c34750eb7d2600d0b2c"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=c30375c02bc931ccfad843a411b7e62680cbde88#c30375c02bc931ccfad843a411b7e62680cbde88"
 dependencies = [
  "jiff",
  "serde",

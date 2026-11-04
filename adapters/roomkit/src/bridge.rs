@@ -17,6 +17,7 @@ pub(crate) fn ai_tool(definition: Definition) -> AiTool {
         name: definition.name,
         description: definition.description,
         parameters: definition.input_schema,
+        tags: Vec::new(),
     }
 }
 
