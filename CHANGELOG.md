@@ -6,7 +6,7 @@ part of an existing published preview.
 
 ## Unreleased
 
-- The RoomKit Rust adapter follows roomkit-rs dcaf505, which changes no existing
+- The RoomKit Rust adapter follows roomkit-rs b96ca1e, which changes no existing
   adapter's API. A tool it declares names no `tags` for Tool Search.
 - The RoomKit Rust adapter adds `ViewImage`, behind its optional `image` Cargo
   feature: the text and image parts of Python's adapter, on that engine's image
