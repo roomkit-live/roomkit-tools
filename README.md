@@ -46,7 +46,7 @@ their own, without RoomKit or a model.
   limits and unsupported content are distinct errors. Cancelling an asyncio
   task cancels the native call, and stops the processes a command started.
 - **Process control.** Commands run in their own session, detached from the
-  host's terminal, with a deadline, bounded head/tail capture and only the
+  host's terminal, with a deadline, bounded capture of the latest output and only the
   environment variables the host chooses. Persistent processes keep their stdin
   and stdout across calls, and long output can be archived for later reading.
 - **Guarded web access.** `web_fetch` refuses private and loopback addresses

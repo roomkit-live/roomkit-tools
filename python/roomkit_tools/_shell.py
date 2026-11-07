@@ -115,7 +115,8 @@ class ShellTool:
         """Run with a per-call cwd and a runtime within the host maximum.
 
         Nonzero exits and timeouts are results, not tool exceptions. Streams
-        retain head/tail bytes, with omission metadata and lossy UTF-8 text.
+        retain their most recent bytes, with omission metadata and lossy UTF-8
+        text; with an output store, only a stream cut short keeps an archive.
         A timeout returns partial output; output_complete says whether pipes
         reached EOF. Runtime starts after spawn, excluding path resolution;
         termination/reaping can extend wall-clock duration beyond the timeout.

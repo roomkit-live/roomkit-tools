@@ -143,6 +143,8 @@ impl ShellTool {
     }
 
     /// Attach optional output storage. Archive reads use the same trusted owner.
+    /// Only a stream cut short keeps its archive, which holds the full output;
+    /// one kept whole is released as the call ends, unless it was cancelled.
     /// Standalone `shell` files them under the standalone owner, the one
     /// [`OutputStore`](crate::OutputStore) methods reach with `None`, apart
     /// from every named owner; multi-owner hosts call `shell_owned`.

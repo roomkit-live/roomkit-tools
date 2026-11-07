@@ -39,7 +39,10 @@ class RoomKitOutputTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory, in_call("room", "agent"):
             async with OutputStore(directory) as store, OutputStore(directory) as other:
                 definitions, handler = extract_tools(
-                    [Shell(await ShellTool.create(directory, outputs=store)), OutputRead(store)]
+                    [
+                        Shell(await ShellTool.create(directory, outputs=store, max_output_bytes=1)),
+                        OutputRead(store),
+                    ]
                 )
                 self.assertEqual([d.name for d in definitions], ["shell", "output_read"])
                 result = json.loads(await handler("shell", {"command": "printf saved"}))
@@ -59,7 +62,7 @@ class RoomKitOutputTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             async with OutputStore(directory) as store:
                 tools = [
-                    Shell(await ShellTool.create(directory, outputs=store)),
+                    Shell(await ShellTool.create(directory, outputs=store, max_output_bytes=1)),
                     OutputRead(store),
                     OutputForget(store),
                 ]
@@ -87,8 +90,8 @@ class RoomKitOutputTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory, in_call("room", "agent"):
             async with OutputStore(directory) as store:
                 first, second = (
-                    Shell(await ShellTool.create(directory, outputs=store)),
-                    Shell(await ShellTool.create(directory, outputs=store)),
+                    Shell(await ShellTool.create(directory, outputs=store, max_output_bytes=1)),
+                    Shell(await ShellTool.create(directory, outputs=store, max_output_bytes=1)),
                 )
                 results = await asyncio.gather(
                     first.handler("shell", {"command": "printf first"}),

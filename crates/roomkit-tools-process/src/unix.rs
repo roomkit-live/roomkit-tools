@@ -217,8 +217,13 @@ async fn supervise(
     result.map_err(|source| io("capture shell output", source))?;
     let output_complete = drain_rest(&mut out, &mut err, &mut stdout, &mut stderr).await?;
     tokio::join!(out.finish_archive(), err.finish_archive());
+    // A cancelled call returns no result: its archives are all that is left.
     if cancelled || cancel.is_cancelled() {
         return Err(ToolError::Cancelled);
+    }
+    if let Some((store, _)) = &foreground.outputs {
+        out.discard_whole_archive(store);
+        err.discard_whole_archive(store);
     }
     Ok(render(ShellResult {
         cwd: foreground.shown_cwd.clone(),

@@ -61,8 +61,9 @@ anything runs. The runtime starts after spawn, excluding path resolution;
 termination/reaping may extend total elapsed time.
 
 The result preserves separate stdout/stderr, exit code or signal, effective
-timeout and `timed_out`. Each stream retains head/tail output while continuing
-to drain, with `total_bytes`, `omitted_bytes` and `truncated`. Text uses lossy
+timeout and `timed_out`. Each stream retains its most recent output, where a
+command reports how it ended, while continuing to drain, with `total_bytes`,
+`omitted_bytes` and `truncated`. Text uses lossy
 UTF-8; replacement characters, omission markers and metadata are additional to
 the raw retention bound. `output_complete` reports whether both pipes reached
 EOF; false means capture stopped early. Nonzero exits and timeouts are normal
@@ -247,11 +248,16 @@ async with OutputStore() as outputs:
 ```
 
 Without `outputs=`, command result shapes and memory retention are unchanged.
-With it, each stream has archive metadata: `archive_id`, `observed_bytes`,
+With it, a shell stream cut short has archive metadata, the full output being
+in its archive: `archive_id`, `observed_bytes`,
 `stored_bytes`, `eof`, `finished`, `complete` and `error`. The process forms are
 `stdout_archive` and `stderr_archive` on its status. IDs identify streams in that
 store, never arbitrary host files. stdout and stderr are separate; their global
-ordering is not reconstructed. An ID may be absent when the record quota is full.
+ordering is not reconstructed. A shell stream kept whole has no archive: its
+copy would hold nothing the result lacks, so it is released when the command
+ends, unless the call was cancelled and returned no result. Persistent jobs
+archive every stream. An ID may be absent when the record quota is full and
+every record is still being written.
 
 `complete` means the source reached EOF, the writer finished without errors,
 and every observed byte was stored. It does not mean the command succeeded or
@@ -270,7 +276,7 @@ The JSON array and lossy text add representation overhead to the raw page bound.
 
 | Host option | Default |
 | --- | --- |
-| `max_archives` / `max_archives_per_owner` | 64 / 16 retained streams, including empty and failed copies |
+| `max_archives` / `max_archives_per_owner` | 64 / 16 retained streams, including empty and failed copies; a running shell command holds one per stream |
 | `max_stream_bytes` | 8 MiB retained prefix per stream |
 | `max_total_bytes` | 64 MiB shared stored/reserved bytes |
 | `max_read_bytes` | 16 KiB raw bytes per page |
@@ -283,7 +289,10 @@ for queue capacity can slow capture up to the configured deadline; command
 timeouts still apply. Quota, file creation, write or queue errors disable copying
 with explicit metadata while pipe draining and bounded previews continue.
 Reservations include queued bytes and stay charged after failed writes until
-forget/close. There is no silent eviction or unlimited queue.
+forget/close or eviction. At a record quota, a new record releases its owner's
+oldest finished archives first, never another owner's nor one still being
+written: the most recent output is the one a model goes back to. Reading a
+released ID is refused as for a forgotten one. There is no unlimited queue.
 
 Completed logs survive process `forget` and `ProcessSession.close()`.
 `output_forget` refuses active capture/writers, then invalidates the ID and frees

@@ -124,7 +124,7 @@ async fn cancelled_before_start_has_no_side_effect() {
 }
 
 #[tokio::test]
-async fn large_outputs_keep_head_and_tail_and_continue_draining_both_pipes() {
+async fn large_outputs_keep_their_end_and_continue_draining_both_pipes() {
     let root = tempfile::tempdir().unwrap();
     let limits = ShellLimits {
         max_output_bytes: 100,
@@ -138,9 +138,11 @@ async fn large_outputs_keep_head_and_tail_and_continue_draining_both_pipes() {
     let result = tool.shell(ShellInput::new("printf HEAD; head -c 262144 /dev/zero; printf TAIL; printf ERR >&2; head -c 262144 /dev/zero >&2; printf END >&2"), &CancellationToken::new()).await.unwrap().data;
     assert_eq!(result.exit_code, Some(0));
     assert!(result.output_complete);
-    assert!(result.stdout.text.starts_with("HEAD"));
+    for (stream, start) in [(&result.stdout, "HEAD"), (&result.stderr, "ERR")] {
+        assert!(stream.text.starts_with("[... "), "{}", stream.text);
+        assert!(!stream.text.contains(start), "the beginning is discarded");
+    }
     assert!(result.stdout.text.ends_with("TAIL"));
-    assert!(result.stderr.text.starts_with("ERR"));
     assert!(result.stderr.text.ends_with("END"));
     for (stream, bytes) in [(&result.stdout, 262_152), (&result.stderr, 262_150)] {
         assert_eq!(stream.total_bytes, bytes);
@@ -171,7 +173,7 @@ async fn utf8_binary_and_single_byte_budget_have_explicit_lossy_views() {
         .await
         .unwrap()
         .data;
-    assert!(result.stdout.text.starts_with('a'));
+    assert!(result.stdout.text.ends_with('c'));
     assert_eq!(result.stdout.omitted_bytes, 2);
 }
 

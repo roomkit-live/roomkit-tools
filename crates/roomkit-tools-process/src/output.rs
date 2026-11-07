@@ -66,6 +66,11 @@ impl Record {
         }
     }
 
+    /// Whether capture and writing are both over.
+    fn finished(&self) -> bool {
+        self.capture_done.load(Ordering::Acquire) && lock(&self.state).finished
+    }
+
     fn release(&self) {
         lock(&self.file).take();
         self.budget
@@ -122,6 +127,14 @@ fn private_directory(parent: &Path) -> std::io::Result<TempDir> {
     builder.tempdir_in(parent)
 }
 
+/// The creation order of an archive id `o<n>`, which its text does not sort
+/// by past `o9`.
+fn sequence(id: &str) -> u64 {
+    id.strip_prefix('o')
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(u64::MAX)
+}
+
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -133,9 +146,15 @@ pub(crate) fn append_metadata(
 ) {
     for (name, archive) in [("stdout", stdout), ("stderr", stderr)] {
         if let Some(archive) = archive {
+            // Without an id nothing was stored: there is nothing to read back.
+            let hint = if archive.archive_id.is_some() {
+                "use output_read to read retained bytes"
+            } else {
+                "nothing was stored"
+            };
             let _written = write!(
                 text,
-                "\n{name} archive: id={:?}, stored={}, observed={}, eof={}, finished={}, complete={}, error={:?}; use output_read to read retained bytes\n",
+                "\n{name} archive: id={:?}, stored={}, observed={}, eof={}, finished={}, complete={}, error={:?}; {hint}\n",
                 archive.archive_id,
                 archive.stored_bytes,
                 archive.observed_bytes,
@@ -399,8 +418,53 @@ impl OutputStore {
         finished
     }
 
+    /// Release the archive `sink` wrote, once finished, when it holds nothing
+    /// its command's result lacks: an output kept whole.
+    pub(crate) fn discard(&self, sink: Sink) {
+        let id = sink.snapshot().archive_id;
+        drop(sink);
+        let Some(id) = id else { return };
+        let record = lock(&self.inner.registry).entries.remove(&id);
+        if let Some(record) = record {
+            record.fail("discarded");
+            record.release();
+        }
+    }
+
+    /// Release `owner`'s oldest finished archives while a new one would pass a
+    /// limit: the most recent output is the one a model goes back to. An
+    /// archive still being written is never released, nor another owner's.
+    fn make_room(&self, registry: &mut Registry, owner: Option<&str>) {
+        let limits = &self.inner.limits;
+        loop {
+            let held = registry
+                .entries
+                .values()
+                .filter(|r| r.owner.as_deref() == owner)
+                .count();
+            if registry.entries.len() < limits.max_archives && held < limits.max_archives_per_owner
+            {
+                return;
+            }
+            let oldest = registry
+                .entries
+                .iter()
+                .filter(|(_, r)| r.owner.as_deref() == owner && r.finished())
+                .min_by_key(|(id, _)| sequence(id))
+                .map(|(id, _)| id.clone());
+            let Some(record) = oldest.and_then(|id| registry.entries.remove(&id)) else {
+                return;
+            };
+            record.fail("evicted");
+            record.release();
+        }
+    }
+
     pub(crate) fn begin(&self, owner: Option<&str>) -> Sink {
         let mut registry = lock(&self.inner.registry);
+        if !self.closed() {
+            self.make_room(&mut registry, owner);
+        }
         let error = if self.closed() {
             Some("store_closed")
         } else if registry.entries.len() >= self.inner.limits.max_archives

@@ -12,6 +12,13 @@ part of an existing published preview.
   closed. `ShellTool.create(keep_background_jobs=True)` (Rust:
   `ShellLimits::keep_background_jobs`) leaves the background jobs of a command
   that exits on its own running; a timeout or a cancellation still stops them.
+- A shell stream cut short keeps its most recent bytes, where a command reports
+  how it ended, instead of its first and last ones, after an
+  `[... N earlier bytes omitted ...]` marker. With an output store, only such a
+  stream keeps an archive, holding the full output; one kept whole needs none
+  and is released as the call ends. At a record quota, a new archive releases
+  its owner's oldest finished one instead of failing with `archive_limit`, and
+  a result without an archive id no longer says to use `output_read`.
 - The RoomKit Rust adapter follows roomkit-rs ee5d724, which changes no existing
   adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
   requests also declare the kit's `read_stored_result`, which pages through an

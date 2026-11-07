@@ -4,7 +4,7 @@
 mod call;
 
 use roomkit_ai::{ToolError, ToolResult};
-use roomkit_tools_process::{OutputLimits, OutputStore, ShellTool};
+use roomkit_tools_process::{OutputLimits, OutputStore, ShellLimits, ShellTool};
 use roomkit_tools_roomkit::{OutputForget, OutputRead, Shell};
 use serde_json::json;
 
@@ -14,9 +14,16 @@ async fn archived_shell_output_uses_room_and_agent_scope() {
     let store = OutputStore::new(Some(root.path()), OutputLimits::default())
         .await
         .unwrap();
+    // Only an output cut short is archived: cut every one past a byte.
+    let cutting = ShellLimits {
+        max_output_bytes: 1,
+        ..ShellLimits::default()
+    };
     let shell = Shell::new(
         ShellTool::new(root.path())
             .await
+            .unwrap()
+            .with_limits(cutting)
             .unwrap()
             .with_output_store(store.clone()),
     );

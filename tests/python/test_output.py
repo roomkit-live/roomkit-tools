@@ -76,8 +76,8 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
                 break
         self.assertEqual(recovered, original)
         self.assertEqual((self.root / "runs").read_bytes(), b"run")
-        error = await self.store.read(result["stderr"]["archive"]["archive_id"])
-        self.assertEqual(error["data"]["text"], "err")
+        # stderr was kept whole: its copy held nothing more and is gone.
+        self.assertNotIn("archive", result["stderr"])
         self.assertTrue(await self.store.close())
         self.assertEqual(list(self.parent.iterdir()), [])
 
@@ -87,10 +87,8 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
             max_stream_bytes=5,
             max_total_bytes=6,
             max_read_bytes=2,
-            max_archives=2,
-            max_archives_per_owner=2,
         ) as store:
-            shell = await ShellTool.create(self.root, outputs=store)
+            shell = await ShellTool.create(self.root, outputs=store, max_output_bytes=1)
             result = (await shell.shell("printf 0123456789"))["data"]
             archive = result["stdout"]["archive"]
             self.assertFalse(archive["complete"])
@@ -104,8 +102,8 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(InvalidInputError):
                 await store.read(aid, offset=6)
             second = (await shell.shell("printf still-runs"))["data"]
-            self.assertEqual(second["stdout"]["text"], "still-runs")
-            self.assertEqual(second["stdout"]["archive"]["error"], "archive_limit")
+            self.assertEqual(second["stdout"]["text"], "[... 9 earlier bytes omitted ...]\ns")
+            self.assertEqual(second["stdout"]["archive"]["error"], "total_limit")
             self.assertTrue((await store.forget(aid))["data"]["forgotten"])
             with self.assertRaises(AccessRefusedError):
                 await store.read(aid)
@@ -158,23 +156,26 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(page["text"], "sav")
             call = await store.call("output_read", {"archive_id": aid}, owner="host-a")
             self.assertEqual(call["data"]["text"], "saved")
-            # Both streams fill the owner's quota until the host forgets them.
+            # A full quota releases the owner's oldest finished archives.
             full = (await session.start("true", owner="host-a"))["data"]
-            self.assertEqual(full["stdout_archive"]["error"], "archive_limit")
-            for entry in listed:
+            self.assertIsNone(full["stdout_archive"]["error"])
+            with self.assertRaises(AccessRefusedError):
+                await store.read(aid, owner="host-a")
+            await wait_for(
+                store, lambda entries: all(e["finished"] for e in entries), owner="host-a"
+            )
+            for entry in await store.list(owner="host-a"):
                 forgotten = await store.forget(entry["archive_id"], owner="host-a")
                 self.assertTrue(forgotten["data"]["forgotten"])
             self.assertEqual(await store.list(owner="host-a"), [])
-            again = (await session.start("true", owner="host-a"))["data"]
-            self.assertIsNone(again["stdout_archive"]["error"])
 
     async def test_the_standalone_owner_is_apart_from_an_owner_named_default(self) -> None:
         async with (
             OutputStore(self.parent, max_archives_per_owner=2) as store,
             ProcessSession(self.root, outputs=store) as session,
         ):
-            shell = await ShellTool.create(self.root, outputs=store)
-            mine = (await shell.shell("printf mine"))["data"]["stdout"]["archive"]
+            shell = await ShellTool.create(self.root, outputs=store, max_output_bytes=1)
+            mine = (await shell.shell("printf mine; printf xy >&2"))["data"]["stdout"]["archive"]
             # The standalone owner's two archives fill its quota, not "default"'s.
             theirs = (await session.start("printf theirs", owner="default"))["data"]
             self.assertIsNone(theirs["stdout_archive"]["error"])
@@ -184,7 +185,7 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
                 await store.read(mine["archive_id"], owner="default")
 
     async def test_separate_stores_isolate_ids_and_validate_inputs(self) -> None:
-        shell = await ShellTool.create(self.root, outputs=self.store)
+        shell = await ShellTool.create(self.root, outputs=self.store, max_output_bytes=1)
         result = (await shell.shell("printf private"))["data"]
         aid = result["stdout"]["archive"]["archive_id"]
         async with OutputStore(self.parent) as other:
@@ -206,12 +207,12 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_storage_creation_failure_preserves_command_result(self) -> None:
         async with self.store:
-            shell = await ShellTool.create(self.root, outputs=self.store)
+            shell = await ShellTool.create(self.root, outputs=self.store, max_output_bytes=1)
             for directory in self.parent.iterdir():
                 directory.rmdir()
             result = (await shell.shell("printf available; exit 7"))["data"]
             self.assertEqual(result["exit_code"], 7)
-            self.assertEqual(result["stdout"]["text"], "available")
+            self.assertTrue(result["stdout"]["text"].endswith("e"))
             archive = result["stdout"]["archive"]
             self.assertFalse(archive["complete"])
             self.assertEqual(archive["error"], "create_failed")
@@ -245,7 +246,8 @@ class OutputTests(unittest.IsolatedAsyncioTestCase):
             await self.store.list()
         result = (await shell.shell("printf continues"))["data"]
         self.assertEqual(result["stdout"]["text"], "continues")
-        self.assertEqual(result["stdout"]["archive"]["error"], "store_closed")
+        # Kept whole, the output needs no copy: none is reported.
+        self.assertNotIn("archive", result["stdout"])
 
     async def test_limits_and_precancellation_do_not_initialize_storage(self) -> None:
         for name in [

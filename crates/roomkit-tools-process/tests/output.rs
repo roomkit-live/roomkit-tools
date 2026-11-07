@@ -11,6 +11,15 @@ use roomkit_tools_process::{
 };
 use tokio_util::sync::CancellationToken;
 
+/// Shell limits that cut every output past its first byte: only an output
+/// cut short is archived.
+fn cutting() -> ShellLimits {
+    ShellLimits {
+        max_output_bytes: 1,
+        ..ShellLimits::default()
+    }
+}
+
 fn page(id: &str, offset: u64, max_bytes: usize) -> OutputReadInput {
     OutputReadInput {
         offset,
@@ -65,7 +74,9 @@ async fn recover_full_binary_output_without_rerunning_a_command() {
     }
     assert_eq!(recovered, original);
     assert_eq!(std::fs::read(root.path().join("runs")).unwrap(), b"run");
-    assert_eq!(store.list(None, &cancel).await.unwrap().len(), 2);
+    // stderr was kept whole: its copy held nothing more and is gone.
+    assert!(result.data.stderr.archive.is_none());
+    assert_eq!(store.list(None, &cancel).await.unwrap().len(), 1);
     assert!(store.close().await);
     assert_eq!(std::fs::read_dir(storage.path()).unwrap().count(), 0);
 }
@@ -80,10 +91,13 @@ async fn listing_follows_creation_order_past_nine_archives() {
     let shell = ShellTool::new(root.path())
         .await
         .unwrap()
+        .with_limits(cutting())
+        .unwrap()
         .with_output_store(store.clone());
     let cancel = CancellationToken::new();
     for _ in 0..6 {
-        shell.shell(ShellInput::new("true"), &cancel).await.unwrap();
+        let both = ShellInput::new("printf ab; printf cd >&2");
+        shell.shell(both, &cancel).await.unwrap();
     }
     let listed: Vec<String> = store
         .list(None, &cancel)
@@ -107,6 +121,8 @@ async fn no_owner_is_the_standalone_owner_of_shell_archives() {
     let shell = ShellTool::new(root.path())
         .await
         .unwrap()
+        .with_limits(cutting())
+        .unwrap()
         .with_output_store(store.clone());
     let cancel = CancellationToken::new();
     let standalone = shell
@@ -119,9 +135,10 @@ async fn no_owner_is_the_standalone_owner_of_shell_archives() {
         .unwrap();
     let mine = standalone.data.stdout.archive.unwrap().archive_id.unwrap();
     let theirs = named.data.stdout.archive.unwrap().archive_id.unwrap();
-    // Standalone commands file stdout and stderr under the owner None names.
-    assert_eq!(store.list(None, &cancel).await.unwrap().len(), 2);
-    assert_eq!(store.list(Some("a"), &cancel).await.unwrap().len(), 2);
+    // Standalone commands file their outputs under the owner None names;
+    // the empty stderr of each was kept whole, so is not archived.
+    assert_eq!(store.list(None, &cancel).await.unwrap().len(), 1);
+    assert_eq!(store.list(Some("a"), &cancel).await.unwrap().len(), 1);
     // A read from no offset and no size reads the stored bytes from the start.
     let page_of_mine = store.read(None, OutputReadInput::new(&mine), &cancel).await;
     assert_eq!(page_of_mine.unwrap().data.text, "mine");
@@ -150,13 +167,20 @@ async fn the_standalone_owner_is_apart_from_an_owner_named_default() {
     let shell = ShellTool::new(root.path())
         .await
         .unwrap()
+        .with_limits(cutting())
+        .unwrap()
         .with_output_store(store.clone());
     let cancel = CancellationToken::new();
-    let standalone = shell.shell(ShellInput::new("printf mine"), &cancel).await;
+    let mine = ShellInput::new("printf mine; printf xy >&2");
+    let standalone = shell.shell(mine, &cancel).await;
     let mine = standalone.unwrap().data.stdout.archive.unwrap();
     // The standalone owner's two archives fill its quota, not "default"'s.
     let named = shell
-        .shell_owned("default", ShellInput::new("printf theirs"), &cancel)
+        .shell_owned(
+            "default",
+            ShellInput::new("printf theirs; printf yz >&2"),
+            &cancel,
+        )
         .await
         .unwrap();
     assert!(named.data.stdout.archive.unwrap().archive_id.is_some());
@@ -229,14 +253,14 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
     let limits = OutputLimits {
         max_stream_bytes: 5,
         max_total_bytes: 7,
-        max_archives: 2,
-        max_archives_per_owner: 2,
         max_read_bytes: 2,
         ..OutputLimits::default()
     };
     let store = OutputStore::new(Some(root.path()), limits).await.unwrap();
     let shell = ShellTool::new(root.path())
         .await
+        .unwrap()
+        .with_limits(cutting())
         .unwrap()
         .with_output_store(store.clone());
     let cancel = CancellationToken::new();
@@ -267,10 +291,13 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
         .shell(ShellInput::new("printf still-runs"), &cancel)
         .await
         .unwrap();
-    assert_eq!(second.data.stdout.text, "still-runs");
+    assert_eq!(
+        second.data.stdout.text,
+        "[... 9 earlier bytes omitted ...]\ns"
+    );
     assert_eq!(
         second.data.stdout.archive.unwrap().error.as_deref(),
-        Some("archive_limit")
+        Some("total_limit")
     );
     store
         .forget(
@@ -295,6 +322,84 @@ async fn quotas_preserve_prefixes_and_report_copies_as_incomplete() {
 }
 
 #[tokio::test]
+async fn a_full_store_releases_its_owner_s_oldest_finished_archive() {
+    let root = tempfile::tempdir().unwrap();
+    // A command holds one archive per stream while it runs: two more than
+    // the latest two of an owner that keeps three.
+    let limits = OutputLimits {
+        max_archives: 4,
+        max_archives_per_owner: 3,
+        ..OutputLimits::default()
+    };
+    let store = OutputStore::new(Some(root.path()), limits).await.unwrap();
+    let shell = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(cutting())
+        .unwrap()
+        .with_output_store(store.clone());
+    let cancel = CancellationToken::new();
+    let mut ids = Vec::new();
+    for text in ["one", "two", "three"] {
+        let input = ShellInput::new(format!("printf {text}"));
+        let result = shell.shell(input, &cancel).await.unwrap();
+        ids.push(result.data.stdout.archive.unwrap().archive_id.unwrap());
+    }
+    // The third command released the first archive: its owner keeps the
+    // two latest.
+    assert!(matches!(
+        store.read(None, page(&ids[0], 0, 8), &cancel).await,
+        Err(ToolError::AccessRefused(_))
+    ));
+    let text = |id: String| {
+        let store = store.clone();
+        let cancel = cancel.clone();
+        async move {
+            store
+                .read(None, page(&id, 0, 8), &cancel)
+                .await
+                .unwrap()
+                .data
+                .text
+        }
+    };
+    assert_eq!(text(ids[1].clone()).await, "two");
+    assert_eq!(text(ids[2].clone()).await, "three");
+    // With the store full, another owner releases its own oldest, never these.
+    for text in ["mine", "more"] {
+        let input = ShellInput::new(format!("printf {text}"));
+        let named = shell.shell_owned("a", input, &cancel).await.unwrap();
+        assert!(named.data.stdout.archive.unwrap().archive_id.is_some());
+    }
+    assert_eq!(store.list(None, &cancel).await.unwrap().len(), 2);
+    assert_eq!(store.list(Some("a"), &cancel).await.unwrap().len(), 1);
+    assert!(store.close().await);
+}
+
+#[tokio::test]
+async fn an_output_kept_whole_leaves_no_archive() {
+    let root = tempfile::tempdir().unwrap();
+    let store = OutputStore::new(Some(root.path()), OutputLimits::default())
+        .await
+        .unwrap();
+    let shell = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_output_store(store.clone());
+    let cancel = CancellationToken::new();
+    let result = shell
+        .shell(ShellInput::new("printf whole; printf also >&2"), &cancel)
+        .await
+        .unwrap();
+    assert_eq!(result.data.stdout.text, "whole");
+    assert!(result.data.stdout.archive.is_none());
+    assert!(result.data.stderr.archive.is_none());
+    assert!(!result.text.contains("archive"), "{}", result.text);
+    assert_eq!(store.list(None, &cancel).await.unwrap(), []);
+    assert!(store.close().await);
+}
+
+#[tokio::test]
 async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
     let root = tempfile::tempdir().unwrap();
     let limits = OutputLimits {
@@ -304,6 +409,8 @@ async fn aggregate_budget_is_shared_by_owners_and_released_explicitly() {
     let store = OutputStore::new(Some(root.path()), limits).await.unwrap();
     let shell = ShellTool::new(root.path())
         .await
+        .unwrap()
+        .with_limits(cutting())
         .unwrap()
         .with_output_store(store.clone());
     let cancel = CancellationToken::new();

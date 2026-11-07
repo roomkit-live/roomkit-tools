@@ -134,7 +134,7 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
         result = await limited.shell("true", timeout_ms=1000)
         self.assertEqual(result["data"]["timeout_ms"], 1000)
 
-    async def test_output_bounds_keep_head_tail_and_drain_both_pipes(self) -> None:
+    async def test_output_bounds_keep_the_end_and_drain_both_pipes(self) -> None:
         tool = await ShellTool.create(self.root, max_output_bytes=100)
         result = await tool.shell(
             "printf HEAD; head -c 262144 /dev/zero; printf TAIL; "
@@ -151,7 +151,8 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(captured["total_bytes"], total)
             self.assertEqual(captured["omitted_bytes"], total - 100)
             self.assertTrue(captured["truncated"])
-            self.assertTrue(captured["text"].startswith(start))
+            self.assertTrue(captured["text"].startswith("[... "))
+            self.assertNotIn(start, captured["text"])
             self.assertTrue(captured["text"].endswith(end))
 
     async def test_unicode_lossy_binary_stdin_eof_and_signal_exit(self) -> None:
