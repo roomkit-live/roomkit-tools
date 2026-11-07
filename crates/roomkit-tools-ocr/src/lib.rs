@@ -135,7 +135,7 @@ impl OcrTool {
     pub fn definition() -> Definition {
         Definition::new::<OcrInput, OcrResult>(
             "ocr",
-            "Extract text and positioned blocks from one local static PNG/JPEG/WebP. Host selects the OCR engine. Recognition may contain errors; scores are not proof of correctness. Coordinates refer to width/height after EXIF and requested clockwise rotation. Use rotation_degrees for turned images (0/90/180/270); no automatic orientation. Inspect truncated/omitted_blocks. Does not modify files, interpret diagrams or read PDFs.",
+            "Extract positioned text blocks from a local PNG, JPEG or static WebP image. Recognition can be wrong whatever the score. Coordinates are after EXIF and rotation_degrees; there is no automatic orientation. Check truncated and omitted_blocks. No PDFs or diagram interpretation.",
         )
     }
 

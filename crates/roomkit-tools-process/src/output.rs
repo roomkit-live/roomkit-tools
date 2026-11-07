@@ -230,7 +230,7 @@ impl OutputStore {
     pub fn read_definition() -> Definition {
         Definition::new::<OutputReadInput, OutputPage>(
             "output_read",
-            "Read a page of a retained command output by archive_id. Does not rerun the command or consume bytes. Check archive.complete/error; a partial copy is only a prefix. Use next_offset for more stored bytes. IDs belong to this conversation, not filesystem paths.",
+            "Read a page of a stored command output by archive_id, without rerunning the command. Check archive.complete and error: an incomplete copy is only a prefix. Continue with next_offset.",
         )
     }
 
@@ -238,7 +238,7 @@ impl OutputStore {
     pub fn forget_definition() -> Definition {
         Definition::new::<OutputForgetInput, OutputForgetResult>(
             "output_forget",
-            "Permanently release one owned output archive after capture and writing finish. Frees its quota; the identifier becomes invalid. Does not stop a running process. Only forget when the retained log is no longer needed.",
+            "Delete a finished stored output, freeing its quota; its archive_id becomes invalid. Does not stop any process.",
         )
     }
 

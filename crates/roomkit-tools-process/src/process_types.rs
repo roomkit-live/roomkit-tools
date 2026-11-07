@@ -3,17 +3,16 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Start a command that survives subsequent tool calls, within a host-owned scope.
+/// A command to start in the background.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessStartInput {
-    /// Shell command passed to `/bin/sh -c` (no login shell or PTY).
+    /// Shell command text.
     pub command: String,
-    /// Initial directory relative to the configured root.
+    /// Starting directory in the workspace.
     #[serde(default)]
     pub cwd: Option<String>,
-    /// Maximum lifetime; a value above the host maximum is refused.
-    /// Default: five minutes.
+    /// Lifetime limit in ms, at most the host maximum. Default: five minutes.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }
@@ -29,29 +28,28 @@ impl ProcessStartInput {
     }
 }
 
-/// Inspect one process or list all processes belonging to this owner.
+/// One process to inspect, or none to list them all.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessStatusInput {
-    /// Omit to list the owner's running and retained completed processes,
-    /// in creation order.
+    /// Omit to list every process, in creation order.
     #[serde(default)]
     pub process_id: Option<String>,
 }
 
-/// Read bounded output pages using independent byte cursors for each stream.
+/// A page of a process's output.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessReadInput {
-    /// Identifier returned by `process_start` in this scope.
+    /// Identifier from `process_start`.
     pub process_id: String,
-    /// Zero-based stdout byte cursor; use the previous stdout `next_offset`.
+    /// Stdout byte offset: the previous stdout `next_offset`.
     #[serde(default)]
     pub stdout_offset: u64,
-    /// Zero-based stderr byte cursor; use the previous stderr `next_offset`.
+    /// Stderr byte offset: the previous stderr `next_offset`.
     #[serde(default)]
     pub stderr_offset: u64,
-    /// Bytes per stream in this page, capped by the host.
+    /// Bytes per stream, capped by the host.
     #[serde(default)]
     pub max_bytes: Option<NonZeroUsize>,
 }
@@ -68,19 +66,16 @@ impl ProcessReadInput {
     }
 }
 
-/// Send UTF-8 bytes exactly as supplied; a newline is never implicit.
+/// Text for a process's stdin.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessWriteInput {
     /// Owned process identifier.
     pub process_id: String,
-    /// Exact text to send. A requested newline must be encoded as JSON `\n`;
-    /// the tool adds no newline. Omit text only when requesting EOF alone.
+    /// Exact text; no newline is added, so end a line with `\n`. Omit to only close stdin.
     #[serde(default)]
     pub text: String,
-    /// Close stdin after sending all supplied bytes, delivering EOF. This may
-    /// terminate the command. Keep false for sending text or reading output;
-    /// set true only when closing input is intended. Reading never requires EOF.
+    /// Close stdin (EOF) after the text; this may end the process. Only when input is done.
     #[serde(default)]
     pub close_stdin: bool,
 }
@@ -97,14 +92,13 @@ impl ProcessWriteInput {
     }
 }
 
-/// Stop a process group with SIGKILL, optionally releasing its retained state
-/// and output. There is no graceful phase before the kill.
+/// A process to stop with SIGKILL.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ProcessStopInput {
     /// Owned process identifier.
     pub process_id: String,
-    /// Remove the completed record and output after cleanup. Default: false.
+    /// Also release the finished record and its retained output.
     #[serde(default)]
     pub forget: bool,
 }

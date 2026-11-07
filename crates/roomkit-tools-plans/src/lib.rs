@@ -144,7 +144,7 @@ tool!(
     Plan,
     create,
     "plan_create",
-    "Create a plan with an objective and complete ordered steps. Choose unique stable `step_id` values and reuse them during edits. Returns `plan_id` and revision. Does not execute work. If the receipt is lost, use `plan_list` before creating again."
+    "Create a plan: title, objective and ordered steps with unique, stable `step_id` values. Returns `plan_id` and revision. If the reply is lost, check `plan_list` before creating again."
 );
 tool!(
     PlanReadTool,
@@ -152,7 +152,7 @@ tool!(
     Plan,
     read,
     "plan_read",
-    "Read the complete owned plan and its current revision. Use this before modifying a plan when the current version is unknown."
+    "Read a plan's steps and current revision."
 );
 tool!(
     PlanListTool,
@@ -160,7 +160,7 @@ tool!(
     PlanListResult,
     list,
     "plan_list",
-    "List all retained plan summaries accessible to this conversation and agent. Use `plan_read` for full steps. No implicit creation or hidden eviction."
+    "List this conversation's plans as summaries; `plan_read` gives the steps."
 );
 tool!(
     PlanUpdateTool,
@@ -168,7 +168,7 @@ tool!(
     Plan,
     update,
     "plan_update",
-    "Update an owned plan using its current `expected_revision`. Omitted/null fields are preserved. When supplying steps, replace the ENTIRE ordered list: include unchanged steps, reuse their `step_id`, omit steps to remove them. Read again after a revision conflict. Progress is declared, not proof of execution."
+    "Update a plan at its current `expected_revision`; omitted fields are kept. `steps` replaces the ENTIRE ordered list: include unchanged steps with their `step_id`; left-out steps are removed. After a revision conflict, read the plan again."
 );
 tool!(
     PlanDeleteTool,
@@ -176,7 +176,7 @@ tool!(
     PlanDeleteResult,
     delete,
     "plan_delete",
-    "Delete an owned plan at `expected_revision`. Returns an actual deletion receipt. Does not cancel or delete processes, delegated tasks, files or other plans."
+    "Delete a plan at its current `expected_revision`. Processes, delegated tasks and files are not affected."
 );
 
 // The README's example is compiled and run as a doctest.

@@ -8,15 +8,15 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{mutation, paths::Root};
 
-/// Compare two existing UTF-8 files without changing either one.
+/// Two files to compare.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DiffInput {
-    /// File containing the old version, beneath the workspace root.
+    /// File with the old version.
     pub old_path: String,
-    /// File containing the proposed version, beneath the workspace root.
+    /// File with the new version.
     pub new_path: String,
-    /// Unchanged lines around changes. Defaults to three, capped by the host.
+    /// Unchanged lines around each change, capped by the host.
     #[serde(default = "default_context")]
     pub context_lines: usize,
 }
@@ -171,7 +171,7 @@ impl DiffTool {
     pub fn definition() -> Definition {
         Definition::new::<DiffInput, DiffResult>(
             "diff",
-            "Compare old_path and new_path, two existing UTF-8 files in the workspace. Returns complete structured hunks, added/removed line counts and a unified-style preview. Does not write files or inspect Git history. Line endings and BOM are significant. Oversized or overly complex comparisons fail explicitly; no pagination.",
+            "Compare two existing UTF-8 files without changing them: hunks, added/removed counts and a unified preview. Line endings and BOM count. No Git and no paging: an oversized comparison fails.",
         )
     }
 

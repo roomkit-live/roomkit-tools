@@ -4,13 +4,13 @@ use std::num::NonZeroU64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Model arguments; resource bounds belong to the host.
+/// An image to view.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ViewImageInput {
-    /// One local regular PNG, JPEG or static WebP file beneath the configured root.
+    /// PNG, JPEG or static WebP file in the workspace.
     pub path: String,
-    /// Optional positive per-call deadline, bounded by the host maximum.
+    /// Deadline in ms, at most the host maximum.
     pub timeout_ms: Option<NonZeroU64>,
 }
 

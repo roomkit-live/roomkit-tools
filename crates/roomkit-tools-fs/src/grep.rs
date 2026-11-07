@@ -13,34 +13,34 @@ use crate::grep_scan::{self, Matches, Search};
 use crate::paths::{self, PathEntry, PathKind, Root, Scan, first_entry, workspace_path};
 use crate::worker;
 
-/// Search UTF-8 file contents, one match per matching line.
+/// A search of file contents.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GrepInput {
-    /// Text or Rust-regex expression to search for. Multiline matches are not supported.
+    /// Rust regex, or plain text with `literal`. Single-line matches only.
     pub pattern: String,
-    /// File or directory beneath the workspace root. Defaults to `.`.
+    /// File or directory to search.
     #[serde(default = "workspace_path")]
     pub path: String,
-    /// Optional glob for file paths relative to the search directory.
+    /// Glob filtering file paths, relative to `path`.
     #[serde(default)]
     pub include: Option<String>,
-    /// Match the pattern as literal text instead of a regex. Defaults to false.
+    /// Match `pattern` as plain text.
     #[serde(default)]
     pub literal: bool,
-    /// Ignore Unicode letter case. Defaults to false.
+    /// Ignore Unicode letter case.
     #[serde(default)]
     pub ignore_case: bool,
-    /// Lines of context before each match. Defaults to zero; bounded by the host.
+    /// Lines shown before each match, capped by the host.
     #[serde(default)]
     pub context_before: usize,
-    /// Lines of context after each match. Defaults to zero; bounded by the host.
+    /// Lines shown after each match, capped by the host.
     #[serde(default)]
     pub context_after: usize,
-    /// One-based match offset, ordered by path then line.
+    /// First match, ordered by path then line.
     #[serde(default = "first_entry")]
     pub offset: NonZeroUsize,
-    /// Requested matching lines, capped by the host.
+    /// Match count, capped by the host.
     #[serde(default)]
     pub limit: Option<NonZeroUsize>,
 }
@@ -195,7 +195,7 @@ impl GrepTool {
     pub fn definition() -> Definition {
         Definition::new::<GrepInput, GrepPage>(
             "grep",
-            "Search UTF-8 file contents by regex or literal text, with an optional file glob. Returns matching lines, paths and line numbers. Optional context_before/context_after add surrounding source lines to each match (host-bounded, default 0). A match too large for the output is returned alone, without context and with its text cut, as clipped: true. Lines longer than the host's line bound are not searched and are counted in skipped_lines. Hidden files are included, child symlinks are not followed, and binary files are skipped and counted. Match offsets count matches only, starting at 1; continue with next_offset.",
+            "Search UTF-8 file contents, one match per line. Hidden files are searched, child symlinks are not followed; binary files and lines over the host's bound are skipped and counted (skipped_lines). clipped: true marks a match cut to fit, shown without context. Continue with next_offset.",
         )
     }
 

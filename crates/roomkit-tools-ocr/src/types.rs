@@ -2,19 +2,18 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 
-/// One local image to transcribe. Host chooses the engine and models.
+/// An image to transcribe.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OcrInput {
-    /// Regular static PNG/JPEG/WebP beneath the workspace root.
+    /// PNG, JPEG or static WebP file in the workspace.
     pub path: String,
     /// Extra clockwise rotation after EXIF; 0, 90, 180 or 270. No auto orientation.
     #[serde(default)]
     pub rotation_degrees: u16,
-    /// Optional raw-byte SHA-256 revision to reject a changed image.
+    /// Raw-byte revision; refuses a changed image.
     pub expected_revision: Option<String>,
-    /// Positive timeout; a value above the host maximum is refused. Native
-    /// stages may finish after return.
+    /// Deadline in ms, at most the host maximum.
     pub timeout_ms: Option<NonZeroU64>,
 }
 

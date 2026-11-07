@@ -12,16 +12,16 @@ use tokio_util::sync::CancellationToken;
 
 const READ_CHUNK_BYTES: usize = 64 * 1024;
 
-/// A request to read a page of UTF-8 text.
+/// A page of a text file to read.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ReadInput {
-    /// A path relative to the tool's root, or an absolute path within it.
+    /// File in the workspace.
     pub path: String,
-    /// The first line to return, starting at one. Defaults to one.
+    /// First line to return.
     #[serde(default = "first_line")]
     pub offset: NonZeroUsize,
-    /// Requested line count, capped by the host's limit. Omit for that limit.
+    /// Line count, capped by the host.
     #[serde(default)]
     pub limit: Option<NonZeroUsize>,
 }
@@ -137,7 +137,7 @@ impl ReadTool {
     pub fn definition() -> Definition {
         Definition::new::<ReadInput, ReadPage>(
             "read",
-            "Read a page of UTF-8 text from a file inside the configured workspace. Lines are numbered from one. Large pages return next_offset. Returns a revision of the whole file; pass it as expected_revision to write/edit to refuse stale changes. The full file is scanned with bounded memory; binary files and files above the host's ingestion limit are refused.",
+            "Read a page of lines from a UTF-8 text file. Returns next_offset while lines remain, and the file's revision: pass it as expected_revision to write/edit. Binary and oversized files are refused.",
         )
     }
 

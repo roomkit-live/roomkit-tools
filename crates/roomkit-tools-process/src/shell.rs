@@ -9,18 +9,16 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{CapturedOutput, CommandEnv};
 
-/// A foreground command; shell syntax is interpreted by `/bin/sh`.
+/// A command to run in the foreground.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ShellInput {
-    /// Shell program text, passed as one argument to `sh -c`.
+    /// Shell command text.
     pub command: String,
-    /// Initial directory relative to the tool root, defaulting to that root.
-    /// Absolute paths within the root are also accepted. This is not confinement.
+    /// Starting directory in the workspace; defaults to its root.
     #[serde(default)]
     pub cwd: Option<String>,
-    /// Requested process runtime in milliseconds. A value above the host
-    /// maximum is refused.
+    /// Runtime limit in ms, at most the host maximum.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }
@@ -195,7 +193,7 @@ impl ShellTool {
     pub fn definition() -> Definition {
         Definition::new::<ShellInput, ShellResult>(
             "shell",
-            "Run a foreground command with /bin/sh -c. Returns separate stdout/stderr, exit status and timeout metadata. cwd starts within the configured workspace, but commands run with host permissions: this tool is not a sandbox. Output is bounded; no interactive stdin or persistent sessions.",
+            "Run a command with /bin/sh -c and wait for it. Check exit_code and timed_out; output is bounded. No stdin. Not a sandbox: host permissions apply.",
         )
     }
 

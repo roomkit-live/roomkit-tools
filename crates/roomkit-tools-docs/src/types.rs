@@ -19,17 +19,17 @@ fn first_result() -> NonZeroUsize {
     NonZeroUsize::MIN
 }
 
-/// Discover documents in the host-configured catalogue.
+/// A page of the document catalogue.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DocsListInput {
-    /// First result, starting at one, as `list`, `glob` and `grep`.
+    /// First result.
     #[serde(default = "first_result")]
     pub offset: NonZeroUsize,
-    /// Maximum results, 1..100; defaults to 20.
+    /// Results per page, 1..100.
     #[serde(default = "list_limit")]
     pub limit: usize,
-    /// Refuse a different catalogue version when continuing a page.
+    /// From the previous page; refuses a changed catalogue.
     #[serde(default)]
     pub expected_catalog_revision: Option<String>,
 }
@@ -43,19 +43,19 @@ impl Default for DocsListInput {
         }
     }
 }
-/// Literal case-insensitive search, with all whitespace-separated terms required.
+/// A documentation search.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DocsSearchInput {
-    /// Up to 16 terms and 1024 UTF-8 bytes; no regex or query operators.
+    /// Up to 16 terms and 1024 bytes; no regex or operators.
     pub query: String,
-    /// First result, starting at one, as `list`, `glob` and `grep`.
+    /// First result.
     #[serde(default = "first_result")]
     pub offset: NonZeroUsize,
-    /// Maximum document hits, 1..50; defaults to 10.
+    /// Documents per page, 1..50.
     #[serde(default = "search_limit")]
     pub limit: usize,
-    /// Refuse a different catalogue revision when continuing a search.
+    /// From the previous page; refuses a changed catalogue.
     #[serde(default)]
     pub expected_catalog_revision: Option<String>,
 }
@@ -71,19 +71,19 @@ impl DocsSearchInput {
         }
     }
 }
-/// Read an identified document, optionally checking its content revision.
+/// A page of a document.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DocsReadInput {
-    /// Copy an ID returned by discovery or search, not an arbitrary path or URL.
+    /// ID from `docs_list` or `docs_search`; not a path or URL.
     pub document_id: String,
-    /// First line, one-based; defaults to 1.
+    /// First line.
     #[serde(default = "first_line")]
     pub offset: NonZeroUsize,
-    /// Maximum lines, 1..500; defaults to 100. A byte budget may shorten the page.
+    /// Lines, 1..500; a byte budget may shorten the page.
     #[serde(default = "read_limit")]
     pub limit: usize,
-    /// Document revision returned by discovery/search/read.
+    /// Revision from list, search or read; refuses a changed document.
     #[serde(default)]
     pub expected_revision: Option<String>,
 }

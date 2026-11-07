@@ -8,17 +8,17 @@ use tokio_util::sync::CancellationToken;
 
 use crate::paths::{self, PathPage, Root, first_entry, workspace_path};
 
-/// A non-recursive directory listing, including hidden entries.
+/// A page of a directory listing.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ListInput {
-    /// Directory under the tool's root. Defaults to the root (`.`).
+    /// Directory in the workspace.
     #[serde(default = "workspace_path")]
     pub path: String,
-    /// First entry, starting at one, in lexicographic path order.
+    /// First entry, in path order.
     #[serde(default = "first_entry")]
     pub offset: NonZeroUsize,
-    /// Requested entries, capped by the host. Omit for the host's limit.
+    /// Entry count, capped by the host.
     #[serde(default)]
     pub limit: Option<NonZeroUsize>,
 }
@@ -97,7 +97,7 @@ impl ListTool {
     pub fn definition() -> Definition {
         Definition::new::<ListInput, PathPage>(
             "list",
-            "List a directory inside the workspace, without recursion. Includes hidden entries and entry types. Paths are relative to the workspace and can be passed to read. Sorted pages start at offset 1; continue with next_offset.",
+            "List one directory, not recursively, hidden entries included. Paths are workspace-relative. Continue with next_offset.",
         )
     }
 

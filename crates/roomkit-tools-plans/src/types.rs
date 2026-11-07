@@ -10,73 +10,72 @@ pub struct PlanScope {
     pub caller_id: String,
 }
 
-/// Declared progress, not evidence that work or validation actually ran.
+/// Declared progress, not proof that work ran.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StepStatus {
-    /// Work has not started.
+    /// Not started.
     Pending,
-    /// Work is underway. Parallel active steps are allowed.
+    /// Underway; several steps may be.
     InProgress,
-    /// Work is blocked.
+    /// Blocked.
     Blocked,
-    /// The agent declares this step complete.
+    /// Declared done.
     Completed,
-    /// The step has been abandoned.
+    /// Abandoned.
     Cancelled,
 }
 
-/// A stable, caller-named step. Reuse its ID when editing or reordering it.
+/// A step; keep its `step_id` across updates.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlanStep {
-    /// Unique within this plan; 1..64 ASCII letters, digits, underscores or hyphens.
+    /// Unique in the plan: 1..64 ASCII letters, digits, `_` or `-`.
     pub step_id: String,
-    /// What this step should accomplish, at most 2048 UTF-8 bytes.
+    /// What the step does, at most 2048 bytes.
     pub description: String,
-    /// Declared progress; changing it never starts or stops work.
+    /// Declared progress.
     pub status: StepStatus,
 }
 
-/// Create a new plan in the trusted scope. Recover a lost receipt with `plan_list`.
+/// A plan to create.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlanCreateInput {
-    /// Non-empty title, at most 256 UTF-8 bytes.
+    /// Nonempty, at most 256 bytes.
     pub title: String,
-    /// Desired outcome, at most 16 KiB UTF-8.
+    /// Desired outcome, at most 16 KiB.
     pub objective: String,
-    /// Complete ordered list of up to 64 steps, each with a unique stable ID.
+    /// Ordered steps, at most 64.
     pub steps: Vec<PlanStep>,
 }
 
-/// Read a plan owned by this conversation and agent.
+/// A plan to read.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlanReadInput {
-    /// Copy the identifier returned by create or list.
+    /// From `plan_create` or `plan_list`.
     pub plan_id: String,
 }
 
-/// List all retained summaries in this scope (at most 64); no hidden eviction.
+/// No arguments.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlanListInput {}
 
-/// Modify an existing plan atomically using its current revision.
+/// Changes to a plan, applied atomically.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlanUpdateInput {
-    /// Copy the identifier returned by create or list.
+    /// From `plan_create` or `plan_list`.
     pub plan_id: String,
-    /// Current revision from read/create/update/list; stale values are refused.
+    /// Current revision; a stale one is refused.
     pub expected_revision: u64,
-    /// Replace the title; omit/null to preserve it.
+    /// New title.
     pub title: Option<String>,
-    /// Replace the objective; omit/null to preserve it.
+    /// New objective.
     pub objective: Option<String>,
-    /// Replace the ENTIRE ordered step list; omit/null to preserve it. Include
-    /// unchanged steps too, reuse their `step_id`, and omit steps to remove them.
+    /// The ENTIRE new ordered step list.
     pub steps: Option<Vec<PlanStep>>,
 }
 
@@ -95,13 +94,13 @@ impl PlanUpdateInput {
     }
 }
 
-/// Delete one plan. Does not cancel any process or delegated agent task.
+/// A plan to delete.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlanDeleteInput {
     /// Owned plan to delete.
     pub plan_id: String,
-    /// Current revision; stale deletes are refused without removing anything.
+    /// Current revision; a stale one is refused.
     pub expected_revision: u64,
 }
 

@@ -8,57 +8,54 @@ use tokio_util::sync::CancellationToken;
 use crate::patch_prepare::{Job, prepare};
 use crate::{DiffLimits, DiffResult, Workspace, mutation};
 
-/// A version-1 structured patch operation. Text expectations match whole files exactly.
+/// One whole-file change.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PatchChange {
-    /// Create an absent file. Its parent must already exist.
+    /// Create a new file.
     Add {
-        /// New workspace file.
+        /// New file.
         path: String,
-        /// Complete new UTF-8 text.
+        /// Complete text.
         content: String,
     },
-    /// Replace an existing file only if its complete text matches.
+    /// Replace a file's text.
     Update {
-        /// Existing workspace file.
+        /// Existing file.
         path: String,
-        /// Exact expected contents, including line endings and BOM (LF stands
-        /// for CRLF when the file uses CRLF throughout).
+        /// Exact current text.
         old_content: String,
-        /// Complete replacement contents.
+        /// Complete new text.
         new_content: String,
     },
-    /// Delete an existing file only if its complete text matches.
+    /// Delete a file.
     Delete {
-        /// Existing workspace file.
+        /// Existing file.
         path: String,
-        /// Exact expected contents, including line endings and BOM (LF stands
-        /// for CRLF when the file uses CRLF throughout).
+        /// Exact current text.
         old_content: String,
     },
-    /// Create an absent destination, then remove the matching source.
+    /// Move a file, optionally replacing its text.
     Move {
-        /// Existing workspace source.
+        /// Existing file.
         from: String,
-        /// Absent workspace destination. Its parent must exist.
+        /// New path; must not exist.
         to: String,
-        /// Exact expected source contents (LF stands for CRLF when the source
-        /// uses CRLF throughout, as for `new_content`).
+        /// Exact current text of `from`.
         old_content: String,
-        /// Optional replacement contents; omitted or null keeps the source bytes.
+        /// New text; omit to keep the current text.
         #[serde(default)]
         new_content: Option<String>,
     },
 }
 
-/// Prepare or apply a bounded batch of exact file changes.
+/// A batch of file changes.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PatchInput {
-    /// Independent changes; no source or destination may appear more than once.
+    /// Changes; each path appears at most once.
     pub changes: Vec<PatchChange>,
-    /// Preview only by default. Explicit false applies the same validated input.
+    /// Preview only; false applies the changes.
     #[serde(default = "preview")]
     pub dry_run: bool,
 }
@@ -240,7 +237,7 @@ impl PatchTool {
     pub fn definition() -> Definition {
         Definition::new::<PatchInput, PatchResult>(
             "patch",
-            "Preview or apply a JSON batch of add/update/delete/move changes. dry_run defaults to true; use false to apply. Update/delete/move require exact complete old_content; in a file whose line endings are all CRLF, LF text stands for CRLF in old_content and new_content. Paths must be distinct, parents must exist, and add/move destinations must be absent. All changes are prepared before writing. No multi-file rollback: inspect completed, applied and failure before reporting success. This tool takes structured changes, not Git or Codex patch text.",
+            "Preview or apply whole-file changes given as JSON, not patch text. Previews unless dry_run: false. old_content must be the exact complete current text, BOM included; LF stands for CRLF in an all-CRLF file. Parents must exist; add/move destinations must not. No rollback across files: check completed, applied and failure.",
         )
     }
 

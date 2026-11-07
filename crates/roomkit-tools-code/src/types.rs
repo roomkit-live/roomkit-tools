@@ -3,36 +3,35 @@ use std::num::{NonZeroU64, NonZeroUsize};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Source languages supported by this tool, without executing either language.
+/// A supported source language.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CodeLanguage {
-    /// Rust source, normally `.rs`.
+    /// Rust (`.rs`).
     Rust,
-    /// Python source or stubs, normally `.py` or `.pyi`.
+    /// Python (`.py`, `.pyi`).
     Python,
 }
 
-/// A page of syntax definitions from one file in the configured workspace.
+/// A page of a source file's outline.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CodeOutlineInput {
-    /// Relative path, or absolute path within the configured root.
+    /// File in the workspace.
     pub path: String,
-    /// Override extension inference; useful for extensionless source files.
+    /// Overrides the language inferred from the extension.
     #[serde(default)]
     pub language: Option<CodeLanguage>,
-    /// One-based symbol offset in source order, not a line number.
+    /// First symbol in source order (not a line).
     #[serde(default = "first_symbol")]
     pub offset: NonZeroUsize,
-    /// Maximum symbols in this page, capped by the host's bound.
+    /// Symbol count, capped by the host.
     #[serde(default)]
     pub limit: Option<NonZeroUsize>,
-    /// Raw-file revision returned by read/outline; reject a changed file.
+    /// Revision from read or `code_outline`; refuses a changed file.
     #[serde(default)]
     pub expected_revision: Option<String>,
-    /// Total call deadline in milliseconds, positive, including queuing, I/O
-    /// and parsing.
+    /// Total deadline in ms, at most the host maximum.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }

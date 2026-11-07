@@ -7,19 +7,18 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{Workspace, mutation, revision};
 
-/// Create a UTF-8 text file or explicitly replace an existing one.
+/// A text file to create or replace.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WriteInput {
-    /// File beneath the configured root. Missing parent directories are created.
+    /// File in the workspace.
     pub path: String,
-    /// Complete file contents; written exactly, including BOM and line endings.
+    /// Written exactly, BOM and line endings included.
     pub content: String,
-    /// Allow replacing an existing text file. Defaults to false.
+    /// Allow replacing an existing file.
     #[serde(default)]
     pub overwrite: bool,
-    /// Optional revision returned by read/write/edit. Requires an existing matching file.
-    /// Does not replace the explicit overwrite requirement.
+    /// Revision from read/write/edit; the file must exist and match. Still needs `overwrite`.
     #[serde(default)]
     pub expected_revision: Option<String>,
 }
@@ -106,7 +105,7 @@ impl WriteTool {
     pub fn definition() -> Definition {
         Definition::new::<WriteInput, WriteResult>(
             "write",
-            "Create a UTF-8 text file with complete content. Missing parent directories are created automatically inside the workspace. Replacing an existing file requires overwrite: true; read it first and pass its revision as expected_revision to refuse stale overwrites. Paths must stay inside the workspace; leaf symlinks are refused. Returns path, created/changed flags, created_directories, byte count and revision. Use edit for targeted changes.",
+            "Create a UTF-8 text file with complete content; missing parent directories are created. Replacing an existing file needs overwrite: true; pass its revision from read as expected_revision to refuse a stale overwrite. Use edit for targeted changes.",
         )
     }
 

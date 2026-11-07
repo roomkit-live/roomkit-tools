@@ -421,7 +421,7 @@ tool!(
     TaskInfo,
     delegate,
     "delegate_task",
-    "Start a fresh background agent from an allowed profile. Provide the complete task. The task ID confirms execution; results return to the principal. Never claim a start without calling this tool."
+    "Start a background agent from an allowed profile with a complete task; it has no other context. Only a returned task ID proves the start. Results come back later."
 );
 tool!(
     TaskStatusTool,
@@ -429,7 +429,7 @@ tool!(
     TaskList,
     status,
     "task_status",
-    "Read observed task states and retained results. Omit `task_id` to list this backend's tasks. Worker completion and result delivery are separate states."
+    "Show task states and retained results; omit `task_id` to list all. Worker completion and result delivery are separate states."
 );
 tool!(
     CancelTaskTool,
@@ -437,7 +437,7 @@ tool!(
     CancelResult,
     cancel,
     "cancel_task",
-    "Cancel an owned background task. Already ended tasks are unchanged. Inspect cancelled and the returned state; do not infer success."
+    "Cancel a background task; an ended task is unchanged. Check cancelled and the returned state."
 );
 tool!(
     AgentFollowupTool,
@@ -445,7 +445,7 @@ tool!(
     TaskInfo,
     followup,
     "agent_followup",
-    "Start a new background mission in a retained idle agent's conversation. Copy `agent_id` exactly from delegation or `task_status`; never reconstruct or shorten it. An unknown identifier is not evidence of expiry: inspect `task_status` and correct the identifier before retrying. Returns a NEW `task_id` for the SAME `agent_id`. Busy or expired agents are refused. Results return to the principal."
+    "Start a new mission in a retained idle agent's conversation; returns a NEW `task_id` for the SAME `agent_id`. Copy `agent_id` exactly. An unknown ID is not proof of expiry: check `task_status` and correct it before retrying. Busy or expired agents are refused."
 );
 tool!(
     AgentSendTool,
@@ -453,7 +453,7 @@ tool!(
     SendResult,
     send,
     "agent_send",
-    "Send a clarification to an existing agent's running mission. Copy `agent_id` exactly from delegation or `task_status`; never reconstruct or shorten it. queued means accepted for a future tool-round boundary, not already read by the model. `not_running` starts nothing; use `agent_followup` for an idle agent. Check `history_recorded` before assuming future missions retain the message."
+    "Send a clarification to an agent's running mission. Copy `agent_id` exactly. queued means accepted for a later tool round, not yet read. `not_running` starts nothing: use `agent_followup` for an idle agent. Check `history_recorded` before assuming later missions keep the message."
 );
 
 // The README's example is compiled and run as a doctest.

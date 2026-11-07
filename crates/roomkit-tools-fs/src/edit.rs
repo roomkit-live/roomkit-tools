@@ -8,22 +8,21 @@ use tokio_util::sync::CancellationToken;
 use crate::paths::Root;
 use crate::{Workspace, line_endings, mutation, revision};
 
-/// Replace an exact, nonempty piece of a UTF-8 text file.
+/// An exact replacement in a text file.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EditInput {
-    /// Existing regular file beneath the configured root.
+    /// Existing file in the workspace.
     pub path: String,
-    /// Exact text to match, including whitespace and line endings. Must not be empty.
-    /// In a file whose line endings are all CRLF, LF endings here and in
-    /// `new_text` stand for CRLF, as `read` shows such lines without `\r`.
+    /// Exact nonempty text, whitespace included. In an all-CRLF file, LF here and in
+    /// `new_text` stands for CRLF.
     pub old_text: String,
-    /// Replacement text; an empty string removes the matched text, not the file.
+    /// Replacement; empty removes the match.
     pub new_text: String,
-    /// Replace every non-overlapping occurrence. Defaults to false (exactly one).
+    /// Replace every non-overlapping occurrence.
     #[serde(default)]
     pub replace_all: bool,
-    /// Optional content revision returned by read/write/edit. Refuses a changed file.
+    /// Revision from read/write/edit; refuses a changed file.
     #[serde(default)]
     pub expected_revision: Option<String>,
 }
@@ -115,7 +114,7 @@ impl EditTool {
     pub fn definition() -> Definition {
         Definition::new::<EditInput, EditResult>(
             "edit",
-            "Replace exact old_text with new_text in an existing UTF-8 file. Read the file first and pass its revision as expected_revision to refuse stale edits. Whitespace and line endings must match exactly, except that LF text matches and writes CRLF in a file whose line endings are all CRLF. Refuses zero or multiple occurrences unless replace_all: true; old_text must not be empty. Empty new_text removes the matched text, not the file. Preserves unmatched bytes and reports replacements, sizes and the new revision. Leaf symlinks are refused.",
+            "Replace exact old_text with new_text in an existing UTF-8 file. old_text must occur exactly once unless replace_all: true. Pass the revision from read as expected_revision to refuse a stale edit.",
         )
     }
 

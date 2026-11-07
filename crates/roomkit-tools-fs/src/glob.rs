@@ -10,19 +10,19 @@ use tokio_util::sync::CancellationToken;
 use crate::paths::{self, PathPage, Root, Scan, first_entry, workspace_path};
 use crate::worker;
 
-/// Search paths relative to a directory using a glob pattern.
+/// A glob search under a directory.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GlobInput {
-    /// Pattern relative to `path`; `*` stays in a component, `**` crosses directories.
+    /// Glob relative to `path`; `**` crosses directories, `*` does not.
     pub pattern: String,
-    /// Search directory beneath the workspace root. Defaults to `.`.
+    /// Directory to search.
     #[serde(default = "workspace_path")]
     pub path: String,
-    /// One-based match offset, in lexicographic workspace-relative path order.
+    /// First match, in path order.
     #[serde(default = "first_entry")]
     pub offset: NonZeroUsize,
-    /// Requested matches, capped by the host.
+    /// Match count, capped by the host.
     #[serde(default)]
     pub limit: Option<NonZeroUsize>,
 }
@@ -111,7 +111,7 @@ impl GlobTool {
     pub fn definition() -> Definition {
         Definition::new::<GlobInput, PathPage>(
             "glob",
-            "Find file, directory and symlink paths using a glob relative to the search directory. Use **/*.txt for recursive text-file discovery. Hidden entries are included, ignore files are not applied, and child symlinks are not followed. Sorted pages start at offset 1; continue with next_offset.",
+            "Find paths matching a glob, e.g. **/*.rs. Files, directories and symlinks match; hidden entries are included, ignore files are not applied, child symlinks are not followed. Continue with next_offset.",
         )
     }
 

@@ -91,7 +91,7 @@ impl ViewImageTool {
     pub fn definition() -> Definition {
         Definition::new::<ViewImageInput, ViewImageResult>(
             "view_image",
-            "View one local static PNG, JPEG or WebP file. Returns actual image pixels for vision input with source dimensions, revision and preview transformation metadata. Use for screenshots, diagrams and photos; read is for text. The source is not modified. Large images may be downscaled by host policy; inspect resized and dimensions. Requires a vision-capable model and multimodal output transport. No OCR, remote URLs, PDF, SVG or animations.",
+            "View a local PNG, JPEG or static WebP image (screenshots, diagrams, photos); use read for text. Large images may be downscaled: check resized and dimensions. Needs a vision-capable model. No OCR, remote URLs, PDF, SVG or animation.",
         )
     }
 

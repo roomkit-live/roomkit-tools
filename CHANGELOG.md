@@ -31,6 +31,8 @@ part of an existing published preview.
 - A RoomKit Rust adapter's I/O failure reads as Python's: the model reads
   `Tool 'x' failed (ToolIOError)` and observers its public words, without the OS
   detail.
+- Tool and parameter descriptions are about 45% shorter and keep every rule a
+  call needs. Names, types, defaults and behaviour are unchanged.
 
 ## 0.1.0a16
 

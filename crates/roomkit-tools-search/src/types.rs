@@ -2,16 +2,16 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 
-/// Model arguments; provider, credentials and endpoints belong to the host.
+/// A web search.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WebSearchInput {
     /// Nonempty search query.
     pub query: String,
-    /// Maximum retained documents or answer sources, default five. Cited sources must all fit.
+    /// Maximum documents or answer sources; an answer's cited sources must all fit.
     #[serde(default = "default_limit")]
     pub limit: usize,
-    /// Total positive deadline in milliseconds, including DNS, HTTP and decoding.
+    /// Total deadline in ms, at most the host maximum.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }

@@ -54,16 +54,16 @@ pub struct OutputArchive {
     pub error: Option<String>,
 }
 
-/// Read a retained output prefix without consuming or modifying it.
+/// A page of a stored output.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OutputReadInput {
-    /// Identifier returned by shell/process archive metadata, not a file path.
+    /// From shell or process output metadata; not a file path.
     pub archive_id: String,
-    /// Zero-based raw byte offset, default 0.
+    /// Byte offset.
     #[serde(default)]
     pub offset: u64,
-    /// Requested raw page size, capped by the host.
+    /// Page size in bytes, capped by the host.
     #[serde(default)]
     pub max_bytes: Option<NonZeroUsize>,
 }
@@ -97,7 +97,7 @@ pub struct OutputPage {
     pub text: String,
 }
 
-/// Release a finished archive. Active capture is never implicitly stopped.
+/// A finished stored output to release.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OutputForgetInput {

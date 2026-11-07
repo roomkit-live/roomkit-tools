@@ -2,30 +2,29 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 
-/// Representation requested for a fetched textual resource.
+/// Format of the returned text.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FetchFormat {
-    /// Convert HTML to Markdown; preserve other text as received.
+    /// HTML converted to Markdown.
     #[default]
     Markdown,
-    /// Extract visible HTML text; preserve other text as received.
+    /// Visible text of HTML.
     Text,
-    /// Return source text, including HTML markup, without executing it.
+    /// Source text, markup included.
     Html,
 }
 
-/// Model-supplied request. Access policy and resource caps are host configuration.
+/// A URL to fetch.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WebFetchInput {
-    /// Absolute HTTP or HTTPS URL, without embedded credentials.
+    /// Absolute HTTP(S) URL, without credentials.
     pub url: String,
-    /// Output format, default markdown. JavaScript is never executed.
+    /// Output format.
     #[serde(default)]
     pub format: FetchFormat,
-    /// Total positive deadline in milliseconds, including DNS, redirects, body
-    /// and conversion.
+    /// Total deadline in ms, at most the host maximum.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }

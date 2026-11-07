@@ -85,7 +85,7 @@ impl CodeOutlineTool {
     pub fn definition() -> Definition {
         Definition::new::<CodeOutlineInput, CodeOutlinePage>(
             "code_outline",
-            "Outline one Rust or Python file without executing it. Returns definitions, signatures, parent indexes and inclusive one-based line ranges. Use read(offset=start_line, limit=end_line-start_line+1) for a selected definition, then edit with its read revision. Check syntax_errors and signature_truncated. offset/next_offset page by symbol, not line; carry expected_revision when continuing after an outline. No type resolution, imports followed or macro expansion.",
+            "Outline a Rust or Python file: definitions with signatures, parents and inclusive line ranges. Read one with read(offset=start_line, limit=end_line-start_line+1). Check syntax_errors and signature_truncated. offset counts symbols, not lines; continue with next_offset and expected_revision. Syntax only: no types, imports or macros.",
         )
     }
 
