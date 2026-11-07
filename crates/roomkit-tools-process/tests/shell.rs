@@ -588,8 +588,9 @@ async fn a_kept_job_writing_to_its_pipes_runs_on_past_the_call() {
         .parse()
         .unwrap();
     let alive = running(job).await;
+    // The job is a subshell, no group leader: stop it by its own pid.
     std::process::Command::new("kill")
-        .args(["-KILL", &format!("-{job}"), &job.to_string()])
+        .args(["-KILL", &job.to_string()])
         .status()
         .unwrap();
     assert!(alive);

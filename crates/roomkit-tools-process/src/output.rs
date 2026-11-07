@@ -372,8 +372,8 @@ impl OutputStore {
         cancel: &CancellationToken,
     ) -> Result<Output<OutputForgetResult>, ToolError> {
         let record = self.entry(owner, &input.archive_id, cancel)?;
-        let state = record.snapshot();
-        if !state.finished || !record.capture_done.load(Ordering::Acquire) {
+        // A call still running holds its archives, as for eviction.
+        if !record.finished() {
             return Err(ToolError::AccessRefused(
                 "output capture or writing is still active".into(),
             ));

@@ -464,6 +464,16 @@ async fn a_call_still_running_keeps_archives_whose_streams_ended() {
         })
         .await
         .unwrap();
+        // Nor can its owner forget them before the call returns.
+        let listed = store.list(None, &cancel).await.unwrap();
+        let id = listed[0].archive_id.clone().unwrap();
+        let forget = store
+            .forget(None, OutputForgetInput { archive_id: id }, &cancel)
+            .await;
+        assert!(
+            matches!(forget, Err(ToolError::AccessRefused(_))),
+            "{forget:?}"
+        );
         shell
             .shell(ShellInput::new("printf de"), &cancel)
             .await

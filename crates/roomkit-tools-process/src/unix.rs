@@ -257,14 +257,19 @@ pub(crate) fn hand_off(stdout: ChildStdout, stderr: ChildStderr) {
 }
 
 /// Read `pipe` until every writer closes it, from a shell in a session of its
-/// own that outlives the host, discarding what it reads. Best effort: a
-/// drainer that cannot start leaves the pipe to close.
+/// own that outlives the host, discarding what it reads: with `cat` from the
+/// host's `PATH`, or the shell's own `read` where there is none. Best effort:
+/// a drainer that cannot start leaves the pipe to close.
 fn drain_away(pipe: std::os::fd::OwnedFd) {
+    let path = std::env::var_os("PATH").unwrap_or_else(|| "/usr/bin:/bin".into());
     let mut command = Command::new("/bin/sh");
     command
-        .args(["-c", "exec cat > /dev/null"])
+        .args([
+            "-c",
+            "command -v cat > /dev/null 2>&1 && exec cat > /dev/null; while IFS= read -r _ || [ -n \"$_\" ]; do :; done",
+        ])
         .env_clear()
-        .env("PATH", "/usr/bin:/bin")
+        .env("PATH", path)
         .stdin(Stdio::from(pipe))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
