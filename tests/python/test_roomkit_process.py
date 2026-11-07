@@ -369,9 +369,13 @@ class RoomKitTwoRoomsTests(unittest.IsolatedAsyncioTestCase):
     """One agent attached to two rooms, driven through RoomKit's own tool loop."""
 
     async def test_one_agent_in_two_rooms_keeps_jobs_and_archives_apart(self) -> None:
-        # p1 captures into o1/o2; the shell call in room-a writes o3/o4.
+        # p1 captures into o1/o2; the shell call in room-a, cut short, keeps
+        # its stdout in o3 (its empty stderr, kept whole, keeps nothing).
         turns = [
-            ("room-a", [("process_start", {"command": "cat"}), ("shell", {"command": "printf a"})]),
+            (
+                "room-a",
+                [("process_start", {"command": "cat"}), ("shell", {"command": "printf ab"})],
+            ),
             (
                 "room-b",
                 [
@@ -399,7 +403,7 @@ class RoomKitTwoRoomsTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(is_error for is_error, _ in room_a.values()), room_a)
         listed = json.loads(room_a["process_status"][1])["data"]["processes"]
         self.assertEqual([(s["process_id"], s["state"]) for s in listed], [("p1", "running")])
-        self.assertEqual(json.loads(room_a["output_read"][1])["data"]["text"], "a")
+        self.assertEqual(json.loads(room_a["output_read"][1])["data"]["text"], "ab")
 
     async def _run(self, root: Path, turns) -> list[ToolCallEvent]:
         responses = []
@@ -419,7 +423,8 @@ class RoomKitTwoRoomsTests(unittest.IsolatedAsyncioTestCase):
             RoomKit() as kit,
         ):
             tools = [adapter(session) for adapter in ADAPTERS]
-            tools += [Shell(await ShellTool.create(root, outputs=outputs)), OutputRead(outputs)]
+            shell = await ShellTool.create(root, outputs=outputs, max_output_bytes=1)
+            tools += [Shell(shell), OutputRead(outputs)]
             provider = MockAIProvider(ai_responses=responses, streaming=False)
             kit.register_channel(AIChannel("agent", provider=provider, tools=tools))
             kit.register_channel(WebSocketChannel("user"))
