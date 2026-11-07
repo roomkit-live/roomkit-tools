@@ -307,4 +307,22 @@ impl PythonProcessSession {
             }
         })
     }
+
+    fn detach<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        // As close: refuse in a forked child, then mark closed and start the
+        // worker synchronously, so an abandoned future still lets jobs go.
+        fork::ensure_unforked()?;
+        self.state.closed.cancel();
+        let worker = self.state.manager.get().cloned().map(|manager| {
+            pyo3_async_runtimes::tokio::get_runtime().spawn(async move { manager.detach().await })
+        });
+        crate::runtime::future_into_py(py, async move {
+            match worker {
+                Some(worker) => worker
+                    .await
+                    .map_err(|_| ToolError::new_err("Unable to join process session cleanup")),
+                None => Ok(true),
+            }
+        })
+    }
 }

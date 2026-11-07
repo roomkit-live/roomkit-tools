@@ -308,6 +308,7 @@
     "close_owner": ["async def", "owner"],
     "closed": ["property"],
     "definition": ["staticmethod", "name"],
+    "detach": ["async def"],
     "read": ["async def", "process_id", "*", "stdout_offset=0", "stderr_offset=0", "max_bytes=None", "owner=None"],
     "start": ["async def", "command", "*", "cwd=None", "timeout_ms=None", "owner=None"],
     "status": ["async def", "process_id=None", "*", "owner=None"],
@@ -356,7 +357,7 @@
     "__init__": ["def", "native", "outputs=None"],
     "__native__": ["native", "native"],
     "call": ["async def", "arguments"],
-    "create": ["async classmethod", "root", "*", "outputs=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_command_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "create": ["async classmethod", "root", "*", "outputs=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_command_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None", "keep_background_jobs=None"],
     "definition": ["staticmethod"],
     "shell": ["async def", "command", "*", "cwd=None", "timeout_ms=None"]
   },

@@ -126,6 +126,18 @@ class ProcessSession:
         """
         return await self._native.close()
 
+    async def detach(self) -> bool:
+        """Permanently close the session but leave its running processes running.
+
+        For a host that exits while a process must outlive it, such as a server
+        started for a later check. Their records and retained output are
+        released and their pipes closed, so what they write afterwards is lost;
+        a program that dies on a closed pipe should redirect its output.
+        Finished jobs are released as by close. True means every job was let go
+        within two seconds; False means workers continue, as for close.
+        """
+        return await self._native.detach()
+
     async def close_owner(self, owner: str | None) -> bool:
         """Stop one owner's jobs and release their records; the session stays open.
 

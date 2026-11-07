@@ -512,6 +512,58 @@ async fn no_owner_is_the_standalone_owner_with_its_own_quota() {
     assert!(session.close().await);
 }
 
+/// Whether `id` runs, neither gone nor a zombie.
+#[cfg(target_os = "linux")]
+async fn running(id: u32) -> bool {
+    tokio::fs::read_to_string(format!("/proc/{id}/stat"))
+        .await
+        .is_ok_and(|stat| {
+            !stat
+                .rsplit_once(") ")
+                .is_some_and(|(_, rest)| rest.starts_with(['Z', 'X']))
+        })
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_detached_session_leaves_its_running_processes_running() {
+    let root = tempfile::tempdir().unwrap();
+    let session = ProcessSession::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let finished_id = session
+        .start(Some("a"), ProcessStartInput::new("true"), &token)
+        .await
+        .unwrap()
+        .data
+        .process_id;
+    session
+        .start(
+            Some("a"),
+            ProcessStartInput::new("echo $$ > pid; exec sleep 60"),
+            &token,
+        )
+        .await
+        .unwrap();
+    let pid: u32 = file(&root.path().join("pid")).await.trim().parse().unwrap();
+    finished(&session, "a", &finished_id).await;
+    // Detaching waits for each job to let go: a stop it replaced would have
+    // killed and reaped the process before it returned.
+    assert!(session.detach().await);
+    assert!(session.closed());
+    let listed = session
+        .status(Some("a"), ProcessStatusInput { process_id: None }, &token)
+        .await;
+    drop(session);
+    let kept = running(pid).await;
+    // The process is the test's to stop, whatever the assertions say.
+    std::process::Command::new("kill")
+        .args(["-KILL", &pid.to_string()])
+        .status()
+        .unwrap();
+    assert!(kept, "the running process outlives its detached session");
+    assert!(listed.is_err(), "a detached session is closed: {listed:?}");
+}
+
 #[tokio::test]
 async fn closed_reports_a_requested_shutdown_to_every_clone() {
     let root = tempfile::tempdir().unwrap();

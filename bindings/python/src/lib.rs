@@ -181,6 +181,7 @@ struct ShellOptions {
     max_output_bytes: Option<usize>,
     default_timeout_ms: Option<u64>,
     max_timeout_ms: Option<u64>,
+    keep_background_jobs: Option<bool>,
     inherit_env: Option<Vec<String>>,
     env: Option<std::collections::BTreeMap<String, String>>,
 }
@@ -199,6 +200,9 @@ impl ShellOptions {
         }
         if let Some(value) = self.max_timeout_ms {
             limits.max_timeout_ms = value;
+        }
+        if let Some(value) = self.keep_background_jobs {
+            limits.keep_background_jobs = value;
         }
         limits
     }

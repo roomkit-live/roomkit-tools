@@ -50,6 +50,8 @@ pub(crate) struct Entry {
     pub(crate) record: Arc<Mutex<Record>>,
     pub(crate) stdin: Mutex<Option<ChildStdin>>,
     pub(crate) stop: CancellationToken,
+    /// Cancelled when the session is detached: the job is let go, still running.
+    pub(crate) detach: CancellationToken,
     pub(crate) done: watch::Receiver<bool>,
 }
 

@@ -6,6 +6,12 @@ part of an existing published preview.
 
 ## Unreleased
 
+- `ProcessSession.detach()` closes a session but leaves its running processes
+  running, for a host that exits while one must outlive it, such as a server
+  started for a later check: their records are released and their pipes
+  closed. `ShellTool.create(keep_background_jobs=True)` (Rust:
+  `ShellLimits::keep_background_jobs`) leaves the background jobs of a command
+  that exits on its own running; a timeout or a cancellation still stops them.
 - The RoomKit Rust adapter follows roomkit-rs ee5d724, which changes no existing
   adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
   requests also declare the kit's `read_stored_result`, which pages through an

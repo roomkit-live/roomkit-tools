@@ -27,6 +27,8 @@ struct Inner {
     env: CommandEnv,
     registry: Mutex<Registry>,
     closed: CancellationToken,
+    /// Cancelled by [`ProcessSession::detach`], before `closed`.
+    detached: CancellationToken,
     outputs: Option<crate::OutputStore>,
     changes: watch::Sender<()>,
 }
@@ -100,6 +102,7 @@ impl ProcessSession {
                 env: CommandEnv::default(),
                 registry: Mutex::new(Registry::default()),
                 closed: CancellationToken::new(),
+                detached: CancellationToken::new(),
                 outputs: None,
                 changes: watch::channel(()).0,
             }),
@@ -310,6 +313,7 @@ impl ProcessSession {
                 status.clone(),
                 limits,
                 self.inner.closed.child_token(),
+                self.inner.detached.clone(),
                 self.inner.outputs.as_ref(),
             )?;
             registry.next_id = next;
@@ -491,6 +495,19 @@ impl ProcessSession {
             .map(|(id, entry)| (id.clone(), Arc::clone(entry)))
             .collect();
         self.finish_close(entries).await
+    }
+
+    /// Permanently close the session but leave its running processes
+    /// running, as when the host exits and they must outlive it: a server
+    /// started for a later check, for one. Their records and retained output
+    /// are released and their pipes closed, so what they write afterwards is
+    /// lost, and a program that dies on a closed pipe should redirect its
+    /// output. Nothing reaps them but the runtime, whenever they exit.
+    /// Finished jobs are released as by [`Self::close`]. Returns whether every
+    /// job was let go within the collective two-second wait.
+    pub async fn detach(&self) -> bool {
+        self.inner.detached.cancel();
+        self.close().await
     }
 
     async fn finish_close(&self, entries: Vec<(String, Arc<Entry>)>) -> bool {

@@ -48,6 +48,10 @@ pub struct ShellLimits {
     pub default_timeout_ms: u64,
     /// Maximum requested process runtime. Default: 120 seconds.
     pub max_timeout_ms: u64,
+    /// Leave a command's background jobs running once its shell exits on its
+    /// own, instead of stopping its whole process group. A timeout or a
+    /// cancellation still stops every member. Default: false.
+    pub keep_background_jobs: bool,
 }
 
 impl Default for ShellLimits {
@@ -57,6 +61,7 @@ impl Default for ShellLimits {
             max_output_bytes: 32 * 1024,
             default_timeout_ms: 10_000,
             max_timeout_ms: 120_000,
+            keep_background_jobs: false,
         }
     }
 }

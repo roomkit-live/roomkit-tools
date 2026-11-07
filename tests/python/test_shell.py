@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from process_helpers import COMMAND_WITH_CHILD, assert_stopped, read_pids
+from process_helpers import COMMAND_WITH_CHILD, assert_stopped, kill, read_pids, running
 from roomkit_tools import (
     DEFAULT_INHERITED_ENV,
     AccessRefusedError,
@@ -228,6 +228,22 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
         normal = await self.tool.shell("sleep 60 & printf '%s %s' $$ $! > pids; exit 0")
         self.assertEqual(normal["data"]["exit_code"], 0)
         await assert_stopped(await read_pids(self.root / "pids"))
+
+    @unittest.skipUnless(sys.platform == "linux", "observe Linux process cleanup")
+    async def test_kept_background_jobs_outlive_a_normal_exit_only(self) -> None:
+        tool = await ShellTool.create(self.root, keep_background_jobs=True)
+        timed = await tool.shell("printf started; " + COMMAND_WITH_CHILD, timeout_ms=500)
+        ids = await read_pids(self.root / "pids")
+        self.assertTrue(timed["data"]["timed_out"])
+        await assert_stopped(ids)
+        (self.root / "pids").unlink()
+        normal = await tool.shell("sleep 60 > /dev/null 2>&1 & printf '%s %s' $$ $! > pids; exit 0")
+        self.assertEqual(normal["data"]["exit_code"], 0)
+        _, job = await read_pids(self.root / "pids")
+        try:
+            self.assertTrue(running(job))
+        finally:
+            kill([job])
 
     async def test_waiting_does_not_block_the_python_event_loop(self) -> None:
         task = asyncio.create_task(self.tool.shell("sleep 0.2; printf done"))

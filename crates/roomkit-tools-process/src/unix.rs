@@ -109,6 +109,12 @@ impl Group {
         }
     }
 
+    /// Leave every member running: the group is no longer stopped, by
+    /// [`Self::stop`] or on drop.
+    pub(crate) fn release(&mut self) {
+        self.pid = None;
+    }
+
     /// Send SIGKILL to every member at once; there is no graceful phase.
     pub(crate) fn stop(&mut self) -> std::io::Result<()> {
         if let Some(pid) = self.pid {
@@ -200,7 +206,14 @@ async fn supervise(
             std::future::pending::<std::io::Result<Option<ExitStatus>>>().await
         } => error,
     };
-    let status = stop_and_reap(&mut group, &mut child).await?;
+    let status = match &result {
+        // The shell ended on its own: what it left in the background runs on.
+        Ok(Some(status)) if foreground.limits.keep_background_jobs => {
+            group.release();
+            Some(*status)
+        }
+        _ => stop_and_reap(&mut group, &mut child).await?,
+    };
     result.map_err(|source| io("capture shell output", source))?;
     let output_complete = drain_rest(&mut out, &mut err, &mut stdout, &mut stderr).await?;
     tokio::join!(out.finish_archive(), err.finish_archive());

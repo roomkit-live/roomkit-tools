@@ -373,6 +373,73 @@ async fn successful_shell_exit_also_terminates_its_background_jobs() {
     stopped(&pids(&root.path().join("pids")).await).await;
 }
 
+/// A shell that keeps the background jobs of a command that exits on its own.
+#[expect(clippy::unwrap_used, reason = "fixture failures must fail the test")]
+async fn keeping(root: &Path) -> ShellTool {
+    ShellTool::new(root)
+        .await
+        .unwrap()
+        .with_limits(ShellLimits {
+            keep_background_jobs: true,
+            ..ShellLimits::default()
+        })
+        .unwrap()
+}
+
+/// Whether `id` runs, neither gone nor a zombie.
+#[cfg(target_os = "linux")]
+async fn running(id: u32) -> bool {
+    tokio::fs::read_to_string(format!("/proc/{id}/stat"))
+        .await
+        .is_ok_and(|stat| {
+            !stat
+                .rsplit_once(") ")
+                .is_some_and(|(_, rest)| rest.starts_with(['Z', 'X']))
+        })
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_kept_background_job_outlives_the_command_that_started_it() {
+    let root = tempfile::tempdir().unwrap();
+    let result = keeping(root.path())
+        .await
+        .shell(
+            ShellInput::new("sleep 60 > /dev/null 2>&1 & printf '%s %s' $$ $! > pids; exit 0"),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(result.exit_code, Some(0));
+    let ids = pids(&root.path().join("pids")).await;
+    let (shell, job) = (ids[0], ids[1]);
+    assert!(reaped(shell).await, "the shell itself is reaped");
+    let kept = running(job).await;
+    // The job is the test's to stop, whatever the assertion says.
+    std::process::Command::new("kill")
+        .args(["-KILL", &job.to_string()])
+        .status()
+        .unwrap();
+    assert!(kept, "the background job runs on after the call");
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_timeout_still_stops_the_jobs_a_kept_shell_started() {
+    let root = tempfile::tempdir().unwrap();
+    let mut input = ShellInput::new("sleep 60 & printf '%s %s' $$ $! > pids; sleep 60");
+    input.timeout_ms = std::num::NonZeroU64::new(300);
+    let result = keeping(root.path())
+        .await
+        .shell(input, &CancellationToken::new())
+        .await
+        .unwrap()
+        .data;
+    assert!(result.timed_out);
+    stopped(&pids(&root.path().join("pids")).await).await;
+}
+
 #[tokio::test]
 async fn host_variables_outside_the_default_list_are_not_passed() {
     // Cargo sets this in the test process; it stands for any host secret.

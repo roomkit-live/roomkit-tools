@@ -199,7 +199,8 @@ fn processes() -> Vec<(String, Value)> {
             max_command_bytes,
             max_output_bytes,
             default_timeout_ms,
-            max_timeout_ms
+            max_timeout_ms,
+            keep_background_jobs
         ),
     ]
 }

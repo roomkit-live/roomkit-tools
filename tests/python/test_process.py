@@ -14,7 +14,7 @@ import weakref
 from pathlib import Path
 from unittest.mock import patch
 
-from process_helpers import COMMAND_WITH_CHILD, assert_stopped, read_pids
+from process_helpers import COMMAND_WITH_CHILD, assert_stopped, kill, read_pids, running
 from roomkit_tools import (
     DEFAULT_INHERITED_ENV,
     AccessRefusedError,
@@ -438,6 +438,22 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(AccessRefusedError):
                 await session.start("true")
             (self.root / "pids").unlink()
+
+    @unittest.skipUnless(sys.platform == "linux", "observe Linux process cleanup")
+    async def test_detach_closes_the_session_and_leaves_running_processes_running(
+        self,
+    ) -> None:
+        session = ProcessSession(self.root)
+        await session.start("sleep 60 > /dev/null 2>&1 & printf '%s %s' $$ $! > pids; wait")
+        ids = await read_pids(self.root / "pids")
+        try:
+            self.assertTrue(await session.detach())
+            self.assertTrue(session.closed)
+            with self.assertRaises(AccessRefusedError):
+                await session.start("true")
+            self.assertEqual([running(pid) for pid in ids], [True, True])
+        finally:
+            kill(ids)
 
     @unittest.skipUnless(sys.platform == "linux", "observe Linux process cleanup")
     async def test_context_exception_and_last_reference_drop_request_cleanup(self) -> None:

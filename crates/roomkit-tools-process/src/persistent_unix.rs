@@ -29,12 +29,16 @@ pub(crate) fn launch(
     status: ProcessStatus,
     limits: ProcessLimits,
     stop: CancellationToken,
+    detach: CancellationToken,
     outputs: Option<&crate::OutputStore>,
 ) -> Result<(Arc<Entry>, ProcessStatus), ToolError> {
-    let shell =
+    let mut shell =
         crate::unix::shell_command(request.command, request.cwd, request.env, Stdio::piped());
+    // The group stops every member on drop, the shell included; a detached
+    // job's shell must outlive its dropped handle.
+    shell.kill_on_drop(false);
     let spawned = crate::unix::spawn(shell, "spawn persistent process")?;
-    adopt(spawned, request, status, limits, stop, outputs)
+    adopt(spawned, request, status, limits, (stop, detach), outputs)
 }
 
 /// Record a spawned command, then capture and stop it in its own task.
@@ -43,7 +47,7 @@ fn adopt(
     request: &Launch<'_>,
     mut status: ProcessStatus,
     limits: ProcessLimits,
-    stop: CancellationToken,
+    (stop, detach): (CancellationToken, CancellationToken),
     outputs: Option<&crate::OutputStore>,
 ) -> Result<(Arc<Entry>, ProcessStatus), ToolError> {
     let Launch { owner, command, .. } = *request;
@@ -70,6 +74,7 @@ fn adopt(
         })),
         stdin: Mutex::new(Some(stdin)),
         stop,
+        detach,
         done: receiver,
     });
     tokio::spawn(run(
@@ -145,6 +150,8 @@ async fn run(
         spawn_capture(stdout, stderr, record, (stdout_archive, stderr_archive));
     let (end, execution) = tokio::select! {
         biased;
+        // First: closing the session after detaching it stops nothing.
+        () = entry.detach.cancelled() => return leave_running(child, group, capture, &entry, done).await,
         () = entry.stop.cancelled() => (ProcessEnd::Stopped, Ok(())),
         () = tokio::time::sleep(Duration::from_millis(timeout)) => (ProcessEnd::TimedOut, Ok(())),
         status = child.wait() => (ProcessEnd::Exited, status.map(|_| ())),
@@ -159,6 +166,23 @@ async fn run(
     settle_archives(&entry, archive_timeout).await;
     let error = failure(&execution, &stopped, reaped.as_ref(), drained);
     publish(&entry, end, reaped, drained, error).await;
+    done.send_replace(true);
+}
+
+/// Let a detached job go, still running: its group is no longer stopped,
+/// its stdin and output pipes close, and its shell, spawned without
+/// `kill_on_drop`, is left to the runtime to reap whenever it exits.
+async fn leave_running(
+    child: Child,
+    mut group: Group,
+    capture: JoinHandle<Captured>,
+    entry: &Entry,
+    done: watch::Sender<bool>,
+) {
+    group.release();
+    entry.stdin.lock().await.take();
+    capture.abort();
+    drop(child);
     done.send_replace(true);
 }
 
@@ -305,7 +329,15 @@ mod tests {
         let status = crate::persistent::initial_status("p1".into(), ".".into(), 60_000);
         let limits = ProcessLimits::default();
         let stop = CancellationToken::new();
-        let (entry, _) = adopt((child, group), &request, status, limits, stop, None).unwrap();
+        let (entry, _) = adopt(
+            (child, group),
+            &request,
+            status,
+            limits,
+            (stop, CancellationToken::new()),
+            None,
+        )
+        .unwrap();
         entry.stop.cancel();
         let mut done = entry.done.clone();
         let finished =

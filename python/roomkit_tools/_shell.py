@@ -59,6 +59,7 @@ class ShellTool:
         max_output_bytes: int | None = None,
         default_timeout_ms: int | None = None,
         max_timeout_ms: int | None = None,
+        keep_background_jobs: bool | None = None,
     ) -> ShellTool:
         """Resolve an existing root; omitted limits use Rust defaults.
 
@@ -68,7 +69,10 @@ class ShellTool:
         (InvalidInputError). Defaults: 16 KiB command, 32 KiB retained raw
         bytes per stream, 10 s default runtime and 120 s maximum. Bounds must be
         positive; the default timeout must not exceed the maximum, which cannot
-        exceed 24 hours.
+        exceed 24 hours. keep_background_jobs leaves a command's background jobs
+        running once its shell exits on its own, instead of stopping its whole
+        process group; a timeout or cancellation still stops every member
+        (default False).
         """
         if outputs is not None and not isinstance(outputs, OutputStore):
             raise TypeError("outputs requires an OutputStore")
@@ -80,6 +84,7 @@ class ShellTool:
                 "max_output_bytes": max_output_bytes,
                 "default_timeout_ms": default_timeout_ms,
                 "max_timeout_ms": max_timeout_ms,
+                "keep_background_jobs": keep_background_jobs,
             }.items()
             if value is not None
         } | environment
