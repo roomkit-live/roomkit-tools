@@ -55,7 +55,11 @@ otherwise `InvalidInputError`. Rust hosts pass a `CommandEnv` with the same
 Host constructor bounds are `max_command_bytes` (16 KiB), `max_output_bytes`
 (32 KiB raw bytes per stream), `default_timeout_ms` (10,000) and `max_timeout_ms`
 (120,000). All must be positive; default timeout cannot exceed the maximum,
-and the maximum cannot exceed 24 hours. A requested runtime above the maximum
+and the maximum cannot exceed 24 hours. `keep_background_jobs` (default false)
+leaves the background jobs of a command whose shell exits on its own running,
+for a host whose agent starts a server that must outlive the call; a job still
+holding the command's pipes then writes to a drainer that discards its output
+and outlives the host, so its writes never fail. A requested runtime above the maximum
 is refused with `InvalidInputError`, whose message gives the maximum, before
 anything runs. The runtime starts after spawn, excluding path resolution;
 termination/reaping may extend total elapsed time.
@@ -70,7 +74,8 @@ EOF; false means capture stopped early. Nonzero exits and timeouts are normal
 tool results; timeouts retain the output captured before termination.
 
 Timeout, cancellation and normal shell exit stop the Unix process group and
-reap the direct child. Processes that deliberately leave that group are outside
+reap the direct child; with `keep_background_jobs`, a normal shell exit leaves
+the group's background jobs running. Processes that deliberately leave that group are outside
 this cleanup mechanism, as are members the host cannot signal, such as ones left
 running under other credentials (`sudo -b`); the command's exit status and
 output are still returned. A shell that itself runs under other credentials,
@@ -178,7 +183,10 @@ A job whose shell runs under other credentials and refuses SIGKILL finishes
 250 ms later with `end` `failed`, no exit code or signal, and the error
 `process could not be stopped`; the command keeps running outside cleanup.
 
-`await processes.close()` permanently closes the session, stops owned jobs and
+`await processes.detach()` closes the session the same way but leaves running
+jobs running, for a host that exits while one must outlive it: their records
+are released, and their output pipes go to drainers that discard what they
+write and outlive the host. `await processes.close()` permanently closes the session, stops owned jobs and
 waits up to two seconds: `True` means cleanup finished and records were released;
 `False` means cleanup continues and the host can await `close()` again. Context
 exit calls it and raises `ToolError` if cleanup remains pending. `.closed` means
@@ -256,8 +264,9 @@ store, never arbitrary host files. stdout and stderr are separate; their global
 ordering is not reconstructed. A shell stream kept whole has no archive: its
 copy would hold nothing the result lacks, so it is released when the command
 ends, unless the call was cancelled and returned no result. Persistent jobs
-archive every stream. An ID may be absent when the record quota is full and
-every record is still being written.
+archive every stream. An ID may be absent when a record quota is full and none
+of the owner's archives can be released: each is still written by a running
+job or call, or other owners fill the store's total.
 
 `complete` means the source reached EOF, the writer finished without errors,
 and every observed byte was stored. It does not mean the command succeeded or
@@ -294,7 +303,8 @@ oldest finished archives first, never another owner's nor one still being
 written: the most recent output is the one a model goes back to. Reading a
 released ID is refused as for a forgotten one. There is no unlimited queue.
 
-Completed logs survive process `forget` and `ProcessSession.close()`.
+Completed logs survive process `forget` and `ProcessSession.close()`, until
+forgotten, released at a quota or the store closes.
 `output_forget` refuses active capture/writers, then invalidates the ID and frees
 its reservation. The host's `await outputs.list(owner=None)` recovers an
 owner's IDs, in creation order, after a cancelled command response.

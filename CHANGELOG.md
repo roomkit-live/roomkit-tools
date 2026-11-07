@@ -9,16 +9,20 @@ part of an existing published preview.
 - `ProcessSession.detach()` closes a session but leaves its running processes
   running, for a host that exits while one must outlive it, such as a server
   started for a later check: their records are released and their pipes
-  closed. `ShellTool.create(keep_background_jobs=True)` (Rust:
+  handed to drainers that discard what the jobs write and outlive the host.
+  `ShellTool.create(keep_background_jobs=True)` (Rust:
   `ShellLimits::keep_background_jobs`) leaves the background jobs of a command
-  that exits on its own running; a timeout or a cancellation still stops them.
+  that exits on its own running, its pipes handed to such drainers when a job
+  still holds them; a timeout or a cancellation still stops them.
 - A shell stream cut short keeps its most recent bytes, where a command reports
   how it ended, instead of its first and last ones, after an
   `[... N earlier bytes omitted ...]` marker. With an output store, only such a
-  stream keeps an archive, holding the full output; one kept whole needs none
-  and is released as the call ends. At a record quota, a new archive releases
-  its owner's oldest finished one instead of failing with `archive_limit`, and
-  a result without an archive id no longer says to use `output_read`.
+  stream keeps an archive, holding its output up to the store's bounds (8 MiB
+  per stream by default); one kept whole needs none and is released as the
+  call ends. At a record quota, a new archive releases its owner's oldest
+  finished one, never one a running job or call still writes, rather than
+  failing with `archive_limit`; a result without an archive id no longer says
+  to use `output_read`.
 - Through RoomKit, the shell's result reaches the model as its `data` alone,
   under the `data` key: its text rendering repeated the same output.
 - The RoomKit Rust adapter follows roomkit-rs ee5d724, which changes no existing

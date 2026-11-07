@@ -45,7 +45,7 @@ class OutputStore:
         one room and agent), 8 MiB per stream, 64 MiB total, 16 KiB/read, 1 s
         writer wait.
         Stored and queued reservations count toward quota; failed reservations
-        remain charged until forget/close. All bounds must be positive.
+        remain charged until forget, release at a quota, or close. All bounds must be positive.
         A stream over quota retains a prefix and reports incomplete metadata.
         """
         path = tempfile.gettempdir() if parent is None else os.fspath(parent)

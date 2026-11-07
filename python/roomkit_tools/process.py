@@ -131,8 +131,8 @@ class ProcessSession:
 
         For a host that exits while a process must outlive it, such as a server
         started for a later check. Their records and retained output are
-        released and their pipes closed, so what they write afterwards is lost;
-        a program that dies on a closed pipe should redirect its output.
+        released, and their output pipes go to drainers that discard what they
+        write and outlive the host, so their writes never fail.
         Finished jobs are released as by close. True means every job was let go
         within two seconds; False means workers continue, as for close.
         """

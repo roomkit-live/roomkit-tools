@@ -542,3 +542,92 @@ async fn cwd_checks_are_not_a_sandbox() {
         "host permissions apply"
     );
 }
+
+/// The number a job writes in `path`, once it reaches `at_least`.
+#[cfg(target_os = "linux")]
+#[expect(clippy::unwrap_used, reason = "fixture must count past the mark")]
+async fn counted(path: &Path, at_least: u64) -> u64 {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let text = tokio::fs::read_to_string(path).await.unwrap_or_default();
+            if let Ok(count) = text.trim().parse::<u64>()
+                && count >= at_least
+            {
+                return count;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap()
+}
+
+/// A job writing a line to its stdout every 20 ms, counting them in `count`.
+const WRITER: &str = "(i=0; while :; do echo line; i=$((i+1)); echo $i > count; sleep 0.02; done) & echo $! > pid; exit 0";
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_kept_job_writing_to_its_pipes_runs_on_past_the_call() {
+    let root = tempfile::tempdir().unwrap();
+    let result = keeping(root.path())
+        .await
+        .shell(ShellInput::new(WRITER), &CancellationToken::new())
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(result.exit_code, Some(0));
+    // It still holds the pipes: they go to a drainer, not closed.
+    assert!(!result.output_complete);
+    let count = root.path().join("count");
+    let at_return = counted(&count, 0).await;
+    // Fifty more lines, written long after the call let go of the pipes.
+    counted(&count, at_return + 50).await;
+    let job: u32 = file_text(&root.path().join("pid"))
+        .await
+        .trim()
+        .parse()
+        .unwrap();
+    let alive = running(job).await;
+    std::process::Command::new("kill")
+        .args(["-KILL", &format!("-{job}"), &job.to_string()])
+        .status()
+        .unwrap();
+    assert!(alive);
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_cancellation_after_the_shell_exits_still_stops_kept_jobs() {
+    let root = tempfile::tempdir().unwrap();
+    let tool = keeping(root.path()).await;
+    let cancel = CancellationToken::new();
+    // The job holds the pipes, so the call drains them a while after the
+    // shell exits: the cancellation lands then.
+    let input = ShellInput::new("sleep 60 & printf '%s %s' $$ $! > pids; exit 0");
+    let canceller = async {
+        let ids = pids(&root.path().join("pids")).await;
+        assert!(reaped(ids[0]).await);
+        cancel.cancel();
+        ids
+    };
+    let (result, ids) = tokio::join!(tool.shell(input, &cancel), canceller);
+    assert!(matches!(result, Err(ToolError::Cancelled)), "{result:?}");
+    stopped(&ids).await;
+}
+
+/// The text of `path` once it holds some.
+#[cfg(target_os = "linux")]
+#[expect(clippy::unwrap_used, reason = "fixture must write the file")]
+async fn file_text(path: &Path) -> String {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let text = tokio::fs::read_to_string(path).await.unwrap_or_default();
+            if !text.trim().is_empty() {
+                return text;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap()
+}

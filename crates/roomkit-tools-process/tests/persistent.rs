@@ -564,6 +564,46 @@ async fn a_detached_session_leaves_its_running_processes_running() {
     assert!(listed.is_err(), "a detached session is closed: {listed:?}");
 }
 
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_detached_job_writing_to_its_pipes_runs_on() {
+    let root = tempfile::tempdir().unwrap();
+    let session = ProcessSession::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let writer =
+        "echo $$ > pid; i=0; while :; do echo line; i=$((i+1)); echo $i > count; sleep 0.02; done";
+    session
+        .start(Some("a"), ProcessStartInput::new(writer), &token)
+        .await
+        .unwrap();
+    let pid: u32 = file(&root.path().join("pid")).await.trim().parse().unwrap();
+    assert!(session.detach().await);
+    drop(session);
+    let count = || {
+        let path = root.path().join("count");
+        async move {
+            tokio::fs::read_to_string(path)
+                .await
+                .ok()
+                .and_then(|text| text.trim().parse::<u64>().ok())
+        }
+    };
+    let at_detach = count().await.unwrap_or(0);
+    // Fifty more lines, written long after the session let go of its pipes.
+    let wrote_on = tokio::time::timeout(Duration::from_secs(5), async {
+        while count().await.unwrap_or(0) < at_detach + 50 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .is_ok();
+    std::process::Command::new("kill")
+        .args(["-KILL", &format!("-{pid}")])
+        .status()
+        .unwrap();
+    assert!(wrote_on, "the detached job stopped writing");
+}
+
 #[tokio::test]
 async fn closed_reports_a_requested_shutdown_to_every_clone() {
     let root = tempfile::tempdir().unwrap();

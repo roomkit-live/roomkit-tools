@@ -11,7 +11,7 @@ pub struct WebSearchInput {
     /// Maximum documents or answer sources; an answer's cited sources must all fit.
     #[serde(default = "default_limit")]
     pub limit: usize,
-    /// Total deadline in ms, at most the host maximum.
+    /// Total deadline in ms; one above the host maximum is refused.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }

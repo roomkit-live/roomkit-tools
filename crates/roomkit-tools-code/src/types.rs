@@ -31,7 +31,7 @@ pub struct CodeOutlineInput {
     /// Revision from read or `code_outline`; refuses a changed file.
     #[serde(default)]
     pub expected_revision: Option<String>,
-    /// Total deadline in ms, at most the host maximum.
+    /// Total deadline in ms; one above the host maximum is refused.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }

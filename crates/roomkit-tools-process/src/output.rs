@@ -31,6 +31,9 @@ struct Record {
     directory: Arc<TempDir>,
     reserved: AtomicU64,
     capture_done: AtomicBool,
+    /// Whether its writer is gone: the call or job that writes it has let it
+    /// go, so its result no longer names it as the call's own.
+    writer_gone: AtomicBool,
     budget: Arc<AtomicU64>,
     closed: CancellationToken,
     done: watch::Sender<bool>,
@@ -66,9 +69,13 @@ impl Record {
         }
     }
 
-    /// Whether capture and writing are both over.
+    /// Whether capture and writing are both over, and the call or job that
+    /// wrote it has let it go: a call still running holds its archives even
+    /// once its streams ended.
     fn finished(&self) -> bool {
-        self.capture_done.load(Ordering::Acquire) && lock(&self.state).finished
+        self.writer_gone.load(Ordering::Acquire)
+            && self.capture_done.load(Ordering::Acquire)
+            && lock(&self.state).finished
     }
 
     fn release(&self) {
@@ -106,7 +113,8 @@ impl Drop for Inner {
 /// one standalone owner, that of [`ShellTool::shell`](crate::ShellTool::shell),
 /// apart from every named owner, `"default"` included.
 /// Clones share a store.
-/// Copies survive process-record deletion until explicit forget/store close.
+/// Copies survive process-record deletion until explicit forget, release at a
+/// quota (an owner's oldest finished archive goes first) or store close.
 /// The last store reference requests writer cleanup; prefer explicit close.
 /// No restart persistence, fsync durability, sandbox or arbitrary file access.
 #[derive(Clone, Debug)]
@@ -503,6 +511,7 @@ impl OutputStore {
             directory: Arc::clone(&self.inner.directory),
             reserved: AtomicU64::new(0),
             capture_done: AtomicBool::new(false),
+            writer_gone: AtomicBool::new(false),
             budget: Arc::clone(&self.inner.budget),
             closed: self.inner.closed.child_token(),
             done,

@@ -13,7 +13,7 @@ pub struct OcrInput {
     pub rotation_degrees: u16,
     /// Raw-byte revision; refuses a changed image.
     pub expected_revision: Option<String>,
-    /// Deadline in ms, at most the host maximum.
+    /// Deadline in ms; one above the host maximum is refused.
     pub timeout_ms: Option<NonZeroU64>,
 }
 

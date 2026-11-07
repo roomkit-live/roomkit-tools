@@ -377,6 +377,118 @@ async fn a_full_store_releases_its_owner_s_oldest_finished_archive() {
 }
 
 #[tokio::test]
+async fn archives_a_job_or_a_call_still_writes_are_never_released() {
+    let root = tempfile::tempdir().unwrap();
+    let limits = OutputLimits {
+        max_archives_per_owner: 3,
+        ..OutputLimits::default()
+    };
+    let store = OutputStore::new(Some(root.path()), limits).await.unwrap();
+    let session = ProcessSession::new(root.path())
+        .await
+        .unwrap()
+        .with_output_store(store.clone())
+        .unwrap();
+    let shell = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(cutting())
+        .unwrap()
+        .with_output_store(store.clone());
+    let cancel = CancellationToken::new();
+    // A running job writes o1 and o2 for as long as it runs.
+    let job = session
+        .start(None, ProcessStartInput::new("cat"), &cancel)
+        .await
+        .unwrap();
+    let job_out = job.data.stdout_archive.unwrap().archive_id.unwrap();
+    // The first call's stdout takes the last slot; its stderr finds none to
+    // free, the job's archives being still written.
+    let first = shell
+        .shell(ShellInput::new("printf ab"), &cancel)
+        .await
+        .unwrap();
+    let first_out = first.data.stdout.archive.unwrap().archive_id.unwrap();
+    // The second call frees the first call's, finished, never the job's.
+    let second = shell
+        .shell(ShellInput::new("printf cd"), &cancel)
+        .await
+        .unwrap();
+    assert!(second.data.stdout.archive.unwrap().archive_id.is_some());
+    assert!(
+        store
+            .read(None, page(&job_out, 0, 8), &cancel)
+            .await
+            .is_ok()
+    );
+    assert!(matches!(
+        store.read(None, page(&first_out, 0, 8), &cancel).await,
+        Err(ToolError::AccessRefused(_))
+    ));
+    assert!(session.close().await);
+    assert!(store.close().await);
+}
+
+#[tokio::test]
+async fn a_call_still_running_keeps_archives_whose_streams_ended() {
+    let root = tempfile::tempdir().unwrap();
+    let limits = OutputLimits {
+        max_archives_per_owner: 2,
+        ..OutputLimits::default()
+    };
+    let store = OutputStore::new(Some(root.path()), limits).await.unwrap();
+    let shell = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(cutting())
+        .unwrap()
+        .with_output_store(store.clone());
+    let cancel = CancellationToken::new();
+    // The first call ends its streams, then runs on: its archives are done
+    // being written, but the call has not returned them yet.
+    let first = shell.shell(
+        ShellInput::new("printf abc; exec >&- 2>&-; sleep 1"),
+        &cancel,
+    );
+    let second = async {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while !store
+                .list(None, &cancel)
+                .await
+                .unwrap()
+                .iter()
+                .any(|archive| archive.eof && archive.stored_bytes == 3)
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        shell
+            .shell(ShellInput::new("printf de"), &cancel)
+            .await
+            .unwrap()
+    };
+    let (first, second) = tokio::join!(first, second);
+    let archive = first.unwrap().data.stdout.archive.unwrap();
+    assert_eq!(archive.error, None, "{archive:?}");
+    let id = archive.archive_id.unwrap();
+    assert_eq!(
+        store
+            .read(None, page(&id, 0, 8), &cancel)
+            .await
+            .unwrap()
+            .data
+            .text,
+        "abc"
+    );
+    // The second call found no archive to free while the first ran.
+    let refused = second.data.stdout.archive.unwrap();
+    assert_eq!(refused.error.as_deref(), Some("archive_limit"));
+    assert!(store.close().await);
+}
+
+#[tokio::test]
 async fn an_output_kept_whole_leaves_no_archive() {
     let root = tempfile::tempdir().unwrap();
     let store = OutputStore::new(Some(root.path()), OutputLimits::default())

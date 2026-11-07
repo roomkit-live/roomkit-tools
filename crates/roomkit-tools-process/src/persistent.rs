@@ -500,9 +500,9 @@ impl ProcessSession {
     /// Permanently close the session but leave its running processes
     /// running, as when the host exits and they must outlive it: a server
     /// started for a later check, for one. Their records and retained output
-    /// are released and their pipes closed, so what they write afterwards is
-    /// lost, and a program that dies on a closed pipe should redirect its
-    /// output. Nothing reaps them but the runtime, whenever they exit.
+    /// are released, and their output pipes go to drainers that discard what
+    /// they write and outlive the host, so their writes never fail. Nothing
+    /// reaps them but the runtime, whenever they exit.
     /// Finished jobs are released as by [`Self::close`]. Returns whether every
     /// job was let go within the collective two-second wait.
     pub async fn detach(&self) -> bool {

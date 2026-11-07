@@ -12,7 +12,7 @@ pub struct ProcessStartInput {
     /// Starting directory in the workspace.
     #[serde(default)]
     pub cwd: Option<String>,
-    /// Lifetime limit in ms, at most the host maximum. Default: five minutes.
+    /// Lifetime limit in ms; one above the host maximum is refused. Default: five minutes.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }

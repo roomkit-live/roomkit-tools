@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 pub struct ViewImageInput {
     /// PNG, JPEG or static WebP file in the workspace.
     pub path: String,
-    /// Deadline in ms, at most the host maximum.
+    /// Deadline in ms; one above the host maximum is refused.
     pub timeout_ms: Option<NonZeroU64>,
 }
 

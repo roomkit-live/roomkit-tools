@@ -18,7 +18,7 @@ pub struct ShellInput {
     /// Starting directory in the workspace; defaults to its root.
     #[serde(default)]
     pub cwd: Option<String>,
-    /// Runtime limit in ms, at most the host maximum.
+    /// Runtime limit in ms; one above the host maximum is refused.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
 }
@@ -47,8 +47,10 @@ pub struct ShellLimits {
     /// Maximum requested process runtime. Default: 120 seconds.
     pub max_timeout_ms: u64,
     /// Leave a command's background jobs running once its shell exits on its
-    /// own, instead of stopping its whole process group. A timeout or a
-    /// cancellation still stops every member. Default: false.
+    /// own, instead of stopping its whole process group. A job still holding
+    /// the command's pipes then writes to a drainer that discards its output
+    /// and outlives the host. A timeout or a cancellation still stops every
+    /// member. Default: false.
     pub keep_background_jobs: bool,
 }
 
@@ -97,7 +99,8 @@ pub struct ShellResult {
 /// host variables in [`crate::DEFAULT_INHERITED_ENV`].
 /// Each command leads a new Unix session without a controlling terminal, so
 /// opening `/dev/tty` fails. Process-group cleanup covers children that remain
-/// in the group, including background jobs after a normal shell exit. Members
+/// in the group, including background jobs after a normal shell exit unless
+/// [`ShellLimits::keep_background_jobs`] keeps them. Members
 /// the host cannot signal, such as ones running under other credentials, stay
 /// outside cleanup and the result is still returned. It is not an OS sandbox.
 #[derive(Clone, Debug)]
@@ -193,7 +196,7 @@ impl ShellTool {
     pub fn definition() -> Definition {
         Definition::new::<ShellInput, ShellResult>(
             "shell",
-            "Run a command with /bin/sh -c and wait for it. Check exit_code and timed_out; output is bounded. No stdin. Not a sandbox: host permissions apply.",
+            "Run a command with /bin/sh -c and wait for it. Check exit_code and timed_out; output is bounded. No stdin. Each call starts a new shell: cd and exported variables do not carry over. Not a sandbox: host permissions apply.",
         )
     }
 

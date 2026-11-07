@@ -143,6 +143,7 @@ impl Drop for Sink {
         if !self.ended {
             self.end(false);
         }
+        self.record.writer_gone.store(true, Ordering::Release);
     }
 }
 
@@ -275,6 +276,7 @@ mod tests {
             directory: Arc::new(tempfile::tempdir().unwrap()),
             reserved: AtomicU64::new(0),
             capture_done: AtomicBool::new(false),
+            writer_gone: AtomicBool::new(false),
             budget: Arc::new(AtomicU64::new(0)),
             closed: CancellationToken::new(),
             done,

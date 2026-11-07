@@ -146,12 +146,14 @@ async fn run(
     let (stdout_archive, stderr_archive, archive_timeout) = archives;
     let timeout = entry.record.lock().await.status.timeout_ms;
     let record = Arc::clone(&entry.record);
-    let (capture, capture_failed) =
+    let (capture, capture_failed, release) =
         spawn_capture(stdout, stderr, record, (stdout_archive, stderr_archive));
     let (end, execution) = tokio::select! {
         biased;
         // First: closing the session after detaching it stops nothing.
-        () = entry.detach.cancelled() => return leave_running(child, group, capture, &entry, done).await,
+        () = entry.detach.cancelled() => {
+            return leave_running(child, group, (capture, release), &entry, done).await;
+        }
         () = entry.stop.cancelled() => (ProcessEnd::Stopped, Ok(())),
         () = tokio::time::sleep(Duration::from_millis(timeout)) => (ProcessEnd::TimedOut, Ok(())),
         status = child.wait() => (ProcessEnd::Exited, status.map(|_| ())),
@@ -170,46 +172,67 @@ async fn run(
 }
 
 /// Let a detached job go, still running: its group is no longer stopped,
-/// its stdin and output pipes close, and its shell, spawned without
-/// `kill_on_drop`, is left to the runtime to reap whenever it exits.
+/// its stdin closes, its output pipes go to drainers that outlive the host,
+/// and its shell, spawned without `kill_on_drop`, is left to the runtime to
+/// reap whenever it exits.
 async fn leave_running(
     child: Child,
     mut group: Group,
-    capture: JoinHandle<Captured>,
+    (capture, release): (JoinHandle<Captured>, CancellationToken),
     entry: &Entry,
     done: watch::Sender<bool>,
 ) {
     group.release();
     entry.stdin.lock().await.take();
-    capture.abort();
+    release.cancel();
+    if let Ok(Captured::Released(stdout, stderr)) = capture.await {
+        crate::unix::hand_off(stdout, stderr);
+    }
     drop(child);
     done.send_replace(true);
 }
 
-type Captured = std::io::Result<((), ())>;
+/// How a capture task ended: both pipes drained to their end, or given back
+/// when its job was let go.
+enum Captured {
+    Drained(std::io::Result<((), ())>),
+    Released(ChildStdout, ChildStderr),
+}
 
 /// Capture both streams in their own task, which outlives the wait so that
 /// stopping never discards bytes already read while their append awaits the
-/// record lock. The token is cancelled when capture fails.
+/// record lock. The first token is cancelled when capture fails; cancelling
+/// the second makes the task give the pipes back.
 fn spawn_capture(
     mut stdout: ChildStdout,
     mut stderr: ChildStderr,
     record: Arc<Mutex<Record>>,
     (stdout_archive, stderr_archive): (Option<crate::output::Sink>, Option<crate::output::Sink>),
-) -> (JoinHandle<Captured>, CancellationToken) {
+) -> (JoinHandle<Captured>, CancellationToken, CancellationToken) {
     let capture_failed = CancellationToken::new();
     let failed = capture_failed.clone();
+    let release = CancellationToken::new();
+    let released = release.clone();
     let capture = tokio::spawn(async move {
-        let result = tokio::try_join!(
-            drain(&mut stdout, &record, true, stdout_archive),
-            drain(&mut stderr, &record, false, stderr_archive)
-        );
+        let drained = tokio::select! {
+            biased;
+            () = released.cancelled() => None,
+            result = async {
+                tokio::try_join!(
+                    drain(&mut stdout, &record, true, stdout_archive),
+                    drain(&mut stderr, &record, false, stderr_archive)
+                )
+            } => Some(result),
+        };
+        let Some(result) = drained else {
+            return Captured::Released(stdout, stderr);
+        };
         if result.is_err() {
             failed.cancel();
         }
-        result
+        Captured::Drained(result)
     });
-    (capture, capture_failed)
+    (capture, capture_failed, release)
 }
 
 /// How output capture ended once the process was stopped.
@@ -227,8 +250,10 @@ enum Drained {
 /// inherited pipes open, so this waits at most 250 ms.
 async fn finish_capture(mut capture: JoinHandle<Captured>) -> Drained {
     match tokio::time::timeout(Duration::from_millis(250), &mut capture).await {
-        Ok(Ok(Ok(_))) => Drained::Complete,
-        Ok(Ok(Err(_)) | Err(_)) => Drained::Failed,
+        Ok(Ok(Captured::Drained(Ok(_)))) => Drained::Complete,
+        Ok(Ok(Captured::Drained(Err(_))) | Err(_)) => Drained::Failed,
+        // Only a detached job's capture gives its pipes back, never here.
+        Ok(Ok(Captured::Released(..))) => Drained::CutShort,
         Err(_) => {
             capture.abort();
             let _joined = capture.await;

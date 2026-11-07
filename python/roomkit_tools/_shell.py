@@ -71,8 +71,9 @@ class ShellTool:
         positive; the default timeout must not exceed the maximum, which cannot
         exceed 24 hours. keep_background_jobs leaves a command's background jobs
         running once its shell exits on its own, instead of stopping its whole
-        process group; a timeout or cancellation still stops every member
-        (default False).
+        process group; a job still holding the command's pipes then writes to a
+        drainer that discards its output and outlives the host. A timeout or
+        cancellation still stops every member (default False).
         """
         if outputs is not None and not isinstance(outputs, OutputStore):
             raise TypeError("outputs requires an OutputStore")
@@ -136,8 +137,9 @@ class ShellTool:
         from the owned Rust worker. It may finish cleanup after Python receives
         cancellation. Keep the host process/native runtime alive for cleanup.
         The shell's process group is stopped on cancellation, timeout and normal
-        exit; deliberately detached processes and members under other credentials
-        are outside that mechanism, and the result is still returned.
+        exit, unless keep_background_jobs keeps a normal exit's background jobs;
+        deliberately detached processes and members under other credentials are
+        outside that mechanism, and the result is still returned.
         Already-performed effects are not rolled back.
         """
         return await self._call(arguments, None)

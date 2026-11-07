@@ -206,20 +206,27 @@ async fn supervise(
             std::future::pending::<std::io::Result<Option<ExitStatus>>>().await
         } => error,
     };
-    let status = match &result {
-        // The shell ended on its own: what it left in the background runs on.
-        Ok(Some(status)) if foreground.limits.keep_background_jobs => {
-            group.release();
-            Some(*status)
-        }
-        _ => stop_and_reap(&mut group, &mut child).await?,
+    // A shell that ended on its own may leave its background jobs running.
+    let kept = foreground.limits.keep_background_jobs && matches!(result, Ok(Some(_)));
+    let status = if kept {
+        result.as_ref().ok().copied().flatten()
+    } else {
+        stop_and_reap(&mut group, &mut child).await?
     };
     result.map_err(|source| io("capture shell output", source))?;
     let output_complete = drain_rest(&mut out, &mut err, &mut stdout, &mut stderr).await?;
     tokio::join!(out.finish_archive(), err.finish_archive());
     // A cancelled call returns no result: its archives are all that is left.
+    // Its kept jobs stop with it, the group not being released.
     if cancelled || cancel.is_cancelled() {
         return Err(ToolError::Cancelled);
+    }
+    if kept {
+        group.release();
+        // A job still holding a pipe writes to a drainer from now on.
+        if !output_complete {
+            hand_off(stdout, stderr);
+        }
     }
     if let Some((store, _)) = &foreground.outputs {
         out.discard_whole_archive(store);
@@ -235,6 +242,38 @@ async fn supervise(
         stdout: out.finish(),
         stderr: err.finish(),
     }))
+}
+
+/// Hand the pipes of a command whose jobs run on to drainers that outlive the
+/// host. Dropping them instead would make a job's next write fail (EPIPE) or
+/// kill it (SIGPIPE): a server logging each request would die or fail it.
+pub(crate) fn hand_off(stdout: ChildStdout, stderr: ChildStderr) {
+    for pipe in [stdout.into_owned_fd(), stderr.into_owned_fd()]
+        .into_iter()
+        .flatten()
+    {
+        drain_away(pipe);
+    }
+}
+
+/// Read `pipe` until every writer closes it, from a shell in a session of its
+/// own that outlives the host, discarding what it reads. Best effort: a
+/// drainer that cannot start leaves the pipe to close.
+fn drain_away(pipe: std::os::fd::OwnedFd) {
+    let mut command = Command::new("/bin/sh");
+    command
+        .args(["-c", "exec cat > /dev/null"])
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .stdin(Stdio::from(pipe))
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(false);
+    if let Ok((child, mut group)) = spawn(command, "spawn output drainer") {
+        group.release();
+        // Without kill_on_drop, the runtime reaps it whenever it ends.
+        drop(child);
+    }
 }
 
 /// Stop the whole group, which also ends background jobs after a normal exit,
