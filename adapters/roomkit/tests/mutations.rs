@@ -113,7 +113,9 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
             .iter()
             .map(|tool| tool.name.as_str())
             .collect::<Vec<_>>(),
-        ["write", "edit", "read"]
+        // The kit declares read_stored_result beside an agent's own tools,
+        // to page through an outcome it stored (roomkit-rs RMK-1228, as Python's).
+        ["write", "edit", "read", "read_stored_result"]
     );
     let results = requests[5]
         .messages

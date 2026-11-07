@@ -111,7 +111,9 @@ async fn scenario(refused: bool) -> Vec<Value> {
             .iter()
             .map(|tool| tool.name.as_str())
             .collect::<Vec<_>>(),
-        ["diff", "patch"]
+        // The kit declares read_stored_result beside an agent's own tools,
+        // to page through an outcome it stored (roomkit-rs RMK-1228, as Python's).
+        ["diff", "patch", "read_stored_result"]
     );
     assert_eq!(
         requests[0].tools[0].parameters,

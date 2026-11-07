@@ -6,8 +6,10 @@ part of an existing published preview.
 
 ## Unreleased
 
-- The RoomKit Rust adapter follows roomkit-rs f86cbb1, which changes no existing
-  adapter's API. A tool it declares names no `tags` for Tool Search.
+- The RoomKit Rust adapter follows roomkit-rs ee5d724, which changes no existing
+  adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
+  requests also declare the kit's `read_stored_result`, which pages through an
+  outcome past `evict_threshold_tokens` that the kit stored.
 - The RoomKit Rust adapter adds `ViewImage`, behind its optional `image` Cargo
   feature: the text and image parts of Python's adapter, on that engine's image
   results.

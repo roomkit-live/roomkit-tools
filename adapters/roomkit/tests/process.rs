@@ -190,7 +190,9 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
     }
     let requests = model.requests();
     assert_eq!(requests.len(), 7);
-    assert_eq!(requests[0].tools.len(), 5);
+    // The kit declares read_stored_result beside an agent's own tools, to
+    // page through an outcome it stored (roomkit-rs RMK-1228, as Python's).
+    assert_eq!(requests[0].tools.len(), 6);
     assert_eq!(
         requests[0]
             .tools

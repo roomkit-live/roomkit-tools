@@ -69,7 +69,9 @@ async fn real_agent_receives_shell_output_or_a_policy_refusal() {
         roomkit::testing::idle(&kit).await;
         let requests = model.requests();
         assert_eq!(requests.len(), 2);
-        assert_eq!(requests[0].tools.len(), 1);
+        // The kit declares read_stored_result beside an agent's own tools, to
+        // page through an outcome it stored (roomkit-rs RMK-1228, as Python's).
+        assert_eq!(requests[0].tools.len(), 2);
         assert_eq!(requests[0].tools[0].name, "shell");
         assert_eq!(
             requests[0].tools[0].parameters,
