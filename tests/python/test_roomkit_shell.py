@@ -90,6 +90,8 @@ class RoomKitShellTests(unittest.IsolatedAsyncioTestCase):
             ]
         texts = [result["data"]["stdout"]["text"] for result in results]
         self.assertEqual(texts, ["host|hello", "host|unset"])
+        # The model reads the output once: in data, with no text rendering.
+        self.assertEqual([list(result) for result in results], [["data"], ["data"]])
 
     async def test_agent_observes_output_nonzero_exit_and_timeout_as_results(self) -> None:
         (self.root / "notes").write_text("first\nsecond\n")

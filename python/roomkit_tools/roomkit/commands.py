@@ -47,14 +47,17 @@ class Shell(_ToolAdapter[ShellTool]):
     ``Shell(await ShellTool.create(root, outputs=store))``. With an output
     store, archives belong to the calling room and agent, and a call outside a
     RoomKit tool call is refused. See ShellTool for the command environment,
-    host permissions, bounds and cancellation semantics.
+    host permissions, bounds and cancellation semantics. The model reads the
+    result's data alone, under its data key: its text rendering repeats the
+    same output.
     """
 
     _tool_type = ShellTool
 
     async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
         owner = None if self._tool._outputs is None else _roomkit_owner("shell archive")
-        return await self._tool._call(arguments, owner)
+        result = await self._tool._call(arguments, owner)
+        return {"data": result["data"]}
 
 
 class _ProcessAdapter(_ToolAdapter):

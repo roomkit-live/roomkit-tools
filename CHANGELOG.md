@@ -19,6 +19,8 @@ part of an existing published preview.
   and is released as the call ends. At a record quota, a new archive releases
   its owner's oldest finished one instead of failing with `archive_limit`, and
   a result without an archive id no longer says to use `output_read`.
+- Through RoomKit, the shell's result reaches the model as its `data` alone,
+  under the `data` key: its text rendering repeated the same output.
 - The RoomKit Rust adapter follows roomkit-rs ee5d724, which changes no existing
   adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
   requests also declare the kit's `read_stored_result`, which pages through an
