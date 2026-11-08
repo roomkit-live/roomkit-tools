@@ -266,20 +266,3 @@ async fn extensions_fail_explicitly_for_older_backends() {
     sent.message_id = None;
     assert!(sent.validate().is_ok());
 }
-
-#[test]
-fn each_input_is_named_after_its_tool() {
-    for (definition, input) in [
-        (DelegateTaskTool::definition(), "DelegateTaskInput"),
-        (TaskStatusTool::definition(), "TaskStatusInput"),
-        (CancelTaskTool::definition(), "CancelTaskInput"),
-        (AgentFollowupTool::definition(), "AgentFollowupInput"),
-        (AgentSendTool::definition(), "AgentSendInput"),
-    ] {
-        assert_eq!(
-            definition.input_schema["title"], input,
-            "{}",
-            definition.name
-        );
-    }
-}

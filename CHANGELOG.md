@@ -6,6 +6,12 @@ part of an existing published preview.
 
 ## Unreleased
 
+- A tool's `input_schema` says only what a model needs to write a valid call. It
+  no longer carries `$schema`, the input type's `title` and `description` (the
+  tool's own description covers them), integer and float width formats such as
+  `uint64`, or `"default": null`. Types, bounds, required names, argument
+  descriptions and other defaults are unchanged, and an optional argument stays
+  nullable. `output_schema` is unchanged.
 - `ProcessSession.detach()` closes a session but leaves its running processes
   running, for a host that exits while one must outlive it, such as a server
   started for a later check: their records are released and their pipes

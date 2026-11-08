@@ -2,7 +2,8 @@
 //!
 //! Tool implementations own their I/O. Hosts own their registry, permissions
 //! and conversations. Input and output schemas are derived from the same
-//! Rust types an implementation uses.
+//! Rust types an implementation uses; the input schema is trimmed to what a
+//! model needs to write a valid call.
 //!
 //! The hidden items (workspace path rules, identifier ordering, revision
 //! spelling and the envelope and definition constructors) are shared by the
@@ -12,6 +13,7 @@
 
 #[doc(hidden)]
 pub mod identifiers;
+mod model_schema;
 #[doc(hidden)]
 pub mod revision;
 mod workspace;
@@ -31,7 +33,9 @@ pub struct Definition {
     pub name: String,
     /// What the tool does, for the model and the host's catalogue.
     pub description: String,
-    /// JSON Schema derived from the implementation's input type.
+    /// JSON Schema derived from the implementation's input type, as a model
+    /// reads it: without `$schema`, the type's own title and description,
+    /// number width formats and `"default": null`.
     pub input_schema: Value,
     /// JSON Schema for the structured output, excluding its model rendering.
     pub output_schema: Value,
@@ -47,7 +51,7 @@ impl Definition {
         Self {
             name: name.into(),
             description: description.into(),
-            input_schema: schemars::schema_for!(Input).to_value(),
+            input_schema: model_schema::for_model(schemars::schema_for!(Input).to_value()),
             output_schema: schemars::schema_for!(Output).to_value(),
         }
     }

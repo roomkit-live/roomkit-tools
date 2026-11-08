@@ -122,8 +122,47 @@ async fn turn(tools: Read, arguments: &str, blocked: bool) -> (ToolCallOutcome, 
         ScriptedRound::calling("", [("read_hours", "read", arguments)]),
         ScriptedRound::answering("Answer after the tool result."),
     ]);
+    let (kit, chat) = converse(&model, tools, blocked).await;
+    let deliveries = chat.deliveries();
+    let outcome = deliveries
+        .iter()
+        .find_map(|delivery| {
+            let event = &delivery.event;
+            if event.r#type != EventType::ToolCallEnd {
+                return None;
+            }
+            if let EventContent::ToolCall(row) = &event.content {
+                row.outcome
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let requests = model.requests();
+    assert_eq!(requests.len(), 2);
+    let result = requests[1]
+        .messages
+        .iter()
+        .find(|message| message.tool_result().is_some())
+        .unwrap()
+        .text();
+    assert!(
+        chat.texts()
+            .contains(&"Answer after the tool result.".to_owned())
+    );
+    kit.close().await.unwrap();
+    (outcome, result)
+}
+
+/// Run one turn of the public RoomKit agent serving `tools` to `model`, with
+/// reading refused when `blocked`; the kit and the chat once it is idle.
+async fn converse(
+    model: &ScriptedProvider,
+    tools: Read,
+    blocked: bool,
+) -> (RoomKit, RecordingTransport) {
     let agent_id = ChannelId::new("assistant").unwrap();
-    let agent = common::agent(&agent_id, &model, vec![ToolEntry::Tool(Arc::new(tools))]).unwrap();
+    let agent = common::agent(&agent_id, model, vec![ToolEntry::Tool(Arc::new(tools))]).unwrap();
     let kit = RoomKit::new(roomkit::RoomKitOptions::default());
     if blocked {
         common::refuse(&kit, &["read"], "Reading is disabled").unwrap();
@@ -155,35 +194,36 @@ async fn turn(tools: Read, arguments: &str, blocked: bool) -> (ToolCallOutcome, 
         .unwrap();
     assert!(result.error.is_none(), "{result:?}");
     roomkit::testing::idle(&kit).await;
-    let deliveries = chat.deliveries();
-    let outcome = deliveries
-        .iter()
-        .find_map(|delivery| {
-            let event = &delivery.event;
-            if event.r#type != EventType::ToolCallEnd {
-                return None;
-            }
-            if let EventContent::ToolCall(row) = &event.content {
-                row.outcome
-            } else {
-                None
-            }
-        })
-        .unwrap();
+    (kit, chat)
+}
+
+/// What the model reads of the tool through RoomKit's real tool loop: the
+/// native schema without the Rust type's title, documentation and widths.
+#[tokio::test]
+async fn the_model_reads_the_schema_a_valid_call_needs() {
+    let (_root, tools) = fixture().await;
+    let model = ScriptedProvider::new([ScriptedRound::answering("Nothing to read.")]);
+    let (kit, _chat) = converse(&model, tools, false).await;
     let requests = model.requests();
-    assert_eq!(requests.len(), 2);
-    let result = requests[1]
-        .messages
+    let read = requests[0]
+        .tools
         .iter()
-        .find(|message| message.tool_result().is_some())
-        .unwrap()
-        .text();
-    assert!(
-        chat.texts()
-            .contains(&"Answer after the tool result.".to_owned())
+        .find(|tool| tool.name == "read")
+        .unwrap();
+    let parameters = &read.parameters;
+    for keyword in ["$schema", "title", "description"] {
+        assert!(parameters.get(keyword).is_none(), "{keyword}: {parameters}");
+    }
+    assert_eq!(
+        parameters["properties"]["offset"],
+        json!({"type":"integer", "minimum":1, "default":1, "description":"First line to return."})
+    );
+    // An optional argument stays nullable: a model may send null for it.
+    assert_eq!(
+        parameters["properties"]["limit"],
+        json!({"type":["integer","null"], "minimum":1, "description":"Line count, capped by the host."})
     );
     kit.close().await.unwrap();
-    (outcome, result)
 }
 
 #[tokio::test]

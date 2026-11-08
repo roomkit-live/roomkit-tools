@@ -172,9 +172,3 @@ async fn generic_deadline_and_parent_cancellation_cover_custom_backends() {
     let (out, ()) = tokio::join!(tool.search(WebSearchInput::new("q"), &cancel), result);
     assert!(matches!(out, Err(ToolError::Cancelled)));
 }
-
-#[test]
-fn the_input_is_named_after_its_tool() {
-    let definition = WebSearchTool::definition();
-    assert_eq!(definition.input_schema["title"], "WebSearchInput");
-}
