@@ -10,15 +10,22 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
 
+/// The tools whose served calls change what later calls read: the kit's repeat
+/// counts start again from them, so a test rerun after an edit is no loop. A
+/// shell command may change files too, but marking it would restart the counts
+/// at each command, and two commands alternating in a loop would go unnoticed.
+const CHANGES_STATE: [&str; 3] = ["write", "edit", "patch"];
+
 /// The native definition as RoomKit declares it: its input schema, unchanged,
 /// as the tool's parameters.
 pub(crate) fn ai_tool(definition: Definition) -> AiTool {
+    let changes_state = CHANGES_STATE.contains(&definition.name.as_str());
     AiTool {
         name: definition.name,
         description: definition.description,
         parameters: definition.input_schema,
         tags: Vec::new(),
-        changes_state: false,
+        changes_state,
     }
 }
 

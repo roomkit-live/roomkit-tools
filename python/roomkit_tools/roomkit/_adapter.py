@@ -13,6 +13,12 @@ from .._native import (
     UnsupportedResourceError,
 )
 
+# The tools whose served calls change what later calls read: the kit's repeat
+# counts start again from them, so a test rerun after an edit is no loop. A
+# shell command may change files too, but marking it would restart the counts
+# at each command, and two commands alternating in a loop would go unnoticed.
+_CHANGES_STATE = frozenset({"write", "edit", "patch"})
+
 
 class _ToolAdapter[T]:
     """A RoomKit tool over a built tool `T`, the class's `_tool_type`."""
@@ -28,11 +34,14 @@ class _ToolAdapter[T]:
     def definition(self) -> dict[str, Any]:
         """Expose the unchanged Rust input schema under RoomKit's parameters key."""
         definition = self._tool_type.definition()
-        return {
+        shown: dict[str, Any] = {
             "name": definition["name"],
             "description": definition["description"],
             "parameters": definition["input_schema"],
         }
+        if definition["name"] in _CHANGES_STATE:
+            shown["changes_state"] = True
+        return shown
 
     async def handler(self, name: str, arguments: dict[str, Any]) -> str:
         """Return data and text, preserving refusal, failure and cancellation."""

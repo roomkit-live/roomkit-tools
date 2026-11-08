@@ -23,8 +23,12 @@ from roomkit_tools import (
     Edit,
     EditTool,
     InvalidInputError,
+    Patch,
+    PatchTool,
     Read,
     ReadTool,
+    Shell,
+    ShellTool,
     ToolIOError,
     Workspace,
     Write,
@@ -48,6 +52,17 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
             ]
         )
         self.assertEqual([definition.name for definition in definitions], ["write", "edit"])
+        for tool in (
+            Write(await WriteTool.create(self.workspace)),
+            Edit(await EditTool.create(self.workspace)),
+            Patch(await PatchTool.create(self.workspace)),
+        ):
+            self.assertIs(tool.definition["changes_state"], True)
+        for tool in (
+            Read(await ReadTool.create(self.workspace)),
+            Shell(await ShellTool.create(self.workspace)),
+        ):
+            self.assertNotIn("changes_state", tool.definition)
         self.assertEqual(definitions[0].parameters, WriteTool.definition()["input_schema"])
         self.assertEqual(definitions[1].parameters, EditTool.definition()["input_schema"])
         with self.assertRaises(UnservedToolCallError):

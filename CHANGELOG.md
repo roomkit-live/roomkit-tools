@@ -6,6 +6,12 @@ part of an existing published preview.
 
 ## Unreleased
 
+- Through RoomKit, `write`, `edit` and `patch` declare `changes_state`: once one
+  is served, the agent's repeat counts start again, so a test rerun after an
+  edit is no longer refused as a loop. It takes effect with a RoomKit that has
+  the option, and on no other tool: a shell command may change files too, but
+  two commands alternating in a loop would then go unnoticed.
+
 - A tool's `input_schema` says only what a model needs to write a valid call. It
   no longer carries `$schema`, the input type's `title` and `description` (the
   tool's own description covers them), integer and float width formats such as

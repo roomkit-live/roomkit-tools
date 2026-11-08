@@ -14,8 +14,9 @@ use roomkit::model::{
 use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
-use roomkit_tools_fs::{EditTool, ReadTool, Workspace, WriteTool};
-use roomkit_tools_roomkit::{Edit, Read, Write};
+use roomkit_tools_fs::{EditTool, PatchTool, ReadTool, Workspace, WriteTool};
+use roomkit_tools_process::ShellTool;
+use roomkit_tools_roomkit::{Edit, Patch, Read, Shell, Write};
 use serde_json::{Value, json};
 
 fn script() -> [ScriptedRound; 6] {
@@ -293,4 +294,93 @@ async fn adapters_keep_overwrite_and_ambiguity_refusals_and_decline_other_tools(
         std::fs::read_to_string(root.path().join("orders")).unwrap(),
         "b b"
     );
+}
+
+#[tokio::test]
+async fn only_the_tools_that_edit_files_declare_they_change_state() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = Workspace::new(root.path()).await.unwrap();
+    let write = Write::new(WriteTool::from_workspace(workspace.clone()));
+    let edit = Edit::new(EditTool::from_workspace(workspace));
+    let patch = Patch::new(PatchTool::new(root.path()).await.unwrap());
+    let read = Read::new(ReadTool::new(root.path()).await.unwrap());
+    let shell = Shell::new(ShellTool::new(root.path()).await.unwrap());
+    assert!(write.definition().changes_state && edit.definition().changes_state);
+    assert!(patch.definition().changes_state);
+    assert!(!read.definition().changes_state && !shell.definition().changes_state);
+}
+
+/// The third identical call is refused, unless a served edit came between: a
+/// test rerun after each correction is no loop.
+#[tokio::test]
+async fn a_command_rerun_after_each_edit_is_not_refused() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("v"), "a").unwrap();
+    let call = |id: &'static str, name: &'static str, arguments: &'static str| {
+        ScriptedRound::calling("", [(id, name, arguments)])
+    };
+    let model = ScriptedProvider::new([
+        call("c1", "shell", r#"{"command":"cat v"}"#),
+        call(
+            "e1",
+            "edit",
+            r#"{"path":"v","old_text":"a","new_text":"b"}"#,
+        ),
+        call("c2", "shell", r#"{"command":"cat v"}"#),
+        call(
+            "e2",
+            "edit",
+            r#"{"path":"v","old_text":"b","new_text":"c"}"#,
+        ),
+        call("c3", "shell", r#"{"command":"cat v"}"#),
+        ScriptedRound::answering("Done."),
+    ]);
+    let id = ChannelId::new("assistant").unwrap();
+    let tools: Vec<ToolEntry> = vec![
+        ToolEntry::Tool(Arc::new(Edit::new(
+            EditTool::new(root.path()).await.unwrap(),
+        ))),
+        ToolEntry::Tool(Arc::new(Shell::new(
+            ShellTool::new(root.path()).await.unwrap(),
+        ))),
+    ];
+    let agent = common::agent(&id, &model, tools).unwrap();
+    let kit = RoomKit::new(roomkit::RoomKitOptions::default());
+    let chat = RecordingTransport::new(
+        ChannelId::new("chat").unwrap(),
+        ChannelType::WEBSOCKET,
+        RecordingTransportOptions::default(),
+    );
+    kit.register_channel(chat.clone()).unwrap();
+    kit.register_channel(agent).unwrap();
+    let conversation = RoomId::new("example").unwrap();
+    common::attach(&kit, &conversation, [chat.channel_id(), &id])
+        .await
+        .unwrap();
+    kit.process_inbound(
+        InboundMessage::new(
+            chat.channel_id().clone(),
+            "alice",
+            TextContent::new("Fix it and check."),
+        ),
+        roomkit::ProcessInboundOptions {
+            room_id: Some(conversation.clone()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    roomkit::testing::idle(&kit).await;
+    let requests = model.requests();
+    let last = requests.last().unwrap();
+    let third = last
+        .messages
+        .iter()
+        .rfind(|message| message.tool_result().is_some())
+        .unwrap()
+        .text();
+    assert!(third.contains("exit_code=0"), "{third}");
+    assert!(!third.contains("EXACT arguments"), "{third}");
+    assert_eq!(std::fs::read_to_string(root.path().join("v")).unwrap(), "c");
+    kit.close().await.unwrap();
 }
