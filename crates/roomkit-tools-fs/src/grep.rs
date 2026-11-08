@@ -108,7 +108,7 @@ pub struct GrepPage {
 pub struct GrepLimits {
     /// Maximum matching lines per page. Default: 200.
     pub max_matches: usize,
-    /// Maximum rendered bytes. Default: 50 KiB.
+    /// Maximum rendered bytes, the closing line of facts apart. Default: 50 KiB.
     pub max_output_bytes: usize,
     /// Maximum directory entries visited, including nonmatches. Default: 10,000.
     pub max_scan_entries: usize,

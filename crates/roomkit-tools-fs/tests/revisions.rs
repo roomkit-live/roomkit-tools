@@ -1,9 +1,12 @@
 //! Content revisions protect mutations without hidden per-agent read history.
 
+mod support;
+
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
     EditInput, EditTool, ReadInput, ReadTool, Workspace, WriteInput, WriteTool,
 };
+use support::content;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test]
@@ -26,7 +29,7 @@ async fn revisions_hash_raw_bytes_and_are_independent_of_the_page() {
         let page = read.read(input, &cancel).await.unwrap();
         assert_eq!(page.data.revision, full.data.revision);
         assert_ne!(page.data.revision, first.data.revision);
-        assert_eq!(page.text, "1: abc\n");
+        assert_eq!(content(&page.text), "1: abc\n");
         let mut edit = EditInput::new("notes", "second", "updated");
         edit.expected_revision = Some(page.data.revision);
         let edited = EditTool::new(root.path())
@@ -78,7 +81,7 @@ async fn edits_refuse_stale_revisions_even_when_the_target_text_still_matches() 
     let updated = tool.edit(input, &cancel).await.unwrap();
     let current = read.read(ReadInput::new("notes"), &cancel).await.unwrap();
     assert_eq!(updated.data.revision, current.data.revision);
-    assert_eq!(current.text, "1: count=3\n2: owner=Drew\n");
+    assert_eq!(content(&current.text), "1: count=3\n2: owner=Drew\n");
 }
 
 #[tokio::test]

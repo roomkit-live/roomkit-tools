@@ -75,7 +75,7 @@
         {"tool": "patch", "input": {"changes": [{"op": "update", "path": "old.txt", "old_content": "before\n", "new_content": "after\n"}]}, "expect": {"/data/dry_run": true, "/data/applied": []}},
         {"tool": "read", "input": {"path": "old.txt"}, "expect": {"/data/lines": [{"number": 1, "text": "before"}]}},
         {"tool": "patch", "input": {"dry_run": false, "changes": [{"op": "update", "path": "old.txt", "old_content": "before\n", "new_content": "after\n"}, {"op": "add", "path": "added.txt", "content": "added\n"}, {"op": "move", "from": "move.txt", "to": "moved.txt", "old_content": "\ufeffπ\r\n"}, {"op": "delete", "path": "remove.txt", "old_content": "gone\n"}]}, "expect": {"/data/completed": true, "/data/failure": null}},
-        {"tool": "diff", "input": {"old_path": "old.txt", "new_path": "next.txt"}, "expect": {"/data/changed": false, "/text": ""}}
+        {"tool": "diff", "input": {"old_path": "old.txt", "new_path": "next.txt"}, "expect": {"/data/changed": false, "/text": "no differences\n"}}
       ],
       "files_after": {"old.txt": "after\n", "next.txt": "after\n", "added.txt": "added\n", "moved.txt": "\ufeffπ\r\n"}
     },

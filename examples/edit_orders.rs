@@ -46,7 +46,9 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
         .await?;
     print!("{}", read.text);
     Ok(
-        if read.text == "1: Orders\n2: 43 | Taylor | 3 notebooks\n"
+        if read
+            .text
+            .starts_with("1: Orders\n2: 43 | Taylor | 3 notebooks\n")
             && read.data.revision == revision
         {
             ExitCode::SUCCESS

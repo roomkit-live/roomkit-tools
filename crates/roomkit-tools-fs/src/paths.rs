@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use roomkit_tools_core::{Output, ToolError, WorkspaceRoot};
+use roomkit_tools_core::{Output, ToolError, WorkspaceRoot, append_facts};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
@@ -326,6 +326,19 @@ pub(crate) fn page(
         text.push_str(&rendered);
         selected.push(entry);
     }
+    if selected.is_empty() {
+        text.push_str("no entries\n");
+    }
+    append_facts(
+        &mut text,
+        [
+            ("next_offset", next_offset.map(|next| next.to_string())),
+            (
+                "skipped_entries",
+                (skipped > 0).then(|| skipped.to_string()),
+            ),
+        ],
+    );
     Ok(Output::new(
         PathPage {
             path,

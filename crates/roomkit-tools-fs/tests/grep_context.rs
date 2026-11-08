@@ -1,6 +1,9 @@
 //! Context belongs to a matching line and is never silently cut by pagination.
 
+mod support;
+
 use std::num::NonZeroUsize;
+use support::content;
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{GrepInput, GrepLimits, GrepTool};
@@ -41,7 +44,7 @@ async fn context_preserves_source_lines_and_match_offsets_across_pages() {
         [(3, "hit two"), (4, "last")]
     );
     assert_eq!(
-        first.text,
+        content(&first.text),
         "\"source\"-1- first\n\"source\":2: hit π\n\"source\"-3- hit two\n\"source\"-4- last\n"
     );
     assert_eq!(first.data.next_offset, Some(2));
@@ -88,7 +91,7 @@ async fn byte_budget_pages_whole_matches_with_all_requested_context() {
     let unlimited = GrepTool::new(root.path()).await.unwrap();
     let first = unlimited.grep(input.clone(), &cancel).await.unwrap();
     let limits = GrepLimits {
-        max_output_bytes: first.text.len(),
+        max_output_bytes: content(&first.text).len(),
         ..GrepLimits::default()
     };
     let tool = unlimited.with_limits(limits).unwrap();
@@ -129,7 +132,7 @@ async fn oversized_context_is_omitted_with_an_explicit_clipped_flag() {
     );
     input.context_before = 1;
     let clipped = tool.grep(input, &cancel).await.unwrap();
-    assert_eq!(clipped.text, "\"a\":2: hit\n");
+    assert_eq!(clipped.text, "\"a\":2: hit\n[clipped=true]\n");
     let found = &clipped.data.matches[0];
     assert!(found.clipped);
     assert_eq!(found.text, "hit");

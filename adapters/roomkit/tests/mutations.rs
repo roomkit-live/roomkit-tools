@@ -160,9 +160,10 @@ async fn agent_mutations_reach_the_file_and_the_model_receives_the_real_results(
         assert_eq!(result["data"]["replacements"], 1);
         assert_eq!(result["data"]["changed"], true);
     }
-    assert_eq!(
-        results[4]["text"],
-        "1: Orders\n2: 43 | Taylor | 3 notebooks\n"
+    let read = results[4]["text"].as_str().unwrap();
+    assert!(
+        read.starts_with("1: Orders\n2: 43 | Taylor | 3 notebooks\n[revision=sha256:"),
+        "{read}"
     );
 }
 

@@ -62,7 +62,8 @@ pub struct CodeOutlineLimits {
     /// Parser memory grows with the input: deeply nested invalid source can
     /// need about 290 bytes per input byte before traversal bounds apply.
     pub max_file_bytes: usize,
-    /// Maximum complete serialized data-plus-text output. Default: 64 KiB.
+    /// Maximum complete serialized data-plus-text output, the text's closing
+    /// line of facts apart. Default: 64 KiB.
     pub max_output_bytes: usize,
     /// Maximum symbols per page. Default: 200.
     pub max_symbols: usize,

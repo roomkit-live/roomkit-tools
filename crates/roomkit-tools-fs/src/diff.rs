@@ -187,10 +187,16 @@ impl DiffTool {
     ) -> Result<Output<DiffResult>, ToolError> {
         let token = cancel.child_token();
         let _cancel_on_drop = token.clone().drop_guard();
-        tokio::select! { biased;
+        let compared = tokio::select! { biased;
             () = token.cancelled() => Err(ToolError::Cancelled),
             result = self.compare_files(input, token.clone()) => result,
-        }
+        }?;
+        // Equal files have no diff to show; a model still reads that it ran.
+        Ok(if compared.data.changed {
+            compared
+        } else {
+            Output::new(compared.data, "no differences\n")
+        })
     }
 
     async fn compare_files(

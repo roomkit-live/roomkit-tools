@@ -285,11 +285,12 @@ covers = [
 
 [[hidden]]
 decision = "luge-hitl:92eb3fde Q26"
-reason = "an item only sibling crates use is hidden and listed here: ShellTool::has_output_store, ImageMime::as_str and ImagePayload::data_url, which only the RoomKit adapter reads"
+reason = "an item only sibling crates use is hidden and listed here: append_facts, ShellTool::has_output_store, ImageMime::as_str and ImagePayload::data_url, which only the RoomKit adapter reads"
 covers = [
   "rust roomkit_tools_process::ShellTool::has_output_store (hidden)",
   "rust roomkit_tools_image::ImageMime::as_str (hidden)",
   "rust roomkit_tools_image::ImagePayload::data_url (hidden)",
+  "rust roomkit_tools_core::append_facts (hidden)",
 ]
 
 # ---------------------------------------------------------------------------

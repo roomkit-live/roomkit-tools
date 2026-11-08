@@ -1,6 +1,9 @@
 //! Read behavior at filesystem, cancellation and JSON boundaries.
 
+mod support;
+
 use std::num::NonZeroUsize;
+use support::content;
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{ReadInput, ReadLimits, ReadTool};
@@ -24,14 +27,14 @@ async fn a_page_preserves_unicode_and_resumes_at_the_next_line() {
         .read(input.clone(), &CancellationToken::new())
         .await
         .unwrap();
-    assert_eq!(output.text, "2: second π\n");
+    assert_eq!(content(&output.text), "2: second π\n");
     assert_eq!(output.data.lines[0].text, "second π");
     assert!(output.data.truncated);
     assert_eq!(output.data.next_offset, Some(3));
 
     input.offset = NonZeroUsize::new(3).unwrap();
     let last = tool.read(input, &CancellationToken::new()).await.unwrap();
-    assert_eq!(last.text, "3: third π\n");
+    assert_eq!(content(&last.text), "3: third π\n");
     assert!(!last.data.truncated);
     assert_eq!(last.data.next_offset, None);
 }
@@ -48,8 +51,8 @@ async fn byte_budgets_count_utf8_and_number_prefixes() {
         .read(ReadInput::new("source.txt"), &CancellationToken::new())
         .await
         .unwrap();
-    assert_eq!(output.text, "1: π\n");
-    assert_eq!(output.text.len(), 6);
+    assert_eq!(content(&output.text), "1: π\n");
+    assert_eq!(content(&output.text).len(), 6);
     assert_eq!(output.data.next_offset, Some(2));
 }
 
@@ -76,7 +79,7 @@ async fn an_empty_file_has_an_empty_first_page() {
         .await
         .unwrap();
     assert_eq!(output.data.lines, []);
-    assert_eq!(output.text, "");
+    assert_eq!(content(&output.text), "");
     assert!(!output.data.truncated);
 }
 
@@ -88,7 +91,7 @@ async fn bom_and_crlf_are_removed_from_the_view_without_changing_the_file() {
         .read(ReadInput::new("source.txt"), &CancellationToken::new())
         .await
         .unwrap();
-    assert_eq!(output.text, "1: hello\n2: \n3: last\n");
+    assert_eq!(content(&output.text), "1: hello\n2: \n3: last\n");
     assert_eq!(
         std::fs::read(directory.path().join("source.txt")).unwrap(),
         bytes
@@ -159,7 +162,7 @@ async fn large_files_and_huge_unrequested_lines_do_not_expand_the_page() {
     input.offset = NonZeroUsize::new(2).unwrap();
     input.limit = NonZeroUsize::new(1);
     let output = tool.read(input, &CancellationToken::new()).await.unwrap();
-    assert_eq!(output.text, "2: selected π\n");
+    assert_eq!(content(&output.text), "2: selected π\n");
     assert_eq!(output.data.next_offset, Some(3));
     assert_eq!(output.data.lines.len(), 1);
 }
@@ -218,7 +221,7 @@ async fn absolute_paths_inside_the_root_work_and_paths_outside_are_refused() {
         )
         .await
         .unwrap();
-    assert_eq!(output.text, "1: hello\n");
+    assert_eq!(content(&output.text), "1: hello\n");
     let outside = tempfile::NamedTempFile::new().unwrap();
     assert!(matches!(
         tool.read(
@@ -256,10 +259,13 @@ async fn symlinks_are_checked_against_their_resolved_target() {
         Err(ToolError::AccessRefused(_))
     ));
     assert_eq!(
-        tool.read(ReadInput::new("inside"), &CancellationToken::new())
-            .await
-            .unwrap()
-            .text,
+        content(
+            &tool
+                .read(ReadInput::new("inside"), &CancellationToken::new())
+                .await
+                .unwrap()
+                .text
+        ),
         "1: hello\n"
     );
 }
@@ -273,8 +279,8 @@ async fn concurrent_tools_keep_their_own_roots() {
         first.read(ReadInput::new("source.txt"), &cancel),
         second.read(ReadInput::new("source.txt"), &cancel),
     );
-    assert_eq!(a.unwrap().text, "1: first\n");
-    assert_eq!(b.unwrap().text, "1: second\n");
+    assert_eq!(content(&a.unwrap().text), "1: first\n");
+    assert_eq!(content(&b.unwrap().text), "1: second\n");
 }
 
 #[test]
@@ -301,7 +307,7 @@ async fn structured_results_can_cross_a_json_boundary_without_losing_pagination(
     let wire = serde_json::to_value(&output).unwrap();
     assert_eq!(wire["data"]["next_offset"], 2);
     assert_eq!(wire["data"]["lines"][0]["text"], "hello");
-    assert_eq!(wire["text"], "1: hello\n");
+    assert_eq!(content(wire["text"].as_str().unwrap()), "1: hello\n");
     let definition = serde_json::to_value(ReadTool::definition()).unwrap();
     assert_eq!(
         definition["input_schema"]["properties"]["offset"]["minimum"],

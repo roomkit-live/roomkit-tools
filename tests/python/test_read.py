@@ -25,6 +25,7 @@ from roomkit_tools import (
     UnsupportedResourceError,
     _native,
 )
+from text_helpers import content
 
 
 class ReadTests(unittest.IsolatedAsyncioTestCase):
@@ -78,17 +79,17 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
                     "next_offset": 2,
                     "revision": "sha256:" + hashlib.sha256(self.source.read_bytes()).hexdigest(),
                 },
-                "text": "1: first π\n",
+                "text": f"1: first π\n[next_offset=2, revision={result['data']['revision']}]\n",
             },
         )
         last = await self.tool.read(self.source, offset=result["data"]["next_offset"])
-        self.assertEqual(last["text"], "2: second\n3: last\n")
+        self.assertEqual(content(last["text"]), "2: second\n3: last\n")
         self.assertIsNone(last["data"]["next_offset"])
         self.assertEqual(last["data"]["revision"], result["data"]["revision"])
         self.assertEqual(self.source.read_bytes(), "\ufefffirst π\r\nsecond\r\nlast".encode())
         self.source.write_text("changed\n")
         changed = await self.tool.read("source.txt")
-        self.assertEqual(changed["text"], "1: changed\n")
+        self.assertEqual(content(changed["text"]), "1: changed\n")
         self.assertNotEqual(changed["data"]["revision"], result["data"]["revision"])
 
     def test_definition_is_the_rust_schema_and_each_copy_is_independent(self) -> None:
@@ -137,8 +138,8 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
         result = await self.tool.read("source.txt")
         self.assertEqual(result["data"]["lines"], [])
         self.assertFalse(result["data"]["truncated"])
-        for content in [b"data\0", b"\xff"]:
-            self.source.write_bytes(content)
+        for payload in [b"data\0", b"\xff"]:
+            self.source.write_bytes(payload)
             with self.assertRaises(UnsupportedResourceError):
                 await self.tool.read("source.txt")
         with self.assertRaises(UnsupportedResourceError):
@@ -193,7 +194,8 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
                 await task
         self.assertTrue(cancel.is_cancelled())
         self.assertEqual(
-            (await self.tool.read("source.txt"))["text"], "1: first π\n2: second\n3: last\n"
+            content((await self.tool.read("source.txt"))["text"]),
+            "1: first π\n2: second\n3: last\n",
         )
 
     async def test_file_io_keeps_the_python_event_loop_responsive(self) -> None:
@@ -207,7 +209,7 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0.001)
                 ticks += 1
         self.assertGreater(ticks, 1)
-        self.assertEqual((await task)["text"], "1: line\n")
+        self.assertEqual(content((await task)["text"]), "1: line\n")
 
 
 class EventLoopTests(unittest.TestCase):
@@ -218,7 +220,7 @@ class EventLoopTests(unittest.TestCase):
             first = asyncio.run(tool.read("source.txt"))
             second = asyncio.run(tool.read("source.txt"))
             self.assertEqual(first, second)
-            self.assertEqual(second["text"], "1: same Rust tool\n")
+            self.assertEqual(content(second["text"]), "1: same Rust tool\n")
 
 
 if __name__ == "__main__":

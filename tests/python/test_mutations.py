@@ -26,6 +26,7 @@ from roomkit_tools import (
     WriteTool,
     _native,
 )
+from text_helpers import content
 
 
 def revision(content: bytes) -> str:
@@ -89,7 +90,7 @@ class MutationTests(unittest.IsolatedAsyncioTestCase):
             "orders.txt", second, "", expected_revision=changed["data"]["revision"]
         )
         result = await self.read.read("orders.txt")
-        self.assertEqual(result["text"], "1: Order 43 - Alex: 3 items at 10:00\n")
+        self.assertEqual(content(result["text"]), "1: Order 43 - Alex: 3 items at 10:00\n")
         self.assertEqual(result["data"]["revision"], removed["data"]["revision"])
         self.assertEqual(removed["data"]["replacements"], 1)
         self.assertTrue((self.root / "orders.txt").is_file())

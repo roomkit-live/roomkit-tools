@@ -34,27 +34,28 @@ pub(crate) fn render(
             truncated: false,
             next_offset: None,
         },
-        format!(
-            "{language:?} outline; syntax_errors={}\n",
-            source.syntax_errors
-        ),
+        if source.syntax_errors {
+            format!("{language:?} outline; syntax_errors=true\n")
+        } else {
+            format!("{language:?} outline\n")
+        },
     );
     for symbol in source.symbols.into_iter().skip(offset - 1) {
         control.check()?;
         let index = symbol.index;
         let text_len = output.text.len();
-        let _ = writeln!(
+        let _ = write!(
             output.text,
-            "{}: {:?} {:?} [{}-{}] parent={:?} signature_truncated={}\n{}",
-            symbol.index,
-            symbol.kind,
-            symbol.name,
-            symbol.start_line,
-            symbol.end_line,
-            symbol.parent,
-            symbol.signature_truncated,
-            symbol.signature
+            "{}: {:?} {:?} [{}-{}]",
+            symbol.index, symbol.kind, symbol.name, symbol.start_line, symbol.end_line
         );
+        if let Some(parent) = symbol.parent {
+            let _ = write!(output.text, " parent={parent}");
+        }
+        if symbol.signature_truncated {
+            output.text.push_str(" signature_truncated=true");
+        }
+        let _ = writeln!(output.text, "\n{}", symbol.signature);
         output.data.symbols.push(symbol);
         output.data.truncated = index < total;
         output.data.next_offset = (index < total).then_some(index + 1);
@@ -77,6 +78,13 @@ pub(crate) fn render(
         ));
     }
     control.check()?;
+    // After the bound: a page that fits stays served for this one line.
+    let next_offset = output.data.next_offset.map(|next| next.to_string());
+    let revision = Some(output.data.revision.clone());
+    roomkit_tools_core::append_facts(
+        &mut output.text,
+        [("next_offset", next_offset), ("revision", revision)],
+    );
     Ok(output)
 }
 

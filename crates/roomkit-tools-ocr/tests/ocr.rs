@@ -256,6 +256,8 @@ async fn results_name_the_image_relative_to_the_workspace() {
         let result = tool.ocr(input(request), &cancel).await.unwrap();
         assert_eq!(result.data.path, expected);
         assert!(result.text.starts_with(&format!("OCR {expected:?}")));
+        let revision = format!("revision={}", result.data.revision);
+        assert!(result.text.contains(&revision), "{}", result.text);
     }
 }
 

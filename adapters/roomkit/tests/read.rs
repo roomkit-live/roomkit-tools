@@ -49,7 +49,11 @@ async fn exposes_the_derived_schema_and_keeps_pagination_in_the_result() {
     let ToolResult::Json(value) = output else {
         panic!("expected structured output")
     };
-    assert_eq!(value["text"], "1: Monday: closed\n");
+    let text = value["text"].as_str().unwrap();
+    assert!(
+        text.starts_with("1: Monday: closed\n[next_offset=2,"),
+        "{text}"
+    );
     assert_eq!(value["data"]["truncated"], true);
     assert_eq!(value["data"]["next_offset"], 2);
 }

@@ -40,7 +40,8 @@ impl Default for ListInput {
 pub struct ListLimits {
     /// Maximum entries returned per page. Default: 200.
     pub max_entries: usize,
-    /// Maximum rendered bytes, including numbering and escaped paths. Default: 50 KiB.
+    /// Maximum rendered bytes, including numbering and escaped paths, the
+    /// closing line of facts apart. Default: 50 KiB.
     pub max_output_bytes: usize,
     /// Maximum entries scanned before sorting. A larger directory fails. Default: 10,000.
     pub max_scan_entries: usize,

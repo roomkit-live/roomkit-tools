@@ -46,7 +46,9 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
     print!("{}", result.text);
 
     Ok(
-        if result.text == "1: fn main() {\n" && result.data.next_offset == Some(2) {
+        if result.text.starts_with("1: fn main() {\n[next_offset=2,")
+            && result.data.next_offset == Some(2)
+        {
             ExitCode::SUCCESS
         } else {
             ExitCode::FAILURE

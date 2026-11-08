@@ -70,6 +70,21 @@ pub struct Output<T> {
     pub text: String,
 }
 
+/// Append to a model's `text` the facts of a result that are not its content,
+/// as one `[name=value, ...]` line; nothing when no fact has a value.
+#[doc(hidden)]
+pub fn append_facts<const N: usize>(text: &mut String, facts: [(&str, Option<String>); N]) {
+    let present: Vec<String> = facts
+        .into_iter()
+        .filter_map(|(name, value)| value.map(|value| format!("{name}={value}")))
+        .collect();
+    if !present.is_empty() {
+        text.push('[');
+        text.push_str(&present.join(", "));
+        text.push_str("]\n");
+    }
+}
+
 impl<T> Output<T> {
     /// Keep the structured `data` and its model-facing `text` together.
     #[doc(hidden)]

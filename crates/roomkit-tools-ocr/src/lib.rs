@@ -266,13 +266,14 @@ impl OcrTool {
 
 fn render(result: OcrResult) -> Output<OcrResult> {
     let text = format!(
-        "OCR {:?} ({}x{}, rotation={}, truncated={}, omitted_blocks={}):\n{}",
+        "OCR {:?} ({}x{}, rotation={}, truncated={}, omitted_blocks={}, revision={}):\n{}",
         result.path,
         result.width,
         result.height,
         result.rotation_degrees,
         result.truncated,
         result.omitted_blocks,
+        result.revision,
         result.text
     );
     Output::new(result, text)

@@ -45,6 +45,7 @@ from roomkit_tools import (
     Write,
     WriteTool,
 )
+from text_helpers import content
 
 
 class RoomKitTests(unittest.IsolatedAsyncioTestCase):
@@ -62,7 +63,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(definitions), 1)
         self.assertEqual(definitions[0].parameters, self.tool.definition()["input_schema"])
         result = json.loads(await handler("read", {"path": "source.txt", "limit": 1}))
-        self.assertEqual(result["text"], "1: first\n")
+        self.assertEqual(content(result["text"]), "1: first\n")
         self.assertEqual(result["data"]["next_offset"], 2)
         with self.assertRaises(UnservedToolCallError):
             await handler("write", {})
@@ -115,7 +116,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         definitions, handler = extract_tools([tool])
         self.assertEqual(definitions[0].parameters, ReadTool.definition()["input_schema"])
         result = json.loads(await handler("read", {"path": "source.txt", "limit": 100}))
-        self.assertEqual(result["text"], "1: first\n")
+        self.assertEqual(content(result["text"]), "1: first\n")
         self.assertEqual(result["data"]["next_offset"], 2)
         with self.assertRaises(ToolFailedError):
             await Read(await ReadTool.create(self.root, max_file_bytes=1)).handler(
@@ -133,7 +134,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         finally:
             os.chdir(cwd)
         self.assertEqual(
-            json.loads(await tool.handler("read", {"path": "source.txt"}))["text"],
+            content(json.loads(await tool.handler("read", {"path": "source.txt"}))["text"]),
             "1: first\n2: second\n",
         )
         self.assertEqual(Path.cwd(), cwd)
@@ -184,7 +185,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(len(parts), 1)
         result = json.loads(parts[0].result)
-        self.assertEqual(result["text"], "1: first\n2: second\n")
+        self.assertEqual(content(result["text"]), "1: first\n2: second\n")
         self.assertFalse(parts[0].is_error)
 
     async def test_handler_preserves_asyncio_cancellation(self) -> None:
@@ -198,7 +199,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
             await task
         # A cancelled first call leaves the tool usable.
         result = json.loads(await adapter.handler("read", {"path": "source.txt"}))
-        self.assertEqual(result["text"], "1: first\n2: second\n")
+        self.assertEqual(content(result["text"]), "1: first\n2: second\n")
 
     async def test_discovery_selection_schemas_and_error_mapping(self) -> None:
         for facade, standalone, name, arguments in [
@@ -321,7 +322,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             results[2]["data"]["matches"][0]["context_before"], [{"number": 1, "text": "first"}]
         )
-        self.assertEqual(results[3]["text"], "1: first\n2: second\n")
+        self.assertEqual(content(results[3]["text"]), "1: first\n2: second\n")
 
 
 class ReadLifecycleTests(unittest.TestCase):
@@ -332,7 +333,7 @@ class ReadLifecycleTests(unittest.TestCase):
             for index in range(3):
                 source.write_text(f"value {index}\n")
                 result = json.loads(asyncio.run(tool.handler("read", {"path": "source.txt"})))
-                self.assertEqual(result["text"], f"1: value {index}\n")
+                self.assertEqual(content(result["text"]), f"1: value {index}\n")
 
     def test_discovery_facades_can_be_used_across_event_loops(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

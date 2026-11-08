@@ -126,7 +126,7 @@ async def main(root, *, live=False):
                 assert len(tasks) == 1, "expected an actual delegation"
                 result = await agents.wait(tasks[0]["task_id"])
             assert result["status"] == "completed" and result["delivery"] == "delivered"
-            assert reads and reads[-1]["text"] == "1: Project: Sample\n2: Status: ready\n"
+            assert reads and reads[-1]["text"].startswith("1: Project: Sample\n2: Status: ready\n")
             print("Verified: delegated Rust read completed; report delivered to the principal.")
 
 

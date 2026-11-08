@@ -30,6 +30,7 @@ from roomkit_tools import (
     Write,
     WriteTool,
 )
+from text_helpers import content as page_lines
 
 
 class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
@@ -213,7 +214,7 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0]["data"]["revision"], revision)
         self.assertEqual(results[1]["data"]["replacements"], 1)
         self.assertEqual(results[1]["data"]["revision"], results[2]["data"]["revision"])
-        self.assertEqual(results[2]["text"], "1: Order 43 - Alex: 3 items\n")
+        self.assertEqual(page_lines(results[2]["text"]), "1: Order 43 - Alex: 3 items\n")
         self.assertEqual((self.root / "orders.txt").read_text(), "Order 43 - Alex: 3 items\n")
 
 

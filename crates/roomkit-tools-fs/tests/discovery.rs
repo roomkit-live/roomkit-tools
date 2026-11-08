@@ -1,6 +1,9 @@
 //! Observable filesystem discovery and text-search boundaries.
 
+mod support;
+
 use std::num::NonZeroUsize;
+use support::content;
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
@@ -141,7 +144,7 @@ async fn names_are_escaped_in_rendering_and_utf8_bytes_count_toward_the_budget()
         .list(ListInput::default(), &CancellationToken::new())
         .await
         .unwrap();
-    assert_eq!(first.text.len(), limits.max_output_bytes);
+    assert_eq!(content(&first.text).len(), limits.max_output_bytes);
     assert_eq!(first.data.next_offset, Some(2));
     let input = ListInput {
         offset: NonZeroUsize::new(2).unwrap(),
@@ -539,6 +542,11 @@ async fn non_utf8_names_are_skipped_and_counted_anywhere_in_the_tree() {
     let listing = list.list(ListInput::default(), &cancel).await.unwrap();
     assert_eq!(listing.data.entries.len(), 1);
     assert_eq!(listing.data.skipped_entries, 1);
+    assert!(
+        listing.text.ends_with("[skipped_entries=1]\n"),
+        "{}",
+        listing.text
+    );
     let glob = GlobTool::new(root.path()).await.unwrap();
     let found = glob
         .glob(GlobInput::new("**/*.txt"), &cancel)

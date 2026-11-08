@@ -31,7 +31,7 @@ async def main(root: Path) -> None:
 
     assert [entry["path"] for entry in paths["data"]["entries"]] == ["catalog/widgets.txt"]
     assert matches["data"]["matches"][0]["context_before"][0]["text"] == "Widget A"
-    assert source["text"] == "1: Widget A\n2: Price: 12 EUR\n3: Color: blue\n"
+    assert source["text"].startswith("1: Widget A\n2: Price: 12 EUR\n3: Color: blue\n")
 
 
 if __name__ == "__main__":

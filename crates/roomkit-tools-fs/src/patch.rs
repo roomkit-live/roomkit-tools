@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::path::Path;
 
 use roomkit_tools_core::{Definition, Output, ToolError};
@@ -299,17 +300,28 @@ fn apply(
         applied,
         failure,
     };
-    let text = format!(
-        "patch: dry_run={}, completed={}, applied={:?}, failure={:?}\nPrepared previews (not proof of application):\n{}",
-        data.dry_run,
-        data.completed,
-        data.applied,
-        data.failure,
-        data.previews
-            .iter()
-            .map(|p| p.text.as_str())
-            .collect::<String>()
+    let mut text = format!(
+        "patch: dry_run={}, completed={}\n",
+        data.dry_run, data.completed
     );
+    for done in &data.applied {
+        let operation = format!("{:?}", done.operation).to_ascii_lowercase();
+        let _written = writeln!(text, "applied #{} {operation} {:?}", done.index, done.path);
+    }
+    if let Some(failure) = &data.failure {
+        let cancelled = if failure.cancelled {
+            " (cancelled)"
+        } else {
+            ""
+        };
+        let _written = writeln!(
+            text,
+            "failed #{}{cancelled}: {}",
+            failure.index, failure.message
+        );
+    }
+    text.push_str("Prepared previews (not proof of application):\n");
+    text.extend(data.previews.iter().map(|p| p.text.as_str()));
     Ok(Output::new(data, text))
 }
 

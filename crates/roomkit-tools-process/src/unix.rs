@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Stdio};
@@ -323,20 +324,28 @@ async fn drain_rest(
 }
 
 fn render(data: ShellResult) -> Output<ShellResult> {
-    let mut text = format!(
-        "exit_code={:?}, signal={:?}, timed_out={}, output_complete={}\nstdout:\n{}\nstderr:\n{}",
-        data.exit_code,
-        data.signal,
-        data.timed_out,
-        data.output_complete,
-        data.stdout.text,
-        data.stderr.text
-    );
+    let mut text = format!("exit_code={}", crate::output::nullable(data.exit_code));
+    if let Some(signal) = data.signal {
+        let _written = write!(text, ", signal={signal}");
+    }
+    if data.timed_out {
+        text.push_str(", timed_out=true");
+    }
+    if !data.output_complete {
+        text.push_str(", output_complete=false");
+    }
+    if data.stdout.text.is_empty() && data.stderr.text.is_empty() {
+        text.push_str(" (no output)");
+    }
+    text.push('\n');
+    // Before what the command wrote, which could imitate these lines.
     crate::output::append_metadata(
         &mut text,
         data.stdout.archive.as_ref(),
         data.stderr.archive.as_ref(),
     );
+    crate::output::push_stream(&mut text, "stdout:", &data.stdout.text);
+    crate::output::push_stream(&mut text, "stderr:", &data.stderr.text);
     Output::new(data, text)
 }
 

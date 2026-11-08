@@ -1,7 +1,10 @@
 //! Grep stays cancellable under costly regexes and always makes progress.
 
+mod support;
+
 use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
+use support::content;
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{GrepInput, GrepLimits, GrepTool};
@@ -105,6 +108,7 @@ async fn lines_longer_than_the_host_bound_are_skipped_and_counted() {
         [1, 3]
     );
     assert_eq!(page.data.skipped_lines, 1);
+    assert!(page.text.ends_with("[skipped_lines=1]\n"), "{}", page.text);
     limits.max_line_bytes = 0;
     assert!(matches!(
         GrepTool::new(root.path())
@@ -136,7 +140,7 @@ async fn an_oversized_first_match_is_clipped_so_paging_moves_past_it() {
     assert_eq!(clipped.context_after, []);
     assert!(long.starts_with(&clipped.text));
     assert!(clipped.text.len() < long.len());
-    assert!(first.text.len() <= GrepLimits::default().max_output_bytes);
+    assert!(content(&first.text).len() <= GrepLimits::default().max_output_bytes);
     assert_eq!(first.data.next_offset, Some(2));
     input.offset = NonZeroUsize::new(2).unwrap();
     let second = tool.grep(input, &cancel).await.unwrap();

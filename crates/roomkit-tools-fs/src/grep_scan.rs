@@ -234,7 +234,32 @@ impl Matches {
                 "offset is beyond the last match".into(),
             ));
         }
-        Ok(Output::new(self.data, self.text))
+        let mut text = self.text;
+        if text.is_empty() {
+            text.push_str("no matches\n");
+        }
+        let count = |skipped: usize| (skipped > 0).then(|| skipped.to_string());
+        // Only a page's single match is ever clipped.
+        let clipped = self
+            .data
+            .matches
+            .iter()
+            .any(|found| found.clipped)
+            .then(|| "true".to_owned());
+        roomkit_tools_core::append_facts(
+            &mut text,
+            [
+                (
+                    "next_offset",
+                    self.data.next_offset.map(|next| next.to_string()),
+                ),
+                ("clipped", clipped),
+                ("skipped_files", count(self.data.skipped_files)),
+                ("skipped_entries", count(self.data.skipped_entries)),
+                ("skipped_lines", count(self.data.skipped_lines)),
+            ],
+        );
+        Ok(Output::new(self.data, text))
     }
 }
 

@@ -22,7 +22,7 @@ async def main(root: Path) -> None:
         "notes.txt", "draft", "ready", expected_revision=before["data"]["revision"]
     )
     after = await read.read("notes.txt")
-    assert after["text"] == "1: Status: ready\n"
+    assert after["text"].startswith("1: Status: ready\n")
     assert after["data"]["revision"] == changed["data"]["revision"]
 
     try:

@@ -240,8 +240,13 @@ fn edited_size(
 
 fn render(data: EditResult) -> Output<EditResult> {
     let text = format!(
-        "edit {:?}: replacements={}, changed={}, bytes_before={}, bytes_after={}\n",
-        data.path, data.replacements, data.changed, data.bytes_before, data.bytes_after
+        "edit {:?}: replacements={}, changed={}, bytes_before={}, bytes_after={}, revision={}\n",
+        data.path,
+        data.replacements,
+        data.changed,
+        data.bytes_before,
+        data.bytes_after,
+        data.revision
     );
     Output::new(data, text)
 }

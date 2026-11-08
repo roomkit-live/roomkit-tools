@@ -29,6 +29,17 @@ part of an existing published preview.
   finished one, never one a running job or call still writes, rather than
   failing with `archive_limit`; a result without an archive id no longer says
   to use `output_read`.
+- A tool's `text` says more of what a model needs to go on. `read`, `list`,
+  `glob`, `grep` and `code_outline` end with a line of facts such as
+  `[next_offset=4, revision=sha256:...]`, not counted in `max_output_bytes`;
+  `write` and `edit` give the new `revision`, `ocr` the image's.
+  An empty result says so (`no matches`, `no entries`, `no differences`,
+  `no processes`). A command reads `exit_code=0`, with `signal`, `timed_out` and
+  `output_complete` only when they say something, and leaves out its empty
+  streams. Processes and archives name their state as the structured result
+  does (`state=finished, end=exited`, `has_more=true`), with no `Some(...)`. An
+  archive's line comes before what the command wrote, and is left out when it
+  holds nothing and nothing went wrong.
 - Through RoomKit, the shell's result reaches the model as its `data` alone,
   under the `data` key: its text rendering repeated the same output.
 - The RoomKit Rust adapter follows roomkit-rs ee5d724, which changes no existing

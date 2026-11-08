@@ -48,9 +48,13 @@ impl ProcessSession {
             Err(message) => data.error = Some(message.into()),
         }
         data.stdin_closed = entry.record.lock().await.status.stdin_closed;
+        let failure = data
+            .error
+            .as_ref()
+            .map_or_else(String::new, |error| format!(", error={error:?}"));
         let text = format!(
-            "{}: bytes_written={}, complete={}, stdin_closed={}, error={:?}\n",
-            data.process_id, data.bytes_written, data.complete, data.stdin_closed, data.error
+            "{}: bytes_written={}, complete={}, stdin_closed={}{failure}\n",
+            data.process_id, data.bytes_written, data.complete, data.stdin_closed
         );
         Ok(Output::new(data, text))
     }

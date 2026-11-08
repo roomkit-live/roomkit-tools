@@ -157,7 +157,7 @@ class InterpreterShutdownTests(unittest.TestCase):
                 else:
                     queue.put(('read', False, '', 0.0))
 
-            assert asyncio.run(read_once()) == '1: line\\n'
+            assert asyncio.run(read_once()).startswith('1: line\\n')
             context = multiprocessing.get_context('fork')
             queue = context.Queue()
             process = context.Process(target=child, args=(queue,))
@@ -169,7 +169,7 @@ class InterpreterShutdownTests(unittest.TestCase):
             assert elapsed < 1, elapsed
             assert process.exitcode == 0, process.exitcode
             # The parent keeps its runtime.
-            assert asyncio.run(read_once()) == '1: line\\n'
+            assert asyncio.run(read_once()).startswith('1: line\\n')
         """)
         self.assertIn("ForkedProcessError: ", result.stdout)
         self.assertIn("spawn", result.stdout)

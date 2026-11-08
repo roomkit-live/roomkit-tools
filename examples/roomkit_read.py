@@ -112,7 +112,8 @@ async def main(root: Path, live: bool) -> None:
     # Check the actual tool result, not the scripted model's answer.
     if not live:
         assert len(calls) == 1 and calls[0].name == "read" and not calls[0].is_error
-        assert json.loads(calls[0].result)["text"] == "1: Project: Sample\n2: Status: ready\n"
+        text = json.loads(calls[0].result)["text"]
+        assert text.startswith("1: Project: Sample\n2: Status: ready\n")
 
 
 if __name__ == "__main__":

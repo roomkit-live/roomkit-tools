@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 
 use crate::paths::Root;
-use roomkit_tools_core::{Definition, Output, ToolError};
+use roomkit_tools_core::{Definition, Output, ToolError, append_facts};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -47,7 +47,8 @@ pub struct ReadLimits {
     /// Maximum bytes scanned from one file. Default: 8 MiB. Memory is page-bounded;
     /// raise this limit explicitly to read larger files.
     pub max_file_bytes: usize,
-    /// Maximum bytes in the numbered text returned to the model. Default: 50 KiB.
+    /// Maximum bytes of numbered lines returned to the model, the closing line
+    /// of facts apart. Default: 50 KiB.
     pub max_output_bytes: usize,
     /// Maximum lines per page. Default: 2,000.
     pub max_lines: usize,
@@ -364,6 +365,14 @@ impl Page {
                 "offset is beyond the end of the file".into(),
             ));
         }
+        let mut text = self.text;
+        append_facts(
+            &mut text,
+            [
+                ("next_offset", self.next_offset.map(|next| next.to_string())),
+                ("revision", Some(revision.clone())),
+            ],
+        );
         Ok(Output::new(
             ReadPage {
                 path,
@@ -372,7 +381,7 @@ impl Page {
                 next_offset: self.next_offset,
                 revision,
             },
-            self.text,
+            text,
         ))
     }
 }

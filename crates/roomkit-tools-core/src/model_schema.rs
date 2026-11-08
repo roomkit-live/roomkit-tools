@@ -224,6 +224,21 @@ mod tests {
     }
 
     #[test]
+    fn every_number_width_goes() {
+        for width in [
+            "int", "int8", "int16", "int32", "int64", "int128", "uint", "uint8", "uint16",
+            "uint32", "uint64", "uint128", "float", "double",
+        ] {
+            let schema = json!({ "properties": { "n": { "type": "number", "format": width } } });
+            assert_eq!(
+                for_model(schema),
+                json!({ "properties": { "n": { "type": "number" } } }),
+                "{width}"
+            );
+        }
+    }
+
+    #[test]
     fn formats_that_say_more_than_a_width_stay() {
         let schema = json!({ "type": "object", "properties": {
             "url": { "type": "string", "format": "uri" },

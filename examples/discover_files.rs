@@ -54,7 +54,9 @@ async fn main() -> Result<ExitCode, Box<dyn Error>> {
                     .first()
                     .is_some_and(|line| line.text == "Opening hours")
             })
-            && read.text == "1: Opening hours\n2: Saturday: 08:30-16:00\n"
+            && read
+                .text
+                .starts_with("1: Opening hours\n2: Saturday: 08:30-16:00\n")
         {
             ExitCode::SUCCESS
         } else {

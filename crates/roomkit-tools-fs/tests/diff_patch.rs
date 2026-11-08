@@ -53,7 +53,7 @@ async fn diff_reports_actual_changes_and_disjoint_hunks_without_writing() {
     let equal = comparison("same\n", "same\n", 3).await;
     assert!(!equal.data.changed);
     assert_eq!(equal.data.hunks, []);
-    assert_eq!(equal.text, "");
+    assert_eq!(equal.text, "no differences\n");
 }
 
 #[tokio::test]

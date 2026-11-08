@@ -249,7 +249,11 @@ fn render_preview(
         cancel,
     )?;
     let operation = change.operation;
-    let heading = format!("{}: {operation:?} {path:?} -> {to:?}\n", change.index);
+    let name = format!("{operation:?}").to_ascii_lowercase();
+    let target = to
+        .as_deref()
+        .map_or_else(String::new, |to| format!(" -> {to:?}"));
+    let heading = format!("{}: {name} {path:?}{target}\n", change.index);
     totals.count_output(heading.len(), compared.text.len(), limits.max_output_bytes)?;
     Ok(PatchPreview {
         index: change.index,

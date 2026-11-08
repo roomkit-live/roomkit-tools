@@ -1,10 +1,13 @@
 //! Paths outside the workspace are refused before the filesystem is consulted.
 
+mod support;
+
 use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{
     DiffInput, DiffTool, EditInput, EditTool, GlobInput, GlobTool, GrepInput, GrepTool, ListInput,
     ListTool, PatchChange, PatchInput, PatchTool, ReadInput, ReadTool, WriteInput, WriteTool,
 };
+use support::content;
 use tokio_util::sync::CancellationToken;
 
 /// A listing of `path`, Python's `list(path)`: the other arguments default.
@@ -153,7 +156,7 @@ async fn absolute_paths_through_the_hosts_root_spelling_stay_accepted() {
         )
         .await
         .unwrap();
-    assert_eq!(output.text, "1: hello\n");
+    assert_eq!(content(&output.text), "1: hello\n");
     refused(
         &read
             .read(
@@ -182,7 +185,7 @@ async fn a_root_spelling_with_dot_dot_after_a_symlink_is_not_an_alias() {
     let read = ReadTool::new(base.join("m/../ws")).await.unwrap();
     let cancel = CancellationToken::new();
     let page = read.read(ReadInput::new("notes.txt"), &cancel).await;
-    assert_eq!(page.unwrap().text, "1: inside\n");
+    assert_eq!(content(&page.unwrap().text), "1: inside\n");
     for name in ["present.txt", "missing.txt"] {
         let path = base.join("ws").join(name).display().to_string();
         refused(

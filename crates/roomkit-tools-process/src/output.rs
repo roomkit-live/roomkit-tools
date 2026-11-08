@@ -154,24 +154,55 @@ pub(crate) fn append_metadata(
 ) {
     for (name, archive) in [("stdout", stdout), ("stderr", stderr)] {
         if let Some(archive) = archive {
-            // Without an id nothing was stored: there is nothing to read back.
-            let hint = if archive.archive_id.is_some() {
-                "use output_read to read retained bytes"
-            } else {
-                "nothing was stored"
-            };
-            let _written = write!(
-                text,
-                "\n{name} archive: id={:?}, stored={}, observed={}, eof={}, finished={}, complete={}, error={:?}; {hint}\n",
-                archive.archive_id,
-                archive.stored_bytes,
-                archive.observed_bytes,
-                archive.eof,
-                archive.finished,
-                archive.complete,
-                archive.error
-            );
+            append_archive(text, name, archive);
         }
+    }
+}
+
+/// What a model can do with `archive`, the copy of stream `name`, on one
+/// line: nothing is said of one with no bytes to read back and nothing wrong.
+fn append_archive(text: &mut String, name: &str, archive: &OutputArchive) {
+    let failure = archive
+        .error
+        .as_ref()
+        .map_or_else(String::new, |error| format!(", error={error:?}"));
+    let _written = match &archive.archive_id {
+        Some(id) if archive.stored_bytes > 0 => {
+            let state = if !archive.finished {
+                ", still being written"
+            } else if archive.complete {
+                ""
+            } else {
+                ", complete=false"
+            };
+            writeln!(
+                text,
+                "[{name} archive {id}: {} of {} bytes stored{state}{failure}; output_read reads it]",
+                archive.stored_bytes, archive.observed_bytes
+            )
+        }
+        Some(_) if archive.error.is_none() => return,
+        _ => writeln!(text, "[{name}: nothing was stored{failure}]"),
+    };
+}
+
+/// `value` as a model reads a nullable field.
+pub(crate) fn nullable<T: std::fmt::Display>(value: Option<T>) -> String {
+    value.map_or_else(|| "null".to_owned(), |value| value.to_string())
+}
+
+/// Append `label` and `body`, the bytes of a stream, on lines of their own;
+/// nothing for an empty stream.
+#[cfg(unix)]
+pub(crate) fn push_stream(text: &mut String, label: &str, body: &str) {
+    if body.is_empty() {
+        return;
+    }
+    text.push_str(label);
+    text.push('\n');
+    text.push_str(body);
+    if !body.ends_with('\n') {
+        text.push('\n');
     }
 }
 
@@ -344,16 +375,29 @@ impl OutputStore {
         };
         let next_offset = offset + bytes.len() as u64;
         let text = String::from_utf8_lossy(&bytes).into_owned();
-        let rendered = format!(
-            "{} bytes {}..{} (complete={}, error={:?}):\n{}",
-            input.archive_id, offset, next_offset, archive.complete, archive.error, text
-        );
+        let has_more = next_offset < archive.stored_bytes;
+        // The facts lead: the bytes that follow could imitate a closing line.
+        let mut rendered = format!("{} bytes {offset}..{next_offset}", input.archive_id);
+        if has_more {
+            let _written = write!(rendered, ", next_offset={next_offset}");
+        }
+        if !archive.complete {
+            rendered.push_str(", complete=false");
+        }
+        if let Some(error) = &archive.error {
+            let _written = write!(rendered, ", error={error:?}");
+        }
+        rendered.push_str(":\n");
+        rendered.push_str(&text);
+        if !rendered.ends_with('\n') {
+            rendered.push('\n');
+        }
         Ok(Output::new(
             OutputPage {
-                has_more: next_offset < archive.stored_bytes,
                 archive,
                 offset,
                 next_offset,
+                has_more,
                 bytes,
                 text,
             },

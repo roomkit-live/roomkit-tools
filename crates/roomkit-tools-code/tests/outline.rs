@@ -6,6 +6,34 @@ use roomkit_tools_core::ToolError;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test]
+async fn a_model_reads_the_symbols_where_to_continue_and_the_revision() {
+    let root = tempfile::tempdir().unwrap();
+    let source = "class Service:\n    def one(self):\n        return 1\n";
+    std::fs::write(root.path().join("code.py"), source).unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let mut input = CodeOutlineInput::new("code.py");
+    input.limit = NonZeroUsize::new(1);
+    let first = tool.outline(input.clone(), &token).await.unwrap();
+    assert_eq!(
+        first.text,
+        format!(
+            "Python outline\n1: Class \"Service\" [1-3]\nclass Service:\n[next_offset=2, revision={}]\n",
+            first.data.revision
+        )
+    );
+    input.offset = NonZeroUsize::new(2).unwrap();
+    let rest = tool.outline(input, &token).await.unwrap();
+    assert_eq!(
+        rest.text,
+        format!(
+            "Python outline\n2: Method \"one\" [2-3] parent=1\ndef one(self):\n[revision={}]\n",
+            rest.data.revision
+        )
+    );
+}
+
+#[tokio::test]
 async fn revisions_detect_changes_and_output_is_bounded_without_losing_symbols() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("code.py");

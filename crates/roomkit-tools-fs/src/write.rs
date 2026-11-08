@@ -162,13 +162,14 @@ impl WriteTool {
                     revision,
                     created_directories,
                 };
+                let directories = if data.created_directories.is_empty() {
+                    String::new()
+                } else {
+                    format!(", created_directories={:?}", data.created_directories)
+                };
                 let text = format!(
-                    "write {:?}: created={}, changed={}, bytes={}, created_directories={:?}\n",
-                    data.path,
-                    data.created,
-                    data.changed,
-                    data.bytes_written,
-                    data.created_directories
+                    "write {:?}: created={}, changed={}, bytes={}{directories}, revision={}\n",
+                    data.path, data.created, data.changed, data.bytes_written, data.revision
                 );
                 Ok(Output::new(data, text))
             })

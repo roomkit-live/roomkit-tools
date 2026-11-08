@@ -11,11 +11,12 @@ use roomkit_tools_core::{Output, ToolError};
 use tokio::sync::{Mutex, watch};
 use tokio_util::sync::CancellationToken;
 
+use crate::output::nullable;
 use registry::Registry;
 pub(crate) use registry::{Entry, Record, initial_status};
 
 use crate::{
-    CommandEnv, ProcessLimits, ProcessReadInput, ProcessReadResult, ProcessStartInput,
+    CommandEnv, ProcessEnd, ProcessLimits, ProcessReadInput, ProcessReadResult, ProcessStartInput,
     ProcessState, ProcessStatus, ProcessStatusInput, ProcessStatusResult, ProcessStopInput,
     ProcessStopResult,
 };
@@ -367,12 +368,11 @@ impl ProcessSession {
             states.push(entry.record.lock().await.status());
         }
         let mut text = String::new();
+        if states.is_empty() {
+            text.push_str("no processes\n");
+        }
         for s in &states {
-            let _written = writeln!(
-                text,
-                "{}: {:?}, end={:?}, exit_code={:?}, signal={:?}",
-                s.process_id, s.state, s.end, s.exit_code, s.signal
-            );
+            let _written = writeln!(text, "{}", status_line(s));
             crate::output::append_metadata(
                 &mut text,
                 s.stdout_archive.as_ref(),
@@ -406,22 +406,30 @@ impl ProcessSession {
             stdout: record.stdout.page(input.stdout_offset, limit)?,
             stderr: record.stderr.page(input.stderr_offset, limit)?,
         };
-        let mut text = format!(
-            "{} {:?}\nstdout (next={}, omitted={}):\n{}\nstderr (next={}, omitted={}):\n{}",
-            data.status.process_id,
-            data.status.state,
-            data.stdout.next_offset,
-            data.stdout.omitted_bytes,
-            data.stdout.text,
-            data.stderr.next_offset,
-            data.stderr.omitted_bytes,
-            data.stderr.text
-        );
+        let mut text = status_line(&data.status);
+        text.push('\n');
+        // Before what the command wrote, which could imitate these lines.
         crate::output::append_metadata(
             &mut text,
             data.status.stdout_archive.as_ref(),
             data.status.stderr_archive.as_ref(),
         );
+        for (name, page) in [("stdout", &data.stdout), ("stderr", &data.stderr)] {
+            let _written = write!(text, "{name} (next_offset={}", page.next_offset);
+            if page.omitted_bytes > 0 {
+                let _written = write!(text, ", omitted_bytes={}", page.omitted_bytes);
+            }
+            if page.has_more {
+                text.push_str(", has_more=true");
+            }
+            text.push_str("):\n");
+            if !page.text.is_empty() {
+                text.push_str(&page.text);
+                if !page.text.ends_with('\n') {
+                    text.push('\n');
+                }
+            }
+        }
         Ok(Output::new(data, text))
     }
 
@@ -455,10 +463,7 @@ impl ProcessSession {
         if forgotten {
             self.inner.changes.send_replace(());
         }
-        let mut text = format!(
-            "{}: {:?}, forgotten={}\n",
-            status.process_id, status.state, forgotten
-        );
+        let mut text = format!("{}, forgotten={forgotten}\n", status_line(&status));
         crate::output::append_metadata(
             &mut text,
             status.stdout_archive.as_ref(),
@@ -582,6 +587,41 @@ mod tests {
             .await
             .unwrap();
         assert!(manager.close().await);
+    }
+}
+
+/// One process as a model reads it, under the names its tools describe.
+fn status_line(status: &ProcessStatus) -> String {
+    let state = match status.state {
+        ProcessState::Running => "running",
+        ProcessState::Finished => "finished",
+    };
+    let mut line = format!("{}: state={state}", status.process_id);
+    if status.state == ProcessState::Finished {
+        let _written = write!(
+            line,
+            ", end={}, exit_code={}, signal={}",
+            nullable(status.end.map(end_name)),
+            nullable(status.exit_code),
+            nullable(status.signal)
+        );
+        if !status.output_complete {
+            line.push_str(", output_complete=false");
+        }
+    }
+    if let Some(error) = &status.error {
+        let _written = write!(line, ", error={error:?}");
+    }
+    line
+}
+
+/// How a process ended, under its name in the structured result.
+fn end_name(end: ProcessEnd) -> &'static str {
+    match end {
+        ProcessEnd::Exited => "exited",
+        ProcessEnd::Stopped => "stopped",
+        ProcessEnd::TimedOut => "timed_out",
+        ProcessEnd::Failed => "failed",
     }
 }
 
