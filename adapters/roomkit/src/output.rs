@@ -42,9 +42,6 @@ macro_rules! owned_adapter {
 
 /// Foreground shell with optional archives scoped to the calling room and agent.
 ///
-/// The model reads the result's `data` alone, under its `data` key: its text
-/// rendering repeats the same output, as Python's `Shell`.
-///
 /// With an output store, archives belong to the calling room and agent, and a
 /// call outside a RoomKit tool call is refused; without one, the shell keeps
 /// no archive and needs no caller, as Python's `Shell`. Dropping a call
@@ -83,9 +80,7 @@ impl Tool for Shell {
                     Some(owner) => tool.shell_owned(&owner, input, &cancel).await,
                     None => tool.shell(input, &cancel).await,
                 };
-                output
-                    .map(|output| serde_json::json!({ "data": output.data }))
-                    .map_err(|error| tool_error(&error))
+                output.map_err(|error| tool_error(&error))
             },
         )
     }

@@ -91,8 +91,11 @@ async fn real_agent_receives_shell_output_or_a_policy_refusal() {
             assert_eq!(value["data"]["stdout"]["text"], "Saturday: 08:30-16:00\n");
             assert_eq!(value["data"]["stderr"]["text"], "warning");
             assert_eq!(value["data"]["exit_code"], 3);
-            // The model reads the output once: in data, with no text rendering.
-            assert_eq!(value.as_object().unwrap().len(), 1, "{value}");
+            // Like every tool's: a host can show the model the text alone.
+            assert_eq!(
+                value["text"],
+                "exit_code=3\nstdout:\nSaturday: 08:30-16:00\nstderr:\nwarning\n"
+            );
             assert_eq!(
                 std::fs::read_to_string(root.path().join("marker")).unwrap(),
                 "done"

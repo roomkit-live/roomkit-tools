@@ -40,8 +40,9 @@ part of an existing published preview.
   does (`state=finished, end=exited`, `has_more=true`), with no `Some(...)`. An
   archive's line comes before what the command wrote, and is left out when it
   holds nothing and nothing went wrong.
-- Through RoomKit, the shell's result reaches the model as its `data` alone,
-  under the `data` key: its text rendering repeated the same output.
+- Through RoomKit, the shell gives `{data, text}` like every other tool, so a
+  host can show the model the text alone and keep the data for its display: an
+  `ON_TOOL_CALL` hook replaces the result and leaves the structured copy.
 - The RoomKit Rust adapter follows roomkit-rs ee5d724, which changes no existing
   adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
   requests also declare the kit's `read_stored_result`, which pages through an
