@@ -9,9 +9,9 @@ use serde_json::{Map, Value};
 
 /// The width formats schemars gives numbers. They describe the Rust type;
 /// the bounds a model must respect stay as `minimum` and `maximum`.
-const NUMBER_WIDTHS: [&str; 12] = [
-    "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64",
-    "float", "double",
+const NUMBER_WIDTHS: [&str; 14] = [
+    "int", "int8", "int16", "int32", "int64", "int128", "uint", "uint8", "uint16", "uint32",
+    "uint64", "uint128", "float", "double",
 ];
 
 /// Keywords whose value is one schema.
@@ -88,7 +88,7 @@ mod tests {
 
     /// A step of the example input.
     #[derive(Deserialize, JsonSchema)]
-    #[allow(dead_code)]
+    #[expect(dead_code, reason = "only the type's schema is read")]
     struct Step {
         /// How many times.
         count: u32,
@@ -99,7 +99,7 @@ mod tests {
     /// An example input, documented for Rust readers.
     #[derive(Deserialize, JsonSchema)]
     #[serde(deny_unknown_fields)]
-    #[allow(dead_code)]
+    #[expect(dead_code, reason = "only the type's schema is read")]
     struct Example {
         /// The title argument, a property named like a keyword.
         title: String,
@@ -177,6 +177,49 @@ mod tests {
                     }
                 }
             })
+        );
+    }
+
+    #[test]
+    fn every_position_holding_a_schema_is_trimmed() {
+        let width = || json!({ "type": "integer", "format": "uint64", "default": null });
+        let trimmed = || json!({ "type": "integer" });
+        for keyword in [
+            "items",
+            "additionalProperties",
+            "not",
+            "if",
+            "then",
+            "else",
+            "contains",
+        ] {
+            let schema = json!({ "type": "object", keyword: width() });
+            assert_eq!(
+                for_model(schema),
+                json!({ "type": "object", keyword: trimmed() }),
+                "{keyword}"
+            );
+        }
+        for keyword in ["anyOf", "oneOf", "allOf", "prefixItems"] {
+            let schema = json!({ "type": "object", keyword: [width(), { "type": "null" }] });
+            assert_eq!(
+                for_model(schema),
+                json!({ "type": "object", keyword: [trimmed(), { "type": "null" }] }),
+                "{keyword}"
+            );
+        }
+        for keyword in ["properties", "patternProperties", "$defs"] {
+            let schema = json!({ "type": "object", keyword: { "name": width() } });
+            assert_eq!(
+                for_model(schema),
+                json!({ "type": "object", keyword: { "name": trimmed() } }),
+                "{keyword}"
+            );
+        }
+        // One level down: a definition's variants.
+        assert_eq!(
+            for_model(json!({ "$defs": { "held": { "oneOf": [width()] } } })),
+            json!({ "$defs": { "held": { "oneOf": [trimmed()] } } })
         );
     }
 

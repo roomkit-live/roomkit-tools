@@ -80,6 +80,7 @@ CORE_TESTS = [
     ("test_contracts.py", "ROOMKIT_CONTRACT_RESULTS"),
     # The public API against its snapshot, the reference of `make api-parity`.
     ("test_public_api.py", None),
+    ("test_definitions.py", None),
 ]
 CORE_EXAMPLES = [
     ("discover_files.py",),

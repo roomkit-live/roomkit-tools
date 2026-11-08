@@ -177,7 +177,7 @@ def contracts(package: Package, signatures: dict[str, dict[str, Spec]]) -> dict[
                 continue
             tools[tool] = {
                 "class": path,
-                "input": _collect(definition["input_schema"], types, tool),
+                "input": _collect(definition["input_schema"], types, tool, _input_name(tool)),
                 "output": _collect(definition["output_schema"], types, tool),
             }
     return {"tools": dict(sorted(tools.items())), "types": dict(sorted(types.items()))}
@@ -197,10 +197,19 @@ def _definitions(cls: type, members: dict[str, Spec]) -> list[dict[str, Any]]:
     return [cls.definition(name) for name in names]
 
 
-def _collect(schema: dict[str, Any], types: dict[str, dict[str, Any]], tool: str) -> str | None:
-    """Add the schema's named types to ``types``; return the root's name."""
+def _input_name(tool: str) -> str:
+    """The input type of ``tool``: a schema for the model names no type, and
+    every input is named after its tool."""
+    return "".join(word.capitalize() for word in tool.split("_")) + "Input"
+
+
+def _collect(
+    schema: dict[str, Any], types: dict[str, dict[str, Any]], tool: str, root: str | None = None
+) -> str | None:
+    """Add the schema's named types to ``types``; return the root's name:
+    ``root``, or the title the schema carries."""
     named = dict(schema.get("$defs", {}))
-    root = schema.get("title")
+    root = root or schema.get("title")
     if root:
         named[root] = schema
     for name, body in named.items():
