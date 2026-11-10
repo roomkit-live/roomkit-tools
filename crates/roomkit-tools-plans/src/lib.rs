@@ -177,8 +177,9 @@ macro_rules! tool {
             }
         }
     };
-    ($name:ident, $input:ty, $output:ty, $method:ident, $wire:literal, $description:literal) => {
-        tool!(@facade $name, $input, $output, $wire, $description);
+    // Every tool's call: the same checks, then the tool's own serving of
+    // the validated input by its backend.
+    (@call $name:ident, $input:ty, $output:ty, $serve:expr) => {
         impl $name {
             /// Validate, execute and return a structured receipt, as
             /// Python's `call(arguments, scope=...)`.
@@ -193,9 +194,24 @@ macro_rules! tool {
                 scope.validate()?;
                 input.validate()?;
                 cancelled(cancel)?;
-                render(self.backend.$method(scope, &input, cancel).await?)
+                $serve(&*self.backend, scope, input, cancel).await
             }
         }
+    };
+    ($name:ident, $input:ty, $output:ty, $method:ident, $wire:literal, $description:literal) => {
+        tool!(@facade $name, $input, $output, $wire, $description);
+        tool!(
+            @call $name,
+            $input,
+            $output,
+            async |backend: &dyn PlanBackend,
+                   scope: &PlanScope,
+                   input: $input,
+                   cancel: &CancellationToken|
+                   -> Result<Output<$output>, ToolError> {
+                render(backend.$method(scope, &input, cancel).await?)
+            }
+        );
     };
 }
 tool!(
@@ -229,31 +245,26 @@ tool!(
     "plan_update",
     "Update a plan at its current `expected_revision`; omitted fields are kept. To change a step's status or description, give `step_changes`: only those steps change, and the result lists them. `steps` replaces the ENTIRE ordered list instead: include unchanged steps with their `step_id`; left-out steps are removed. After a revision conflict, read the plan again."
 );
-impl PlanUpdateTool {
-    /// Validate, resolve `step_changes` against the current plan, update and
-    /// return a structured receipt, as Python's `call(arguments, scope=...)`.
-    /// # Errors
-    /// Propagates invalid inputs, access/revision refusals, limits and backend errors.
-    pub async fn call(
-        &self,
-        scope: &PlanScope,
-        input: PlanUpdateInput,
-        cancel: &CancellationToken,
-    ) -> Result<Output<Plan>, ToolError> {
-        scope.validate()?;
-        input.validate()?;
-        cancelled(cancel)?;
-        let resolved = if input.step_changes.is_some() {
-            let read = PlanReadInput {
-                plan_id: input.plan_id.clone(),
-            };
-            let current = self.backend.read(scope, &read, cancel).await?;
-            resolve_update(&current, input.clone())?
-        } else {
-            input.clone()
+tool!(@call PlanUpdateTool, PlanUpdateInput, Plan, serve_update);
+
+/// Serve a validated update: its `step_changes` resolved against the plan
+/// the backend reads, so the backend receives the complete `steps`.
+async fn serve_update(
+    backend: &dyn PlanBackend,
+    scope: &PlanScope,
+    input: PlanUpdateInput,
+    cancel: &CancellationToken,
+) -> Result<Output<Plan>, ToolError> {
+    let resolved = if input.step_changes.is_some() {
+        let read = PlanReadInput {
+            plan_id: input.plan_id.clone(),
         };
-        render_update(&input, self.backend.update(scope, &resolved, cancel).await?)
-    }
+        let current = backend.read(scope, &read, cancel).await?;
+        resolve_update(&current, input.clone())?
+    } else {
+        input.clone()
+    };
+    render_update(&input, backend.update(scope, &resolved, cancel).await?)
 }
 tool!(
     PlanDeleteTool,
