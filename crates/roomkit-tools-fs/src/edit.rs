@@ -155,7 +155,7 @@ fn apply(
     check_arguments(input, maximum)?;
     let path = mutation::destination(root, &input.path)?;
     let relative = root.relative(&path)?;
-    let before = existing(root, &path, maximum)?;
+    let before = existing(root, &input.path, &path, maximum)?;
     revision::check(input.expected_revision.as_deref(), Some(&before.bytes))?;
     let source = mutation::validate_text(&before.bytes)?;
     let crlf = line_endings::uniformly_crlf(source);
@@ -192,9 +192,18 @@ fn check_arguments(input: &EditInput, maximum: usize) -> Result<(), ToolError> {
     mutation::bounded_text(&input.new_text, maximum)
 }
 
-/// The file to edit, which must exist.
-fn existing(root: &Root, path: &Path, maximum: usize) -> Result<mutation::Snapshot, ToolError> {
-    mutation::snapshot(path, maximum)?.ok_or_else(|| root.missing(path))
+/// The file to edit at `path`, which must exist; a missing one is named as
+/// the call wrote it, `written`.
+fn existing(
+    root: &Root,
+    written: &str,
+    path: &Path,
+    maximum: usize,
+) -> Result<mutation::Snapshot, ToolError> {
+    match mutation::snapshot(path, maximum)? {
+        Some(snapshot) => Ok(snapshot),
+        None => Err(root.missing(&root.join(written)?)),
+    }
 }
 
 /// Occurrences of `old_text`: at least one, and exactly one unless

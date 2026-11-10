@@ -850,3 +850,47 @@ async fn ignore_files_are_read_within_bounds() {
         "{refused:?}"
     );
 }
+
+/// The `.ignore` rules of every level decide before any `.gitignore` rule,
+/// as in ripgrep: a root `.ignore` keeps what a deeper `.gitignore` drops.
+#[tokio::test]
+async fn ignore_rules_decide_before_gitignore_rules_at_every_level() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("src")).unwrap();
+    std::fs::write(root.path().join(".ignore"), "!keep.log\n").unwrap();
+    std::fs::write(root.path().join("src/.gitignore"), "*.log\n").unwrap();
+    std::fs::write(root.path().join("src/keep.log"), "kept\n").unwrap();
+    std::fs::write(root.path().join("src/drop.log"), "dropped\n").unwrap();
+    let glob = GlobTool::new(root.path()).await.unwrap();
+    let found = glob
+        .glob(GlobInput::new("**/*.log"), &CancellationToken::new())
+        .await
+        .unwrap();
+    let paths: Vec<_> = found.data.entries.iter().map(|e| e.path.as_str()).collect();
+    assert_eq!(paths, ["src/keep.log"]);
+}
+
+/// An ignore file the scan cannot read is named, with the way around it.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_unreadable_ignore_file_is_named() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("a")).unwrap();
+    let ignore = root.path().join("a/.gitignore");
+    std::fs::write(&ignore, "*.tmp\n").unwrap();
+    std::fs::set_permissions(&ignore, std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::read(&ignore).is_ok() {
+        return; // Permissions do not bind this user, root for one.
+    }
+    let glob = GlobTool::new(root.path()).await.unwrap();
+    let result = glob
+        .glob(GlobInput::new("**/*.rs"), &CancellationToken::new())
+        .await;
+    std::fs::set_permissions(&ignore, std::fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(
+        matches!(&result, Err(ToolError::UnsupportedResource(message)) if message
+            == "cannot read the ignore file a/.gitignore; set include_ignored to scan without ignore files"),
+        "{result:?}"
+    );
+}

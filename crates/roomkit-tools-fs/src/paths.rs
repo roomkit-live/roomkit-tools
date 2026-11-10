@@ -267,10 +267,7 @@ pub(crate) async fn walk(
         let rules = Ignores::within(inherited, &directory).await?;
         scan.skipped += listed.skipped;
         for entry in listed.entries {
-            if rules
-                .as_ref()
-                .is_some_and(|rules| rules.ignores(root, &entry))
-            {
+            if rules.as_ref().is_some_and(|rules| rules.ignores(&entry)) {
                 scan.ignored += 1;
                 continue;
             }

@@ -13,9 +13,10 @@ use tokio::io::AsyncReadExt;
 use crate::paths::{PathEntry, PathKind, Root};
 use crate::worker;
 
-/// Ignore files read in each directory, in increasing precedence: rules of
-/// `.ignore` override those of `.gitignore`, as ripgrep orders them.
-const FILES: [&str; 2] = [".gitignore", ".ignore"];
+/// The ignore files of a directory, in decreasing precedence, as ripgrep
+/// consults them: the `.ignore` rules of every level first, the deepest
+/// one deciding, then the `.gitignore` rules the same way.
+const FILES: [&str; 2] = [".ignore", ".gitignore"];
 /// Largest ignore file read, in bytes.
 const MAX_FILE_BYTES: usize = 256 * 1024;
 /// Most ignore-file bytes one scan reads across its directories, so that a
@@ -26,8 +27,10 @@ const MAX_SCAN_BYTES: usize = 2 * 1024 * 1024;
 /// every directory above it, up to the workspace root.
 #[derive(Clone, Debug)]
 pub(crate) struct Ignores {
-    /// One matcher per directory that has rules, the root's first.
-    levels: Vec<Arc<Gitignore>>,
+    root: Root,
+    /// For each of [`FILES`], one matcher per directory that has that file,
+    /// the root's first.
+    levels: [Vec<Arc<Gitignore>>; 2],
     /// Ignore-file bytes the scan may still read, shared by its directories.
     budget: Arc<Mutex<usize>>,
 }
@@ -50,7 +53,8 @@ impl Ignores {
     /// inherits: those of the root and of each directory down to its parent.
     async fn above(root: &Root, directory: &Path) -> Result<Self, ToolError> {
         let mut rules = Self {
-            levels: Vec::new(),
+            root: root.clone(),
+            levels: Default::default(),
             budget: Arc::new(Mutex::new(MAX_SCAN_BYTES)),
         };
         let mut above: Vec<&Path> = directory
@@ -77,34 +81,32 @@ impl Ignores {
         }
     }
 
-    /// These rules, with those of `directory`'s own ignore files, compiled
-    /// on a blocking worker.
+    /// These rules, with those of `directory`'s own ignore files, each
+    /// compiled on a blocking worker.
     async fn enter(&self, directory: &Path) -> Result<Self, ToolError> {
-        let mut texts = Vec::new();
-        for name in FILES {
-            if let Some(text) = self.read(&directory.join(name)).await? {
-                texts.push(text);
-            }
-        }
         let mut rules = self.clone();
-        if !texts.is_empty() {
+        for (levels, name) in rules.levels.iter_mut().zip(FILES) {
+            let Some(text) = self.read(&directory.join(name)).await? else {
+                continue;
+            };
             let directory = directory.to_path_buf();
-            let compiled = move || compile(directory, &texts);
-            let matcher = worker::blocking("compile ignore rules", compiled).await?;
-            rules.levels.push(Arc::new(matcher));
+            let compiled = move || compile(directory, &text);
+            levels.push(Arc::new(
+                worker::blocking("compile ignore rules", compiled).await?,
+            ));
         }
         Ok(rules)
     }
 
-    /// Whether the scan leaves `entry` out: `.git`, or an entry the deepest
-    /// rule that matches it ignores.
-    pub(crate) fn ignores(&self, root: &Root, entry: &PathEntry) -> bool {
+    /// Whether the scan leaves `entry` out: `.git`, or an entry the rule
+    /// that decides for it ignores.
+    pub(crate) fn ignores(&self, entry: &PathEntry) -> bool {
         if entry.name == ".git" {
             return true;
         }
-        let path = root.path().join(&entry.path);
+        let path = self.root.path().join(&entry.path);
         let directory = entry.kind == PathKind::Directory;
-        for level in self.levels.iter().rev() {
+        for level in self.levels.iter().flat_map(|levels| levels.iter().rev()) {
             match level.matched(&path, directory) {
                 Match::Ignore(_) => return true,
                 Match::Whitelist(_) => return false,
@@ -116,29 +118,27 @@ impl Ignores {
 
     /// An ignore file's text, charged to the scan's budget, or `None` when
     /// there is no regular file there. The read itself is bounded, whatever
-    /// the file has become since it was inspected.
+    /// the file has become since it was inspected. A file the scan cannot
+    /// read is named, with the way to scan without it.
     async fn read(&self, path: &Path) -> Result<Option<String>, ToolError> {
+        let unreadable = |_| {
+            let shown = self.root.relative(path).unwrap_or_default();
+            ToolError::UnsupportedResource(format!(
+                "cannot read the ignore file {shown}; set include_ignored to scan without ignore files"
+            ))
+        };
         match fs::symlink_metadata(path).await {
             Ok(info) if info.is_file() => {}
             Ok(_) => return Ok(None),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(source) => {
-                return Err(ToolError::Io {
-                    operation: "inspect an ignore file",
-                    source,
-                });
-            }
+            Err(error) => return Err(unreadable(error)),
         }
-        let io = |source| ToolError::Io {
-            operation: "read an ignore file",
-            source,
-        };
-        let file = fs::File::open(path).await.map_err(io)?;
+        let file = fs::File::open(path).await.map_err(unreadable)?;
         let mut bytes = Vec::new();
         file.take(MAX_FILE_BYTES as u64 + 1)
             .read_to_end(&mut bytes)
             .await
-            .map_err(io)?;
+            .map_err(unreadable)?;
         if bytes.len() > MAX_FILE_BYTES {
             return Err(ToolError::LimitExceeded(
                 "an ignore file exceeds 256 KiB; set include_ignored".into(),
@@ -160,10 +160,10 @@ impl Ignores {
     }
 }
 
-/// The matcher of one directory's ignore files, in precedence order; blocking.
-fn compile(directory: PathBuf, texts: &[String]) -> Result<Gitignore, ToolError> {
+/// The matcher of one ignore file of `directory`; blocking.
+fn compile(directory: PathBuf, text: &str) -> Result<Gitignore, ToolError> {
     let mut builder = GitignoreBuilder::new(directory);
-    for line in texts.iter().flat_map(|text| text.lines()) {
+    for line in text.lines() {
         // Git skips a pattern it cannot parse, and so does the scan.
         let _skipped = builder.add_line(None, line);
     }

@@ -602,3 +602,25 @@ fn schemas_require_content_and_replacement_text_and_default_to_safe_modes() {
         assert_eq!(definition.input_schema["additionalProperties"], false);
     }
 }
+
+/// A missing file to edit is named as the call wrote it, beneath a symbolic
+/// link too, as read names it.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_missing_file_to_edit_is_named_as_written() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("sub")).unwrap();
+    std::os::unix::fs::symlink(root.path().join("sub"), root.path().join("inner")).unwrap();
+    let edit = EditTool::new(root.path()).await.unwrap();
+    let result = edit
+        .edit(
+            EditInput::new("inner/absent.txt", "a", "b"),
+            &CancellationToken::new(),
+        )
+        .await;
+    assert!(
+        matches!(&result, Err(ToolError::InvalidInput(message))
+            if message == "no such file or directory: inner/absent.txt"),
+        "{result:?}"
+    );
+}
