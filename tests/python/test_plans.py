@@ -142,11 +142,15 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(host.received[2]["status"], "completed")
         self.assertEqual(host.received[3]["status"], "pending")
         self.assertEqual(
-            result["text"], "plan-1 (revision 2): 1 step changed\n3. s3 [completed]: Step 3\n"
+            result["text"], 'plan-1 (revision 2): 1 step changed\n3. s3 [completed]: "Step 3"\n'
         )
         with self.assertRaises(InvalidInputError):
             await PlanUpdateTool(host).call(
-                {**arguments, "step_changes": [{"step_id": "s99", "status": "completed"}]},
+                {
+                    **arguments,
+                    "expected_revision": 2,
+                    "step_changes": [{"step_id": "s99", "status": "completed"}],
+                },
                 scope=OWNER,
             )
         memory = MemoryPlanBackend()
@@ -156,6 +160,37 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(direct["steps"][2]["status"], "completed")
         self.assertEqual(direct["revision"], 2)
+
+    async def test_step_changes_are_checked_before_a_host_backend_receives_them(self):
+        steps = [
+            {"step_id": f"s{i}", "description": "d" * 900, "status": "pending"}
+            for i in range(1, 65)
+        ]
+
+        class Host:
+            """A host backend that checks nothing."""
+
+            received = None
+            plan = {"plan_id": "plan-1", "revision": 1, "title": "Release"}
+            plan |= {"objective": "Ship", "steps": steps}
+
+            async def read(self, scope, *, plan_id):
+                return self.plan
+
+            async def update(self, scope, **arguments):
+                self.received = arguments
+                return self.plan
+
+        host = Host()
+        changes = [{"step_id": f"s{i}", "description": "e" * 2048} for i in range(1, 21)]
+        arguments = {"plan_id": "plan-1", "expected_revision": 1, "step_changes": changes}
+        with self.assertRaises(LimitExceededError):
+            await PlanUpdateTool(host).call(arguments, scope=OWNER)
+        with self.assertRaises(AccessRefusedError):
+            await PlanUpdateTool(host).call(
+                {**arguments, "expected_revision": 7, "step_changes": changes[:1]}, scope=OWNER
+            )
+        self.assertIsNone(host.received)
 
     async def test_invalid_steps_and_revisions_leave_state_unchanged(self):
         backend = MemoryPlanBackend()

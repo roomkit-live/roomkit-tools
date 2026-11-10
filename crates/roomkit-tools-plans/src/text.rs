@@ -4,20 +4,20 @@ use std::fmt::Write as _;
 
 use crate::types::{Plan, PlanDeleteResult, PlanListResult, PlanStep, StepStatus};
 
-fn status(value: StepStatus) -> &'static str {
-    match value {
-        StepStatus::Pending => "pending",
-        StepStatus::InProgress => "in_progress",
-        StepStatus::Blocked => "blocked",
-        StepStatus::Completed => "completed",
-        StepStatus::Cancelled => "cancelled",
-    }
+/// A status as the schema spells it.
+fn status(value: StepStatus) -> String {
+    serde_json::to_value(value)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default()
 }
 
+/// One step, its description quoted so that no line it holds reads as a
+/// step of its own.
 fn step_line(text: &mut String, number: usize, step: &PlanStep) {
     let _written = writeln!(
         text,
-        "{number}. {} [{}]: {}",
+        "{number}. {} [{}]: {:?}",
         step.step_id,
         status(step.status),
         step.description
@@ -27,7 +27,7 @@ fn step_line(text: &mut String, number: usize, step: &PlanStep) {
 /// A plan: its heading, objective and every step in order.
 pub(crate) fn plan(plan: &Plan) -> String {
     let mut text = format!(
-        "{} (revision {}): {}\nObjective: {}\n",
+        "{} (revision {}): {:?}\nObjective: {:?}\n",
         plan.plan_id, plan.revision, plan.title, plan.objective
     );
     if plan.steps.is_empty() {
@@ -57,6 +57,11 @@ pub(crate) fn changed(plan: &Plan, changed: &[String]) -> String {
     text
 }
 
+/// An update by step that changed nothing: the revision stays.
+pub(crate) fn unchanged(plan: &Plan) -> String {
+    format!("{} (revision {}): no change\n", plan.plan_id, plan.revision)
+}
+
 /// Every plan of the scope, one line each.
 pub(crate) fn list(result: &PlanListResult) -> String {
     let mut text = String::new();
@@ -66,7 +71,7 @@ pub(crate) fn list(result: &PlanListResult) -> String {
     for plan in &result.plans {
         let _written = writeln!(
             text,
-            "{} (revision {}): {}, {}/{} steps completed",
+            "{} (revision {}): {:?}, {}/{} steps completed",
             plan.plan_id, plan.revision, plan.title, plan.completed_steps, plan.total_steps
         );
     }

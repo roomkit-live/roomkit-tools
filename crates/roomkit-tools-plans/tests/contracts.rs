@@ -1,7 +1,9 @@
 //! Plan storage and cross-language contract checks.
 use roomkit_tools_plans::{
-    MemoryPlanBackend, PlanBackend, PlanCreateTool, PlanDeleteTool, PlanListTool, PlanReadTool,
-    PlanScope, PlanUpdateTool, decode,
+    MemoryPlanBackend, Plan, PlanBackend, PlanCreateInput, PlanCreateTool, PlanDeleteInput,
+    PlanDeleteResult, PlanDeleteTool, PlanFuture, PlanListInput, PlanListResult, PlanListTool,
+    PlanReadInput, PlanReadTool, PlanScope, PlanStep, PlanUpdateInput, PlanUpdateTool, StepStatus,
+    decode,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -43,8 +45,8 @@ async fn shared_crud_scenario() {
     // The model reads the plan as lines, not the JSON of data.
     assert_eq!(
         outputs[2]["text"],
-        "plan-1 (revision 1): Review shipping\nObjective: Validate the fee boundary\n\
-         1. inspect [in_progress]: Read the source\n2. test [pending]: Test the boundary\n"
+        "plan-1 (revision 1): \"Review shipping\"\nObjective: \"Validate the fee boundary\"\n\
+         1. inspect [in_progress]: \"Read the source\"\n2. test [pending]: \"Test the boundary\"\n"
     );
     assert_eq!(outputs[3]["data"]["steps"][0]["step_id"], "test");
     assert_eq!(outputs[4]["data"]["revision"], 2); // No-op keeps the revision.
@@ -54,7 +56,7 @@ async fn shared_crud_scenario() {
     assert_eq!(outputs[7]["data"]["revision"], 4);
     assert_eq!(
         outputs[7]["text"],
-        "plan-1 (revision 4): 1 step changed\n1. inspect [pending]: Reread the source\n"
+        "plan-1 (revision 4): 1 step changed\n1. inspect [pending]: \"Reread the source\"\n"
     );
     assert_eq!(outputs[8]["data"]["deleted"], true);
     assert_eq!(outputs[8]["text"], "plan-1 (revision 4) deleted\n");
@@ -113,7 +115,7 @@ async fn step_changes_change_only_the_steps_they_name() {
     );
     assert_eq!(
         changed.text,
-        "plan-1 (revision 2): 1 step changed\n3. s3 [completed]: Step 3\n"
+        "plan-1 (revision 2): 1 step changed\n3. s3 [completed]: \"Step 3\"\n"
     );
     for (arguments, refusal) in [
         (
@@ -138,4 +140,137 @@ async fn step_changes_change_only_the_steps_they_name() {
             "{result:?}"
         );
     }
+}
+
+/// A host backend that checks nothing: the tool checks what it hands it.
+#[derive(Debug)]
+struct Lax {
+    plan: Plan,
+    updates: std::sync::atomic::AtomicUsize,
+}
+
+impl PlanBackend for Lax {
+    fn create<'a>(
+        &'a self,
+        _: &'a PlanScope,
+        _: &'a PlanCreateInput,
+        _: &'a CancellationToken,
+    ) -> PlanFuture<'a, Plan> {
+        Box::pin(async { Ok(self.plan.clone()) })
+    }
+    fn read<'a>(
+        &'a self,
+        _: &'a PlanScope,
+        _: &'a PlanReadInput,
+        _: &'a CancellationToken,
+    ) -> PlanFuture<'a, Plan> {
+        Box::pin(async { Ok(self.plan.clone()) })
+    }
+    fn list<'a>(
+        &'a self,
+        _: &'a PlanScope,
+        _: &'a PlanListInput,
+        _: &'a CancellationToken,
+    ) -> PlanFuture<'a, PlanListResult> {
+        Box::pin(async { Ok(PlanListResult { plans: Vec::new() }) })
+    }
+    fn update<'a>(
+        &'a self,
+        _: &'a PlanScope,
+        input: &'a PlanUpdateInput,
+        _: &'a CancellationToken,
+    ) -> PlanFuture<'a, Plan> {
+        self.updates
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let mut plan = self.plan.clone();
+        plan.steps = input.steps.clone().unwrap_or_default();
+        plan.revision += 1;
+        Box::pin(async { Ok(plan) })
+    }
+    fn delete<'a>(
+        &'a self,
+        _: &'a PlanScope,
+        _: &'a PlanDeleteInput,
+        _: &'a CancellationToken,
+    ) -> PlanFuture<'a, PlanDeleteResult> {
+        Box::pin(async { Err(roomkit_tools_core::ToolError::Cancelled) })
+    }
+}
+
+#[tokio::test]
+async fn step_changes_are_checked_before_a_host_backend_receives_them() {
+    let steps = (1..=64)
+        .map(|i| PlanStep {
+            step_id: format!("s{i}"),
+            description: "d".repeat(900),
+            status: StepStatus::Pending,
+        })
+        .collect();
+    let plan = Plan {
+        plan_id: "plan-1".into(),
+        revision: 1,
+        title: "Release".into(),
+        objective: "Ship".into(),
+        steps,
+    };
+    let backend = Arc::new(Lax {
+        plan,
+        updates: 0.into(),
+    });
+    let shared: Arc<dyn PlanBackend> = Arc::<Lax>::clone(&backend);
+    let tool = PlanUpdateTool::new(shared);
+    let scope = PlanScope {
+        room_id: "plans".into(),
+        caller_id: "assistant".into(),
+    };
+    let cancel = CancellationToken::new();
+    let changes: Vec<Value> = (1..=20)
+        .map(|i| serde_json::json!({"step_id": format!("s{i}"), "description": "e".repeat(2048)}))
+        .collect();
+    let call = |expected_revision: u64, changes: &[Value]| {
+        let arguments = serde_json::json!({"plan_id": "plan-1",
+            "expected_revision": expected_revision, "step_changes": changes});
+        decode::<PlanUpdateInput>(&arguments.to_string()).unwrap()
+    };
+    // The plan they make is past the 64 KiB a plan record holds.
+    let refused = tool.call(&scope, call(1, &changes), &cancel).await;
+    assert!(
+        matches!(&refused, Err(roomkit_tools_core::ToolError::LimitExceeded(m))
+            if m == "plan record exceeds 64 KiB JSON"),
+        "{refused:?}"
+    );
+    // A stale revision is a conflict, whatever the steps of the current one.
+    let stale = tool.call(&scope, call(7, &changes[..1]), &cancel).await;
+    assert!(
+        matches!(&stale, Err(roomkit_tools_core::ToolError::AccessRefused(m))
+            if m == "plan revision conflict; use plan_read before retrying"),
+        "{stale:?}"
+    );
+    assert_eq!(
+        backend.updates.load(std::sync::atomic::Ordering::Relaxed),
+        0
+    );
+}
+
+#[tokio::test]
+async fn a_step_change_that_changes_nothing_says_so() {
+    let backend: Arc<dyn PlanBackend> = Arc::new(MemoryPlanBackend::default());
+    let scope = PlanScope {
+        room_id: "plans".into(),
+        caller_id: "assistant".into(),
+    };
+    let cancel = CancellationToken::new();
+    let create = serde_json::json!({"title": "Release", "objective": "Ship",
+        "steps": [{"step_id": "s1", "description": "Step 1", "status": "pending"}]});
+    PlanCreateTool::new(Arc::clone(&backend))
+        .call(&scope, decode(&create.to_string()).unwrap(), &cancel)
+        .await
+        .unwrap();
+    let same = serde_json::json!({"plan_id": "plan-1", "expected_revision": 1,
+        "step_changes": [{"step_id": "s1", "status": "pending"}]});
+    let result = PlanUpdateTool::new(backend)
+        .call(&scope, decode(&same.to_string()).unwrap(), &cancel)
+        .await
+        .unwrap();
+    assert_eq!(result.text, "plan-1 (revision 1): no change\n");
 }

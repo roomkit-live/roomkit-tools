@@ -1,3 +1,4 @@
+use crate::validation::check_revision;
 use crate::{
     PlanBackend, PlanContract, PlanFuture, cancelled,
     types::{
@@ -93,15 +94,6 @@ fn owned<'a>(state: &'a State, scope: &PlanScope, id: &str) -> Result<&'a Plan, 
         .filter(|(owner, _)| owner == scope)
         .map(|(_, plan)| plan)
         .ok_or_else(|| ToolError::AccessRefused("unknown plan in this scope".into()))
-}
-fn check_revision(plan: &Plan, expected: u64) -> Result<(), ToolError> {
-    if plan.revision == expected {
-        Ok(())
-    } else {
-        Err(ToolError::AccessRefused(
-            "plan revision conflict; use plan_read before retrying".into(),
-        ))
-    }
 }
 impl PlanBackend for MemoryPlanBackend {
     fn create<'a>(

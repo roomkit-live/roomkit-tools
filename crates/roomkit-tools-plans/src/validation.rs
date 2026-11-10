@@ -80,6 +80,16 @@ fn step_changes(values: &[StepChange]) -> Result<(), ToolError> {
     }
     Ok(())
 }
+/// Refuse a change made at another revision than the plan's.
+pub(crate) fn check_revision(plan: &Plan, expected: u64) -> Result<(), ToolError> {
+    if plan.revision == expected {
+        Ok(())
+    } else {
+        Err(ToolError::AccessRefused(
+            "plan revision conflict; use plan_read before retrying".into(),
+        ))
+    }
+}
 pub(crate) fn size<T: serde::Serialize>(value: &T) -> Result<(), ToolError> {
     let bytes = serde_json::to_vec(value)
         .map_err(|_| ToolError::InvalidInput("invalid plan JSON".into()))?;
@@ -158,8 +168,8 @@ impl PlanContract for PlanDeleteInput {
     }
 }
 impl PlanContract for Plan {
-    fn text(&self) -> String {
-        crate::text::plan(self)
+    fn text(&self) -> Option<String> {
+        Some(crate::text::plan(self))
     }
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)?;
@@ -171,8 +181,8 @@ impl PlanContract for Plan {
     }
 }
 impl PlanContract for PlanListResult {
-    fn text(&self) -> String {
-        crate::text::list(self)
+    fn text(&self) -> Option<String> {
+        Some(crate::text::list(self))
     }
     fn validate(&self) -> Result<(), ToolError> {
         if self.plans.len() > 64 {
@@ -197,8 +207,8 @@ impl PlanContract for PlanListResult {
     }
 }
 impl PlanContract for PlanDeleteResult {
-    fn text(&self) -> String {
-        crate::text::deleted(self)
+    fn text(&self) -> Option<String> {
+        Some(crate::text::deleted(self))
     }
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)?;

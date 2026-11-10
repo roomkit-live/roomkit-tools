@@ -69,10 +69,10 @@ pub trait PlanContract: Serialize + DeserializeOwned + JsonSchema {
     /// # Errors
     /// Rejects invalid or oversized values.
     fn validate(&self) -> Result<(), ToolError>;
-    /// What a model reads of this value as a result: its JSON unless the
-    /// type renders lines of its own.
-    fn text(&self) -> String {
-        serde_json::to_string(self).unwrap_or_default()
+    /// The lines a model reads of this value as a result, or `None` for a
+    /// type rendered as its JSON.
+    fn text(&self) -> Option<String> {
+        None
     }
 }
 
@@ -98,7 +98,10 @@ pub fn decode<T: PlanContract>(json: &str) -> Result<T, ToolError> {
 #[doc(hidden)]
 pub fn render<T: PlanContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
-    let text = data.text();
+    let text = match data.text() {
+        Some(text) => text,
+        None => serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?,
+    };
     Ok(Output::new(data, text))
 }
 
@@ -111,16 +114,25 @@ pub fn render_update(input: &PlanUpdateInput, plan: Plan) -> Result<Output<Plan>
     let Some(changes) = &input.step_changes else {
         return render(plan);
     };
+    if input.title.is_some() || input.objective.is_some() {
+        return render(plan);
+    }
     plan.validate()?;
-    let step_ids: Vec<String> = changes.iter().map(|c| c.step_id.clone()).collect();
-    let text = text::changed(&plan, &step_ids);
+    let text = if plan.revision == input.expected_revision {
+        text::unchanged(&plan)
+    } else {
+        let step_ids: Vec<String> = changes.iter().map(|c| c.step_id.clone()).collect();
+        text::changed(&plan, &step_ids)
+    };
     Ok(Output::new(plan, text))
 }
 
 /// The update `input` asks of `plan`: its `step_changes` applied to the
-/// plan's steps into the complete `steps`, its other fields kept.
+/// plan's steps into the complete `steps`, its other fields kept, and
+/// checked as any update with `steps` is.
 /// # Errors
-/// Refuses a change naming a step the plan does not have.
+/// Refuses an invalid plan, a revision other than the plan's, a change
+/// naming a step the plan does not have, and a result past the bounds.
 #[doc(hidden)]
 pub fn resolve_update(
     plan: &Plan,
@@ -129,6 +141,8 @@ pub fn resolve_update(
     let Some(changes) = input.step_changes.take() else {
         return Ok(input);
     };
+    plan.validate()?;
+    validation::check_revision(plan, input.expected_revision)?;
     let mut steps = plan.steps.clone();
     for change in changes {
         let step = steps
@@ -148,6 +162,7 @@ pub fn resolve_update(
         }
     }
     input.steps = Some(steps);
+    input.validate()?;
     Ok(input)
 }
 
