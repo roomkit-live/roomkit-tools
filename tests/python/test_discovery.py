@@ -41,7 +41,7 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
         (self.root / "catalog/notes.md").write_text("Blue plan.\nblueprint\n")
         (self.root / "notes.txt").write_text("literal [blue]\n")
         (self.root / ".hidden.txt").write_text("hidden\n")
-        (self.root / ".gitignore").write_text("catalog/\n")
+        (self.root / ".gitignore").write_text("build/\n")
         (self.root / "binary.dat").write_bytes(b"blue\0")
 
     async def test_schemas_and_adapters_need_no_roomkit(self) -> None:
@@ -156,6 +156,33 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
         empty = await tool.grep("missing text")
         self.assertEqual(empty["data"]["matches"], [])
         self.assertFalse(empty["data"]["truncated"])
+
+    async def test_grep_and_glob_skip_what_ignore_files_exclude_and_git(self) -> None:
+        (self.root / "build").mkdir()
+        (self.root / "build/output.txt").write_text("Tags: built\n")
+        (self.root / ".git").mkdir()
+        (self.root / ".git/HEAD.txt").write_text("Tags: head\n")
+        grep = await GrepTool.create(self.root)
+        glob = await GlobTool.create(self.root)
+        skipped = await grep.grep("Tags:")
+        self.assertEqual(
+            [match["path"] for match in skipped["data"]["matches"]],
+            ["catalog/items.txt", "catalog/items.txt"],
+        )
+        self.assertEqual(
+            [entry["path"] for entry in (await glob.glob("**/*.txt"))["data"]["entries"]],
+            [".hidden.txt", "catalog/items.txt", "notes.txt"],
+        )
+        everything = await grep.grep("Tags:", include_ignored=True)
+        self.assertEqual(
+            [match["path"] for match in everything["data"]["matches"]],
+            [".git/HEAD.txt", "build/output.txt", "catalog/items.txt", "catalog/items.txt"],
+        )
+        found = await glob.glob("**/*.txt", include_ignored=True)
+        self.assertEqual(
+            [entry["path"] for entry in found["data"]["entries"]],
+            [".git/HEAD.txt", ".hidden.txt", "build/output.txt", "catalog/items.txt", "notes.txt"],
+        )
 
     async def test_arguments_are_validated_by_rust(self) -> None:
         for cls, arguments in [

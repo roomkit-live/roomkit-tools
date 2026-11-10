@@ -683,3 +683,170 @@ fn argument_schemas_keep_defaults_and_reject_bad_offsets_and_unknown_keys() {
         );
     }
 }
+
+/// A built project: `target/` and `.git` hold more entries than the scan
+/// bound, `.gitignore` names `target/` and `*.log`, `src/.ignore` names
+/// `generated.rs` and re-includes `keep.log`.
+#[expect(clippy::unwrap_used, reason = "a fixture must be created successfully")]
+fn built_project(build_files: usize) -> tempfile::TempDir {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path();
+    for directory in ["src/nested", "target/debug", ".git/objects"] {
+        std::fs::create_dir_all(path.join(directory)).unwrap();
+    }
+    std::fs::write(path.join(".gitignore"), "target/\n*.log\n").unwrap();
+    std::fs::write(path.join("src/.ignore"), "generated.rs\n!keep.log\n").unwrap();
+    for file in [
+        "Cargo.toml",
+        "src/lib.rs",
+        "src/nested/mod.rs",
+        "src/generated.rs",
+        "src/keep.log",
+        "src/drop.log",
+    ] {
+        std::fs::write(path.join(file), "fn worker_note() {}\n").unwrap();
+    }
+    for index in 0..build_files {
+        let name = format!("{index}.rs");
+        std::fs::write(
+            path.join("target/debug").join(&name),
+            "fn worker_note() {}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            path.join(".git/objects").join(name),
+            "fn worker_note() {}\n",
+        )
+        .unwrap();
+    }
+    root
+}
+
+/// At the root of a built project, grep and glob exceeded `max_scan_entries`
+/// on `target/` and `.git` (RMK-1639).
+#[tokio::test]
+async fn grep_and_glob_skip_what_ignore_files_exclude_and_git() {
+    let root = built_project(40);
+    let cancel = CancellationToken::new();
+    let grep = GrepTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(GrepLimits {
+            max_scan_entries: 30,
+            ..GrepLimits::default()
+        })
+        .unwrap();
+    let found = grep
+        .grep(GrepInput::new("fn worker_note"), &cancel)
+        .await
+        .unwrap();
+    let paths: Vec<_> = found.data.matches.iter().map(|m| m.path.as_str()).collect();
+    assert_eq!(
+        paths,
+        [
+            "Cargo.toml",
+            "src/keep.log",
+            "src/lib.rs",
+            "src/nested/mod.rs"
+        ]
+    );
+    // Searching below the root keeps the rules of the directories above.
+    let mut input = GrepInput::new("fn worker_note");
+    input.path = "src".into();
+    let found = grep.grep(input, &cancel).await.unwrap();
+    let paths: Vec<_> = found.data.matches.iter().map(|m| m.path.as_str()).collect();
+    assert_eq!(paths, ["src/keep.log", "src/lib.rs", "src/nested/mod.rs"]);
+
+    let glob = GlobTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(GlobLimits {
+            max_scan_entries: 30,
+            ..GlobLimits::default()
+        })
+        .unwrap();
+    let found = glob.glob(GlobInput::new("**/*.rs"), &cancel).await.unwrap();
+    let paths: Vec<_> = found.data.entries.iter().map(|e| e.path.as_str()).collect();
+    assert_eq!(paths, ["src/lib.rs", "src/nested/mod.rs"]);
+    let found = glob.glob(GlobInput::new("*"), &cancel).await.unwrap();
+    let paths: Vec<_> = found.data.entries.iter().map(|e| e.path.as_str()).collect();
+    assert_eq!(paths, [".gitignore", "Cargo.toml", "src"]);
+    // A file is still no directory to glob, before any ignore file is read.
+    let mut input = GlobInput::new("*");
+    input.path = "Cargo.toml".into();
+    assert!(matches!(
+        glob.glob(input, &cancel).await,
+        Err(ToolError::UnsupportedResource(_))
+    ));
+}
+
+#[tokio::test]
+async fn include_ignored_scans_everything() {
+    let root = built_project(2);
+    let cancel = CancellationToken::new();
+    let grep = GrepTool::new(root.path()).await.unwrap();
+    let mut input = GrepInput::new("fn worker_note");
+    input.include_ignored = true;
+    let found = grep.grep(input, &cancel).await.unwrap();
+    let paths: Vec<_> = found.data.matches.iter().map(|m| m.path.as_str()).collect();
+    assert_eq!(
+        paths,
+        [
+            ".git/objects/0.rs",
+            ".git/objects/1.rs",
+            "Cargo.toml",
+            "src/drop.log",
+            "src/generated.rs",
+            "src/keep.log",
+            "src/lib.rs",
+            "src/nested/mod.rs",
+            "target/debug/0.rs",
+            "target/debug/1.rs",
+        ]
+    );
+    let glob = GlobTool::new(root.path()).await.unwrap();
+    let mut input = GlobInput::new("**/*.rs");
+    input.include_ignored = true;
+    assert_eq!(
+        glob.glob(input, &cancel).await.unwrap().data.entries.len(),
+        7
+    );
+    // An explicitly searched directory is searched even when it is ignored.
+    let mut input = GrepInput::new("fn worker_note");
+    input.path = "target".into();
+    assert_eq!(
+        grep.grep(input, &cancel).await.unwrap().data.matches.len(),
+        2
+    );
+}
+
+/// Ignore files are model-writable input: each is bounded, and so is what
+/// one scan reads of them all.
+#[tokio::test]
+async fn ignore_files_are_read_within_bounds() {
+    let cancel = CancellationToken::new();
+    let large = tempfile::tempdir().unwrap();
+    std::fs::write(large.path().join(".gitignore"), "x\n".repeat(140 * 1024)).unwrap();
+    let glob = GlobTool::new(large.path()).await.unwrap();
+    let refused = glob.glob(GlobInput::new("**"), &cancel).await;
+    assert!(
+        matches!(&refused, Err(ToolError::LimitExceeded(message)) if message.contains("256 KiB")),
+        "{refused:?}"
+    );
+    let mut input = GlobInput::new("**");
+    input.include_ignored = true;
+    assert!(glob.glob(input, &cancel).await.is_ok());
+
+    let many = tempfile::tempdir().unwrap();
+    for index in 0..12 {
+        let directory = many.path().join(format!("d{index:02}"));
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(directory.join(".ignore"), "y\n".repeat(100 * 1024)).unwrap();
+    }
+    let grep = GrepTool::new(many.path()).await.unwrap();
+    let refused = grep.grep(GrepInput::new("y"), &cancel).await;
+    assert!(
+        matches!(&refused, Err(ToolError::LimitExceeded(message)) if message.contains("2 MiB")),
+        "{refused:?}"
+    );
+}

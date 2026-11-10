@@ -50,50 +50,6 @@ fn files() -> Vec<(String, Value)> {
         ),
         dump!(roomkit_tools_fs::EditLimits::default(), max_file_bytes),
         dump!(
-            roomkit_tools_fs::GlobInput::new("*"),
-            pattern,
-            path,
-            offset,
-            limit
-        ),
-        dump!(
-            roomkit_tools_fs::GlobLimits::default(),
-            max_matches,
-            max_output_bytes,
-            max_scan_entries,
-            max_depth
-        ),
-        dump!(
-            roomkit_tools_fs::GrepInput::new("a"),
-            pattern,
-            path,
-            include,
-            literal,
-            ignore_case,
-            context_before,
-            context_after,
-            offset,
-            limit
-        ),
-        dump!(
-            roomkit_tools_fs::GrepLimits::default(),
-            max_matches,
-            max_output_bytes,
-            max_scan_entries,
-            max_depth,
-            max_file_bytes,
-            max_total_bytes,
-            max_context_lines,
-            max_line_bytes
-        ),
-        dump!(roomkit_tools_fs::ListInput::default(), path, offset, limit),
-        dump!(
-            roomkit_tools_fs::ListLimits::default(),
-            max_entries,
-            max_output_bytes,
-            max_scan_entries
-        ),
-        dump!(
             roomkit_tools_fs::PatchInput::new(Vec::new()),
             changes,
             dry_run
@@ -123,6 +79,57 @@ fn files() -> Vec<(String, Value)> {
             expected_revision
         ),
         dump!(roomkit_tools_fs::WriteLimits::default(), max_file_bytes),
+    ]
+}
+
+fn discovery() -> Vec<(String, Value)> {
+    vec![
+        dump!(
+            roomkit_tools_fs::GlobInput::new("*"),
+            pattern,
+            path,
+            include_ignored,
+            offset,
+            limit
+        ),
+        dump!(
+            roomkit_tools_fs::GlobLimits::default(),
+            max_matches,
+            max_output_bytes,
+            max_scan_entries,
+            max_depth
+        ),
+        dump!(
+            roomkit_tools_fs::GrepInput::new("a"),
+            pattern,
+            path,
+            include,
+            include_ignored,
+            literal,
+            ignore_case,
+            context_before,
+            context_after,
+            offset,
+            limit
+        ),
+        dump!(
+            roomkit_tools_fs::GrepLimits::default(),
+            max_matches,
+            max_output_bytes,
+            max_scan_entries,
+            max_depth,
+            max_file_bytes,
+            max_total_bytes,
+            max_context_lines,
+            max_line_bytes
+        ),
+        dump!(roomkit_tools_fs::ListInput::default(), path, offset, limit),
+        dump!(
+            roomkit_tools_fs::ListLimits::default(),
+            max_entries,
+            max_output_bytes,
+            max_scan_entries
+        ),
     ]
 }
 
@@ -377,10 +384,17 @@ fn knowledge() -> Vec<(String, Value)> {
 
 #[test]
 fn every_keyword_struct_dumps_its_defaults() {
-    let dumped: Vec<(String, Value)> = [files(), processes(), network(), media(), knowledge()]
-        .into_iter()
-        .flatten()
-        .collect();
+    let dumped: Vec<(String, Value)> = [
+        files(),
+        discovery(),
+        processes(),
+        network(),
+        media(),
+        knowledge(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     let defaults: Map<String, Value> = dumped.iter().cloned().collect();
     assert_eq!(defaults.len(), dumped.len(), "a struct is dumped twice");
     if let Ok(path) = std::env::var("ROOMKIT_API_DEFAULTS") {

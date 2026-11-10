@@ -153,7 +153,7 @@
     "call": ["async def", "arguments"],
     "create": ["async classmethod", "root", "*", "max_matches=None", "max_output_bytes=None", "max_scan_entries=None", "max_depth=None"],
     "definition": ["classmethod"],
-    "glob": ["async def", "pattern", "*", "path='.'", "offset=1", "limit=None"]
+    "glob": ["async def", "pattern", "*", "path='.'", "include_ignored=False", "offset=1", "limit=None"]
   },
   "roomkit_tools.Grep": {
     "__init__": ["def", "tool"],
@@ -166,7 +166,7 @@
     "call": ["async def", "arguments"],
     "create": ["async classmethod", "root", "*", "max_matches=None", "max_output_bytes=None", "max_scan_entries=None", "max_depth=None", "max_file_bytes=None", "max_total_bytes=None", "max_context_lines=None", "max_line_bytes=None"],
     "definition": ["classmethod"],
-    "grep": ["async def", "pattern", "*", "path='.'", "include=None", "literal=False", "ignore_case=False", "context_before=0", "context_after=0", "offset=1", "limit=None"]
+    "grep": ["async def", "pattern", "*", "path='.'", "include=None", "include_ignored=False", "literal=False", "ignore_case=False", "context_before=0", "context_after=0", "offset=1", "limit=None"]
   },
   "roomkit_tools.InvalidInputError": {
     "__bases__": ["bases", "roomkit_tools.ToolError"]

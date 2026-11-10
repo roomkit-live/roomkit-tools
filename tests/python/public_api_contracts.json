@@ -442,6 +442,7 @@
   },
   "GlobInput": {
    "fields": [
+    "include_ignored",
     "limit",
     "offset",
     "path",
@@ -454,6 +455,7 @@
     "context_before",
     "ignore_case",
     "include",
+    "include_ignored",
     "limit",
     "literal",
     "offset",

@@ -41,7 +41,7 @@
     },
     {
       "name": "discovery_context_and_pages",
-      "files": {".hidden.txt": "hidden\n", ".gitignore": "catalog/\n", "catalog/items.txt": "Widget\nPrice: 12\nTags: blue\n", "catalog/notes.txt": "blueprint\n"},
+      "files": {".hidden.txt": "hidden\n", ".gitignore": "*.log\n", "catalog/items.txt": "Widget\nPrice: 12\nTags: blue\n", "catalog/notes.txt": "blueprint\n", "catalog/debug.log": "blue build\n"},
       "steps": [
         {"tool": "list", "input": {"limit": 2}, "expect": {"/data/entries/0/name": ".gitignore", "/data/next_offset": 3}},
         {"tool": "list", "input": {"offset": 3}, "expect": {"/data/entries": [{"kind": "directory", "name": "catalog", "path": "catalog"}], "/data/truncated": false}},
@@ -49,6 +49,9 @@
         {"tool": "glob", "input": {"pattern": "**/*.txt", "offset": 3}, "expect": {"/data/entries/0/path": "catalog/notes.txt", "/data/next_offset": null}},
         {"tool": "grep", "input": {"pattern": "blue", "context_before": 2, "limit": 1}, "expect": {"/data/matches/0/context_before": [{"number": 1, "text": "Widget"}, {"number": 2, "text": "Price: 12"}], "/data/matches/0/path": "catalog/items.txt", "/data/next_offset": 2}},
         {"tool": "grep", "input": {"pattern": "blue", "offset": 2}, "expect": {"/data/matches/0/text": "blueprint", "/data/next_offset": null}},
+        {"tool": "grep", "input": {"pattern": "blue", "include_ignored": true}, "expect": {"/data/matches/0/path": "catalog/debug.log", "/data/next_offset": null}},
+        {"tool": "glob", "input": {"pattern": "**/*.log"}, "expect": {"/data/entries": []}},
+        {"tool": "glob", "input": {"pattern": "**/*.log", "include_ignored": true}, "expect": {"/data/entries/0/path": "catalog/debug.log"}},
         {"tool": "grep", "input": {"pattern": "absent"}, "expect": {"/data/matches": [], "/data/truncated": false}},
         {"tool": "grep", "input": {"pattern": "["}, "expect": {"/error": "invalid_input"}}
       ]

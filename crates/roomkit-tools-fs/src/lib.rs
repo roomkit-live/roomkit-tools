@@ -13,6 +13,7 @@ mod glob;
 mod grep;
 mod grep_include;
 mod grep_scan;
+mod ignores;
 mod line_endings;
 mod list;
 mod mutation;

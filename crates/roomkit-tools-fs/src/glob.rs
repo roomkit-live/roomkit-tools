@@ -7,6 +7,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
+use crate::ignores::Ignores;
 use crate::paths::{self, PathPage, Root, Scan, first_entry, workspace_path};
 use crate::worker;
 
@@ -19,6 +20,9 @@ pub struct GlobInput {
     /// Directory to search.
     #[serde(default = "workspace_path")]
     pub path: String,
+    /// Also match what `.gitignore` and `.ignore` exclude, and `.git`.
+    #[serde(default)]
+    pub include_ignored: bool,
     /// First match, in path order.
     #[serde(default = "first_entry")]
     pub offset: NonZeroUsize,
@@ -33,6 +37,7 @@ impl GlobInput {
         Self {
             pattern: pattern.into(),
             path: workspace_path(),
+            include_ignored: false,
             offset: first_entry(),
             limit: None,
         }
@@ -65,9 +70,10 @@ impl Default for GlobLimits {
 
 /// Recursive path search without following child symlinks.
 ///
-/// Hidden entries are included; ignore files are not consulted. Files,
-/// directories and symlinks can match. Each call performs a fresh bounded scan.
-/// Pattern matching runs on a blocking worker, never on the async executor.
+/// Hidden entries are included. Unless `include_ignored`, what the
+/// `.gitignore` and `.ignore` files of the workspace exclude, and `.git`, are
+/// left out, unentered. Files, directories and symlinks can match. Each call
+/// performs a fresh bounded scan. Pattern matching runs on a blocking worker, never on the async executor.
 #[derive(Clone, Debug)]
 pub struct GlobTool {
     root: Root,
@@ -111,7 +117,7 @@ impl GlobTool {
     pub fn definition() -> Definition {
         Definition::new::<GlobInput, PathPage>(
             "glob",
-            "Find paths matching a glob, e.g. **/*.rs. Files, directories and symlinks match; hidden entries are included, ignore files are not applied, child symlinks are not followed. Continue with next_offset.",
+            "Find paths matching a glob, e.g. **/*.rs. Files, directories and symlinks match; hidden entries are included; what .gitignore or .ignore excludes, and .git, are left out unless include_ignored; child symlinks are not followed. Continue with next_offset.",
         )
     }
 
@@ -143,12 +149,14 @@ impl GlobTool {
         let matcher = paths::pattern(&input.pattern)?;
         let path = self.root.resolve(&input.path).await?;
         let prefix = self.root.prefix(&path)?;
+        let ignores = Ignores::for_scan(&self.root, &path, input.include_ignored).await?;
         let scan = paths::walk(
             &self.root,
             &path,
             self.limits.max_scan_entries,
             self.limits.max_depth,
             paths::match_depth(&input.pattern),
+            ignores,
         )
         .await?;
         let searched = self.root.relative(&path)?;
@@ -173,7 +181,11 @@ fn matching(
     matcher: &GlobSet,
     cancel: &CancellationToken,
 ) -> Result<Scan, ToolError> {
-    let Scan { entries, skipped } = scan;
+    let Scan {
+        entries,
+        skipped,
+        ignored,
+    } = scan;
     let mut kept = Vec::new();
     for entry in entries {
         worker::check(cancel)?;
@@ -188,5 +200,6 @@ fn matching(
     Ok(Scan {
         entries: kept,
         skipped,
+        ignored,
     })
 }

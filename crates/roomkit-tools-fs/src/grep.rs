@@ -11,6 +11,7 @@ use tokio_util::sync::CancellationToken;
 use crate::ReadLine;
 use crate::grep_include::Include;
 use crate::grep_scan::{self, Matches, Search};
+use crate::ignores::Ignores;
 use crate::paths::{self, PathEntry, PathKind, Root, Scan, first_entry, workspace_path};
 use crate::worker;
 
@@ -27,6 +28,9 @@ pub struct GrepInput {
     /// relative to `path`, e.g. `src/**/*.rs`.
     #[serde(default)]
     pub include: Option<String>,
+    /// Also search what `.gitignore` and `.ignore` exclude, and `.git`.
+    #[serde(default)]
+    pub include_ignored: bool,
     /// Match `pattern` as plain text.
     #[serde(default)]
     pub literal: bool,
@@ -54,6 +58,7 @@ impl GrepInput {
             pattern: pattern.into(),
             path: workspace_path(),
             include: None,
+            include_ignored: false,
             literal: false,
             ignore_case: false,
             context_before: 0,
@@ -146,8 +151,9 @@ impl Default for GrepLimits {
 
 /// Bounded, cancellable content search; child symlinks are never followed.
 ///
-/// Hidden files are included and ignore files are not consulted. Binary and
-/// non-UTF-8 files are skipped and counted. Other read failures and ingestion
+/// Hidden files are included. Unless `include_ignored`, what the
+/// `.gitignore` and `.ignore` files of the workspace exclude, and `.git`, are
+/// not searched. Binary and non-UTF-8 files are skipped and counted. Other read failures and ingestion
 /// limits fail the call. A fresh scan is made for every page. Reading and
 /// matching run on a blocking worker, never on the async executor.
 #[derive(Clone, Debug)]
@@ -197,7 +203,7 @@ impl GrepTool {
     pub fn definition() -> Definition {
         Definition::new::<GrepInput, GrepPage>(
             "grep",
-            "Search UTF-8 file contents, one match per line. Hidden files are searched, child symlinks are not followed; binary files and lines over the host's bound are skipped and counted (skipped_lines). clipped: true marks a match cut to fit, shown without context. Continue with next_offset.",
+            "Search UTF-8 file contents, one match per line. Hidden files are searched; what .gitignore or .ignore excludes, and .git, are skipped unless include_ignored; child symlinks are not followed; binary files and lines over the host's bound are skipped and counted (skipped_lines). clipped: true marks a match cut to fit, shown without context. Continue with next_offset.",
         )
     }
 
@@ -225,41 +231,48 @@ impl GrepTool {
         &self,
         path: &Path,
         include_depth: Option<usize>,
+        include_ignored: bool,
     ) -> Result<(Scan, String), ToolError> {
         let info = fs::metadata(path).await.map_err(|source| ToolError::Io {
             operation: "inspect the search path",
             source,
         })?;
         if info.is_file() {
-            let relative = self.root.relative(path)?;
-            let name = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .ok_or_else(|| ToolError::UnsupportedResource("filename is not UTF-8".into()))?
-                .to_owned();
-            let prefix = relative.strip_suffix(&name).unwrap_or_default().to_owned();
-            let entries = vec![PathEntry {
-                path: relative,
-                name,
-                kind: PathKind::File,
-            }];
-            return Ok((
-                Scan {
-                    entries,
-                    skipped: 0,
-                },
-                prefix,
-            ));
+            return self.one_file(path);
         }
         let prefix = self.root.prefix(path)?;
+        let ignores = Ignores::for_scan(&self.root, path, include_ignored).await?;
         let scan = paths::walk(
             &self.root,
             path,
             self.limits.max_scan_entries,
             self.limits.max_depth,
             include_depth,
+            ignores,
         )
         .await?;
+        Ok((scan, prefix))
+    }
+
+    /// The search of `path`, a file: that file alone, `include` relative to
+    /// its directory.
+    fn one_file(&self, path: &Path) -> Result<(Scan, String), ToolError> {
+        let relative = self.root.relative(path)?;
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| ToolError::UnsupportedResource("filename is not UTF-8".into()))?
+            .to_owned();
+        let prefix = relative.strip_suffix(&name).unwrap_or_default().to_owned();
+        let entries = vec![PathEntry {
+            path: relative,
+            name,
+            kind: PathKind::File,
+        }];
+        let scan = Scan {
+            entries,
+            ..Scan::default()
+        };
         Ok((scan, prefix))
     }
 
@@ -274,7 +287,9 @@ impl GrepTool {
         let include = input.include.as_deref().map(Include::new).transpose()?;
         let path = self.root.resolve(&input.path).await?;
         let include_depth = include.as_ref().and_then(Include::depth);
-        let (files, prefix) = self.files(&path, include_depth).await?;
+        let (files, prefix) = self
+            .files(&path, include_depth, input.include_ignored)
+            .await?;
         let mut page = Matches::new(self.root.relative(&path)?, &input, self.limits);
         page.data.skipped_entries = files.skipped;
         let search = Search {

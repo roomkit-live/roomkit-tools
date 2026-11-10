@@ -164,8 +164,10 @@ class ListTool(_DiscoveryTool):
 class GlobTool(_DiscoveryTool):
     """Find paths using Rust glob syntax beneath a configured root.
 
-    Files, directories and symlinks can match. Hidden entries are included,
-    ignore files are not applied and child symlinks are not followed."""
+    Files, directories and symlinks can match. Hidden entries are included;
+    what the workspace's ``.gitignore`` and ``.ignore`` files exclude, and
+    ``.git``, are left out unless ``include_ignored``. Child symlinks are not
+    followed."""
 
     _native_type = _native._GlobTool
 
@@ -195,12 +197,19 @@ class GlobTool(_DiscoveryTool):
         pattern: str,
         *,
         path: str | os.PathLike[str] = ".",
+        include_ignored: bool = False,
         offset: int = 1,
         limit: int | None = None,
     ) -> dict[str, Any]:
         """Find a page of paths; ** crosses directories and * stays in a component."""
         return await self.call(
-            {"pattern": pattern, "path": os.fspath(path), "offset": offset, "limit": limit}
+            {
+                "pattern": pattern,
+                "path": os.fspath(path),
+                "include_ignored": include_ignored,
+                "offset": offset,
+                "limit": limit,
+            }
         )
 
 
@@ -208,7 +217,9 @@ class GrepTool(_DiscoveryTool):
     """Search UTF-8 files using Rust regex syntax or literal text.
 
     Matches contain whole source lines and optional context. Hidden files are
-    included, ignore files are not applied and child symlinks are not followed.
+    included; what the workspace's ``.gitignore`` and ``.ignore`` files
+    exclude, and ``.git``, are not searched unless ``include_ignored``. Child
+    symlinks are not followed.
     Binary/non-UTF-8 files are skipped and counted; other failures are raised."""
 
     _native_type = _native._GrepTool
@@ -253,6 +264,7 @@ class GrepTool(_DiscoveryTool):
         *,
         path: str | os.PathLike[str] = ".",
         include: str | None = None,
+        include_ignored: bool = False,
         literal: bool = False,
         ignore_case: bool = False,
         context_before: int = 0,
@@ -266,6 +278,7 @@ class GrepTool(_DiscoveryTool):
                 "pattern": pattern,
                 "path": os.fspath(path),
                 "include": include,
+                "include_ignored": include_ignored,
                 "literal": literal,
                 "ignore_case": ignore_case,
                 "context_before": context_before,

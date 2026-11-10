@@ -8,6 +8,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
+use crate::ignores::Ignores;
 use crate::worker;
 
 const RESOLVE: &str = "resolve the path";
@@ -161,11 +162,14 @@ pub(crate) struct Scan {
     /// Entries skipped because their names are not UTF-8. They count toward
     /// the scan bound; a skipped directory's contents are not visited.
     pub(crate) skipped: usize,
+    /// Entries the ignore rules left out. They count toward the scan bound;
+    /// an ignored directory's contents are not visited.
+    pub(crate) ignored: usize,
 }
 
 impl Scan {
     fn visited(&self) -> usize {
-        self.entries.len() + self.skipped
+        self.entries.len() + self.skipped + self.ignored
     }
 }
 
@@ -238,27 +242,40 @@ fn kind_of(kind: std::fs::FileType) -> PathKind {
 ///
 /// Directories at level `match_depth` (the starting directory is level one)
 /// are listed but not entered: their contents could not match. `None` scans
-/// every level. The entry and depth bounds apply to what is visited.
+/// every level. The entry and depth bounds apply to what is visited. With
+/// `ignores`, the rules `path` inherits, each directory adds its own ignore
+/// files and the entries they exclude are left out, unentered.
 pub(crate) async fn walk(
     root: &Root,
     path: &Path,
     maximum: usize,
     max_depth: usize,
     match_depth: Option<usize>,
+    ignores: Option<Ignores>,
 ) -> Result<Scan, ToolError> {
-    let mut pending = vec![(path.to_path_buf(), 1)];
+    let mut pending = vec![(path.to_path_buf(), 1, ignores)];
     let mut scan = Scan::default();
-    while let Some((directory, depth)) = pending.pop() {
+    while let Some((directory, depth, inherited)) = pending.pop() {
         if depth > max_depth {
             return Err(ToolError::LimitExceeded(
                 "directory scan exceeds max_depth".into(),
             ));
         }
+        // Listing first checks that `directory` is one before its ignore
+        // files are looked for.
         let listed = directory_entries(root, &directory, maximum - scan.visited()).await?;
+        let rules = Ignores::within(inherited, &directory).await?;
         scan.skipped += listed.skipped;
         for entry in listed.entries {
+            if rules
+                .as_ref()
+                .is_some_and(|rules| rules.ignores(root, &entry))
+            {
+                scan.ignored += 1;
+                continue;
+            }
             if entry.kind == PathKind::Directory && match_depth.is_none_or(|limit| depth < limit) {
-                pending.push((root.resolve(&entry.path).await?, depth + 1));
+                pending.push((root.resolve(&entry.path).await?, depth + 1, rules.clone()));
             }
             scan.entries.push(entry);
         }
@@ -307,7 +324,9 @@ pub(crate) fn page(
     limit: usize,
     bytes: usize,
 ) -> Result<Output<PathPage>, ToolError> {
-    let Scan { entries, skipped } = scan;
+    let Scan {
+        entries, skipped, ..
+    } = scan;
     let offset = offset.get();
     if offset > entries.len() && !(offset == 1 && entries.is_empty()) {
         return Err(ToolError::InvalidInput(

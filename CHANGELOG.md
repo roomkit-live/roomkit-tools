@@ -6,6 +6,15 @@ part of an existing published preview.
 
 ## Unreleased
 
+- `grep` and `glob` leave out what the workspace's `.gitignore` and `.ignore`
+  files exclude, from the root down to each directory, and `.git`, without
+  entering them: at the root of a built project they answer instead of
+  exceeding `max_scan_entries` on `target/`. `include_ignored=True` scans
+  everything, and a `path` searched explicitly is searched even when ignored.
+  Hidden files are still included, and `list` is unchanged. The rules are read
+  with the `ignore` crate's gitignore matcher, from ignore files of at most
+  256 KiB each and 2 MiB per scan, compiled off the async executor.
+
 - A path inside the workspace that names nothing is invalid input naming it,
   `Invalid input: no such file or directory: src/absent.rs`, for read, list,
   grep, glob, diff, edit, patch, view_image and code_outline: Python raises

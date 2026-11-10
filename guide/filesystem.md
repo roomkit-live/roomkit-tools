@@ -75,8 +75,13 @@ matches = await grep.grep("blue", include="**/*.txt", context_before=2)
 resume with `data.next_offset`. Grep offsets count matching lines, not context.
 The searched `path`, discovered entries and matches are workspace-relative and
 usable by `read`. Every page rescans; results are not snapshots across external edits.
-Hidden entries are included, ignore files are not applied, and child symlinks
-are not traversed. Grep supports Rust regex syntax, `literal=True`,
+Hidden entries are included. Glob and grep leave out what the workspace's
+`.gitignore` and `.ignore` files exclude, from the root down to each
+directory, and `.git`, without entering them; `include_ignored=True` scans
+everything. A `path` searched explicitly is searched even when ignored. An
+ignore file over 256 KiB, or more than 2 MiB of them in one scan, fails the
+call as a limit.
+Child symlinks are not traversed. Grep supports Rust regex syntax, `literal=True`,
 `ignore_case=True`, `include`, `context_before` and `context_after`.
 It skips binary/non-UTF-8 files and reports `data.skipped_files`. All three
 tools skip entries whose names are not UTF-8, without searching a skipped
