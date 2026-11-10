@@ -40,7 +40,6 @@ from roomkit_tools import (
     ProcessWrite,
     Shell,
     ShellTool,
-    ToolIOError,
     roomkit_owner,
 )
 from roomkit_tools.roomkit.commands import _roomkit_owner
@@ -98,7 +97,7 @@ class RoomKitProcessTests(unittest.IsolatedAsyncioTestCase):
                     with self.subTest(name=name, arguments=arguments):
                         with self.assertRaises(ToolRefusedError):
                             await handler(name, arguments)
-                with self.assertRaises(ToolIOError):
+                with self.assertRaises(ToolRefusedError):
                     await handler("process_start", {"command": "pwd", "cwd": "missing"})
                 await handler("process_start", {"command": "cat"})
                 with self.assertRaises(ToolFailedError):

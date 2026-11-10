@@ -50,7 +50,7 @@ class RoomKitShellTests(unittest.IsolatedAsyncioTestCase):
         ]:
             with self.assertRaises(ToolRefusedError):
                 await handler("shell", arguments)
-        with self.assertRaises(ToolIOError):
+        with self.assertRaises(ToolRefusedError):
             await handler("shell", {"command": "pwd", "cwd": "missing"})
         with self.assertRaises(ToolFailedError):
             await Shell(await ShellTool.create(self.root, max_command_bytes=1)).handler(
