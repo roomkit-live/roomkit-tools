@@ -80,8 +80,11 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         (self.root / "binary").write_bytes(b"\0")
         with self.assertRaises(ToolFailedError):
             await self.adapter.handler("read", {"path": "binary"})
-        with self.assertRaises(ToolIOError):
+        with self.assertRaises(ToolRefusedError) as missing:
             await self.adapter.handler("read", {"path": "missing"})
+        self.assertEqual(
+            str(missing.exception), "Invalid input: no such file or directory: missing"
+        )
 
     async def test_adapters_take_a_built_tool(self) -> None:
         """Each adapter wraps a built tool, as Rust's `Read::new(tool)`: the
@@ -221,7 +224,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
                     await handler(name, {**arguments, "offset": 0})
                 with self.assertRaises(ToolRefusedError):
                     await handler(name, {**arguments, "path": ".."})
-                with self.assertRaises(ToolIOError):
+                with self.assertRaises(ToolRefusedError):
                     await handler(name, {**arguments, "path": "missing"})
                 limited = facade(await standalone.create(self.root, max_output_bytes=1))
                 with self.assertRaises(ToolFailedError):

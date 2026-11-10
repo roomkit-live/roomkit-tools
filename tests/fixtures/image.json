@@ -161,6 +161,15 @@
         "path": "missing.png"
       },
       "expect": {
+        "/error": "invalid_input"
+      }
+    },
+    {
+      "name": "below a file",
+      "input": {
+        "path": "colors.png/child.png"
+      },
+      "expect": {
         "/error": "io"
       }
     },

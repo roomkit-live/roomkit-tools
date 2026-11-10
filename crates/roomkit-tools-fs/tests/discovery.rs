@@ -121,7 +121,7 @@ async fn empty_directory_and_past_end_offset_are_distinct() {
     assert!(matches!(
         tool.list(listing("missing"), &CancellationToken::new())
             .await,
-        Err(ToolError::Io { .. })
+        Err(ToolError::InvalidInput(message)) if message == "no such file or directory: missing"
     ));
 }
 

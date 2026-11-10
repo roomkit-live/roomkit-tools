@@ -62,9 +62,22 @@
     },
     {
       "tool": "view_image",
-      "variant": "Io",
+      "variant": "InvalidInput",
       "arguments": {
         "path": "missing.png"
+      },
+      "limits": {},
+      "raises": "ToolRefusedError",
+      "message": "Invalid input: no such file or directory: missing.png",
+      "model_reads": "Invalid input: no such file or directory: missing.png",
+      "error_detail": null,
+      "refused": true
+    },
+    {
+      "tool": "view_image",
+      "variant": "Io",
+      "arguments": {
+        "path": "notes.txt/child.png"
       },
       "limits": {},
       "raises": "ToolIOError",
@@ -129,9 +142,22 @@
     },
     {
       "tool": "read",
-      "variant": "Io",
+      "variant": "InvalidInput",
       "arguments": {
         "path": "missing.txt"
+      },
+      "limits": {},
+      "raises": "ToolRefusedError",
+      "message": "Invalid input: no such file or directory: missing.txt",
+      "model_reads": "Invalid input: no such file or directory: missing.txt",
+      "error_detail": null,
+      "refused": true
+    },
+    {
+      "tool": "read",
+      "variant": "Io",
+      "arguments": {
+        "path": "notes.txt/child.txt"
       },
       "limits": {},
       "raises": "ToolIOError",

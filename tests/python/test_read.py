@@ -160,11 +160,18 @@ class ReadTests(unittest.IsolatedAsyncioTestCase):
                 await other.read("link")
 
     async def test_errors_have_safe_messages_and_a_common_base(self) -> None:
-        with self.assertRaises(ToolIOError) as caught:
-            await self.tool.read("missing-private-name.txt")
+        # A missing path is named as the model wrote it, never with the host's root.
+        with self.assertRaises(InvalidInputError) as caught:
+            await self.tool.read("missing-name.txt")
         self.assertIsInstance(caught.exception, ToolError)
-        self.assertNotIn("missing-private-name", str(caught.exception))
+        self.assertEqual(
+            str(caught.exception), "Invalid input: no such file or directory: missing-name.txt"
+        )
         self.assertNotIn(str(self.root), str(caught.exception))
+        # Other I/O failures keep fixed words, without the OS diagnostic.
+        with self.assertRaises(ToolIOError) as caught:
+            await self.tool.read("source.txt/private-child.txt")
+        self.assertEqual(str(caught.exception), "Unable to resolve the path")
         with self.assertRaises(InvalidInputError):
             await ReadTool.create(self.source)
         with self.assertRaises(ToolIOError):

@@ -68,7 +68,7 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
             )
         with self.assertRaises(ToolRefusedError):
             await diff.handler("diff", {"old_path": "old", "new_path": ".."})
-        with self.assertRaises(ToolIOError):
+        with self.assertRaises(ToolRefusedError):
             await diff.handler("diff", {"old_path": "old", "new_path": "missing"})
         for facade, cls, args in [
             (Diff, DiffTool, {"old_path": "old", "new_path": "new"}),

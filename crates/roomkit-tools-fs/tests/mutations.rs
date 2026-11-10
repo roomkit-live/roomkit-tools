@@ -270,7 +270,7 @@ async fn missing_parents_are_created_and_non_files_are_not_replaced() {
     );
     assert!(matches!(
         edit.edit(EditInput::new("absent", "a", "b"), &cancel).await,
-        Err(ToolError::Io { .. })
+        Err(ToolError::InvalidInput(message)) if message == "no such file or directory: absent"
     ));
     assert!(matches!(
         write

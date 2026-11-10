@@ -94,7 +94,7 @@ async fn explicit_override_does_not_bypass_path_or_regular_text_checks() {
     assert!(matches!(
         tool.outline(CodeOutlineInput::new("missing.py"), &token)
             .await,
-        Err(ToolError::Io { .. })
+        Err(ToolError::InvalidInput(message)) if message == "no such file or directory: missing.py"
     ));
 }
 

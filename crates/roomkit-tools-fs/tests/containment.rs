@@ -304,13 +304,15 @@ async fn paths_beneath_a_symlink_to_outside_are_refused_whether_or_not_they_exis
         std::fs::read_to_string(outside.path().join("present.txt")).unwrap(),
         "outside\n"
     );
-    // Beneath a symlink that stays inside, a missing path is not refused.
+    // Beneath a symlink that stays inside, a missing path is named, not
+    // refused as outside.
     std::fs::create_dir(root.path().join("sub")).unwrap();
     std::os::unix::fs::symlink(root.path().join("sub"), root.path().join("inner")).unwrap();
     for path in ["inner/missing.txt", "inner/missing/child.txt"] {
         let result = read.read(ReadInput::new(path), &cancel).await;
         assert!(
-            matches!(result, Err(ToolError::Io { .. })),
+            matches!(&result, Err(ToolError::InvalidInput(message))
+                if *message == format!("no such file or directory: {path}")),
             "{path}: {result:?}"
         );
     }

@@ -188,7 +188,7 @@ class DiffPatchTests(unittest.IsolatedAsyncioTestCase):
                 await self.diff.diff("good", "bad")
         with self.assertRaises(UnsupportedResourceError):
             await self.diff.diff("good", ".")
-        with self.assertRaises(ToolIOError):
+        with self.assertRaises(InvalidInputError):
             await self.diff.diff("good", "missing")
         with self.assertRaises(AccessRefusedError):
             await self.diff.diff("good", "..")
@@ -199,10 +199,12 @@ class DiffPatchTests(unittest.IsolatedAsyncioTestCase):
         ]:
             with self.assertRaises(AccessRefusedError):
                 await self.patch.patch([change], dry_run=False)
-        with self.assertRaises(ToolIOError):
+        # Patch creates no parent directory: the missing one is named.
+        with self.assertRaises(InvalidInputError) as caught:
             await self.patch.patch(
                 [{"op": "add", "path": "absent/file", "content": "x"}], dry_run=False
             )
+        self.assertEqual(str(caught.exception), "Invalid input: no such file or directory: absent")
         with self.assertRaises(UnsupportedResourceError):
             await self.patch.patch([{"op": "add", "path": "nul", "content": "\0"}], dry_run=False)
         self.assertEqual((self.root / "good").read_text(), "good")

@@ -88,13 +88,14 @@ impl WorkspaceRoot {
     /// not exist, its deepest ancestor that can be decides: outside the root,
     /// the path is refused, so the error does not reveal whether something
     /// exists beyond a symbolic link that leaves the workspace; inside, the
-    /// failure is returned as I/O with `operation`. Tools pass
+    /// failure is returned as I/O with `operation`, except a path that does
+    /// not exist, which is [`WorkspaceRoot::missing`]. Tools pass
     /// [`std::fs::canonicalize`], whose calls block: async callers run this on
     /// a blocking worker.
     ///
     /// # Errors
-    /// Returns an access refusal outside the root, or I/O when the path
-    /// cannot be canonicalized.
+    /// Returns an access refusal outside the root, invalid input for a path
+    /// that does not exist, or I/O when the path cannot be canonicalized.
     pub fn resolve(
         &self,
         path: &Path,
@@ -105,9 +106,20 @@ impl WorkspaceRoot {
             Ok(resolved) => self.contain(resolved),
             Err(source) => {
                 self.refuse_outside_ancestor(path, canonicalize)?;
+                if source.kind() == io::ErrorKind::NotFound {
+                    return Err(self.missing(path));
+                }
                 Err(ToolError::Io { operation, source })
             }
         }
+    }
+
+    /// The refusal of a path below the root that names nothing, for a
+    /// path [`WorkspaceRoot::join`] returned: invalid input naming it as
+    /// written below the root, so a model reads which path to correct.
+    pub fn missing(&self, path: &Path) -> ToolError {
+        let below = path.strip_prefix(&self.canonical).unwrap_or(path);
+        ToolError::InvalidInput(format!("no such file or directory: {}", below.display()))
     }
 
     fn contain(&self, resolved: PathBuf) -> Result<PathBuf, ToolError> {
@@ -230,10 +242,12 @@ mod tests {
         assert!(root.join("/work/root/a").is_ok());
     }
 
-    /// A fake filesystem: `/work/root` holds `sub`, a file `sub/a.txt` and
-    /// `link`, a symbolic link to `/outside`, which holds `dir`.
+    /// A fake filesystem: `/work/root` holds `sub`, a file `sub/a.txt`,
+    /// `locked`, which cannot be read, and `link`, a symbolic link to
+    /// `/outside`, which holds `dir`.
     fn canonicalize(path: &Path) -> io::Result<PathBuf> {
         let resolved = match path.to_str() {
+            Some("/work/root/locked") => return Err(io::ErrorKind::PermissionDenied.into()),
             Some("/work/root") => "/work/root",
             Some("/work/root/sub") => "/work/root/sub",
             Some("/work/root/sub/a.txt") => "/work/root/sub/a.txt",
@@ -267,23 +281,31 @@ mod tests {
                 "{outside}: {result:?}"
             );
         }
+        // A path that names nothing is named back as written below the root.
         for missing in ["missing", "sub/missing/x", "sub/../missing"] {
             let result = resolve(missing);
             assert!(
-                matches!(
-                    result,
-                    Err(ToolError::Io {
-                        operation: "op",
-                        ..
-                    })
-                ),
+                matches!(&result, Err(ToolError::InvalidInput(message))
+                    if *message == format!("no such file or directory: {missing}")),
                 "{missing}: {result:?}"
             );
         }
+        // Any other failure stays I/O.
+        let result = resolve("locked");
+        assert!(
+            matches!(
+                result,
+                Err(ToolError::Io {
+                    operation: "op",
+                    ..
+                })
+            ),
+            "{result:?}"
+        );
     }
 
     /// The ancestor walk stops at the root: with no resolvable ancestor at or
-    /// below it, the failure stays I/O instead of judging `/`.
+    /// below it, the path is missing, not refused by judging `/`.
     #[cfg(unix)]
     #[test]
     fn the_ancestor_walk_does_not_go_above_the_root() {
@@ -295,7 +317,11 @@ mod tests {
                 Err(io::ErrorKind::NotFound.into())
             }
         });
-        assert!(matches!(result, Err(ToolError::Io { .. })), "{result:?}");
+        assert!(
+            matches!(&result, Err(ToolError::InvalidInput(message))
+                if message == "no such file or directory: missing"),
+            "{result:?}"
+        );
     }
 
     #[cfg(unix)]

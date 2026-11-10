@@ -98,7 +98,7 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
             await handler("write", {"path": "../outside.txt", "content": "new"})
         with self.assertRaises(ToolFailedError):
             await handler("write", {"path": "binary.txt", "content": "bad\0"})
-        with self.assertRaises(ToolIOError):
+        with self.assertRaises(ToolRefusedError):
             await handler("edit", {"path": "missing", "old_text": "a", "new_text": "b"})
         with self.assertRaises(ToolFailedError):
             await Write(await WriteTool.create(self.workspace, max_file_bytes=1)).handler(

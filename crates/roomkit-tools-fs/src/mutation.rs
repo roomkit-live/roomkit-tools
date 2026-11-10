@@ -118,12 +118,7 @@ pub(crate) fn bounded_text(text: &str, maximum: usize) -> Result<(), ToolError> 
 /// Resolve the existing parent, retaining the final component so a symlink
 /// at the destination cannot turn into a permitted ordinary file unnoticed.
 pub(crate) fn destination(root: &Root, input: &str) -> Result<PathBuf, ToolError> {
-    if matches!(
-        input.rsplit(std::path::MAIN_SEPARATOR).next(),
-        None | Some("" | "." | "..")
-    ) {
-        return Err(ToolError::InvalidInput("path must name a file".into()));
-    }
+    names_a_file(input)?;
     let joined = root.join(input)?;
     let name = joined
         .file_name()
@@ -140,18 +135,37 @@ pub(crate) fn destination(root: &Root, input: &str) -> Result<PathBuf, ToolError
     Ok(parent.join(name))
 }
 
+/// Refuse an input whose last component cannot name a file.
+fn names_a_file(input: &str) -> Result<(), ToolError> {
+    if matches!(
+        input.rsplit(std::path::MAIN_SEPARATOR).next(),
+        None | Some("" | "." | "..")
+    ) {
+        return Err(ToolError::InvalidInput("path must name a file".into()));
+    }
+    Ok(())
+}
+
 /// Plan missing directories without creating anything before input/revision
 /// validation. Existing-parent paths retain destination's canonical semantics.
 pub(crate) fn write_destination(
     root: &Root,
     input: &str,
 ) -> Result<(PathBuf, Vec<PathBuf>), ToolError> {
-    match destination(root, input) {
-        Ok(path) => return Ok((path, Vec::new())),
-        Err(ToolError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
-    }
+    names_a_file(input)?;
     let joined = root.join(input)?;
+    if joined
+        .parent()
+        .is_none_or(|parent| exists(parent).unwrap_or(true))
+    {
+        return Ok((destination(root, input)?, Vec::new()));
+    }
+    missing_parents(root, &joined)
+}
+
+/// The destination below a missing parent, and the parents to create, from
+/// the deepest existing ancestor down.
+fn missing_parents(root: &Root, joined: &Path) -> Result<(PathBuf, Vec<PathBuf>), ToolError> {
     if joined
         .components()
         .any(|c| c == std::path::Component::ParentDir)
@@ -236,6 +250,15 @@ pub(crate) fn create_parents(
 pub(crate) struct Snapshot {
     pub(crate) bytes: Vec<u8>,
     permissions: Permissions,
+}
+
+/// Whether an entry is at `path`, a dangling symbolic link included.
+fn exists(path: &Path) -> std::io::Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 pub(crate) fn inspect(path: &Path) -> Result<Option<fs::Metadata>, ToolError> {

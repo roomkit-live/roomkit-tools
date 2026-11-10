@@ -236,9 +236,11 @@ class MutationTests(unittest.IsolatedAsyncioTestCase):
         created = await write.write("absent/nested/file.txt", "value")
         self.assertEqual(created["data"]["created_directories"], ["absent", "absent/nested"])
         self.assertEqual((child / "absent/nested/file.txt").read_text(), "value")
-        with self.assertRaises(ToolIOError) as caught:
-            await edit.edit("private-missing-file", "a", "b")
-        self.assertNotIn("private-missing-file", str(caught.exception))
+        with self.assertRaises(InvalidInputError) as caught:
+            await edit.edit("missing-file", "a", "b")
+        self.assertEqual(
+            str(caught.exception), "Invalid input: no such file or directory: missing-file"
+        )
         if os.name == "posix":
             await write.write("file.txt", "value")
             (child / "link.txt").symlink_to(child / "file.txt")

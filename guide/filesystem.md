@@ -8,9 +8,11 @@ Accepted paths are then canonicalized, and a path beneath a symlink that leads
 outside the root is refused whether or not it exists there. A workspace symlink
 whose own target is missing still answers differently from one whose target
 exists; that target is fixed by whoever created the link, not chosen by the
-model, and the tools cannot create links. Every path in a result is
-workspace-relative, with `/` separators and `.` for the root; the host's
-absolute paths are not returned.
+model, and the tools cannot create links. A path inside the workspace that
+names nothing is invalid input naming it as written below the root, such as
+`no such file or directory: src/absent.rs`; other I/O failures keep their
+fixed words. Every path in a result is workspace-relative, with `/` separators
+and `.` for the root; the host's absolute paths are not returned.
 These checks assume a host-controlled filesystem; they do not provide an OS
 sandbox against concurrent path replacement. Select RoomKit classes such as `Read` and `Edit`, or use their
 standalone `ReadTool` and `EditTool` counterparts. Examples below assume an async

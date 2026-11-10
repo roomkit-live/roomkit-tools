@@ -153,10 +153,19 @@ async fn refusals_and_io_errors_map_as_in_the_other_adapters() {
             "{refusal}"
         );
     }
-    // A file the tool cannot reach is the tool's error, in Python's class and
-    // words: RoomKit gives the model the class and its observers the words.
+    // A missing file is refused, naming it.
     assert_eq!(
         tool.handler("view_image".into(), arguments("missing.png"))
+            .await,
+        Err(ToolError::Refused(
+            "Invalid input: no such file or directory: missing.png".into()
+        ))
+    );
+    // A file the tool cannot reach is the tool's error, in Python's class and
+    // words: RoomKit gives the model the class and its observers the words.
+    let below_a_file = format!("{}/child.png", fixture["path"].as_str().unwrap());
+    assert_eq!(
+        tool.handler("view_image".into(), arguments(&below_a_file))
             .await,
         Err(ToolError::Raised {
             kind: "ToolIOError".into(),

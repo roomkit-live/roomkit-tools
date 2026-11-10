@@ -6,6 +6,14 @@ part of an existing published preview.
 
 ## Unreleased
 
+- A path inside the workspace that names nothing is invalid input naming it,
+  `Invalid input: no such file or directory: src/absent.rs`, for read, list,
+  grep, glob, diff, edit, patch, view_image and code_outline: Python raises
+  `InvalidInputError`, RoomKit refuses the call in those words, and the model
+  reads which path to correct. It was `ToolIOError`, which the model read as
+  "Tool 'read' failed (ToolIOError)", like a permission failure. Other I/O
+  failures keep their class and fixed words.
+
 - `grep`'s `include` without `/` filters file names at any depth, as `rg -g`
   does: `include="*.rs"` finds the Rust files of every directory below `path`,
   where it used to read only `path` itself and answer "no matches". An

@@ -261,9 +261,11 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
                     self.assertRaises(AccessRefusedError),
                 ):
                     await tool.call({**arguments, "path": path})
-            with self.assertRaises(ToolIOError) as error:
-                await tool.call({**arguments, "path": "missing-private-file"})
-            self.assertNotIn("missing-private-file", str(error.exception))
+            with self.assertRaises(InvalidInputError) as error:
+                await tool.call({**arguments, "path": "missing-file"})
+            self.assertEqual(
+                str(error.exception), "Invalid input: no such file or directory: missing-file"
+            )
             with self.assertRaises(InvalidInputError):
                 await cls.create(self.root / "notes.txt")
             with self.assertRaises(ToolIOError):

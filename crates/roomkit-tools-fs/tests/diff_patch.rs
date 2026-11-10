@@ -144,7 +144,7 @@ async fn diff_rejects_binary_directories_missing_files_and_outside_roots() {
     assert!(matches!(
         tool.diff(DiffInput::new("a", "missing"), &CancellationToken::new())
             .await,
-        Err(ToolError::Io { .. })
+        Err(ToolError::InvalidInput(message)) if message == "no such file or directory: missing"
     ));
     assert!(matches!(
         tool.diff(

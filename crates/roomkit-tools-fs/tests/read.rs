@@ -206,7 +206,9 @@ async fn directories_and_missing_files_have_distinct_failures() {
         .await
         .unwrap_err();
     assert!(
-        matches!(error, ToolError::Io { source, .. } if source.kind() == std::io::ErrorKind::NotFound)
+        matches!(&error, ToolError::InvalidInput(message)
+            if message == "no such file or directory: missing.txt"),
+        "{error:?}"
     );
 }
 

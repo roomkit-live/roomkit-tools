@@ -125,6 +125,12 @@ impl Root {
             .resolve(path, operation, |path| std::fs::canonicalize(path))
     }
 
+    /// The refusal of a joined path that names nothing; see
+    /// [`WorkspaceRoot::missing`].
+    pub(crate) fn missing(&self, path: &Path) -> ToolError {
+        self.0.missing(path)
+    }
+
     /// Workspace-relative form of a resolved path; `.` names the root.
     pub(crate) fn relative(&self, path: &Path) -> Result<String, ToolError> {
         self.0.relative(path)

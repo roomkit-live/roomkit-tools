@@ -155,7 +155,7 @@ fn apply(
     check_arguments(input, maximum)?;
     let path = mutation::destination(root, &input.path)?;
     let relative = root.relative(&path)?;
-    let before = existing(&path, maximum)?;
+    let before = existing(root, &path, maximum)?;
     revision::check(input.expected_revision.as_deref(), Some(&before.bytes))?;
     let source = mutation::validate_text(&before.bytes)?;
     let crlf = line_endings::uniformly_crlf(source);
@@ -193,13 +193,8 @@ fn check_arguments(input: &EditInput, maximum: usize) -> Result<(), ToolError> {
 }
 
 /// The file to edit, which must exist.
-fn existing(path: &Path, maximum: usize) -> Result<mutation::Snapshot, ToolError> {
-    mutation::snapshot(path, maximum)?.ok_or_else(|| {
-        mutation::io(
-            "open the edit file",
-            std::io::Error::from(std::io::ErrorKind::NotFound),
-        )
-    })
+fn existing(root: &Root, path: &Path, maximum: usize) -> Result<mutation::Snapshot, ToolError> {
+    mutation::snapshot(path, maximum)?.ok_or_else(|| root.missing(path))
 }
 
 /// Occurrences of `old_text`: at least one, and exactly one unless

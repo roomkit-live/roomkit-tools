@@ -112,6 +112,18 @@ async fn reports_limits_as_safe_failures_and_io_as_diagnostic_errors() {
         .await;
     assert_eq!(
         missing,
+        Err(ToolError::Refused(
+            "Invalid input: no such file or directory: missing.txt".into()
+        ))
+    );
+    let below_a_file = tools
+        .handler(
+            "read".into(),
+            arguments(json!({"path":"hours.txt/child.txt"})),
+        )
+        .await;
+    assert_eq!(
+        below_a_file,
         Err(ToolError::Raised {
             kind: "ToolIOError".into(),
             message: "Unable to resolve the path".into(),
@@ -255,9 +267,23 @@ async fn roomkit_can_block_the_call_before_the_adapter_runs() {
 #[tokio::test]
 async fn io_diagnostics_do_not_reach_the_model() {
     let (_root, tools) = fixture().await;
-    let (outcome, text) = turn(tools, r#"{"path":"private-missing-file.txt"}"#, false).await;
+    let (outcome, text) = turn(tools, r#"{"path":"hours.txt/private-child.txt"}"#, false).await;
     assert_eq!(outcome, ToolCallOutcome::Failed);
-    assert!(!text.contains("private-missing-file"));
+    assert!(!text.contains("private-child"));
     assert!(!text.contains("os error"));
     assert!(text.contains("Tool 'read' failed"));
+}
+
+/// A missing file used to reach the model as `Tool 'read' failed
+/// (ToolIOError)`, which reads the same as a permission failure (RMK-1639).
+#[tokio::test]
+async fn the_model_reads_which_path_is_missing() {
+    let (root, tools) = fixture().await;
+    let (outcome, text) = turn(tools, r#"{"path":"src/absent.rs"}"#, false).await;
+    assert_eq!(outcome, ToolCallOutcome::Refused);
+    assert_eq!(
+        text,
+        "Invalid input: no such file or directory: src/absent.rs"
+    );
+    assert!(!text.contains(root.path().to_str().unwrap()));
 }
