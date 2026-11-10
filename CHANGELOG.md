@@ -6,6 +6,14 @@ part of an existing published preview.
 
 ## Unreleased
 
+- `process_read` takes `wait_ms`: the read first waits, up to that many
+  milliseconds, until the process ends or writes past the given offsets, so an
+  agent awaits a build in one call instead of polling it one tool round at a
+  time. The host caps it with `max_wait_ms` (20 s by default, below RoomKit's
+  30 s tool-call timeout; Python `ProcessSession(max_wait_ms=...)`); a longer
+  wait is capped, and the page says whether the process still runs. Without
+  `wait_ms`, a read is unchanged.
+
 - `grep` and `glob` leave out what the workspace's `.gitignore` and `.ignore`
   files exclude, from the root down to each directory, and `.git`, without
   entering them: at the root of a built project they answer instead of

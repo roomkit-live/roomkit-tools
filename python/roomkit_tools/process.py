@@ -52,17 +52,20 @@ class ProcessSession:
         write_timeout_ms: int | None = None,
         default_timeout_ms: int | None = None,
         max_timeout_ms: int | None = None,
+        max_wait_ms: int | None = None,
     ) -> None:
         """Configure the command environment and Rust bounds.
 
         inherit_env and env select the environment as for ShellTool.create and
         are validated here. Defaults: 32 total/8 per owner, 16 KiB command,
         1 MiB retained bytes per stream, 16 KiB/read/stream, 64 KiB/write, 1 s
-        stdin deadline, 5 min default and 1 h maximum lifetime. The per-owner
+        stdin deadline, 5 min default and 1 h maximum lifetime, 20 s longest read
+        wait, below RoomKit's 30 s default tool timeout. The per-owner
         quota applies to the standalone owner and to each room and agent; the
         total quota to the whole session. Neither is global across sessions.
         All bounds must be positive, per-owner quota <= total quota, stdin
-        deadline <= 60 s, and default lifetime <= maximum lifetime <= 24 h.
+        deadline <= 60 s, default lifetime <= maximum lifetime <= 24 h, and
+        longest read wait <= 24 h.
         """
         path = os.fspath(root)
         if outputs is not None and not isinstance(outputs, OutputStore):
@@ -83,6 +86,7 @@ class ProcessSession:
                 "write_timeout_ms": write_timeout_ms,
                 "default_timeout_ms": default_timeout_ms,
                 "max_timeout_ms": max_timeout_ms,
+                "max_wait_ms": max_wait_ms,
             }.items()
             if value is not None
         } | environment
@@ -212,13 +216,16 @@ class ProcessSession:
         stdout_offset: int = 0,
         stderr_offset: int = 0,
         max_bytes: int | None = None,
+        wait_ms: int | None = None,
         owner: str | None = None,
     ) -> dict[str, Any]:
-        """Read currently available bytes without writing, consuming output or EOF.
+        """Read available bytes without writing, consuming output or EOF.
 
         Use independent next_offset cursors; omitted_bytes reports retention
         gaps. Join the raw bytes arrays before decoding split UTF-8/binary pages.
-        Empty output while running means nothing new yet; this does not wait.
+        Empty output while running means nothing new yet. With wait_ms, the read
+        first waits up to that many ms, capped by max_wait_ms, for the process
+        to end or to write past the offsets.
         """
         return await self.call(
             "process_read",
@@ -227,6 +234,7 @@ class ProcessSession:
                 "stdout_offset": stdout_offset,
                 "stderr_offset": stderr_offset,
                 "max_bytes": max_bytes,
+                "wait_ms": wait_ms,
             },
             owner=owner,
         )

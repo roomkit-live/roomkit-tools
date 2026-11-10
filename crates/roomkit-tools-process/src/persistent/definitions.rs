@@ -28,7 +28,7 @@ impl ProcessSession {
     pub fn read_definition() -> Definition {
         Definition::new::<ProcessReadInput, ProcessReadResult>(
             "process_read",
-            "Read a process's stdout and stderr without side effects; no process_write or EOF is needed first. Pass each stream's next_offset as its offset (start at 0); reading does not consume output. Empty means no new bytes yet, not exit. omitted_bytes counts evicted bytes.",
+            "Read a process's stdout and stderr without side effects; no process_write or EOF is needed first. Pass each stream's next_offset as its offset (start at 0); reading does not consume output. Empty means no new bytes yet, not exit. To wait for a build or a server, pass wait_ms: the call returns once the process ends or writes past the offsets, or when the host's bound elapses. omitted_bytes counts evicted bytes.",
         )
     }
     /// Derived schema for writing or closing stdin.

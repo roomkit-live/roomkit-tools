@@ -309,14 +309,14 @@
     "handler": ["async def", "name", "arguments"]
   },
   "roomkit_tools.ProcessSession": {
-    "__init__": ["def", "root", "*", "outputs=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_processes=None", "max_processes_per_owner=None", "max_command_bytes=None", "max_output_bytes=None", "max_read_bytes=None", "max_write_bytes=None", "write_timeout_ms=None", "default_timeout_ms=None", "max_timeout_ms=None"],
+    "__init__": ["def", "root", "*", "outputs=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_processes=None", "max_processes_per_owner=None", "max_command_bytes=None", "max_output_bytes=None", "max_read_bytes=None", "max_write_bytes=None", "write_timeout_ms=None", "default_timeout_ms=None", "max_timeout_ms=None", "max_wait_ms=None"],
     "call": ["async def", "name", "arguments", "*", "owner=None"],
     "close": ["async def"],
     "close_owner": ["async def", "owner"],
     "closed": ["property"],
     "definition": ["staticmethod", "name"],
     "detach": ["async def"],
-    "read": ["async def", "process_id", "*", "stdout_offset=0", "stderr_offset=0", "max_bytes=None", "owner=None"],
+    "read": ["async def", "process_id", "*", "stdout_offset=0", "stderr_offset=0", "max_bytes=None", "wait_ms=None", "owner=None"],
     "start": ["async def", "command", "*", "cwd=None", "timeout_ms=None", "owner=None"],
     "status": ["async def", "process_id=None", "*", "owner=None"],
     "stop": ["async def", "process_id", "*", "forget=False", "owner=None"],

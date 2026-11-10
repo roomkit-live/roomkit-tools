@@ -52,16 +52,21 @@ pub struct ProcessReadInput {
     /// Bytes per stream, capped by the host.
     #[serde(default)]
     pub max_bytes: Option<NonZeroUsize>,
+    /// Wait up to this many ms, capped by the host, for the process to end
+    /// or to write past the offsets. Omit to read at once.
+    #[serde(default)]
+    pub wait_ms: Option<NonZeroU64>,
 }
 
 impl ProcessReadInput {
-    /// Read both streams from their beginning using the host page size.
+    /// Read both streams from their beginning using the host page size, at once.
     pub fn new(process_id: impl Into<String>) -> Self {
         Self {
             process_id: process_id.into(),
             stdout_offset: 0,
             stderr_offset: 0,
             max_bytes: None,
+            wait_ms: None,
         }
     }
 }
@@ -134,6 +139,10 @@ pub struct ProcessLimits {
     pub default_timeout_ms: u64,
     /// Maximum requested process lifetime (1 hour, configurable up to 24 hours).
     pub max_timeout_ms: u64,
+    /// Longest wait a read may request (20 seconds, configurable up to 24
+    /// hours); a longer one is capped. Keep it below the host's tool-call
+    /// timeout: RoomKit's is 30 seconds by default.
+    pub max_wait_ms: u64,
 }
 
 impl Default for ProcessLimits {
@@ -148,6 +157,7 @@ impl Default for ProcessLimits {
             write_timeout_ms: 1000,
             default_timeout_ms: 300_000,
             max_timeout_ms: 3_600_000,
+            max_wait_ms: 20_000,
         }
     }
 }

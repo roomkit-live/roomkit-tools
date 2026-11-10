@@ -19,9 +19,18 @@ pub(crate) struct Record {
     pub(crate) stderr: Journal,
     pub(crate) stdout_archive: Option<crate::output::View>,
     pub(crate) stderr_archive: Option<crate::output::View>,
+    /// Signalled after each captured write and at each stream's end.
+    pub(crate) output: watch::Sender<()>,
 }
 
 impl Record {
+    /// Whether a read at `input`'s offsets has something to show at once:
+    /// bytes past an offset, or an offset past its stream's end, which the
+    /// read refuses rather than waits on.
+    pub(crate) fn ready_for(&self, input: &crate::ProcessReadInput) -> bool {
+        self.stdout.total != input.stdout_offset || self.stderr.total != input.stderr_offset
+    }
+
     pub(crate) fn status(&self) -> ProcessStatus {
         let mut status = self.status.clone();
         status.stdout_bytes = self.stdout.total;

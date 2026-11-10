@@ -776,7 +776,8 @@
     "max_bytes",
     "process_id",
     "stderr_offset",
-    "stdout_offset"
+    "stdout_offset",
+    "wait_ms"
    ]
   },
   "ProcessReadResult": {

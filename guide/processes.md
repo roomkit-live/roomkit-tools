@@ -131,7 +131,7 @@ across sessions. There is no global registry or cross-session quota. Passing a
 mutation lock or run in a sandbox.
 
 Standalone callers use `await processes.start("cat")`, `.status(process_id)`,
-`.read(process_id, stdout_offset=0, stderr_offset=0, max_bytes=None)`,
+`.read(process_id, stdout_offset=0, stderr_offset=0, max_bytes=None, wait_ms=None)`,
 `.write(process_id, "Hello\n", close_stdin=False)` and `.stop(process_id, forget=True)`.
 All return the existing Rust `data`/`text` dictionaries. `.call(name, arguments)`
 and `.definition(name)` expose each `process_*` contract and its derived schemas.
@@ -150,10 +150,15 @@ with open stdin, not proof of command completion. Commands use `/bin/sh -c`
 with the same host permissions, environment options, initial-cwd boundary and
 new session without a terminal as shell.
 
-`read` immediately observes available output without consuming it or sending
+`read` observes available output without consuming it or sending
 EOF. Use each stream's `next_offset` separately. Empty output while running
 means nothing new is available yet. The journal retains the most recent bytes;
-`omitted_bytes` reports data already evicted. Concatenate the raw `bytes` arrays
+`omitted_bytes` reports data already evicted. With `wait_ms`, a read first
+waits, up to that many milliseconds capped by `max_wait_ms`, until the job ends
+or writes past the given offsets, so a build is awaited in one call rather
+than polled; the page then says whether it is still running. Keep
+`max_wait_ms` below the host's tool-call timeout (RoomKit's default is
+30 seconds). Concatenate the raw `bytes` arrays
 before decoding UTF-8 split across pages; each page's `text` is a lossy view.
 `write` sends exactly the supplied UTF-8 bytes, including only explicitly supplied
 newlines. Inspect `complete`, `bytes_written`, `stdin_closed` and `error`: timeout,
@@ -170,6 +175,7 @@ child consumed them. Send EOF explicitly with `close_stdin=True` when requested.
 | `max_write_bytes` | 64 KiB UTF-8 per call |
 | `write_timeout_ms` | 1,000 ms |
 | `default_timeout_ms` / `max_timeout_ms` | 300,000 / 3,600,000 ms process lifetime |
+| `max_wait_ms` | 20,000 ms longest read wait; a longer `wait_ms` is capped |
 
 All bounds must be positive. Per-owner quota cannot exceed total quota, the
 write deadline cannot exceed 60 seconds, and default lifetime cannot exceed

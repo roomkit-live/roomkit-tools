@@ -1,9 +1,9 @@
 //! Real process ownership, incremental I/O and lifecycle tests.
 #![cfg(unix)]
 
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_process::{
@@ -660,7 +660,7 @@ async fn lifetime_timeout_refuses_requests_above_the_maximum_and_retains_output(
         .unwrap();
     let token = CancellationToken::new();
     let mut input = ProcessStartInput::new("printf ready; sleep 60");
-    input.timeout_ms = std::num::NonZeroU64::new(60_000);
+    input.timeout_ms = NonZeroU64::new(60_000);
     match manager.start(Some("a"), input, &token).await {
         Err(ToolError::InvalidInput(message)) => {
             assert_eq!(message, "timeout_ms exceeds the host maximum of 200 ms");
@@ -668,7 +668,7 @@ async fn lifetime_timeout_refuses_requests_above_the_maximum_and_retains_output(
         other => panic!("{other:?}"),
     }
     let mut input = ProcessStartInput::new("printf ready; sleep 60");
-    input.timeout_ms = std::num::NonZeroU64::new(200);
+    input.timeout_ms = NonZeroU64::new(200);
     let id = manager
         .start(Some("a"), input, &token)
         .await
@@ -1228,4 +1228,120 @@ async fn the_initial_directory_is_named_relative_to_the_root() {
         [".", "sub"]
     );
     assert!(session.close().await);
+}
+
+#[expect(clippy::unwrap_used, reason = "fixture failure must fail tests")]
+async fn started(manager: &ProcessSession, command: &str) -> String {
+    manager
+        .start(
+            Some("a"),
+            ProcessStartInput::new(command),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap()
+        .data
+        .process_id
+}
+
+fn waiting(id: &str, wait_ms: u64) -> ProcessReadInput {
+    ProcessReadInput {
+        wait_ms: NonZeroU64::new(wait_ms),
+        ..ProcessReadInput::new(id)
+    }
+}
+
+/// A build used to be awaited by polling `process_read`, one tool round per
+/// look (RMK-1639): a read with `wait_ms` returns once the process writes,
+/// and the next one once it ends.
+#[tokio::test]
+async fn a_read_waits_for_new_output_then_for_the_end() {
+    let root = tempfile::tempdir().unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let id = started(&manager, "sleep 1; echo fini; sleep 1").await;
+    let began = Instant::now();
+    let read = manager
+        .read(Some("a"), waiting(&id, 15_000), &token)
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(read.stdout.text, "fini\n");
+    assert!(began.elapsed() >= Duration::from_millis(900));
+    assert!(began.elapsed() < Duration::from_secs(10));
+    let mut next = waiting(&id, 15_000);
+    next.stdout_offset = read.stdout.next_offset;
+    let end = manager.read(Some("a"), next, &token).await.unwrap().data;
+    assert_eq!(end.status.state, ProcessState::Finished);
+    assert_eq!(end.status.exit_code, Some(0));
+    assert_eq!(end.stdout.text, "");
+    assert!(began.elapsed() < Duration::from_secs(10));
+    // Output already past the offsets is read at once.
+    let began = Instant::now();
+    let again = manager.read(Some("a"), waiting(&id, 15_000), &token).await;
+    assert_eq!(again.unwrap().data.stdout.text, "fini\n");
+    assert!(began.elapsed() < Duration::from_secs(1));
+    // An offset past the end is refused at once, not after the wait.
+    let mut past = waiting(&id, 15_000);
+    past.stdout_offset = 99;
+    assert!(matches!(
+        manager.read(Some("a"), past, &token).await,
+        Err(ToolError::InvalidInput(_))
+    ));
+    assert!(began.elapsed() < Duration::from_secs(1));
+    manager.close().await;
+}
+
+#[tokio::test]
+async fn a_wait_ends_at_its_deadline_capped_by_the_host_or_on_cancellation() {
+    let root = tempfile::tempdir().unwrap();
+    let limits = ProcessLimits {
+        max_wait_ms: 300,
+        ..ProcessLimits::default()
+    };
+    let manager = ProcessSession::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(limits)
+        .unwrap();
+    let token = CancellationToken::new();
+    let id = started(&manager, "sleep 30").await;
+    let began = Instant::now();
+    let read = manager
+        .read(Some("a"), waiting(&id, 60_000), &token)
+        .await
+        .unwrap()
+        .data;
+    assert_eq!(read.status.state, ProcessState::Running);
+    assert!(began.elapsed() >= Duration::from_millis(250));
+    assert!(began.elapsed() < Duration::from_secs(5));
+    let cancel = CancellationToken::new();
+    let cancelling = cancel.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        cancelling.cancel();
+    });
+    let unbounded = ProcessSession::new(root.path()).await.unwrap();
+    let id = started(&unbounded, "sleep 30").await;
+    let began = Instant::now();
+    assert!(matches!(
+        unbounded
+            .read(Some("a"), waiting(&id, 15_000), &cancel)
+            .await,
+        Err(ToolError::Cancelled)
+    ));
+    assert!(began.elapsed() < Duration::from_secs(5));
+    for invalid in [0, 86_400_001] {
+        let limits = ProcessLimits {
+            max_wait_ms: invalid,
+            ..ProcessLimits::default()
+        };
+        let session = ProcessSession::new(root.path()).await.unwrap();
+        assert!(matches!(
+            session.with_limits(limits),
+            Err(ToolError::InvalidInput(_))
+        ));
+    }
+    manager.close().await;
+    unbounded.close().await;
 }

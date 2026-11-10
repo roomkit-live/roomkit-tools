@@ -65,6 +65,7 @@ struct ProcessOptions {
     write_timeout_ms: Option<u64>,
     default_timeout_ms: Option<u64>,
     max_timeout_ms: Option<u64>,
+    max_wait_ms: Option<u64>,
     inherit_env: Option<Vec<String>>,
     env: Option<BTreeMap<String, String>>,
 }
@@ -86,7 +87,8 @@ impl ProcessOptions {
             max_write_bytes,
             write_timeout_ms,
             default_timeout_ms,
-            max_timeout_ms
+            max_timeout_ms,
+            max_wait_ms
         );
         limits
     }

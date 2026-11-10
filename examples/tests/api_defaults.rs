@@ -165,14 +165,16 @@ fn processes() -> Vec<(String, Value)> {
             max_write_bytes,
             write_timeout_ms,
             default_timeout_ms,
-            max_timeout_ms
+            max_timeout_ms,
+            max_wait_ms
         ),
         dump!(
             roomkit_tools_process::ProcessReadInput::new("a"),
             process_id,
             stdout_offset,
             stderr_offset,
-            max_bytes
+            max_bytes,
+            wait_ms
         ),
         dump!(
             roomkit_tools_process::ProcessStartInput::new("a"),

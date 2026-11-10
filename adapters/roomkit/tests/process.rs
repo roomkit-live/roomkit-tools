@@ -276,3 +276,71 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
     kit.close().await.unwrap();
     assert!(session.close().await);
 }
+
+/// An agent awaited a build by calling `process_read` once per look, a tool
+/// round each (RMK-1639): one call with `wait_ms` reads what it wrote.
+#[tokio::test]
+async fn an_agent_awaits_a_process_in_one_read() {
+    let fixture = tempfile::tempdir().unwrap();
+    let session = ProcessSession::new(fixture.path()).await.unwrap();
+    let model = ScriptedProvider::new([
+        ScriptedRound::calling(
+            "",
+            [("p1", "process_start", r#"{"command":"sleep 1; echo fini"}"#)],
+        ),
+        ScriptedRound::calling(
+            "",
+            [(
+                "p2",
+                "process_read",
+                r#"{"process_id":"p1","wait_ms":15000}"#,
+            )],
+        ),
+        ScriptedRound::answering("The build printed fini."),
+    ]);
+    let id = ChannelId::new("assistant").unwrap();
+    let tools: Vec<ToolEntry> = vec![
+        ToolEntry::Tool(Arc::new(ProcessStart::new(session.clone()))),
+        ToolEntry::Tool(Arc::new(ProcessRead::new(session.clone()))),
+    ];
+    let agent = common::agent(&id, &model, tools).unwrap();
+    let kit = RoomKit::new(roomkit::RoomKitOptions::default());
+    let chat = RecordingTransport::new(
+        ChannelId::new("chat").unwrap(),
+        ChannelType::WEBSOCKET,
+        RecordingTransportOptions::default(),
+    );
+    kit.register_channel(chat.clone()).unwrap();
+    kit.register_channel(agent).unwrap();
+    let room = RoomId::new("example").unwrap();
+    common::attach(&kit, &room, [chat.channel_id(), &id])
+        .await
+        .unwrap();
+    let result = kit
+        .process_inbound(
+            InboundMessage::new(
+                chat.channel_id().clone(),
+                "test-user",
+                TextContent::new("Run the build and tell me what it prints"),
+            ),
+            roomkit::ProcessInboundOptions {
+                room_id: Some(room.clone()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert!(result.error.is_none());
+    roomkit::testing::idle(&kit).await;
+    let requests = model.requests();
+    assert_eq!(requests.len(), 3);
+    let read = requests[2]
+        .messages
+        .iter()
+        .find(|m| m.tool_result().is_some_and(|r| r.tool_call_id == "p2"))
+        .unwrap();
+    let read: Value = serde_json::from_str(&read.text()).unwrap();
+    assert_eq!(read["data"]["stdout"]["text"], "fini\n");
+    kit.close().await.unwrap();
+    assert!(session.close().await);
+}

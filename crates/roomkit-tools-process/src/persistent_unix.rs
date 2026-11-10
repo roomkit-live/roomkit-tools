@@ -71,6 +71,7 @@ fn adopt(
             stderr: Journal::new(limits.max_output_bytes),
             stdout_archive: stdout_archive.as_ref().map(crate::output::Sink::view),
             stderr_archive: stderr_archive.as_ref().map(crate::output::Sink::view),
+            output: watch::channel(()).0,
         })),
         stdin: Mutex::new(Some(stdin)),
         stop,
@@ -119,6 +120,7 @@ async fn drain(
             if let Some(archive) = &mut archive {
                 archive.end(true);
             }
+            record.output.send_replace(());
             return Ok(());
         }
         if let Some(chunk) = bytes.get(..count) {
@@ -127,6 +129,7 @@ async fn drain(
                 archive.push(chunk);
             }
         }
+        record.output.send_replace(());
     }
 }
 

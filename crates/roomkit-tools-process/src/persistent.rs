@@ -181,6 +181,8 @@ impl ProcessSession {
             || limits.default_timeout_ms == 0
             || limits.default_timeout_ms > limits.max_timeout_ms
             || limits.max_timeout_ms > 86_400_000
+            || limits.max_wait_ms == 0
+            || limits.max_wait_ms > 86_400_000
         {
             return Err(ToolError::InvalidInput("invalid process limits".into()));
         }
@@ -393,6 +395,10 @@ impl ProcessSession {
         cancel: &CancellationToken,
     ) -> Result<Output<ProcessReadResult>, ToolError> {
         let entry = self.entry(owner, &input.process_id, cancel).await?;
+        if let Some(wait) = input.wait_ms {
+            let wait = wait.get().min(self.inner.limits.max_wait_ms);
+            wait_for_output(&entry, &input, Duration::from_millis(wait), cancel).await?;
+        }
         let record = entry.record.lock().await;
         let limit = input
             .max_bytes
@@ -406,30 +412,7 @@ impl ProcessSession {
             stdout: record.stdout.page(input.stdout_offset, limit)?,
             stderr: record.stderr.page(input.stderr_offset, limit)?,
         };
-        let mut text = status_line(&data.status);
-        text.push('\n');
-        // Before what the command wrote, which could imitate these lines.
-        crate::output::append_metadata(
-            &mut text,
-            data.status.stdout_archive.as_ref(),
-            data.status.stderr_archive.as_ref(),
-        );
-        for (name, page) in [("stdout", &data.stdout), ("stderr", &data.stderr)] {
-            let _written = write!(text, "{name} (next_offset={}", page.next_offset);
-            if page.omitted_bytes > 0 {
-                let _written = write!(text, ", omitted_bytes={}", page.omitted_bytes);
-            }
-            if page.has_more {
-                text.push_str(", has_more=true");
-            }
-            text.push_str("):\n");
-            if !page.text.is_empty() {
-                text.push_str(&page.text);
-                if !page.text.ends_with('\n') {
-                    text.push('\n');
-                }
-            }
-        }
+        let text = read_text(&data);
         Ok(Output::new(data, text))
     }
 
@@ -533,6 +516,61 @@ impl ProcessSession {
             }
         }
         finished
+    }
+}
+
+/// What a model reads of a read: the status line, the archives, then each
+/// stream's page.
+fn read_text(data: &ProcessReadResult) -> String {
+    let mut text = status_line(&data.status);
+    text.push('\n');
+    // Before what the command wrote, which could imitate these lines.
+    crate::output::append_metadata(
+        &mut text,
+        data.status.stdout_archive.as_ref(),
+        data.status.stderr_archive.as_ref(),
+    );
+    for (name, page) in [("stdout", &data.stdout), ("stderr", &data.stderr)] {
+        let _written = write!(text, "{name} (next_offset={}", page.next_offset);
+        if page.omitted_bytes > 0 {
+            let _written = write!(text, ", omitted_bytes={}", page.omitted_bytes);
+        }
+        if page.has_more {
+            text.push_str(", has_more=true");
+        }
+        text.push_str("):\n");
+        if !page.text.is_empty() {
+            text.push_str(&page.text);
+            if !page.text.ends_with('\n') {
+                text.push('\n');
+            }
+        }
+    }
+    text
+}
+
+/// Wait until `entry` finishes or writes past `input`'s offsets, or `wait`
+/// elapses; a cancelled call stops waiting as cancelled.
+async fn wait_for_output(
+    entry: &Entry,
+    input: &ProcessReadInput,
+    wait: Duration,
+    cancel: &CancellationToken,
+) -> Result<(), ToolError> {
+    let deadline = tokio::time::Instant::now() + wait;
+    let mut done = entry.done.clone();
+    // Subscribed before the first look, so no write between them is missed.
+    let mut output = entry.record.lock().await.output.subscribe();
+    loop {
+        if *done.borrow_and_update() || entry.record.lock().await.ready_for(input) {
+            return Ok(());
+        }
+        tokio::select! {
+            () = cancel.cancelled() => return Err(ToolError::Cancelled),
+            () = tokio::time::sleep_until(deadline) => return Ok(()),
+            changed = done.changed() => if changed.is_err() { return Ok(()) },
+            changed = output.changed() => if changed.is_err() { return Ok(()) },
+        }
     }
 }
 
