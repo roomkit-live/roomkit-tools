@@ -195,7 +195,7 @@ refusal's reason, such as what to fix in the call, is what the model reads:
 
 ```python
 from roomkit import AIChannel, HookExecution, HookResult, HookTrigger
-from roomkit_tools import AskUserTool, InvalidInputError, ask_user_handler
+from roomkit_tools import AskUserTool, InvalidInputError, LimitExceededError, ask_user_handler
 
 channel = AIChannel("assistant", provider=provider,
                     human_input_handler=ask_user_handler(timeout=3600))
@@ -204,7 +204,7 @@ channel = AIChannel("assistant", provider=provider,
 async def show(event, context):
     try:
         questions = AskUserTool.read(event.arguments)["questions"]
-    except InvalidInputError as error:
+    except (InvalidInputError, LimitExceededError) as error:
         await kit.reject_input(event.pending_id, str(error))
         return HookResult.allow()
     ...  # show the questions; answer later with kit.answer_input(event.pending_id, text)

@@ -169,6 +169,10 @@ class AskUserTests(unittest.IsolatedAsyncioTestCase):
             read["questions"][1],
             {"header": "", "question": "Name?", "options": [], "multi_select": False},
         )
+        self.assertEqual(
+            AskUserTool.read({"questions": [{"question": "Q?", "header": None, "options": None}]}),
+            {"questions": [{"header": "", "question": "Q?", "options": [], "multi_select": False}]},
+        )
 
     def test_a_call_is_refused_with_what_to_fix(self):
         refused = [
@@ -204,6 +208,17 @@ class AskUserTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(str(raised.exception).endswith(message), str(raised.exception))
         with self.assertRaises(InvalidInputError):
             AskUserTool.read({"questions": [{"question": "Q?", "kind": "x"}]})
+        with self.assertRaises(InvalidInputError):
+            AskUserTool.read({"questions": [{"question": "\ud83d?"}]})
+
+    def test_the_bound_counts_utf8_bytes_as_rust_does(self):
+        # 400 KB of UTF-8, 1.2 MB once escaped: the field's own limit answers.
+        with self.assertRaises(LimitExceededError) as raised:
+            AskUserTool.read({"questions": [{"question": "é" * 200_000}]})
+        self.assertTrue(
+            str(raised.exception).endswith("Question 1's text exceeds 1024 bytes."),
+            str(raised.exception),
+        )
 
     async def test_the_backend_answers_checked_questions(self):
         person = Person()

@@ -58,6 +58,18 @@ class AgentBackend(Protocol):
         ...
 
 
+def _as_rust_reads(arguments: dict[str, Any]) -> str:
+    """The arguments as Rust's ``read`` serializes them, compact and unescaped,
+    so that the 1 MiB bound counts the same bytes. Text that is not Unicode,
+    such as a lone surrogate, cannot reach Rust: refuse it as Rust would."""
+    text = json.dumps(arguments, ensure_ascii=False, separators=(",", ":"))
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        raise InvalidInputError("arguments must be Unicode text") from None
+    return text
+
+
 class _AgentTool:
     name: ClassVar[str]
     method: ClassVar[str]
@@ -74,7 +86,7 @@ class _AgentTool:
         """Standalone call with explicit trusted identity; no RoomKit import."""
         if not isinstance(scope, AgentScope):
             raise InvalidInputError("an AgentScope supplied by the host is required")
-        inputs = json.loads(_AgentContract.input_json(self.name, json.dumps(arguments)))
+        inputs = json.loads(_AgentContract.input_json(self.name, _as_rust_reads(arguments)))
         method = getattr(self._backend, self.method, None)
         if method is None:
             raise UnsupportedResourceError(f"backend does not support {self.name}")
@@ -131,4 +143,4 @@ class AskUserTool(_AgentTool):
         Raises InvalidInputError or LimitExceededError saying what the model
         should fix.
         """
-        return json.loads(_AgentContract.input_json(cls.name, json.dumps(arguments)))
+        return json.loads(_AgentContract.input_json(cls.name, _as_rust_reads(arguments)))

@@ -139,6 +139,71 @@ fn a_call_is_refused_with_what_to_fix() {
 }
 
 #[test]
+fn an_optional_field_sent_as_null_takes_its_default() {
+    let input = AskUserTool::read(&arguments(json!({"questions": [{
+        "question": "Q?", "header": null, "options": null, "multi_select": null
+    }, {
+        "question": "R?", "options": [{"label": "A", "description": null}]
+    }]})))
+    .unwrap();
+    let [first, second] = input.questions.as_slice() else {
+        panic!("two questions")
+    };
+    assert_eq!((first.header.as_str(), first.options.len()), ("", 0));
+    assert!(!first.multi_select);
+    assert_eq!(second.options[0].description, "");
+    assert!(
+        refusal(json!({"questions": [{"question": "Q?", "multi_select": "true"}]}))
+            .contains("expected a boolean")
+    );
+}
+
+#[test]
+fn each_field_is_bounded_in_utf8_bytes() {
+    let option =
+        |label: String, description: String| json!({"label": label, "description": description});
+    for (value, expected) in [
+        (
+            json!({"questions": [{"question": "Q?", "header": "é".repeat(33)}]}),
+            "Question 1's header exceeds 64 bytes.",
+        ),
+        (
+            json!({"questions": [{"question": "Q?", "options": [option("é".repeat(129), String::new())]}]}),
+            "An option label of question 1 exceeds 256 bytes.",
+        ),
+        (
+            json!({"questions": [{"question": "Q?", "options": [option("A".into(), "é".repeat(257))]}]}),
+            "An option description of question 1 exceeds 512 bytes.",
+        ),
+    ] {
+        assert!(matches!(
+            AskUserTool::read(&arguments(value.clone())),
+            Err(ToolError::LimitExceeded(_))
+        ));
+        assert_eq!(refusal(value), expected);
+    }
+    let at_limits = json!({"questions": [{
+        "question": "é".repeat(512), "header": "é".repeat(32),
+        "options": [option("é".repeat(128), "é".repeat(256))]
+    }]});
+    assert!(AskUserTool::read(&arguments(at_limits)).is_ok());
+}
+
+#[test]
+fn a_refusal_quoting_a_long_value_is_cut() {
+    let long = "x".repeat(300_000);
+    let refused = refusal(json!({"questions": [{"question": "Q?", "multi_select": long}]}));
+    assert!(
+        refused.len() <= 512 + '…'.len_utf8(),
+        "{} bytes",
+        refused.len()
+    );
+    assert!(refused.starts_with("invalid type: string"), "{refused}");
+    assert!(refused.contains('…'), "{refused}");
+    assert!(refused.contains("expected a boolean"), "{refused}");
+}
+
+#[test]
 fn the_definition_bounds_questions_and_options() {
     let definition = AskUserTool::definition();
     assert_eq!(definition.name, "ask_user");
@@ -209,6 +274,26 @@ fn answers_are_bounded() {
         }],
     };
     assert!(render(answer(4, 4096)).is_ok());
+    let long_label = AskUserResult {
+        answers: vec![AskUserAnswer {
+            selected: vec!["é".repeat(129)],
+            other: None,
+        }],
+    };
+    assert!(matches!(
+        render(long_label),
+        Err(ToolError::LimitExceeded(_))
+    ));
+    let long_words = AskUserResult {
+        answers: vec![AskUserAnswer {
+            selected: vec![],
+            other: Some("é".repeat(2049)),
+        }],
+    };
+    assert!(matches!(
+        render(long_words),
+        Err(ToolError::LimitExceeded(_))
+    ));
     assert!(matches!(
         render(answer(5, 0)),
         Err(ToolError::LimitExceeded(_))

@@ -148,3 +148,18 @@ async fn the_model_reads_what_to_fix_in_its_call() {
     let read = text(&result.result);
     assert!(read.contains("Question 1 has no text."), "{read}");
 }
+
+#[tokio::test]
+async fn the_model_reads_that_its_call_is_too_long() {
+    let label = "é".repeat(129);
+    let arguments = json!({"questions": [{"question": "Q?", "options": [{"label": label}]}]});
+    let (model, shown) = turn(&arguments).await;
+    assert!(shown.is_empty());
+    let result = read_by_model(&model);
+    assert!(result.is_error);
+    let read = text(&result.result);
+    assert!(
+        read.contains("An option label of question 1 exceeds 256 bytes."),
+        "{read}"
+    );
+}

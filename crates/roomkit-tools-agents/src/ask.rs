@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use roomkit_tools_core::{Definition, Output, ToolError};
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Map, Value};
 use tokio_util::sync::CancellationToken;
 
@@ -29,7 +29,7 @@ pub struct AskUserOption {
     /// One to five words: what the user picks.
     pub label: String,
     /// What picking it means.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "or_default")]
     pub description: String,
 }
 
@@ -38,16 +38,16 @@ pub struct AskUserOption {
 #[serde(deny_unknown_fields)]
 pub struct AskUserQuestion {
     /// A label of at most 12 characters naming the question.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "or_default")]
     pub header: String,
     /// The question, ending with a question mark.
     pub question: String,
     /// The choices, most likely first; empty for a free answer.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "or_default")]
     #[schemars(length(max = 4))]
     pub options: Vec<AskUserOption>,
     /// Whether the user may pick several options.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "or_default")]
     pub multi_select: bool,
 }
 
@@ -78,6 +78,16 @@ pub struct AskUserAnswer {
 pub struct AskUserResult {
     /// One answer per question.
     pub answers: Vec<AskUserAnswer>,
+}
+
+/// An optional field's `null`, which models send for "not given", as its
+/// default.
+fn or_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Default + Deserialize<'de>,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 fn invalid(message: String) -> ToolError {

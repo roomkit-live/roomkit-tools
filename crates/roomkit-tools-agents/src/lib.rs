@@ -379,9 +379,29 @@ pub fn decode<T: AgentContract>(json: &str) -> Result<T, ToolError> {
         return Err(ToolError::LimitExceeded("agent JSON exceeds 1 MiB".into()));
     }
     let value: T =
-        serde_json::from_str(json).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
+        serde_json::from_str(json).map_err(|e| ToolError::InvalidInput(clipped(e.to_string())))?;
     value.validate()?;
     Ok(value)
+}
+
+/// A refusal a model can read whole: serde quotes the offending value, which
+/// may be as long as the call, between what went wrong and what was expected.
+/// Both ends stay; the middle of the quote goes.
+fn clipped(message: String) -> String {
+    const KEPT_BYTES: usize = 256;
+    if message.len() <= 2 * KEPT_BYTES {
+        return message;
+    }
+    let mut head = KEPT_BYTES;
+    while !message.is_char_boundary(head) {
+        head -= 1;
+    }
+    let mut tail = message.len() - KEPT_BYTES;
+    while !message.is_char_boundary(tail) {
+        tail += 1;
+    }
+    let (start, end) = (message.get(..head), message.get(tail..));
+    format!("{}…{}", start.unwrap_or_default(), end.unwrap_or_default())
 }
 
 /// Render normalized bounded data without a second, divergent text contract.

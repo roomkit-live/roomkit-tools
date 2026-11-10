@@ -15,7 +15,7 @@ from roomkit import (
     WebSocketChannel,
 )
 from roomkit.providers.ai import AIResponse, AIToolCall, AIToolResultPart, MockAIProvider
-from roomkit_tools import AskUserTool, InvalidInputError, ask_user_handler
+from roomkit_tools import AskUserTool, InvalidInputError, LimitExceededError, ask_user_handler
 
 QUESTIONS = {
     "questions": [
@@ -48,7 +48,7 @@ class AskUserThroughRoomKit(unittest.IsolatedAsyncioTestCase):
             # with what the model should fix.
             try:
                 questions = AskUserTool.read(event.arguments)["questions"]
-            except InvalidInputError as error:
+            except (InvalidInputError, LimitExceededError) as error:
                 await self.kit.reject_input(event.pending_id, str(error))
                 return HookResult.allow()
             self.asked.append(questions)
@@ -110,3 +110,12 @@ class AskUserThroughRoomKit(unittest.IsolatedAsyncioTestCase):
         [result] = self.read_by_model(provider)
         self.assertTrue(result.is_error)
         self.assertIn("Question 1 has no text.", result.result)
+
+    async def test_the_model_reads_that_its_call_is_too_long(self):
+        provider = await self.turn(
+            {"questions": [{"question": "Q?", "options": [{"label": "é" * 129}]}]}
+        )
+        self.assertEqual(self.asked, [])
+        [result] = self.read_by_model(provider)
+        self.assertTrue(result.is_error)
+        self.assertIn("An option label of question 1 exceeds 256 bytes.", result.result)
