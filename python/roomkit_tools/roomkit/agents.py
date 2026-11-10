@@ -1,18 +1,23 @@
-"""RoomKit tools that delegate work to the calling room and agent's backend."""
+"""RoomKit tools that delegate work to the calling room and agent's backend,
+and ``ask_user``, served by RoomKit's human input."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..agents import (
     AgentFollowupTool,
     AgentScope,
     AgentSendTool,
+    AskUserTool,
     CancelTaskTool,
     DelegateTaskTool,
     TaskStatusTool,
 )
 from ._adapter import _mapped, _structured, _ToolAdapter, _trusted_caller
+
+if TYPE_CHECKING:
+    from roomkit.tools import HumanInputToolHandler
 
 
 class _AgentAdapter[T](_ToolAdapter[T]):
@@ -73,3 +78,25 @@ class AgentSend(_AgentAdapter[AgentSendTool]):
     """Select a built AgentSendTool in RoomKit's tools list: ``AgentSend(tool)``."""
 
     _tool_type = AgentSendTool
+
+
+def ask_user_handler(timeout: float) -> HumanInputToolHandler:
+    """``ask_user`` served by RoomKit's human input, each call waiting
+    *timeout* seconds at most for the person's answers:
+    ``AIChannel(..., human_input_handler=ask_user_handler(timeout))``.
+
+    Each call opens a request and fires ``ON_USER_INPUT_REQUIRED``. The host
+    reads its questions with ``AskUserTool.read(event.arguments)``, shows
+    them, and settles the request with ``kit.answer_input``, or with
+    ``kit.reject_input`` and the reason, which the model reads.
+    """
+    from roomkit.providers.ai.base import AITool
+    from roomkit.tools import HumanInputToolHandler
+
+    definition = AskUserTool.definition()
+    declared = AITool(
+        name=definition["name"],
+        description=definition["description"],
+        parameters=definition["input_schema"],
+    )
+    return HumanInputToolHandler({AskUserTool.name}, timeout=timeout, tool_definitions=[declared])

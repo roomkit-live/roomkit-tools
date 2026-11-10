@@ -6,6 +6,12 @@ part of an existing published preview.
 
 ## Unreleased
 
+- `ask_user`: the agent asks the person one to four questions, with up to four
+  options each, and waits for the answers. `AskUserTool` checks the call before
+  the backend's new `ask` method answers it; through RoomKit,
+  `ask_user_handler(timeout)` (Rust too) serves it with the kit's human input,
+  and the host's hook reads the questions with `AskUserTool.read`.
+
 - Through RoomKit, `write`, `edit` and `patch` declare `changes_state`: once one
   is served, the agent's repeat counts start again, so a test rerun after an
   edit is no longer refused as a loop. It takes effect with a RoomKit that has

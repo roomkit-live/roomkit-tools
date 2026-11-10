@@ -9,12 +9,14 @@
 //! cancellation; dropping a call cancels it. The filesystem implementation
 //! remains usable without RoomKit. [`roomkit_owner`] names the owner under
 //! which the shell, process and output adapters keep a room and agent's jobs
-//! and archives.
+//! and archives. [`ask_user_handler`] serves `ask_user` through RoomKit's
+//! human input instead: give it as the channel's `human_input_handler`.
 //!
 //! Each adapter has the name of its Python RoomKit tool (`Read`, `Write`,
 //! `Shell`, `ProcessStart`, ...). Where `std::io::Read` or `std::io::Write`
 //! is in scope, name the adapter by path, `roomkit_tools_roomkit::Read`.
 
+mod ask;
 mod bridge;
 #[cfg(feature = "plans")]
 mod plans;
@@ -30,6 +32,7 @@ mod image;
 pub use image::ViewImage;
 mod output;
 mod process;
+pub use ask::ask_user_handler;
 pub use output::{OutputForget, OutputRead, Shell};
 
 pub use process::{ProcessRead, ProcessStart, ProcessStatus, ProcessStop, ProcessWrite};

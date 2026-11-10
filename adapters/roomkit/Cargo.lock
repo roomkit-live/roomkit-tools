@@ -1265,6 +1265,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "roomkit-tools-agents"
+version = "0.1.0-alpha.16"
+dependencies = [
+ "roomkit-tools-core",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio-util",
+]
+
+[[package]]
 name = "roomkit-tools-code"
 version = "0.1.0-alpha.16"
 dependencies = [
@@ -1389,6 +1400,7 @@ dependencies = [
  "base64",
  "roomkit",
  "roomkit-ai",
+ "roomkit-tools-agents",
  "roomkit-tools-code",
  "roomkit-tools-core",
  "roomkit-tools-docs",

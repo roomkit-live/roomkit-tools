@@ -4,7 +4,10 @@ Delegation tools over an agent backend the host implements: `delegate_task`,
 `task_status`, `cancel_task`, `agent_followup` and `agent_send`. The tools
 validate the model's arguments and the backend's receipts, and render them;
 the `AgentBackend` resolves profiles, runs the agents and owns their tasks.
-This crate runs no model and schedules nothing.
+`ask_user` asks the person one to four questions; the backend's `ask` shows
+them and returns the answers, and a host serving the call itself reads its
+questions with `AskUserTool::read`. This crate runs no model and schedules
+nothing.
 
 ## Features
 

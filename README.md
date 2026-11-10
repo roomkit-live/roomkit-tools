@@ -69,10 +69,11 @@ their own, without RoomKit or a model.
 | Documentation | `docs_list`, `docs_search`, `docs_read` | [Documentation](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/documentation.md) |
 | Planning | `plan_create`, `plan_read`, `plan_list`, `plan_update`, `plan_delete` | [Plans](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/plans.md) |
 | Delegation | `delegate_task`, `task_status`, `cancel_task`, `agent_followup`, `agent_send` | [Agents](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/agents.md) |
+| Questions to the person | `ask_user` | [Agents](https://github.com/roomkit-live/roomkit-tools/blob/main/guide/agents.md#asking-the-person) |
 
 Every tool is available in Python and in RoomKit Python. The optional RoomKit
 Rust adapter covers the file, code, command, process, web, image, OCR, plan and
-documentation tools; agent delegation is not available there yet.
+documentation tools, and `ask_user`; agent delegation is not available there yet.
 
 ## Quick start
 

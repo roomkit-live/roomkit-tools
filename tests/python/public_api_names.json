@@ -7,6 +7,7 @@
     "AgentScope",
     "AgentSend",
     "AgentSendTool",
+    "AskUserTool",
     "CancelTask",
     "CancelTaskTool",
     "CodeOutline",
@@ -80,6 +81,7 @@
     "Workspace",
     "Write",
     "WriteTool",
+    "ask_user_handler",
     "roomkit_owner"
   ],
   "roomkit_tools.agents": [
@@ -87,6 +89,7 @@
     "AgentFollowupTool",
     "AgentScope",
     "AgentSendTool",
+    "AskUserTool",
     "CancelTaskTool",
     "DelegateTaskTool",
     "TaskStatusTool"
@@ -172,6 +175,7 @@
     "WebFetch",
     "WebSearch",
     "Write",
+    "ask_user_handler",
     "roomkit_owner"
   ],
   "roomkit_tools.roomkit.agents": [
@@ -179,7 +183,8 @@
     "AgentSend",
     "CancelTask",
     "DelegateTask",
-    "TaskStatus"
+    "TaskStatus",
+    "ask_user_handler"
   ],
   "roomkit_tools.roomkit.commands": [
     "OutputForget",

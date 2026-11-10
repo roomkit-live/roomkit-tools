@@ -31,6 +31,7 @@ roomkit-tools-search = { version = "0.1.0-alpha.16", path = "../../crates/roomki
 roomkit-tools-web = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-web" }
 roomkit = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "31789d5d830aa3bb4b86df5d02cf496032d5cb15" }
 roomkit-ai = { version = "0.1.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "31789d5d830aa3bb4b86df5d02cf496032d5cb15" }
+roomkit-tools-agents = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-agents" }
 roomkit-tools-core = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-core" }
 roomkit-tools-fs = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-fs" }
 roomkit-tools-process = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-process" }

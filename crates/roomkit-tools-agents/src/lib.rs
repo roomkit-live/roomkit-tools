@@ -3,7 +3,8 @@
 //! This crate neither runs models nor schedules tasks. Backends own profiles,
 //! execution, scope checks, cancellation and cleanup. No runtime is required.
 //! Each call takes a [`CancellationToken`], as every tool's does, and hands it
-//! to the backend.
+//! to the backend. [`AskUserTool`] asks the person questions through the same
+//! backend.
 
 #![forbid(unsafe_code)]
 
@@ -221,6 +222,21 @@ pub trait AgentBackend: Debug + Send + Sync {
         Box::pin(async {
             Err(ToolError::UnsupportedResource(
                 "agent messages are not supported by this backend".into(),
+            ))
+        })
+    }
+    /// Show the person the questions and wait for their answers. Return the
+    /// answers the person gave, one per question; refuse with
+    /// `AccessRefused` and the reason when nobody can answer.
+    fn ask<'a>(
+        &'a self,
+        _scope: &'a AgentScope,
+        _input: &'a AskUserInput,
+        _cancel: &'a CancellationToken,
+    ) -> AgentFuture<'a, AskUserResult> {
+        Box::pin(async {
+            Err(ToolError::UnsupportedResource(
+                "asking the user is not supported by this backend".into(),
             ))
         })
     }
@@ -455,6 +471,12 @@ tool!(
     "agent_send",
     "Send a clarification to an agent's running mission. Copy `agent_id` exactly. queued means accepted for a later tool round, not yet read. `not_running` starts nothing: use `agent_followup` for an idle agent. Check `history_recorded` before assuming later missions keep the message."
 );
+
+// After the `tool!` macro, which it uses.
+mod ask;
+pub use ask::{
+    AskUserAnswer, AskUserInput, AskUserOption, AskUserQuestion, AskUserResult, AskUserTool,
+};
 
 // The README's example is compiled and run as a doctest.
 #[cfg(doctest)]

@@ -14,6 +14,7 @@ from .agents import (
     AgentFollowupTool,
     AgentScope,
     AgentSendTool,
+    AskUserTool,
     CancelTaskTool,
     DelegateTaskTool,
     TaskStatusTool,
@@ -70,6 +71,7 @@ from .roomkit import (
     WebFetch,
     WebSearch,
     Write,
+    ask_user_handler,
     roomkit_owner,
 )
 from .search import WebSearchTool
@@ -110,6 +112,7 @@ __all__ = [
     "AgentSend",
     "AgentSendTool",
     "AgentScope",
+    "AskUserTool",
     "CancelTask",
     "CancelTaskTool",
     "DelegateTask",
@@ -157,5 +160,6 @@ __all__ = [
     "WebSearch",
     "WebSearchTool",
     "WebFetchTool",
+    "ask_user_handler",
     "roomkit_owner",
 ]

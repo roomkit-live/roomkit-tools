@@ -3,6 +3,7 @@
     "__bases__": ["bases", "roomkit_tools.ToolError"]
   },
   "roomkit_tools.AgentBackend": {
+    "ask": ["async def", "scope", "*", "questions"],
     "cancel": ["async def", "scope", "*", "task_id"],
     "delegate": ["async def", "scope", "*", "profile", "task"],
     "followup": ["async def", "scope", "*", "agent_id", "task"],
@@ -31,6 +32,12 @@
     "__init__": ["def", "backend"],
     "call": ["async def", "arguments", "*", "scope"],
     "definition": ["classmethod"]
+  },
+  "roomkit_tools.AskUserTool": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments", "*", "scope"],
+    "definition": ["classmethod"],
+    "read": ["classmethod", "arguments"]
   },
   "roomkit_tools.CancelTask": {
     "__init__": ["def", "tool"],
@@ -431,6 +438,9 @@
     "create": ["async classmethod", "root", "*", "max_file_bytes=None"],
     "definition": ["classmethod"],
     "write": ["async def", "path", "content", "*", "overwrite=False", "expected_revision=None"]
+  },
+  "roomkit_tools.ask_user_handler": {
+    "__call__": ["def", "timeout"]
   },
   "roomkit_tools.ocr.BoundOcrBackend": {
     "call": ["async def", "arguments"]

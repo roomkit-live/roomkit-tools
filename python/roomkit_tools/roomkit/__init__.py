@@ -1,6 +1,13 @@
 """Optional adapters for RoomKit Python's public Tool protocol."""
 
-from .agents import AgentFollowup, AgentSend, CancelTask, DelegateTask, TaskStatus
+from .agents import (
+    AgentFollowup,
+    AgentSend,
+    CancelTask,
+    DelegateTask,
+    TaskStatus,
+    ask_user_handler,
+)
 from .commands import (
     OutputForget,
     OutputRead,
@@ -54,5 +61,6 @@ __all__ = [
     "WebFetch",
     "WebSearch",
     "Write",
+    "ask_user_handler",
     "roomkit_owner",
 ]

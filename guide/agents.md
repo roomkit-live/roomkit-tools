@@ -178,6 +178,39 @@ remains in the RoomKit store. Cleanup failures are reported. Close waits for a p
 that channel's provider/turn deadlines as well. Abrupt process termination is
 outside this in-memory contract.
 
+## Asking the person
+
+`ask_user` asks the person one to four questions, each with up to four options
+or none for a free answer, and waits for the answers. `AskUserTool` checks the
+call (non-empty questions, distinct option labels, UTF-8 byte limits) before
+the backend's `ask(scope, questions=...)` shows them and returns
+`{"answers": [{"selected": [...], "other": ...}]}`, one per question.
+
+Through RoomKit, the kit's human input serves the call instead:
+`ask_user_handler(timeout)` (Rust: `roomkit_tools_roomkit::ask_user_handler`)
+declares the tool and opens a request per call. The host's
+`ON_USER_INPUT_REQUIRED` hook reads the questions with
+`AskUserTool.read(event.arguments)`, shows them, and settles the request; a
+refusal's reason, such as what to fix in the call, is what the model reads:
+
+```python
+from roomkit import AIChannel, HookExecution, HookResult, HookTrigger
+from roomkit_tools import AskUserTool, InvalidInputError, ask_user_handler
+
+channel = AIChannel("assistant", provider=provider,
+                    human_input_handler=ask_user_handler(timeout=3600))
+
+@kit.hook(HookTrigger.ON_USER_INPUT_REQUIRED, execution=HookExecution.SYNC)
+async def show(event, context):
+    try:
+        questions = AskUserTool.read(event.arguments)["questions"]
+    except InvalidInputError as error:
+        await kit.reject_input(event.pending_id, str(error))
+        return HookResult.allow()
+    ...  # show the questions; answer later with kit.answer_input(event.pending_id, text)
+    return HookResult.allow()
+```
+
 ## Validation examples
 
 Start with [roomkit_delegate.py](../examples/roomkit_delegate.py) for a complete,

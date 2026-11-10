@@ -114,6 +114,7 @@ standalone owner, as Python's `owner=None`, apart from every named owner,
 | Documentation | Implemented, file backend with `files` feature | Implemented with optional `docs` feature |
 | Plan CRUD | Implemented | Implemented with optional `plans` feature |
 | Agent tools | Contracts and injected backend interface | Native RoomKit execution backend not implemented |
+| `ask_user` | Contract and injected backend interface | `ask_user_handler(timeout)`, served by RoomKit's human input |
 
 RoomKit Python has a packaged agent backend. This difference is an integration
 boundary, not a separate tool implementation.

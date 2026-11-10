@@ -3,8 +3,9 @@
 use pyo3::prelude::*;
 use roomkit_tools_agents::{
     AgentContract, AgentFollowupInput, AgentFollowupTool, AgentSendInput, AgentSendTool,
-    CancelResult, CancelTaskInput, CancelTaskTool, DelegateTaskInput, DelegateTaskTool, SendResult,
-    TaskInfo, TaskList, TaskStatusInput, TaskStatusTool, decode, render,
+    AskUserInput, AskUserResult, AskUserTool, CancelResult, CancelTaskInput, CancelTaskTool,
+    DelegateTaskInput, DelegateTaskTool, SendResult, TaskInfo, TaskList, TaskStatusInput,
+    TaskStatusTool, decode, render,
 };
 
 #[derive(Debug)]
@@ -35,6 +36,7 @@ impl PythonAgentContract {
             "cancel_task" => encode(&CancelTaskTool::definition()),
             "agent_followup" => encode(&AgentFollowupTool::definition()),
             "agent_send" => encode(&AgentSendTool::definition()),
+            "ask_user" => encode(&AskUserTool::definition()),
             _ => Err(unknown()),
         }
     }
@@ -46,6 +48,7 @@ impl PythonAgentContract {
             "cancel_task" => input::<CancelTaskInput>(json),
             "agent_followup" => input::<AgentFollowupInput>(json),
             "agent_send" => input::<AgentSendInput>(json),
+            "ask_user" => input::<AskUserInput>(json),
             _ => Err(unknown()),
         }
     }
@@ -56,6 +59,7 @@ impl PythonAgentContract {
             "task_status" => output::<TaskList>(json),
             "cancel_task" => output::<CancelResult>(json),
             "agent_send" => output::<SendResult>(json),
+            "ask_user" => output::<AskUserResult>(json),
             _ => Err(unknown()),
         }
     }

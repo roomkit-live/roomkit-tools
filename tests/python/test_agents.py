@@ -7,6 +7,7 @@ from roomkit_tools import (
     AgentFollowupTool,
     AgentScope,
     AgentSendTool,
+    AskUserTool,
     CancelTaskTool,
     DelegateTaskTool,
     InvalidInputError,
@@ -133,6 +134,103 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         )
 
 
+class Person:
+    """A backend whose person picks each question's first option."""
+
+    def __init__(self):
+        self.asked = []
+
+    async def ask(self, scope, *, questions):
+        self.asked.append((scope, questions))
+        return {
+            "answers": [
+                {"selected": [q["options"][0]["label"]] if q["options"] else [], "other": None}
+                for q in questions
+            ]
+        }
+
+
+def question(text, *labels):
+    return {"question": text, "options": [{"label": label} for label in labels]}
+
+
+class AskUserTests(unittest.IsolatedAsyncioTestCase):
+    def test_a_call_reads_with_its_defaults(self):
+        read = AskUserTool.read(
+            {
+                "questions": [
+                    question("Which database?", "SQLite", "Postgres"),
+                    {"question": "Name?"},
+                ]
+            }
+        )
+        self.assertEqual(read["questions"][0]["options"][0], {"label": "SQLite", "description": ""})
+        self.assertEqual(
+            read["questions"][1],
+            {"header": "", "question": "Name?", "options": [], "multi_select": False},
+        )
+
+    def test_a_call_is_refused_with_what_to_fix(self):
+        refused = [
+            (
+                {"questions": [question(f"Q{n}?") for n in range(5)]},
+                InvalidInputError,
+                "ask_user takes one to 4 questions; 5 were given.",
+            ),
+            (
+                {"questions": [question("A?"), question(" ")]},
+                InvalidInputError,
+                "Question 2 has no text.",
+            ),
+            (
+                {"questions": [question("A?", "a", "b", "c", "d", "e")]},
+                InvalidInputError,
+                "Question 1 offers 5 options; at most 4.",
+            ),
+            (
+                {"questions": [question("A?", "Yes", " Yes ")]},
+                InvalidInputError,
+                "Question 1 needs distinct, non-empty option labels.",
+            ),
+            (
+                {"questions": [question("é" * 513)]},
+                LimitExceededError,
+                "Question 1's text exceeds 1024 bytes.",
+            ),
+        ]
+        for arguments, error, message in refused:
+            with self.subTest(message), self.assertRaises(error) as raised:
+                AskUserTool.read(arguments)
+            self.assertTrue(str(raised.exception).endswith(message), str(raised.exception))
+        with self.assertRaises(InvalidInputError):
+            AskUserTool.read({"questions": [{"question": "Q?", "kind": "x"}]})
+
+    async def test_the_backend_answers_checked_questions(self):
+        person = Person()
+        scope = AgentScope("room", "assistant")
+        result = await AskUserTool(person).call(
+            {"questions": [question("Which database?", "SQLite", "Postgres")]}, scope=scope
+        )
+        self.assertEqual(result["data"], {"answers": [{"selected": ["SQLite"], "other": None}]})
+        self.assertEqual(person.asked[0][0], scope)
+        self.assertEqual(person.asked[0][1][0]["question"], "Which database?")
+        with self.assertRaises(InvalidInputError):
+            await AskUserTool(person).call({"questions": []}, scope=scope)
+        self.assertEqual(len(person.asked), 1, "never reached the backend")
+        with self.assertRaises(UnsupportedResourceError):
+            await AskUserTool(Backend()).call({"questions": [question("Q?")]}, scope=scope)
+
+    async def test_answers_are_bounded(self):
+        class Talkative:
+            async def ask(self, scope, *, questions):
+                return {"answers": [{"selected": [], "other": "a" * 4097}]}
+
+        with self.assertRaises(LimitExceededError):
+            await AskUserTool(Talkative()).call(
+                {"questions": [question("Q?")]}, scope=AgentScope("room", "assistant")
+            )
+
+
 class AgentSplitTests(unittest.TestCase):
     def test_each_tool_serves_its_call_and_definition_alone(self):
         """The core tool has `call` and a static `definition()`; RoomKit's
@@ -143,6 +241,7 @@ class AgentSplitTests(unittest.TestCase):
             CancelTaskTool,
             AgentFollowupTool,
             AgentSendTool,
+            AskUserTool,
         ):
             definition = cls.definition()
             self.assertEqual(

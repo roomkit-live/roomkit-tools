@@ -1,5 +1,8 @@
 """Selectable delegation facades; orchestration belongs to the injected backend.
 
+`AskUserTool` asks the person questions through the same backend, which shows
+them and returns the answers.
+
 Importing this module needs no RoomKit. Inputs, outputs, bounds and schemas use
 the Rust contracts. A Python backend never has to implement a Rust callback.
 """
@@ -47,6 +50,12 @@ class AgentBackend(Protocol):
     async def followup(self, scope: AgentScope, *, agent_id: str, task: str) -> dict[str, Any]: ...
 
     async def send(self, scope: AgentScope, *, agent_id: str, message: str) -> dict[str, Any]: ...
+
+    async def ask(self, scope: AgentScope, *, questions: list[dict[str, Any]]) -> dict[str, Any]:
+        """Show the person the questions and return their answers, one per
+        question; raise AccessRefusedError with the reason when nobody can
+        answer."""
+        ...
 
 
 class _AgentTool:
@@ -106,3 +115,20 @@ class AgentSendTool(_AgentTool):
 
     name = "agent_send"
     method = "send"
+
+
+class AskUserTool(_AgentTool):
+    """Ask the person one to four questions and wait for their answers."""
+
+    name = "ask_user"
+    method = "ask"
+
+    @classmethod
+    def read(cls, arguments: dict[str, Any]) -> dict[str, Any]:
+        """The questions of an ``ask_user`` call's arguments, checked as
+        :meth:`call` checks them, for a host that serves the call itself.
+
+        Raises InvalidInputError or LimitExceededError saying what the model
+        should fix.
+        """
+        return json.loads(_AgentContract.input_json(cls.name, json.dumps(arguments)))

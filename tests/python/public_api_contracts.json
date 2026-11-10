@@ -10,6 +10,11 @@
    "input": "AgentSendInput",
    "output": "SendResult"
   },
+  "ask_user": {
+   "class": "roomkit_tools.AskUserTool",
+   "input": "AskUserInput",
+   "output": "AskUserResult"
+  },
   "cancel_task": {
    "class": "roomkit_tools.CancelTaskTool",
    "input": "CancelTaskInput",
@@ -182,6 +187,36 @@
    "fields": [
     "agent_id",
     "message"
+   ]
+  },
+  "AskUserAnswer": {
+   "fields": [
+    "other",
+    "selected"
+   ]
+  },
+  "AskUserInput": {
+   "fields": [
+    "questions"
+   ]
+  },
+  "AskUserOption": {
+   "fields": [
+    "description",
+    "label"
+   ]
+  },
+  "AskUserQuestion": {
+   "fields": [
+    "header",
+    "multi_select",
+    "options",
+    "question"
+   ]
+  },
+  "AskUserResult": {
+   "fields": [
+    "answers"
    ]
   },
   "CancelResult": {
