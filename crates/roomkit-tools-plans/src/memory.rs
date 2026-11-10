@@ -210,6 +210,7 @@ impl PlanBackend for MemoryPlanBackend {
             let mut state = self.lock()?;
             let current = owned(&state, scope, &input.plan_id)?;
             check_revision(current, input.expected_revision)?;
+            let input = &crate::resolve_update(current, input.clone())?;
             let mut next = current.clone();
             if let Some(title) = &input.title {
                 next.title.clone_from(title);

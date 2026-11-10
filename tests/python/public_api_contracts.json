@@ -747,6 +747,7 @@
     "expected_revision",
     "objective",
     "plan_id",
+    "step_changes",
     "steps",
     "title"
    ]
@@ -961,6 +962,13 @@
     "stdout",
     "timed_out",
     "timeout_ms"
+   ]
+  },
+  "StepChange": {
+   "fields": [
+    "description",
+    "status",
+    "step_id"
    ]
   },
   "StepStatus": {

@@ -56,10 +56,15 @@ stable ID when creating a step, and reuse it when changing its description,
 status or position. Multiple steps may be in progress for parallel work; no
 transition workflow is imposed. An empty steps list is valid.
 
-An update preserves omitted/null fields. **Supplying `steps` replaces the entire
-ordered list.** Include unchanged steps, keep their IDs and omit entries you want
-to remove. Sending `steps: []` clears the list. There is no implicit merge of step
-arrays and no automatic deletion of completed plans.
+An update preserves omitted/null fields. To change a step's status or
+description, give `step_changes`, a list of `{step_id, status?, description?}`:
+only those steps change, the others and the order are kept, and the result's
+`text` gives the new revision and the changed steps alone; `data` is still the
+whole plan. A change naming no step of the plan is refused. **Supplying `steps`
+instead replaces the entire ordered list.** Include unchanged steps, keep their
+IDs and omit entries you want to remove. Sending `steps: []` clears the list.
+`steps` and `step_changes` cannot be combined. There is no automatic deletion of
+completed plans.
 
 Updates and deletions require the current revision. A real change increments it;
 a no-op keeps it. A stale revision is refused atomically, leaving the plan
@@ -100,13 +105,17 @@ current = await PlanReadTool(store).call({"plan_id": plan["plan_id"]}, scope=sco
 `PlanBackend` describes the five async host methods: `create`, `read`, `list`,
 `update`, `delete`. Each receives a trusted `PlanScope` plus keyword arguments and
 returns the data dictionary, without the `{data, text}` envelope. The facades
-validate inputs and outputs against Rust contracts. A custom backend must enforce
+validate inputs and outputs against Rust contracts. `PlanUpdateTool` applies
+`step_changes` itself, to the plan `read` returns, and hands `update` the
+complete `steps`, so a backend needs nothing for them; `MemoryPlanBackend.update`
+also takes `step_changes` from a direct caller. A custom backend must enforce
 ownership on every operation, atomic revision checks, capacity, unique IDs and
 bounded records; declare its persistence guarantees. Implementations can use
 application storage. No database backend is included in this version.
 
 `PlanCreateTool.definition()` (and the other tools') exposes Rust-derived
-input/output schemas, and `.call()` returns `{data, text}`. The RoomKit adapter
+input/output schemas, and `.call()` returns `{data, text}`, where `text` is the
+plan as lines: its heading, objective and numbered steps with their status. The RoomKit adapter
 `PlanCreate(tool)` has the RoomKit `.definition` and a `.handler()` that uses
 trusted RoomKit context and records structured results.
 

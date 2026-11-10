@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod memory;
+mod text;
 mod types;
 mod validation;
 pub use memory::{MemoryPlanBackend, MemoryPlanLimits};
@@ -68,6 +69,11 @@ pub trait PlanContract: Serialize + DeserializeOwned + JsonSchema {
     /// # Errors
     /// Rejects invalid or oversized values.
     fn validate(&self) -> Result<(), ToolError>;
+    /// What a model reads of this value as a result: its JSON unless the
+    /// type renders lines of its own.
+    fn text(&self) -> String {
+        serde_json::to_string(self).unwrap_or_default()
+    }
 }
 
 /// Decode and validate the implementation's actual input/output types.
@@ -92,8 +98,57 @@ pub fn decode<T: PlanContract>(json: &str) -> Result<T, ToolError> {
 #[doc(hidden)]
 pub fn render<T: PlanContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
-    let text = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
+    let text = data.text();
     Ok(Output::new(data, text))
+}
+
+/// Render an update's result: the whole plan, or with `step_changes`, its
+/// revision and the steps they changed.
+/// # Errors
+/// Rejects a backend result that violates the common contract.
+#[doc(hidden)]
+pub fn render_update(input: &PlanUpdateInput, plan: Plan) -> Result<Output<Plan>, ToolError> {
+    let Some(changes) = &input.step_changes else {
+        return render(plan);
+    };
+    plan.validate()?;
+    let step_ids: Vec<String> = changes.iter().map(|c| c.step_id.clone()).collect();
+    let text = text::changed(&plan, &step_ids);
+    Ok(Output::new(plan, text))
+}
+
+/// The update `input` asks of `plan`: its `step_changes` applied to the
+/// plan's steps into the complete `steps`, its other fields kept.
+/// # Errors
+/// Refuses a change naming a step the plan does not have.
+#[doc(hidden)]
+pub fn resolve_update(
+    plan: &Plan,
+    mut input: PlanUpdateInput,
+) -> Result<PlanUpdateInput, ToolError> {
+    let Some(changes) = input.step_changes.take() else {
+        return Ok(input);
+    };
+    let mut steps = plan.steps.clone();
+    for change in changes {
+        let step = steps
+            .iter_mut()
+            .find(|step| step.step_id == change.step_id)
+            .ok_or_else(|| {
+                ToolError::InvalidInput(format!(
+                    "no step {} in plan {}; plan_read lists its steps",
+                    change.step_id, plan.plan_id
+                ))
+            })?;
+        if let Some(status) = change.status {
+            step.status = status;
+        }
+        if let Some(description) = change.description {
+            step.description = description;
+        }
+    }
+    input.steps = Some(steps);
+    Ok(input)
 }
 
 pub(crate) fn cancelled(cancel: &CancellationToken) -> Result<(), ToolError> {
@@ -105,7 +160,7 @@ pub(crate) fn cancelled(cancel: &CancellationToken) -> Result<(), ToolError> {
 }
 
 macro_rules! tool {
-    ($name:ident, $input:ty, $output:ty, $method:ident, $wire:literal, $description:literal) => {
+    (@facade $name:ident, $input:ty, $output:ty, $wire:literal, $description:literal) => {
         #[doc = $description]
         #[derive(Clone, Debug)]
         pub struct $name {
@@ -120,6 +175,11 @@ macro_rules! tool {
             pub fn definition() -> Definition {
                 Definition::new::<$input, $output>($wire, $description)
             }
+        }
+    };
+    ($name:ident, $input:ty, $output:ty, $method:ident, $wire:literal, $description:literal) => {
+        tool!(@facade $name, $input, $output, $wire, $description);
+        impl $name {
             /// Validate, execute and return a structured receipt, as
             /// Python's `call(arguments, scope=...)`.
             /// # Errors
@@ -163,13 +223,38 @@ tool!(
     "List this conversation's plans as summaries; `plan_read` gives the steps."
 );
 tool!(
-    PlanUpdateTool,
+    @facade PlanUpdateTool,
     PlanUpdateInput,
     Plan,
-    update,
     "plan_update",
-    "Update a plan at its current `expected_revision`; omitted fields are kept. `steps` replaces the ENTIRE ordered list: include unchanged steps with their `step_id`; left-out steps are removed. After a revision conflict, read the plan again."
+    "Update a plan at its current `expected_revision`; omitted fields are kept. To change a step's status or description, give `step_changes`: only those steps change, and the result lists them. `steps` replaces the ENTIRE ordered list instead: include unchanged steps with their `step_id`; left-out steps are removed. After a revision conflict, read the plan again."
 );
+impl PlanUpdateTool {
+    /// Validate, resolve `step_changes` against the current plan, update and
+    /// return a structured receipt, as Python's `call(arguments, scope=...)`.
+    /// # Errors
+    /// Propagates invalid inputs, access/revision refusals, limits and backend errors.
+    pub async fn call(
+        &self,
+        scope: &PlanScope,
+        input: PlanUpdateInput,
+        cancel: &CancellationToken,
+    ) -> Result<Output<Plan>, ToolError> {
+        scope.validate()?;
+        input.validate()?;
+        cancelled(cancel)?;
+        let resolved = if input.step_changes.is_some() {
+            let read = PlanReadInput {
+                plan_id: input.plan_id.clone(),
+            };
+            let current = self.backend.read(scope, &read, cancel).await?;
+            resolve_update(&current, input.clone())?
+        } else {
+            input.clone()
+        };
+        render_update(&input, self.backend.update(scope, &resolved, cancel).await?)
+    }
+}
 tool!(
     PlanDeleteTool,
     PlanDeleteInput,

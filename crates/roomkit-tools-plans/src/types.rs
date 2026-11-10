@@ -77,12 +77,31 @@ pub struct PlanUpdateInput {
     pub objective: Option<String>,
     /// The ENTIRE new ordered step list.
     pub steps: Option<Vec<PlanStep>>,
+    /// Changes to existing steps by `step_id`, instead of `steps`: the
+    /// other steps and the order are kept.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_changes: Option<Vec<StepChange>>,
+}
+
+/// A change to one existing step; give `status`, `description` or both.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StepChange {
+    /// The step to change.
+    pub step_id: String,
+    /// New declared progress.
+    #[serde(default)]
+    pub status: Option<StepStatus>,
+    /// New description, at most 2048 bytes.
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 impl PlanUpdateInput {
     /// Change nothing yet in `plan_id` at `expected_revision`, as Python's
     /// `update(scope, plan_id=..., expected_revision=...)`: set `title`,
-    /// `objective` or `steps` by struct update; `None` preserves each.
+    /// `objective`, `steps` or `step_changes` by struct update; `None`
+    /// preserves each.
     pub fn new(plan_id: impl Into<String>, expected_revision: u64) -> Self {
         Self {
             plan_id: plan_id.into(),
@@ -90,6 +109,7 @@ impl PlanUpdateInput {
             title: None,
             objective: None,
             steps: None,
+            step_changes: None,
         }
     }
 }

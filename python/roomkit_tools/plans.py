@@ -32,6 +32,8 @@ class PlanBackend(Protocol):
     Return data dictionaries matching the Rust schemas. IDs must not be reused.
     Cancellation can lose a committed receipt: recover with read/list. Document
     durability; updates/deletions never execute or cancel related agent work.
+    ``PlanUpdateTool`` hands ``update`` the complete ``steps``, its
+    ``step_changes`` already applied; only a direct caller passes them.
     """
 
     async def create(
@@ -48,6 +50,7 @@ class PlanBackend(Protocol):
         title: str | None,
         objective: str | None,
         steps: list[dict[str, Any]] | None,
+        step_changes: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]: ...
     async def delete(
         self, scope: PlanScope, *, plan_id: str, expected_revision: int
@@ -101,6 +104,7 @@ class MemoryPlanBackend:
         title: str | None = None,
         objective: str | None = None,
         steps: list[dict[str, Any]] | None = None,
+        step_changes: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         return await self._call(
             "plan_update",
@@ -111,6 +115,7 @@ class MemoryPlanBackend:
                 "title": title,
                 "objective": objective,
                 "steps": steps,
+                "step_changes": step_changes,
             },
         )
 
@@ -138,14 +143,23 @@ class _PlanTool:
         """Standalone call with trusted owner and validated backend output."""
         if not isinstance(scope, PlanScope):
             raise InvalidInputError("a host-supplied PlanScope is required")
-        inputs = json.loads(
-            _PlanContract.input_json(self.name, json.dumps(arguments, allow_nan=False))
-        )
-        method = getattr(self._backend, self.method, None)
+        given = _PlanContract.input_json(self.name, json.dumps(arguments, allow_nan=False))
+        data = await self._run(scope, given)
+        return json.loads(self._output(given, json.dumps(data, allow_nan=False)))
+
+    async def _run(self, scope: PlanScope, given: str) -> dict[str, Any]:
+        """The backend's result for the validated arguments ``given``."""
+        return await self._method(self.method)(scope, **json.loads(given))
+
+    def _output(self, given: str, data: str) -> str:
+        """The validated envelope of the backend's result."""
+        return _PlanContract.output_json(self.name, data)
+
+    def _method(self, name: str) -> Any:
+        method = getattr(self._backend, name, None)
         if method is None:
             raise UnsupportedResourceError(f"backend does not support {self.name}")
-        data = await method(scope, **inputs)
-        return json.loads(_PlanContract.output_json(self.name, json.dumps(data, allow_nan=False)))
+        return method
 
 
 class PlanCreateTool(_PlanTool):
@@ -170,10 +184,26 @@ class PlanListTool(_PlanTool):
 
 
 class PlanUpdateTool(_PlanTool):
-    """Update selected fields with a mandatory expected revision."""
+    """Update selected fields with a mandatory expected revision.
+
+    ``step_changes`` are applied here, to the plan the backend reads: the
+    backend's ``update`` receives the complete ``steps``, and the result's
+    text names only the changed steps.
+    """
 
     name = "plan_update"
     method = "update"
+
+    async def _run(self, scope: PlanScope, given: str) -> dict[str, Any]:
+        inputs = json.loads(given)
+        if "step_changes" in inputs:
+            plan = await self._method("read")(scope, plan_id=inputs["plan_id"])
+            resolved = _PlanContract.resolve_update_json(json.dumps(plan, allow_nan=False), given)
+            inputs = json.loads(resolved)
+        return await self._method(self.method)(scope, **inputs)
+
+    def _output(self, given: str, data: str) -> str:
+        return _PlanContract.update_output_json(given, data)
 
 
 class PlanDeleteTool(_PlanTool):

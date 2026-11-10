@@ -97,3 +97,31 @@ async fn plan_adapters_refuse_calls_outside_a_roomkit_tool_call() {
         refused
     );
 }
+
+/// Changing one status of an 18-step plan used to send and return the whole
+/// list (RMK-1639): `step_changes` names one step, and so does the text.
+#[tokio::test]
+async fn an_agent_changes_one_step_and_reads_only_that_step() {
+    let store = Arc::new(MemoryPlanBackend::default());
+    let creator = PlanCreate::new(PlanCreateTool::new(store.clone()));
+    let updater = PlanUpdate::new(PlanUpdateTool::new(store));
+    let (room, agent) = ("plans", "assistant");
+    let steps: Vec<Value> = (1..=18)
+        .map(|i| json!({"step_id": format!("s{i}"), "description": format!("Step {i}"), "status": "pending"}))
+        .collect();
+    let request = json!({"title": "Release", "objective": "Ship", "steps": steps});
+    data(call::run(&creator, room, agent, "plan_create", request).await);
+    let change = json!({"plan_id": "plan-1", "expected_revision": 1,
+        "step_changes": [{"step_id": "s3", "status": "completed"}]});
+    let Ok(ToolResult::Json(envelope)) =
+        call::run(&updater, room, agent, "plan_update", change.clone()).await
+    else {
+        unreachable!("plan_update returns its envelope");
+    };
+    assert_eq!(
+        envelope["text"],
+        "plan-1 (revision 2): 1 step changed\n3. s3 [completed]: Step 3\n"
+    );
+    assert_eq!(envelope["data"]["steps"].as_array().unwrap().len(), 18);
+    assert!(change.to_string().len() < 150);
+}

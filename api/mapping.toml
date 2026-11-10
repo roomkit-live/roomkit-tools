@@ -260,7 +260,7 @@ covers = [
 
 [[hidden]]
 decision = "luge-hitl:76e988fe A11"
-reason = "the plumbing the tool crates and the bindings share, which Python has no name for and a host never needs: core's envelope constructors, workspace path rules, identifier order and revision spelling; the contract traits with their decode and render; the scopes' and the command environment's validate; the image crate's workspace and decoder"
+reason = "the plumbing the tool crates and the bindings share, which Python has no name for and a host never needs: core's envelope constructors, workspace path rules, identifier order and revision spelling; the contract traits with their decode and render, and a plan update's step changes resolved and rendered; the scopes' and the command environment's validate; the image crate's workspace and decoder"
 covers = [
   "rust roomkit_tools_core::Definition::new (hidden)",
   "rust roomkit_tools_core::Output::new (hidden)",
@@ -277,6 +277,8 @@ covers = [
   "rust roomkit_tools_plans::PlanScope::validate (hidden)",
   "rust roomkit_tools_plans::decode (hidden)",
   "rust roomkit_tools_plans::render (hidden)",
+  "rust roomkit_tools_plans::render_update (hidden)",
+  "rust roomkit_tools_plans::resolve_update (hidden)",
   "rust roomkit_tools_agents::AgentContract (hidden)",
   "rust roomkit_tools_agents::AgentScope::validate (hidden)",
   "rust roomkit_tools_agents::decode (hidden)",

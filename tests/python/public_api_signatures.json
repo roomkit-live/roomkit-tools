@@ -193,7 +193,7 @@
     "delete": ["async def", "scope", "*", "plan_id", "expected_revision"],
     "list": ["async def", "scope"],
     "read": ["async def", "scope", "*", "plan_id"],
-    "update": ["async def", "scope", "*", "plan_id", "expected_revision", "title=None", "objective=None", "steps=None"]
+    "update": ["async def", "scope", "*", "plan_id", "expected_revision", "title=None", "objective=None", "steps=None", "step_changes=None"]
   },
   "roomkit_tools.Ocr": {
     "__init__": ["def", "tool"],
@@ -248,7 +248,7 @@
     "delete": ["async def", "scope", "*", "plan_id", "expected_revision"],
     "list": ["async def", "scope"],
     "read": ["async def", "scope", "*", "plan_id"],
-    "update": ["async def", "scope", "*", "plan_id", "expected_revision", "title", "objective", "steps"]
+    "update": ["async def", "scope", "*", "plan_id", "expected_revision", "title", "objective", "steps", "step_changes=None"]
   },
   "roomkit_tools.PlanCreate": {
     "__init__": ["def", "tool"],

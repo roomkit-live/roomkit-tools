@@ -114,6 +114,49 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(UnsupportedResourceError):
             await PlanListTool(host).call({}, scope=OWNER)
 
+    async def test_step_changes_reach_a_host_backend_as_the_complete_steps(self):
+        steps = [
+            {"step_id": f"s{i}", "description": f"Step {i}", "status": "pending"}
+            for i in range(1, 19)
+        ]
+
+        class Host:
+            """A host backend written before step_changes existed."""
+
+            plan = {"plan_id": "plan-1", "revision": 1, "title": "Release"}
+            plan |= {"objective": "Ship", "steps": steps}
+
+            async def read(self, scope, *, plan_id):
+                return self.plan
+
+            async def update(self, scope, *, plan_id, expected_revision, title, objective, steps):
+                self.received = steps
+                self.plan = {**self.plan, "revision": 2, "steps": steps}
+                return self.plan
+
+        host = Host()
+        changes = [{"step_id": "s3", "status": "completed"}]
+        arguments = {"plan_id": "plan-1", "expected_revision": 1, "step_changes": changes}
+        result = await PlanUpdateTool(host).call(arguments, scope=OWNER)
+        self.assertEqual(len(host.received), 18)
+        self.assertEqual(host.received[2]["status"], "completed")
+        self.assertEqual(host.received[3]["status"], "pending")
+        self.assertEqual(
+            result["text"], "plan-1 (revision 2): 1 step changed\n3. s3 [completed]: Step 3\n"
+        )
+        with self.assertRaises(InvalidInputError):
+            await PlanUpdateTool(host).call(
+                {**arguments, "step_changes": [{"step_id": "s99", "status": "completed"}]},
+                scope=OWNER,
+            )
+        memory = MemoryPlanBackend()
+        await memory.create(OWNER, title="Release", objective="Ship", steps=steps)
+        direct = await memory.update(
+            OWNER, plan_id="plan-1", expected_revision=1, step_changes=changes
+        )
+        self.assertEqual(direct["steps"][2]["status"], "completed")
+        self.assertEqual(direct["revision"], 2)
+
     async def test_invalid_steps_and_revisions_leave_state_unchanged(self):
         backend = MemoryPlanBackend()
         tool = PlanCreateTool(backend)

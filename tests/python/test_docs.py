@@ -46,8 +46,14 @@ class DocsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[4]["data"]["next_offset"], 3)
         self.assertEqual(results[5]["data"]["lines"], [])
         for result in results:
-            self.assertEqual(json.loads(result["text"]), result["data"])
             self.assertNotIn(str(self.root), json.dumps(result))
+        # The model reads lines, not the JSON of data: numbered as read numbers them.
+        self.assertTrue(results[0]["text"].startswith("3 documents\n"))
+        page = next(r["data"] for r in results if r["data"].get("lines"))
+        first = page["lines"][0]
+        text = next(r["text"] for r in results if r["data"] is page)
+        self.assertIn(f"\n{first['number']}: {first['text']}\n", text)
+        self.assertIn("no lines\n", results[5]["text"])
         if reference := os.getenv("ROOMKIT_DOCS_RESULTS"):
             self.assertEqual(
                 results, json.loads(await asyncio.to_thread(Path(reference).read_text))

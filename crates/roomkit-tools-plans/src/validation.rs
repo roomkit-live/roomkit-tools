@@ -1,7 +1,7 @@
 use crate::PlanContract;
 use crate::types::{
     Plan, PlanCreateInput, PlanDeleteInput, PlanDeleteResult, PlanListInput, PlanListResult,
-    PlanReadInput, PlanScope, PlanStep, PlanUpdateInput,
+    PlanReadInput, PlanScope, PlanStep, PlanUpdateInput, StepChange,
 };
 use roomkit_tools_core::ToolError;
 use std::collections::BTreeSet;
@@ -35,20 +35,48 @@ fn steps(values: &[PlanStep]) -> Result<(), ToolError> {
     }
     let mut ids = BTreeSet::new();
     for step in values {
-        bounded(&step.step_id, "step_id", 64)?;
-        if !step
-            .step_id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-        {
-            return Err(ToolError::InvalidInput(
-                "step_id accepts ASCII letters, digits, '_' and '-'".into(),
-            ));
-        }
+        step_id(&step.step_id)?;
         if !ids.insert(&step.step_id) {
             return Err(ToolError::InvalidInput("duplicate step_id in plan".into()));
         }
         bounded(&step.description, "step description", 2048)?;
+    }
+    Ok(())
+}
+fn step_id(value: &str) -> Result<(), ToolError> {
+    bounded(value, "step_id", 64)?;
+    if !value
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    {
+        return Err(ToolError::InvalidInput(
+            "step_id accepts ASCII letters, digits, '_' and '-'".into(),
+        ));
+    }
+    Ok(())
+}
+fn step_changes(values: &[StepChange]) -> Result<(), ToolError> {
+    if values.is_empty() || values.len() > 64 {
+        return Err(ToolError::InvalidInput(
+            "step_changes holds 1 to 64 changes".into(),
+        ));
+    }
+    let mut ids = BTreeSet::new();
+    for change in values {
+        step_id(&change.step_id)?;
+        if !ids.insert(&change.step_id) {
+            return Err(ToolError::InvalidInput(
+                "duplicate step_id in step_changes".into(),
+            ));
+        }
+        if change.status.is_none() && change.description.is_none() {
+            return Err(ToolError::InvalidInput(
+                "a step change gives status, description or both".into(),
+            ));
+        }
+        if let Some(description) = &change.description {
+            bounded(description, "step description", 2048)?;
+        }
     }
     Ok(())
 }
@@ -94,10 +122,22 @@ impl PlanContract for PlanUpdateInput {
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)?;
         revision(self.expected_revision)?;
-        if self.title.is_none() && self.objective.is_none() && self.steps.is_none() {
+        if self.title.is_none()
+            && self.objective.is_none()
+            && self.steps.is_none()
+            && self.step_changes.is_none()
+        {
             return Err(ToolError::InvalidInput(
-                "provide title, objective or the complete steps list".into(),
+                "provide title, objective, step_changes or the complete steps list".into(),
             ));
+        }
+        if self.steps.is_some() && self.step_changes.is_some() {
+            return Err(ToolError::InvalidInput(
+                "give steps or step_changes, not both".into(),
+            ));
+        }
+        if let Some(values) = &self.step_changes {
+            step_changes(values)?;
         }
         if let Some(value) = &self.title {
             bounded(value, "title", 256)?;
@@ -118,6 +158,9 @@ impl PlanContract for PlanDeleteInput {
     }
 }
 impl PlanContract for Plan {
+    fn text(&self) -> String {
+        crate::text::plan(self)
+    }
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)?;
         revision(self.revision)?;
@@ -128,6 +171,9 @@ impl PlanContract for Plan {
     }
 }
 impl PlanContract for PlanListResult {
+    fn text(&self) -> String {
+        crate::text::list(self)
+    }
     fn validate(&self) -> Result<(), ToolError> {
         if self.plans.len() > 64 {
             return Err(ToolError::LimitExceeded(
@@ -151,6 +197,9 @@ impl PlanContract for PlanListResult {
     }
 }
 impl PlanContract for PlanDeleteResult {
+    fn text(&self) -> String {
+        crate::text::deleted(self)
+    }
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.plan_id, "plan_id", 128)?;
         revision(self.revision)?;

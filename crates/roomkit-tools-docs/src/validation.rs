@@ -117,6 +117,9 @@ fn info(value: &DocumentInfo) -> Result<(), ToolError> {
     revision(&value.revision)
 }
 impl DocsContract for DocsListResult {
+    fn text(&self) -> String {
+        crate::text::list(self)
+    }
     fn validate(&self) -> Result<(), ToolError> {
         revision(&self.catalog_revision)?;
         if self.documents.len() > 100 {
@@ -141,6 +144,9 @@ impl DocsContract for DocsListResult {
     }
 }
 impl DocsContract for DocsSearchResult {
+    fn text(&self) -> String {
+        crate::text::search(self)
+    }
     fn validate(&self) -> Result<(), ToolError> {
         revision(&self.catalog_revision)?;
         if self.matches.len() > 50 || self.matched_documents > self.total_documents {
@@ -171,6 +177,9 @@ impl DocsContract for DocsSearchResult {
     }
 }
 impl DocsContract for DocsReadResult {
+    fn text(&self) -> String {
+        crate::text::read(self)
+    }
     fn validate(&self) -> Result<(), ToolError> {
         info(&self.document)?;
         revision(&self.catalog_revision)?;

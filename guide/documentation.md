@@ -54,8 +54,11 @@ if result["data"]["matches"]:
 ```
 
 `FileDocs.list/search/read` expose the same operations as data dictionaries;
-the tool facades add the standard `{data, text}` envelope. For these tools, `text`
-is a JSON representation of `data`, preserving the complete provenance and lines.
+the tool facades add the standard `{data, text}` envelope. `text` is what a model
+reads: one line per document with its quoted ID, title, line count, revision,
+version and source, a read's lines numbered as `read` numbers them, and the
+`next_offset` and `catalog_revision` facts; `data` keeps the complete
+provenance and lines.
 RoomKit also receives the envelope as structured tool content.
 
 ## Discovery, search and reading

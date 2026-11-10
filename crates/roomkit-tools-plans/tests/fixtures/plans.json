@@ -6,6 +6,7 @@
   {"tool":"plan_update","arguments":{"plan_id":"plan-1","expected_revision":2,"title":"Review shipping"}},
   {"tool":"plan_list","arguments":{}},
   {"tool":"plan_update","arguments":{"plan_id":"plan-1","expected_revision":2,"steps":[{"step_id":"inspect","description":"Read the source","status":"completed"}]}},
-  {"tool":"plan_delete","arguments":{"plan_id":"plan-1","expected_revision":3}},
+  {"tool":"plan_update","arguments":{"plan_id":"plan-1","expected_revision":3,"step_changes":[{"step_id":"inspect","status":"pending","description":"Reread the source"}]}},
+  {"tool":"plan_delete","arguments":{"plan_id":"plan-1","expected_revision":4}},
   {"tool":"plan_list","arguments":{}}
 ]

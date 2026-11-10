@@ -378,7 +378,8 @@ fn knowledge() -> Vec<(String, Value)> {
             expected_revision,
             title,
             objective,
-            steps
+            steps,
+            step_changes
         ),
         dump!(roomkit_tools_agents::TaskStatusInput::default(), task_id),
     ]

@@ -5,7 +5,7 @@ use roomkit_tools_plans::{
     MemoryPlanBackend, MemoryPlanLimits, Plan, PlanBackend, PlanContract, PlanCreateInput,
     PlanCreateTool, PlanDeleteInput, PlanDeleteResult, PlanDeleteTool, PlanListInput,
     PlanListResult, PlanListTool, PlanReadInput, PlanReadTool, PlanScope, PlanUpdateInput,
-    PlanUpdateTool, decode, render,
+    PlanUpdateTool, decode, render, render_update, resolve_update,
 };
 
 #[derive(Debug)]
@@ -56,6 +56,20 @@ impl PythonPlanContract {
             "plan_delete" => output::<PlanDeleteResult>(json),
             _ => Err(unknown()),
         }
+    }
+    /// The update arguments with their `step_changes` applied to `plan`.
+    #[staticmethod]
+    fn resolve_update_json(plan_json: &str, input_json: &str) -> PyResult<String> {
+        let plan = decode::<Plan>(plan_json).map_err(|e| tool_error(&e))?;
+        let input = decode::<PlanUpdateInput>(input_json).map_err(|e| tool_error(&e))?;
+        encode(&resolve_update(&plan, input).map_err(|e| tool_error(&e))?)
+    }
+    /// An update's envelope, its text naming only the changed steps.
+    #[staticmethod]
+    fn update_output_json(input_json: &str, json: &str) -> PyResult<String> {
+        let input = decode::<PlanUpdateInput>(input_json).map_err(|e| tool_error(&e))?;
+        let data = decode::<Plan>(json).map_err(|e| tool_error(&e))?;
+        encode(&render_update(&input, data).map_err(|e| tool_error(&e))?)
     }
     #[staticmethod]
     fn scope(room_id: String, caller_id: String) -> PyResult<()> {

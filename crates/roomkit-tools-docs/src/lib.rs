@@ -4,6 +4,7 @@
 
 #[cfg(feature = "files")]
 mod files;
+mod text;
 mod types;
 mod validation;
 #[cfg(feature = "files")]
@@ -46,6 +47,11 @@ pub trait DocsContract: Serialize + DeserializeOwned + JsonSchema {
     /// # Errors
     /// Rejects invalid values or oversized records.
     fn validate(&self) -> Result<(), ToolError>;
+    /// What a model reads of this value as a result: its JSON unless the
+    /// type renders lines of its own.
+    fn text(&self) -> String {
+        serde_json::to_string(self).unwrap_or_default()
+    }
 }
 /// Decode a Rust input or result and validate its contract.
 /// # Errors
@@ -62,18 +68,19 @@ pub fn decode<T: DocsContract>(json: &str) -> Result<T, ToolError> {
     value.validate()?;
     Ok(value)
 }
-/// Produce the common envelope without inventing a summary.
+/// Produce the common envelope: the data, and the lines a model reads of it.
 /// # Errors
 /// Rejects invalid results or more than 128 KiB of serialized data.
 #[doc(hidden)]
 pub fn render<T: DocsContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
-    let text = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
-    if text.len() > 128 * 1024 {
+    let json = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
+    if json.len() > 128 * 1024 {
         return Err(ToolError::LimitExceeded(
             "documentation result exceeds 128 KiB; request a smaller page".into(),
         ));
     }
+    let text = data.text();
     Ok(Output::new(data, text))
 }
 pub(crate) fn cancelled(token: &CancellationToken) -> Result<(), ToolError> {

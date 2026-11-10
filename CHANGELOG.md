@@ -6,6 +6,16 @@ part of an existing published preview.
 
 ## Unreleased
 
+- `plan_update` takes `step_changes`, `[{step_id, status?, description?}]`,
+  instead of `steps`: only those steps change, and the result's `text` gives
+  the new revision and the changed steps alone, so changing one status of an
+  18-step plan no longer sends and returns the whole list. `PlanUpdateTool`
+  applies them to the plan its backend reads, so a backend receives the
+  complete `steps` as before; `MemoryPlanBackend.update` also takes
+  `step_changes`. The `text` of every plan and documentation result is now
+  lines a model reads (a plan's numbered steps, a document's numbered lines)
+  rather than the JSON of `data`, which is unchanged.
+
 - `process_read` takes `wait_ms`: the read first waits, up to that many
   milliseconds, until the process ends or writes past the given offsets, so an
   agent awaits a build in one call instead of polling it one tool round at a
