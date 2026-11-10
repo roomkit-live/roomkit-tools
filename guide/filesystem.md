@@ -78,9 +78,12 @@ are not traversed. Grep supports Rust regex syntax, `literal=True`,
 `ignore_case=True`, `include`, `context_before` and `context_after`.
 It skips binary/non-UTF-8 files and reports `data.skipped_files`. All three
 tools skip entries whose names are not UTF-8, without searching a skipped
-directory, and report them in `data.skipped_entries`. A glob pattern or grep
-`include` without `**` or a `[...]` class only scans as many directory levels as
-it has components: `*.rs` reads only the search directory, so unrelated large or
+directory, and report them in `data.skipped_entries`. A grep `include` without
+`/` filters file names at any depth, as `rg -g` does: `*.rs` keeps every Rust
+file below the searched `path`. With a `/`, it matches the path relative to
+`path`, like a glob pattern. A glob pattern, or an `include` with `/`, without
+`**` or a `[...]` class only scans as many directory levels as it has
+components: glob's `*.rs` reads only the search directory, so unrelated large or
 deep subtrees do not exhaust the scan bounds.
 
 Glob matches paths, and grep reads and matches files, on a blocking worker,

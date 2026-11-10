@@ -6,6 +6,11 @@ part of an existing published preview.
 
 ## Unreleased
 
+- `grep`'s `include` without `/` filters file names at any depth, as `rg -g`
+  does: `include="*.rs"` finds the Rust files of every directory below `path`,
+  where it used to read only `path` itself and answer "no matches". An
+  `include` with `/` still matches the path relative to `path`.
+
 - `ask_user`: the agent asks the person one to four questions, with up to four
   options each, and waits for the answers. `AskUserTool` checks the call before
   the backend's new `ask` method answers it; through RoomKit,

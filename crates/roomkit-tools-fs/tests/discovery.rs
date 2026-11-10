@@ -616,14 +616,51 @@ async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
         .with_limits(grep_limits)
         .unwrap();
     let mut input = GrepInput::new("hit");
-    input.include = Some("*.rs".into());
+    input.include = Some("deep/*.rs".into());
     let matches = grep.grep(input.clone(), &cancel).await.unwrap();
-    assert_eq!(matches.data.matches.len(), 1);
-    input.include = Some("**/*.rs".into());
-    assert!(matches!(
-        grep.grep(input, &cancel).await,
-        Err(ToolError::LimitExceeded(_))
-    ));
+    assert_eq!(matches.data.matches.len(), 4);
+    // Without a `/`, an include filters names at any depth, so it scans them all.
+    for unbounded in ["*.rs", "**/*.rs"] {
+        input.include = Some(unbounded.into());
+        assert!(
+            matches!(
+                grep.grep(input.clone(), &cancel).await,
+                Err(ToolError::LimitExceeded(_))
+            ),
+            "{unbounded}"
+        );
+    }
+}
+
+/// `include: *.rs` used to read only the search directory, and its
+/// "no matches" read as an absence (RMK-1639).
+#[tokio::test]
+async fn an_include_without_a_slash_filters_file_names_at_any_depth() {
+    let root = tempfile::tempdir().unwrap();
+    let nested = root.path().join("src/delegation");
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(root.path().join("src/main.rs"), "fn main() {}\n").unwrap();
+    std::fs::write(nested.join("mod.rs"), "fn worker_note() {}\n").unwrap();
+    std::fs::write(nested.join("notes.md"), "fn worker_note, in prose\n").unwrap();
+    let grep = GrepTool::new(root.path()).await.unwrap();
+    let cancel = CancellationToken::new();
+    let mut input = GrepInput::new("fn worker_note");
+    input.path = "src".into();
+    for (include, expected) in [
+        ("*.rs", &["src/delegation/mod.rs"][..]),
+        ("*.md", &["src/delegation/notes.md"]),
+        ("mod.*", &["src/delegation/mod.rs"]),
+        // With a `/`, the glob matches the path below `path`, `*` within a level.
+        ("delegation/*.rs", &["src/delegation/mod.rs"]),
+        ("*/*", &["src/delegation/mod.rs", "src/delegation/notes.md"]),
+        ("/*.rs", &[]),
+        ("src/**/*.rs", &[]),
+    ] {
+        input.include = Some(include.into());
+        let found = grep.grep(input.clone(), &cancel).await.unwrap();
+        let paths: Vec<_> = found.data.matches.iter().map(|m| m.path.as_str()).collect();
+        assert_eq!(paths, expected, "{include}");
+    }
 }
 
 #[test]

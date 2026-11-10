@@ -9,6 +9,7 @@ use tokio::fs;
 use tokio_util::sync::CancellationToken;
 
 use crate::ReadLine;
+use crate::grep_include::Include;
 use crate::grep_scan::{self, Matches, Search};
 use crate::paths::{self, PathEntry, PathKind, Root, Scan, first_entry, workspace_path};
 use crate::worker;
@@ -22,7 +23,8 @@ pub struct GrepInput {
     /// File or directory to search.
     #[serde(default = "workspace_path")]
     pub path: String,
-    /// Glob filtering file paths, relative to `path`.
+    /// Glob on file names at any depth, e.g. `*.rs`; with a `/`, on paths
+    /// relative to `path`, e.g. `src/**/*.rs`.
     #[serde(default)]
     pub include: Option<String>,
     /// Match `pattern` as plain text.
@@ -269,9 +271,9 @@ impl GrepTool {
         cancel: CancellationToken,
     ) -> Result<Output<GrepPage>, ToolError> {
         let regex = self.regex(&input)?;
-        let include = input.include.as_deref().map(paths::pattern).transpose()?;
+        let include = input.include.as_deref().map(Include::new).transpose()?;
         let path = self.root.resolve(&input.path).await?;
-        let include_depth = input.include.as_deref().and_then(paths::match_depth);
+        let include_depth = include.as_ref().and_then(Include::depth);
         let (files, prefix) = self.files(&path, include_depth).await?;
         let mut page = Matches::new(self.root.relative(&path)?, &input, self.limits);
         page.data.skipped_entries = files.skipped;

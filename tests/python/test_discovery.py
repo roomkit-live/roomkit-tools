@@ -146,6 +146,12 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(literal["data"]["matches"][0]["text"], "literal [blue]")
         plain = await tool.grep("Tags:", path="catalog", include="*.txt")
         self.assertEqual(len(plain["data"]["matches"]), 2)
+        # Without "/", an include filters file names at any depth.
+        nested = await tool.grep("Tags:", include="*.txt")
+        self.assertEqual(
+            [match["path"] for match in nested["data"]["matches"]],
+            ["catalog/items.txt", "catalog/items.txt"],
+        )
         self.assertNotIn("context_before", plain["data"]["matches"][0])
         empty = await tool.grep("missing text")
         self.assertEqual(empty["data"]["matches"], [])

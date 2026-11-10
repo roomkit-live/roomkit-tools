@@ -10,13 +10,13 @@ use std::io::Read;
 use std::num::NonZeroUsize;
 use std::path::Path;
 
-use globset::GlobSet;
 use regex::Regex;
 use roomkit_tools_core::{Output, ToolError};
 use tokio_util::sync::CancellationToken;
 
 use crate::ReadLine;
 use crate::grep::{GrepInput, GrepLimits, GrepMatch, GrepPage};
+use crate::grep_include::Include;
 use crate::paths::{PathEntry, PathKind, Root};
 use crate::worker::check;
 
@@ -24,9 +24,9 @@ use crate::worker::check;
 pub(crate) struct Search {
     pub(crate) root: Root,
     pub(crate) files: Vec<PathEntry>,
-    /// Prefix that `include` patterns are relative to.
+    /// Prefix that `include` paths are relative to.
     pub(crate) prefix: String,
-    pub(crate) include: Option<GlobSet>,
+    pub(crate) include: Option<Include>,
     pub(crate) regex: Regex,
     pub(crate) input: GrepInput,
     pub(crate) limits: GrepLimits,
@@ -51,10 +51,9 @@ pub(crate) fn run(
     let mut ingested = 0;
     for file in files.iter().filter(|file| file.kind == PathKind::File) {
         check(cancel)?;
-        let relative = file.path.strip_prefix(&prefix).unwrap_or(&file.path);
         if include
             .as_ref()
-            .is_some_and(|pattern| !pattern.is_match(relative))
+            .is_some_and(|include| !include.matches(file, &prefix))
         {
             continue;
         }
