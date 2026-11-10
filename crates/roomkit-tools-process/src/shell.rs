@@ -106,6 +106,7 @@ pub struct ShellResult {
 #[derive(Clone, Debug)]
 pub struct ShellTool {
     root: PathBuf,
+    workspace: roomkit_tools_core::WorkspaceRoot,
     limits: ShellLimits,
     env: Arc<CommandEnv>,
     outputs: Option<crate::OutputStore>,
@@ -117,6 +118,7 @@ impl ShellTool {
     /// # Errors
     /// Fails for an inaccessible root or a non-directory.
     pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
+        let given = root.as_ref().to_path_buf();
         let root = tokio::fs::canonicalize(root)
             .await
             .map_err(|source| ToolError::Io {
@@ -136,6 +138,7 @@ impl ShellTool {
             ));
         }
         Ok(Self {
+            workspace: crate::workspace(&root, &given),
             root,
             limits: ShellLimits::default(),
             env: Arc::default(),
@@ -256,17 +259,13 @@ impl ShellTool {
             self.limits.default_timeout_ms,
             self.limits.max_timeout_ms,
         )?;
-        let path = self.root.join(input.cwd.as_deref().unwrap_or("."));
-        let cwd = tokio::select! {
-            biased;
-            () = cancel.cancelled() => return Err(ToolError::Cancelled),
-            path = tokio::fs::canonicalize(path) => path.map_err(|source| ToolError::Io { operation: "resolve shell working directory", source })?,
-        };
-        if !cwd.starts_with(&self.root) {
-            return Err(ToolError::AccessRefused(
-                "shell working directory is outside the root".into(),
-            ));
-        }
+        let cwd = crate::working_directory(
+            &self.workspace,
+            input.cwd.as_deref(),
+            "resolve shell working directory",
+            cancel,
+        )
+        .await?;
         let child_cancel = cancel.child_token();
         let _cancel_on_drop = child_cancel.clone().drop_guard();
         #[cfg(unix)]

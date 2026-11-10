@@ -97,10 +97,14 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
                     await self.tool.shell("touch unexpected", cwd=cwd)
             unexpected = Path(outside, "unexpected")
             self.assertFalse(await asyncio.to_thread(unexpected.exists))
-        for cwd in ["missing", "file"]:
-            (self.root / "file").write_text("regular file")
-            with self.assertRaises(ToolIOError):
-                await self.tool.shell("touch unexpected", cwd=cwd)
+        with self.assertRaises(InvalidInputError) as missing:
+            await self.tool.shell("touch unexpected", cwd="missing")
+        self.assertEqual(
+            str(missing.exception), "Invalid input: no such file or directory: missing"
+        )
+        (self.root / "file").write_text("regular file")
+        with self.assertRaises(ToolIOError):
+            await self.tool.shell("touch unexpected", cwd="file")
         self.assertFalse((self.root / "unexpected").exists())
 
     async def test_host_limits_are_strict_and_command_bound_is_enforced(self) -> None:

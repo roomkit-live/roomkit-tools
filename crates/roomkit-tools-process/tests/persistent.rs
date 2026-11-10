@@ -1345,3 +1345,28 @@ async fn a_wait_ends_at_its_deadline_capped_by_the_host_or_on_cancellation() {
     manager.close().await;
     unbounded.close().await;
 }
+
+#[tokio::test]
+async fn a_missing_or_escaping_start_directory_is_refused_in_words() {
+    let root = tempfile::tempdir().unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let start = |cwd: &str| ProcessStartInput {
+        cwd: Some(cwd.into()),
+        ..ProcessStartInput::new("true")
+    };
+    let missing = manager.start(Some("a"), start("absent"), &token).await;
+    assert!(
+        matches!(&missing, Err(ToolError::InvalidInput(message))
+            if message == "no such file or directory: absent"),
+        "{missing:?}"
+    );
+    for outside in ["../absent-outside", ".."] {
+        let refused = manager.start(Some("a"), start(outside), &token).await;
+        assert!(
+            matches!(refused, Err(ToolError::AccessRefused(_))),
+            "{outside}: {refused:?}"
+        );
+    }
+    manager.close().await;
+}

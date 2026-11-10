@@ -24,6 +24,7 @@ use crate::{
 #[derive(Debug)]
 struct Inner {
     root: PathBuf,
+    workspace: roomkit_tools_core::WorkspaceRoot,
     limits: ProcessLimits,
     env: CommandEnv,
     registry: Mutex<Registry>,
@@ -78,6 +79,7 @@ impl ProcessSession {
     /// # Errors
     /// Inaccessible or non-directory roots are rejected.
     pub async fn new(root: impl AsRef<Path>) -> Result<Self, ToolError> {
+        let given = root.as_ref().to_path_buf();
         let root = tokio::fs::canonicalize(root)
             .await
             .map_err(|source| ToolError::Io {
@@ -98,6 +100,7 @@ impl ProcessSession {
         }
         Ok(Self {
             inner: Arc::new(Inner {
+                workspace: crate::workspace(&root, &given),
                 root,
                 limits: ProcessLimits::default(),
                 env: CommandEnv::default(),
@@ -265,17 +268,13 @@ impl ProcessSession {
                 "process command exceeds host limit".into(),
             ));
         }
-        let cwd = tokio::select! {
-            biased;
-            () = cancel.cancelled() => return Err(ToolError::Cancelled),
-            result = tokio::fs::canonicalize(self.inner.root.join(input.cwd.as_deref().unwrap_or("."))) => result.map_err(|source| ToolError::Io { operation: "resolve process working directory", source })?,
-        };
-        if !cwd.starts_with(&self.inner.root) {
-            return Err(ToolError::AccessRefused(
-                "process working directory is outside root".into(),
-            ));
-        }
-        Ok(cwd)
+        crate::working_directory(
+            &self.inner.workspace,
+            input.cwd.as_deref(),
+            "resolve process working directory",
+            cancel,
+        )
+        .await
     }
 
     /// Spawn and transfer ownership to the session before returning its identifier.

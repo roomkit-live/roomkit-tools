@@ -59,6 +59,37 @@ fn relative_cwd(
     })
 }
 
+/// The workspace rules for `root`, canonical, and the host's spelling of it,
+/// `given`: as the filesystem tools hold them.
+fn workspace(root: &std::path::Path, given: &std::path::Path) -> roomkit_tools_core::WorkspaceRoot {
+    let given = std::path::absolute(given).unwrap_or_else(|_| root.to_path_buf());
+    roomkit_tools_core::WorkspaceRoot::new(root.to_path_buf(), &given)
+}
+
+/// The working directory a call names, resolved as every workspace path is:
+/// refused when it leaves the root, lexically or through a symbolic link,
+/// named when it does not exist, I/O with `operation` otherwise.
+async fn working_directory(
+    workspace: &roomkit_tools_core::WorkspaceRoot,
+    requested: Option<&str>,
+    operation: &'static str,
+    cancel: &tokio_util::sync::CancellationToken,
+) -> Result<std::path::PathBuf, roomkit_tools_core::ToolError> {
+    let joined = workspace.join(requested.unwrap_or("."))?;
+    let workspace = workspace.clone();
+    let resolving = tokio::task::spawn_blocking(move || {
+        workspace.resolve(&joined, operation, |path| std::fs::canonicalize(path))
+    });
+    tokio::select! {
+        biased;
+        () = cancel.cancelled() => Err(roomkit_tools_core::ToolError::Cancelled),
+        resolved = resolving => resolved.map_err(|source| roomkit_tools_core::ToolError::Io {
+            operation,
+            source: std::io::Error::other(source),
+        })?,
+    }
+}
+
 /// The runtime a call asks for, or the host default. A request above the
 /// host maximum is refused with that maximum, so the model can correct it.
 fn requested_timeout(

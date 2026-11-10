@@ -341,8 +341,11 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(Path.cwd(), before)
         with self.assertRaises(AccessRefusedError):
             await self.session.start("touch unexpected", cwd="..")
-        with self.assertRaises(ToolIOError):
+        with self.assertRaises(InvalidInputError) as missing:
             await self.session.start("true", cwd="missing")
+        self.assertEqual(
+            str(missing.exception), "Invalid input: no such file or directory: missing"
+        )
 
     async def test_lifetime_above_the_maximum_is_refused_and_signal_preserved(self) -> None:
         async with ProcessSession(self.root, default_timeout_ms=100, max_timeout_ms=200) as session:

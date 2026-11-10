@@ -632,3 +632,28 @@ async fn file_text(path: &Path) -> String {
     .await
     .unwrap()
 }
+
+/// A working directory resolves as every workspace path does: a missing one
+/// is named, one leaving the root is refused before the filesystem is asked.
+#[tokio::test]
+async fn a_missing_or_escaping_working_directory_is_refused_in_words() {
+    let root = tempfile::tempdir().unwrap();
+    let tool = ShellTool::new(root.path()).await.unwrap();
+    let cancel = CancellationToken::new();
+    let mut input = ShellInput::new("true");
+    input.cwd = Some("absent/dir".into());
+    let missing = tool.shell(input.clone(), &cancel).await;
+    assert!(
+        matches!(&missing, Err(ToolError::InvalidInput(message))
+            if message == "no such file or directory: absent/dir"),
+        "{missing:?}"
+    );
+    for outside in ["../absent-outside", ".."] {
+        input.cwd = Some(outside.into());
+        let refused = tool.shell(input.clone(), &cancel).await;
+        assert!(
+            matches!(refused, Err(ToolError::AccessRefused(_))),
+            "{outside}: {refused:?}"
+        );
+    }
+}
