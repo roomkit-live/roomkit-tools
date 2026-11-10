@@ -1374,5 +1374,8 @@ async fn a_missing_or_escaping_start_directory_is_refused_in_words() {
             "{outside}: {refused:?}"
         );
     }
+    // An empty `cwd`, as a model sends for an optional field, is the root.
+    let started = manager.start(Some("a"), start(""), &token).await.unwrap();
+    assert_eq!(started.data.cwd, ".");
     manager.close().await;
 }

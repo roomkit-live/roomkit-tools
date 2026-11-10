@@ -121,7 +121,7 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(page["status"]["state"], "running")
             self.assertLess(loop.time() - began, 5)
 
-    async def test_cancelling_a_waiting_read_stops_its_wait(self) -> None:
+    async def test_a_waiting_read_is_cancelled_at_once(self) -> None:
         pid = (await self.session.start("sleep 30"))["data"]["process_id"]
         loop = asyncio.get_running_loop()
         began = loop.time()

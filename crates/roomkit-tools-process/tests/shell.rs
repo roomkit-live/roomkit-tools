@@ -657,3 +657,14 @@ async fn a_missing_or_escaping_working_directory_is_refused_in_words() {
         );
     }
 }
+
+/// An empty `cwd`, as a model sends for an optional field, is the root.
+#[tokio::test]
+async fn an_empty_working_directory_is_the_root() {
+    let root = tempfile::tempdir().unwrap();
+    let tool = ShellTool::new(root.path()).await.unwrap();
+    let mut input = ShellInput::new("true");
+    input.cwd = Some(String::new());
+    let result = tool.shell(input, &CancellationToken::new()).await.unwrap();
+    assert_eq!(result.data.cwd, ".");
+}

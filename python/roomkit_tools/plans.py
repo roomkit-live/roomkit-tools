@@ -186,9 +186,10 @@ class PlanListTool(_PlanTool):
 class PlanUpdateTool(_PlanTool):
     """Update selected fields with a mandatory expected revision.
 
-    ``step_changes`` are applied here, to the plan the backend reads: the
-    backend's ``update`` receives the complete ``steps``, and the result's
-    text names only the changed steps.
+    ``step_changes`` are applied here, to the plan the backend reads, and the
+    plan they make is checked: the backend's ``update`` receives the complete
+    ``steps``. The result's text names only the changed steps, or shows the
+    whole plan when the title or objective change too.
     """
 
     name = "plan_update"

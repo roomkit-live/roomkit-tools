@@ -163,7 +163,24 @@ pub fn resolve_update(
     }
     input.steps = Some(steps);
     input.validate()?;
+    resulting(plan, &input).validate()?;
     Ok(input)
+}
+
+/// The plan `input` makes of `plan`, for its bounds to be checked before
+/// any backend stores it.
+fn resulting(plan: &Plan, input: &PlanUpdateInput) -> Plan {
+    let mut next = plan.clone();
+    if let Some(steps) = &input.steps {
+        next.steps.clone_from(steps);
+    }
+    if let Some(title) = &input.title {
+        next.title.clone_from(title);
+    }
+    if let Some(objective) = &input.objective {
+        next.objective.clone_from(objective);
+    }
+    next
 }
 
 pub(crate) fn cancelled(cancel: &CancellationToken) -> Result<(), ToolError> {

@@ -33,11 +33,15 @@ part of an existing published preview.
   everything, and a `path` searched explicitly is searched even when ignored.
   Hidden files are still included, and `list` is unchanged. The rules are read
   with the `ignore` crate's gitignore matcher, from ignore files of at most
-  256 KiB each and 2 MiB per scan, compiled off the async executor.
+  256 KiB each and 2 MiB per scan, compiled off the async executor; as in
+  ripgrep, `.ignore` rules decide before `.gitignore` ones at every level, and
+  an ignore file the scan cannot read fails it naming the file.
 
 - A path inside the workspace that names nothing is invalid input naming it,
   `Invalid input: no such file or directory: src/absent.rs`, for read, list,
-  grep, glob, diff, edit, patch, view_image and code_outline: Python raises
+  grep, glob, diff, edit, patch, view_image, code_outline, and the `cwd` of
+  shell and process_start, which no longer reveal what exists outside the
+  root (an empty `cwd` stays the root): Python raises
   `InvalidInputError`, RoomKit refuses the call in those words, and the model
   reads which path to correct. It was `ToolIOError`, which the model read as
   "Tool 'read' failed (ToolIOError)", like a permission failure. Other I/O

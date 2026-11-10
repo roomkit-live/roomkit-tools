@@ -274,3 +274,78 @@ async fn a_step_change_that_changes_nothing_says_so() {
         .unwrap();
     assert_eq!(result.text, "plan-1 (revision 1): no change\n");
 }
+
+#[tokio::test]
+async fn the_plan_step_changes_make_is_checked_before_a_host_backend_stores_it() {
+    let steps = (1..=64)
+        .map(|i| PlanStep {
+            step_id: format!("s{i}"),
+            description: "d".repeat(600),
+            status: StepStatus::Pending,
+        })
+        .collect();
+    let plan = Plan {
+        plan_id: "plan-1".into(),
+        revision: 1,
+        title: "Release".into(),
+        objective: "o".repeat(16 * 1024),
+        steps,
+    };
+    let backend = Arc::new(Lax {
+        plan,
+        updates: 0.into(),
+    });
+    let shared: Arc<dyn PlanBackend> = Arc::<Lax>::clone(&backend);
+    let changes: Vec<Value> = (1..=8)
+        .map(|i| serde_json::json!({"step_id": format!("s{i}"), "description": "e".repeat(2048)}))
+        .collect();
+    let arguments = serde_json::json!({"plan_id": "plan-1", "expected_revision": 1,
+        "step_changes": changes});
+    let scope = PlanScope {
+        room_id: "plans".into(),
+        caller_id: "assistant".into(),
+    };
+    // The update fits its own bound; the plan it makes, with its objective, does not.
+    let refused = PlanUpdateTool::new(shared)
+        .call(
+            &scope,
+            decode(&arguments.to_string()).unwrap(),
+            &CancellationToken::new(),
+        )
+        .await;
+    assert!(
+        matches!(&refused, Err(roomkit_tools_core::ToolError::LimitExceeded(m))
+            if m == "plan record exceeds 64 KiB JSON"),
+        "{refused:?}"
+    );
+    assert_eq!(
+        backend.updates.load(std::sync::atomic::Ordering::Relaxed),
+        0
+    );
+}
+
+#[tokio::test]
+async fn a_step_change_with_a_new_title_shows_the_whole_plan() {
+    let backend: Arc<dyn PlanBackend> = Arc::new(MemoryPlanBackend::default());
+    let scope = PlanScope {
+        room_id: "plans".into(),
+        caller_id: "assistant".into(),
+    };
+    let cancel = CancellationToken::new();
+    let create = serde_json::json!({"title": "Release", "objective": "Ship",
+        "steps": [{"step_id": "s1", "description": "Step 1", "status": "pending"}]});
+    PlanCreateTool::new(Arc::clone(&backend))
+        .call(&scope, decode(&create.to_string()).unwrap(), &cancel)
+        .await
+        .unwrap();
+    let change = serde_json::json!({"plan_id": "plan-1", "expected_revision": 1, "title": "Ship it",
+        "step_changes": [{"step_id": "s1", "status": "completed"}]});
+    let result = PlanUpdateTool::new(backend)
+        .call(&scope, decode(&change.to_string()).unwrap(), &cancel)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.text,
+        "plan-1 (revision 2): \"Ship it\"\nObjective: \"Ship\"\n1. s1 [completed]: \"Step 1\"\n"
+    );
+}

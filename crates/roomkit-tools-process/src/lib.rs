@@ -68,14 +68,16 @@ fn workspace(root: &std::path::Path, given: &std::path::Path) -> roomkit_tools_c
 
 /// The working directory a call names, resolved as every workspace path is:
 /// refused when it leaves the root, lexically or through a symbolic link,
-/// named when it does not exist, I/O with `operation` otherwise.
+/// named when it does not exist, I/O with `operation` otherwise. None or an
+/// empty name is the root, as models send `""` for an optional field.
 async fn working_directory(
     workspace: &roomkit_tools_core::WorkspaceRoot,
     requested: Option<&str>,
     operation: &'static str,
     cancel: &tokio_util::sync::CancellationToken,
 ) -> Result<std::path::PathBuf, roomkit_tools_core::ToolError> {
-    let joined = workspace.join(requested.unwrap_or("."))?;
+    let named = requested.filter(|name| !name.is_empty()).unwrap_or(".");
+    let joined = workspace.join(named)?;
     let workspace = workspace.clone();
     let resolving = tokio::task::spawn_blocking(move || {
         workspace.resolve(&joined, operation, |path| std::fs::canonicalize(path))
