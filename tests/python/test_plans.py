@@ -121,7 +121,7 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         class Host:
-            """A host backend written before step_changes existed."""
+            """A host backend whose update takes no step_changes."""
 
             plan = {"plan_id": "plan-1", "revision": 1, "title": "Release"}
             plan |= {"objective": "Ship", "steps": steps}

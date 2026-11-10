@@ -47,10 +47,10 @@ pub trait DocsContract: Serialize + DeserializeOwned + JsonSchema {
     /// # Errors
     /// Rejects invalid values or oversized records.
     fn validate(&self) -> Result<(), ToolError>;
-    /// What a model reads of this value as a result: its JSON unless the
-    /// type renders lines of its own.
-    fn text(&self) -> String {
-        serde_json::to_string(self).unwrap_or_default()
+    /// The lines a model reads of this value as a result, or `None` for a
+    /// type rendered as its JSON.
+    fn text(&self) -> Option<String> {
+        None
     }
 }
 /// Decode a Rust input or result and validate its contract.
@@ -80,7 +80,7 @@ pub fn render<T: DocsContract>(data: T) -> Result<Output<T>, ToolError> {
             "documentation result exceeds 128 KiB; request a smaller page".into(),
         ));
     }
-    let text = data.text();
+    let text = data.text().unwrap_or(json);
     Ok(Output::new(data, text))
 }
 pub(crate) fn cancelled(token: &CancellationToken) -> Result<(), ToolError> {

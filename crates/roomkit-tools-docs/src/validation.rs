@@ -117,8 +117,8 @@ fn info(value: &DocumentInfo) -> Result<(), ToolError> {
     revision(&value.revision)
 }
 impl DocsContract for DocsListResult {
-    fn text(&self) -> String {
-        crate::text::list(self)
+    fn text(&self) -> Option<String> {
+        Some(crate::text::list(self))
     }
     fn validate(&self) -> Result<(), ToolError> {
         revision(&self.catalog_revision)?;
@@ -144,8 +144,8 @@ impl DocsContract for DocsListResult {
     }
 }
 impl DocsContract for DocsSearchResult {
-    fn text(&self) -> String {
-        crate::text::search(self)
+    fn text(&self) -> Option<String> {
+        Some(crate::text::search(self))
     }
     fn validate(&self) -> Result<(), ToolError> {
         revision(&self.catalog_revision)?;
@@ -177,8 +177,8 @@ impl DocsContract for DocsSearchResult {
     }
 }
 impl DocsContract for DocsReadResult {
-    fn text(&self) -> String {
-        crate::text::read(self)
+    fn text(&self) -> Option<String> {
+        Some(crate::text::read(self))
     }
     fn validate(&self) -> Result<(), ToolError> {
         info(&self.document)?;

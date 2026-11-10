@@ -121,6 +121,18 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(page["status"]["state"], "running")
             self.assertLess(loop.time() - began, 5)
 
+    async def test_cancelling_a_waiting_read_stops_its_wait(self) -> None:
+        pid = (await self.session.start("sleep 30"))["data"]["process_id"]
+        loop = asyncio.get_running_loop()
+        began = loop.time()
+        waiting = asyncio.create_task(self.session.read(pid, wait_ms=15000))
+        await asyncio.sleep(0.1)
+        waiting.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await waiting
+        self.assertLess(loop.time() - began, 5)
+        await self.session.stop(pid, forget=True)
+
     async def test_byte_cursors_eviction_binary_and_independent_streams(self) -> None:
         async with ProcessSession(self.root, max_output_bytes=8, max_read_bytes=3) as session:
             pid = (await session.start("printf 0123456789abcdef; printf 'πxπ' >&2"))["data"][

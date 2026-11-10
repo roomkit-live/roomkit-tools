@@ -274,8 +274,8 @@ async fn io_diagnostics_do_not_reach_the_model() {
     assert!(text.contains("Tool 'read' failed"));
 }
 
-/// A missing file used to reach the model as `Tool 'read' failed
-/// (ToolIOError)`, which reads the same as a permission failure (RMK-1639).
+/// A missing file reaches the model as a refusal naming it, which no
+/// permission failure reads like.
 #[tokio::test]
 async fn the_model_reads_which_path_is_missing() {
     let (root, tools) = fixture().await;

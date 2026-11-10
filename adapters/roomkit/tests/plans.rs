@@ -98,10 +98,10 @@ async fn plan_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     );
 }
 
-/// Changing one status of an 18-step plan used to send and return the whole
-/// list (RMK-1639): `step_changes` names one step, and so does the text.
+/// `step_changes` changes one step of an 18-step plan, and the text names
+/// that step alone.
 #[tokio::test]
-async fn an_agent_changes_one_step_and_reads_only_that_step() {
+async fn a_step_change_answers_with_that_step_alone_in_its_text() {
     let store = Arc::new(MemoryPlanBackend::default());
     let creator = PlanCreate::new(PlanCreateTool::new(store.clone()));
     let updater = PlanUpdate::new(PlanUpdateTool::new(store));

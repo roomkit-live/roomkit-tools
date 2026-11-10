@@ -8,8 +8,10 @@ part of an existing published preview.
 
 - `plan_update` takes `step_changes`, `[{step_id, status?, description?}]`,
   instead of `steps`: only those steps change, and the result's `text` gives
-  the new revision and the changed steps alone, so changing one status of an
-  18-step plan no longer sends and returns the whole list. `PlanUpdateTool`
+  the new revision and the changed steps alone: changing one status of an
+  18-step plan no longer sends the whole list, and no longer returns it to a
+  model that reads the `text` alone, as roomkit-code's does (RoomKit's own
+  adapters still hand it the whole envelope). `PlanUpdateTool`
   applies them to the plan its backend reads, so a backend receives the
   complete `steps` as before; `MemoryPlanBackend.update` also takes
   `step_changes`. The `text` of every plan and documentation result is now

@@ -15,17 +15,19 @@ async def main() -> None:
             assert sent["data"]["complete"]
             assert sent["data"]["bytes_written"] == 6
 
-            # Read only observes available output; it does not wait or send EOF.
+            # A read waits up to wait_ms for output past its cursor; it sends
+            # no EOF and consumes nothing.
             output = bytearray()
             offset = 0
             async with asyncio.timeout(5):
                 while len(output) < 6:
-                    result = await session.read(process_id, stdout_offset=offset, max_bytes=3)
+                    result = await session.read(
+                        process_id, stdout_offset=offset, max_bytes=3, wait_ms=1000
+                    )
                     chunk = result["data"]["stdout"]
                     assert chunk["omitted_bytes"] == 0
                     output.extend(chunk["bytes"])
                     offset = chunk["next_offset"]
-                    await asyncio.sleep(0.01)
             assert output == b"Hello\n"
             assert result["data"]["status"]["state"] == "running"
             assert not result["data"]["status"]["stdin_closed"]

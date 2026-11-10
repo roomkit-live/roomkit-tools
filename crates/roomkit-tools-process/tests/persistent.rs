@@ -1251,9 +1251,8 @@ fn waiting(id: &str, wait_ms: u64) -> ProcessReadInput {
     }
 }
 
-/// A build used to be awaited by polling `process_read`, one tool round per
-/// look (RMK-1639): a read with `wait_ms` returns once the process writes,
-/// and the next one once it ends.
+/// A read with `wait_ms` returns once the process writes, and the next one
+/// once it ends.
 #[tokio::test]
 async fn a_read_waits_for_new_output_then_for_the_end() {
     let root = tempfile::tempdir().unwrap();
@@ -1293,7 +1292,7 @@ async fn a_read_waits_for_new_output_then_for_the_end() {
 }
 
 #[tokio::test]
-async fn a_wait_ends_at_its_deadline_capped_by_the_host_or_on_cancellation() {
+async fn a_wait_longer_than_the_host_bound_ends_at_the_bound() {
     let root = tempfile::tempdir().unwrap();
     let limits = ProcessLimits {
         max_wait_ms: 300,
@@ -1304,33 +1303,42 @@ async fn a_wait_ends_at_its_deadline_capped_by_the_host_or_on_cancellation() {
         .unwrap()
         .with_limits(limits)
         .unwrap();
-    let token = CancellationToken::new();
     let id = started(&manager, "sleep 30").await;
     let began = Instant::now();
     let read = manager
-        .read(Some("a"), waiting(&id, 60_000), &token)
+        .read(Some("a"), waiting(&id, 60_000), &CancellationToken::new())
         .await
         .unwrap()
         .data;
     assert_eq!(read.status.state, ProcessState::Running);
     assert!(began.elapsed() >= Duration::from_millis(250));
     assert!(began.elapsed() < Duration::from_secs(5));
+    manager.close().await;
+}
+
+#[tokio::test]
+async fn a_cancelled_call_stops_waiting() {
+    let root = tempfile::tempdir().unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
+    let id = started(&manager, "sleep 30").await;
     let cancel = CancellationToken::new();
     let cancelling = cancel.clone();
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(50)).await;
         cancelling.cancel();
     });
-    let unbounded = ProcessSession::new(root.path()).await.unwrap();
-    let id = started(&unbounded, "sleep 30").await;
     let began = Instant::now();
     assert!(matches!(
-        unbounded
-            .read(Some("a"), waiting(&id, 15_000), &cancel)
-            .await,
+        manager.read(Some("a"), waiting(&id, 15_000), &cancel).await,
         Err(ToolError::Cancelled)
     ));
     assert!(began.elapsed() < Duration::from_secs(5));
+    manager.close().await;
+}
+
+#[tokio::test]
+async fn the_wait_bound_is_positive_and_at_most_a_day() {
+    let root = tempfile::tempdir().unwrap();
     for invalid in [0, 86_400_001] {
         let limits = ProcessLimits {
             max_wait_ms: invalid,
@@ -1342,8 +1350,6 @@ async fn a_wait_ends_at_its_deadline_capped_by_the_host_or_on_cancellation() {
             Err(ToolError::InvalidInput(_))
         ));
     }
-    manager.close().await;
-    unbounded.close().await;
 }
 
 #[tokio::test]

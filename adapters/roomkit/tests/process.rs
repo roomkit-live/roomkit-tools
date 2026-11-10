@@ -277,8 +277,8 @@ async fn roomkit_policy_can_refuse_spawn_before_any_command_effect() {
     assert!(session.close().await);
 }
 
-/// An agent awaited a build by calling `process_read` once per look, a tool
-/// round each (RMK-1639): one call with `wait_ms` reads what it wrote.
+/// An agent awaits a process in one `process_read` with `wait_ms`, and reads
+/// what it wrote.
 #[tokio::test]
 async fn an_agent_awaits_a_process_in_one_read() {
     let fixture = tempfile::tempdir().unwrap();

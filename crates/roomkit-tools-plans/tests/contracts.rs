@@ -67,8 +67,8 @@ async fn shared_crud_scenario() {
     }
 }
 
-/// Changing one status used to send the whole step list each way
-/// (RMK-1639): `step_changes` changes only the steps it names.
+/// `step_changes` changes only the steps it names, and the text names them
+/// alone.
 #[tokio::test]
 async fn step_changes_change_only_the_steps_they_name() {
     let backend: Arc<dyn PlanBackend> = Arc::new(MemoryPlanBackend::default());

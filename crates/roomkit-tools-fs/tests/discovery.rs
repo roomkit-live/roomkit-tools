@@ -632,8 +632,7 @@ async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
     }
 }
 
-/// `include: *.rs` used to read only the search directory, and its
-/// "no matches" read as an absence (RMK-1639).
+/// An include without `/` filters file names at every depth below `path`.
 #[tokio::test]
 async fn an_include_without_a_slash_filters_file_names_at_any_depth() {
     let root = tempfile::tempdir().unwrap();
@@ -722,8 +721,8 @@ fn built_project(build_files: usize) -> tempfile::TempDir {
     root
 }
 
-/// At the root of a built project, grep and glob exceeded `max_scan_entries`
-/// on `target/` and `.git` (RMK-1639).
+/// At the root of a built project, grep and glob leave `target/` and `.git`
+/// out, within a scan bound they would exceed.
 #[tokio::test]
 async fn grep_and_glob_skip_what_ignore_files_exclude_and_git() {
     let root = built_project(40);
@@ -771,7 +770,7 @@ async fn grep_and_glob_skip_what_ignore_files_exclude_and_git() {
     let found = glob.glob(GlobInput::new("*"), &cancel).await.unwrap();
     let paths: Vec<_> = found.data.entries.iter().map(|e| e.path.as_str()).collect();
     assert_eq!(paths, [".gitignore", "Cargo.toml", "src"]);
-    // A file is still no directory to glob, before any ignore file is read.
+    // A file is still no directory to glob.
     let mut input = GlobInput::new("*");
     input.path = "Cargo.toml".into();
     assert!(matches!(
