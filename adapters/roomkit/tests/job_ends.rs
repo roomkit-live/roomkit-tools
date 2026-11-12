@@ -271,7 +271,11 @@ async fn a_shell_command_run_in_the_background_is_its_agent_s_process() {
     let (kit, room) = kit(&model, shell_and_reader(shell, &session), session.ends());
     ask(&kit, &room).await;
     let asked = requests(&model, 4).await;
-    assert!(asked[1].contains("p1 started in the background"), "{}", asked[1]);
+    assert!(
+        asked[1].contains("p1 started in the background"),
+        "{}",
+        asked[1]
+    );
     let told = format!("Background process p1 (`{command}`) exited with code 0 after");
     assert!(asked[2].contains(&told), "{}", asked[2]);
     // The agent's own process: its process tools read it.

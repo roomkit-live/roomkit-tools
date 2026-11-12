@@ -387,3 +387,42 @@ async fn a_moved_command_stops_with_the_session_or_outlives_it_detached() {
         );
     }
 }
+
+#[tokio::test]
+async fn a_moved_command_keeps_its_archives_within_a_shared_store_s_quota() {
+    let root = tempfile::tempdir().unwrap();
+    let parent = tempfile::tempdir().unwrap();
+    let limits = roomkit_tools_process::OutputLimits {
+        max_archives_per_owner: 2,
+        ..roomkit_tools_process::OutputLimits::default()
+    };
+    let outputs = roomkit_tools_process::OutputStore::new(Some(parent.path()), limits)
+        .await
+        .unwrap();
+    let processes = ProcessSession::new(root.path())
+        .await
+        .unwrap()
+        .with_output_store(outputs.clone())
+        .unwrap();
+    let shell = moving_shell(root.path(), processes.clone(), 200)
+        .await
+        .with_output_store(outputs.clone());
+    let command = "printf before; sleep 0.4; printf after";
+    let (result, _) = run(&shell, "a", ShellInput::new(command)).await;
+    let id = result.process_id.clone().unwrap();
+    // Whole until the move, the shell's copies are released: the process's
+    // take the owner's two archives.
+    assert_eq!(result.stdout.archive, None);
+    let input = roomkit_tools_process::ProcessStatusInput {
+        process_id: Some(id),
+    };
+    let status = processes
+        .status(Some("a"), input, &CancellationToken::new())
+        .await
+        .unwrap()
+        .data;
+    let archive = status.processes[0].stdout_archive.clone().unwrap();
+    assert!(archive.archive_id.is_some(), "{archive:?}");
+    assert!(processes.close().await);
+    outputs.close().await;
+}

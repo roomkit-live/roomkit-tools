@@ -56,8 +56,10 @@ impl Capture {
         }
     }
 
+    /// Write the block a cut-short drain left pending, then finish the copy.
     pub(crate) async fn finish_archive(&mut self) {
         if let Some(archive) = &mut self.archive {
+            archive.flush_pending().await;
             archive.finish().await;
         }
     }

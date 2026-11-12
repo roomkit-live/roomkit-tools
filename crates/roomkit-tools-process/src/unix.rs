@@ -254,7 +254,10 @@ async fn supervise(
     let waited = wait(&mut command, captures, foreground.timeout_ms, cancel).await;
     let mut refused = None;
     if let (Ok(Waited::TimedOut), Some(processes)) = (&waited, &foreground.processes) {
-        match crate::shell_handover::take_over(processes, &foreground, command, cancel).await {
+        let captures = (&mut out, &mut err);
+        match crate::shell_handover::take_over(processes, &foreground, command, captures, cancel)
+            .await
+        {
             Ok(status) => {
                 return Ok(crate::shell_handover::moved((out, err), status, &foreground).await);
             }

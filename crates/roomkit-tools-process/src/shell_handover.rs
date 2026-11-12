@@ -11,10 +11,15 @@ use crate::{CapturedOutput, ProcessSession, ProcessStatus, ShellResult};
 
 /// Hand `command`, `foreground`'s command at its timeout, to `processes`,
 /// which gives it back with the reason when it refuses it.
+///
+/// Once admitted, the archives of a stream whole so far are released before
+/// the process opens its own: their output is all in the result, and a store
+/// the shell and the session share would count them against the owner.
 pub(crate) async fn take_over(
     processes: &ProcessSession,
     foreground: &Foreground,
     command: Spawned,
+    (out, err): (&mut Capture, &mut Capture),
     cancel: &CancellationToken,
 ) -> Result<ProcessStatus, (ToolError, Box<Spawned>)> {
     let job = crate::persistent::ShellJob {
@@ -24,7 +29,13 @@ pub(crate) async fn take_over(
         shown_cwd: &foreground.shown_cwd,
         env: &foreground.env,
     };
-    processes.take_over(&job, command, cancel).await
+    let release = || {
+        if let Some((store, _)) = &foreground.outputs {
+            out.discard_whole_archive(store);
+            err.discard_whole_archive(store);
+        }
+    };
+    processes.take_over(&job, command, release, cancel).await
 }
 
 /// The result of a command moved to the background as `status`'s process:

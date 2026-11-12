@@ -104,7 +104,9 @@ impl ProcessSession {
 
     /// Take over `spawned`, `job`'s command still running at its foreground
     /// timeout, as its owner's next process: it runs on until this session's
-    /// maximum lifetime, counted from its start. A session that refuses it,
+    /// maximum lifetime, counted from its start. `admitted` runs once the
+    /// session admits it, before its output archives open: the caller
+    /// releases what the move leaves needless. A session that refuses it,
     /// closed or its quota reached, gives it back with the reason.
     ///
     /// # Errors
@@ -113,6 +115,7 @@ impl ProcessSession {
         &self,
         job: &ShellJob<'_>,
         spawned: Spawned,
+        admitted: impl FnOnce(),
         cancel: &CancellationToken,
     ) -> Result<ProcessStatus, (ToolError, Box<Spawned>)> {
         let lifetime = self.inner.limits.max_timeout_ms;
@@ -126,6 +129,7 @@ impl ProcessSession {
             Ok(reserved) => reserved,
             Err(error) => return Err((error, Box::new(spawned))),
         };
+        admitted();
         let status = initial_status(reserved.process_id(), job.shown_cwd.into(), lifetime);
         Ok(self.commit(reserved, (job.owner, job.command), status, spawned))
     }
