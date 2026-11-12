@@ -6,6 +6,10 @@ part of an existing published preview.
 
 ## Unreleased
 
+- A tool's `input_schema` lists its variants under `anyOf` rather than
+  `oneOf`, with the same variants: Kimi K2.7 refused the `$ref` to a `oneOf`
+  in `code_outline`'s, `patch`'s and `web_fetch`'s schemas.
+
 - `plan_update` takes `step_changes`, `[{step_id, status?, description?}]`,
   instead of `steps`: only those steps change, and the result's `text` gives
   the new revision and the changed steps alone: changing one status of an

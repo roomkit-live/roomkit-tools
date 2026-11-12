@@ -33,7 +33,8 @@ const SCHEMA_MAPS: [&str; 3] = ["properties", "patternProperties", "$defs"];
 
 /// `schema` without its `$schema`, its root `title` and `description` (the
 /// Rust type's name and documentation, which the tool's own description
-/// already covers), number width formats and `"default": null`.
+/// already covers), number width formats and `"default": null`, and with its
+/// variants under `anyOf` rather than `oneOf`.
 ///
 /// Nullable types stay: a host that checks argument types accepts `null` for
 /// an optional argument only when its type says so, and models send it.
@@ -47,11 +48,13 @@ pub(crate) fn for_model(mut schema: Value) -> Value {
     schema
 }
 
-/// Drop the type-only keywords of `schema` and of every schema it holds.
+/// Drop the type-only keywords of `schema` and of every schema it holds, and
+/// list their variants under `anyOf`.
 fn strip(schema: &mut Value) {
     let Value::Object(keywords) = schema else {
         return;
     };
+    variants_under_any_of(keywords);
     if keywords
         .get("format")
         .and_then(Value::as_str)
@@ -75,6 +78,21 @@ fn strip(schema: &mut Value) {
                 .flat_map(Map::values_mut)
                 .for_each(strip);
         }
+    }
+}
+
+/// Move a schema's `oneOf` variants to `anyOf`. schemars writes `oneOf` only
+/// for variants no value matches twice (constants, tags), so both keywords
+/// accept the same calls, and serde reads a call either way. Some providers
+/// refuse `oneOf` behind a `$ref`: Kimi K2.7 refuses `code_outline`'s,
+/// `patch`'s and `web_fetch`'s schemas (through `opencode-go`, 2026-11-12).
+/// Beside an `anyOf`, a `oneOf` stays: one keyword cannot hold both lists.
+fn variants_under_any_of(keywords: &mut Map<String, Value>) {
+    if keywords.contains_key("anyOf") {
+        return;
+    }
+    if let Some(variants) = keywords.remove("oneOf") {
+        keywords.insert("anyOf".to_owned(), variants);
     }
 }
 
@@ -200,11 +218,16 @@ mod tests {
                 "{keyword}"
             );
         }
-        for keyword in ["anyOf", "oneOf", "allOf", "prefixItems"] {
+        for (keyword, sent) in [
+            ("anyOf", "anyOf"),
+            ("oneOf", "anyOf"),
+            ("allOf", "allOf"),
+            ("prefixItems", "prefixItems"),
+        ] {
             let schema = json!({ "type": "object", keyword: [width(), { "type": "null" }] });
             assert_eq!(
                 for_model(schema),
-                json!({ "type": "object", keyword: [trimmed(), { "type": "null" }] }),
+                json!({ "type": "object", sent: [trimmed(), { "type": "null" }] }),
                 "{keyword}"
             );
         }
@@ -219,8 +242,75 @@ mod tests {
         // One level down: a definition's variants.
         assert_eq!(
             for_model(json!({ "$defs": { "held": { "oneOf": [width()] } } })),
-            json!({ "$defs": { "held": { "oneOf": [trimmed()] } } })
+            json!({ "$defs": { "held": { "anyOf": [trimmed()] } } })
         );
+    }
+
+    /// A documented enumeration: schemars lists its values under `oneOf`.
+    #[derive(Deserialize, JsonSchema)]
+    #[serde(rename_all = "snake_case")]
+    enum Language {
+        /// Rust.
+        Rust,
+        /// Python.
+        Python,
+    }
+
+    /// A tagged union: schemars lists its variants under `oneOf`.
+    #[derive(Deserialize, JsonSchema)]
+    #[serde(tag = "op", rename_all = "snake_case")]
+    #[expect(dead_code, reason = "only the type's schema is read")]
+    enum Change {
+        Add { path: String, content: String },
+        Delete { path: String },
+    }
+
+    #[derive(Deserialize, JsonSchema)]
+    #[expect(dead_code, reason = "only the type's schema is read")]
+    struct Variants {
+        language: Option<Language>,
+        changes: Vec<Change>,
+    }
+
+    /// Kimi K2.7 refuses a `$ref` to a `oneOf` as an endless recursion
+    /// (through `opencode-go`, 2026-11-12) and accepts the same variants under
+    /// `anyOf`.
+    #[test]
+    fn variants_are_listed_under_any_of() {
+        let derived = schemars::schema_for!(Variants).to_value();
+        assert!(
+            derived["$defs"]["Language"]["oneOf"].is_array()
+                && derived["$defs"]["Change"]["oneOf"].is_array(),
+            "the derived schema is the premise: {derived}"
+        );
+
+        let schema = for_model(derived);
+        assert!(!schema.to_string().contains("\"oneOf\""), "{schema}");
+        let values = schema["$defs"]["Language"]["anyOf"]
+            .as_array()
+            .map(|variants| {
+                variants
+                    .iter()
+                    .map(|v| v["const"].clone())
+                    .collect::<Vec<_>>()
+            });
+        assert_eq!(values, Some(vec![json!("rust"), json!("python")]));
+        let tags = schema["$defs"]["Change"]["anyOf"]
+            .as_array()
+            .map(|variants| {
+                variants
+                    .iter()
+                    .map(|v| v["properties"]["op"]["const"].clone())
+                    .collect::<Vec<_>>()
+            });
+        assert_eq!(tags, Some(vec![json!("add"), json!("delete")]));
+    }
+
+    /// One keyword cannot hold two lists: beside an `anyOf`, a `oneOf` stays.
+    #[test]
+    fn a_one_of_beside_an_any_of_stays() {
+        let schema = json!({ "anyOf": [{ "type": "string" }], "oneOf": [{ "const": "a" }] });
+        assert_eq!(for_model(schema.clone()), schema);
     }
 
     #[test]

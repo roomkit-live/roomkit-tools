@@ -221,7 +221,8 @@ def _collect(
 
 def _shape(schema: dict[str, Any]) -> dict[str, Any]:
     """A named JSON type's property names, values or tagged variants."""
-    if "properties" in schema or (schema.get("type") == "object" and "oneOf" not in schema):
+    lists_variants = "oneOf" in schema or "anyOf" in schema
+    if "properties" in schema or (schema.get("type") == "object" and not lists_variants):
         return {"fields": sorted(schema.get("properties", {}))}
     if "enum" in schema:
         return {"values": list(schema["enum"])}

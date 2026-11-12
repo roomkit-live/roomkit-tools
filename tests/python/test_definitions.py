@@ -121,6 +121,13 @@ class ModelSchemaTest(unittest.TestCase):
                     self.assertNotIn(held.get("format"), NUMBER_WIDTHS)
                     self.assertFalse("default" in held and held["default"] is None, held)
 
+    def test_variants_are_listed_under_any_of(self):
+        # Kimi K2.7 refuses a `$ref` to a `oneOf` (through OpenCode Go, 2026-11-12).
+        for definition in definitions():
+            with self.subTest(definition["name"]):
+                for held in schemas_in(definition["input_schema"]):
+                    self.assertNotIn("oneOf", held)
+
     def test_a_valid_call_can_still_be_written_from_the_schema(self):
         schema = ReadTool.definition()["input_schema"]
         self.assertEqual(schema["required"], ["path"])

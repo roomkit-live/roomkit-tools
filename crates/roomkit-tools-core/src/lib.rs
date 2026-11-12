@@ -35,7 +35,8 @@ pub struct Definition {
     pub description: String,
     /// JSON Schema derived from the implementation's input type, as a model
     /// reads it: without `$schema`, the type's own title and description,
-    /// number width formats and `"default": null`.
+    /// number width formats and `"default": null`, with its variants under
+    /// `anyOf` rather than `oneOf`.
     pub input_schema: Value,
     /// JSON Schema for the structured output, excluding its model rendering.
     pub output_schema: Value,

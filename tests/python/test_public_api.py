@@ -153,6 +153,19 @@ class ShapeTests(unittest.TestCase):
             {"tag": "op", "variants": {"add": ["content", "path"], "delete": ["path"]}},
         )
 
+    def test_an_object_listing_its_variants_under_any_of_is_a_tagged_union(self):
+        schema = {
+            "type": "object",
+            "anyOf": [
+                {"properties": {"op": {"const": "add"}, "path": {}}},
+                {"properties": {"op": {"const": "delete"}, "path": {}}},
+            ],
+        }
+        self.assertEqual(
+            api_signatures._shape(schema),
+            {"tag": "op", "variants": {"add": ["path"], "delete": ["path"]}},
+        )
+
     def test_a_type_it_cannot_read_is_refused(self):
         with self.assertRaises(ValueError):
             api_signatures._shape({"type": "string"})
