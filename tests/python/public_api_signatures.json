@@ -362,15 +362,15 @@
     "handler": ["async def", "name", "arguments"]
   },
   "roomkit_tools.ShellTool": {
-    "__init__": ["def", "native", "outputs=None"],
+    "__init__": ["def", "native", "outputs=None", "processes=None"],
     "__native__": ["native", "native"],
     "call": ["async def", "arguments"],
     "close": ["async def"],
-    "create": ["async classmethod", "root", "*", "outputs=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_command_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None", "keep_background_jobs=None"],
+    "create": ["async classmethod", "root", "*", "outputs=None", "processes=None", "inherit_env=('PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR')", "env=None", "max_command_bytes=None", "max_output_bytes=None", "default_timeout_ms=None", "max_timeout_ms=None", "keep_background_jobs=None", "background_on_timeout=None"],
     "definition": ["staticmethod"],
     "detach": ["async def"],
     "ends": ["def"],
-    "shell": ["async def", "command", "*", "cwd=None", "timeout_ms=None"]
+    "shell": ["async def", "command", "*", "cwd=None", "timeout_ms=None", "run_in_background=False"]
   },
   "roomkit_tools.TaskStatus": {
     "__init__": ["def", "tool"],

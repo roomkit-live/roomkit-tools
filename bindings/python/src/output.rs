@@ -198,15 +198,17 @@ pub(super) struct PythonShellTool {
 #[pymethods]
 impl PythonShellTool {
     #[staticmethod]
-    #[pyo3(signature = (root, options_json, cancellation, outputs=None))]
+    #[pyo3(signature = (root, options_json, cancellation, outputs=None, processes=None))]
     fn create<'py>(
         py: Python<'py>,
         root: PathBuf,
         options_json: String,
         cancellation: &Cancellation,
         outputs: Option<&PythonOutputStore>,
+        processes: Option<&super::process::PythonProcessSession>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let state = outputs.map(|outputs| Arc::clone(&outputs.state));
+        let processes = processes.map(|processes| Arc::clone(&processes.state));
         let token = cancellation.token.clone();
         let guard = token.clone().drop_guard();
         crate::runtime::future_into_py(py, async move {
@@ -217,9 +219,13 @@ impl PythonShellTool {
             let mut options: ShellOptions = serde_json::from_str(&options_json)
                 .map_err(|e| InvalidInputError::new_err(e.to_string()))?;
             let env = super::process::command_env(options.inherit_env.take(), options.env.take())?;
-            let mut tool = ShellTool::new(root)
-                .await
-                .and_then(|tool| tool.with_limits(options.limits()))
+            let mut tool = ShellTool::new(root).await.map_err(|e| tool_error(&e))?;
+            // Before the limits, which refuse background_on_timeout without it.
+            if let Some(processes) = processes {
+                tool = tool.with_processes(processes.resolve().await.map_err(|e| tool_error(&e))?);
+            }
+            let mut tool = tool
+                .with_limits(options.limits())
                 .and_then(|tool| tool.with_env(env))
                 .map_err(|e| tool_error(&e))?;
             if let Some(state) = state {

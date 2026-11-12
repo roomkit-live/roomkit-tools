@@ -2,7 +2,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use roomkit_tools_core::ToolError;
 use tokio::io::{AsyncRead, AsyncReadExt};
@@ -16,56 +16,79 @@ use crate::persistent::{Entry, Record};
 use crate::unix::Group;
 use crate::{CommandEnv, ProcessEnd, ProcessLimits, ProcessState, ProcessStatus};
 
-/// A command to start for an owner, in its initial directory and environment.
-pub(crate) struct Launch<'a> {
-    pub(crate) owner: Option<&'a str>,
-    pub(crate) command: &'a str,
-    pub(crate) cwd: &'a Path,
-    pub(crate) env: &'a CommandEnv,
-    /// Who is told the job's end.
-    pub(crate) ends: &'a Arc<crate::ends::Ends>,
+/// A spawned command with its output pipes, ready for a session to adopt.
+pub(crate) struct Spawned {
+    pub(crate) child: Child,
+    pub(crate) group: Group,
+    pub(crate) stdout: ChildStdout,
+    pub(crate) stderr: ChildStderr,
+    /// When it started: its lifetime and its elapsed time count from then.
+    pub(crate) started: Instant,
 }
 
+/// What a session gives each job it adopts.
+pub(crate) struct Host<'a> {
+    pub(crate) limits: ProcessLimits,
+    pub(crate) outputs: Option<&'a crate::OutputStore>,
+    /// Who is told the job's end.
+    pub(crate) ends: &'a Arc<crate::ends::Ends>,
+    pub(crate) stop: CancellationToken,
+    pub(crate) detach: CancellationToken,
+}
+
+/// Spawn `command` in `cwd` with `env`, its stdin piped for the process
+/// tools or closed for a shell command.
 pub(crate) fn launch(
-    request: &Launch<'_>,
-    status: ProcessStatus,
-    limits: ProcessLimits,
-    stop: CancellationToken,
-    detach: CancellationToken,
-    outputs: Option<&crate::OutputStore>,
-) -> Result<(Arc<Entry>, ProcessStatus), ToolError> {
-    let mut shell =
-        crate::unix::shell_command(request.command, request.cwd, request.env, Stdio::piped());
+    command: &str,
+    cwd: &Path,
+    env: &CommandEnv,
+    stdin: Stdio,
+) -> Result<Spawned, ToolError> {
+    let mut shell = crate::unix::shell_command(command, cwd, env, stdin);
     // The group stops every member on drop, the shell included; a detached
     // job's shell must outlive its dropped handle.
     shell.kill_on_drop(false);
-    let spawned = crate::unix::spawn(shell, "spawn persistent process")?;
-    adopt(spawned, request, status, limits, (stop, detach), outputs)
-}
-
-/// Record a spawned command, then capture and stop it in its own task.
-fn adopt(
-    (mut child, group): (Child, Group),
-    request: &Launch<'_>,
-    mut status: ProcessStatus,
-    limits: ProcessLimits,
-    (stop, detach): (CancellationToken, CancellationToken),
-    outputs: Option<&crate::OutputStore>,
-) -> Result<(Arc<Entry>, ProcessStatus), ToolError> {
-    let Launch { owner, command, .. } = *request;
+    let (mut child, group) = crate::unix::spawn(shell, "spawn persistent process")?;
     let stdout = child.stdout.take().ok_or_else(missing_pipe)?;
     let stderr = child.stderr.take().ok_or_else(missing_pipe)?;
-    let stdin = child.stdin.take().ok_or_else(missing_pipe)?;
+    Ok(Spawned {
+        child,
+        group,
+        stdout,
+        stderr,
+        started: Instant::now(),
+    })
+}
+
+/// Record `owner`'s spawned `command`, then capture and stop it in its own
+/// task. Its stdin is the child's, if piped; a closed one shows as such.
+pub(crate) fn adopt(
+    spawned: Spawned,
+    (owner, command): (Option<&str>, &str),
+    mut status: ProcessStatus,
+    host: Host<'_>,
+) -> (Arc<Entry>, ProcessStatus) {
+    let Spawned {
+        mut child,
+        group,
+        stdout,
+        stderr,
+        started,
+    } = spawned;
+    let stdin = child.stdin.take();
+    status.stdin_closed = stdin.is_none();
     let (done, receiver) = watch::channel(false);
+    let outputs = host.outputs;
     let stdout_archive = outputs.map(|store| store.begin(owner));
     let stderr_archive = outputs.map(|store| store.begin(owner));
     let archive_timeout = outputs.map_or(0, crate::OutputStore::write_timeout_ms);
     status.stdout_archive = stdout_archive.as_ref().map(crate::output::Sink::snapshot);
     status.stderr_archive = stderr_archive.as_ref().map(crate::output::Sink::snapshot);
+    let limits = host.limits;
     let entry = Arc::new(Entry {
         owner: owner.map(Into::into),
         command: command.into(),
-        started: std::time::Instant::now(),
+        started,
         finished: std::sync::OnceLock::new(),
         record: Arc::new(Mutex::new(Record {
             status: status.clone(),
@@ -75,9 +98,9 @@ fn adopt(
             stderr_archive: stderr_archive.as_ref().map(crate::output::Sink::view),
             output: watch::channel(()).0,
         })),
-        stdin: Mutex::new(Some(stdin)),
-        stop,
-        detach,
+        stdin: Mutex::new(stdin),
+        stop: host.stop,
+        detach: host.detach,
         done: receiver,
     });
     tokio::spawn(run(
@@ -86,10 +109,10 @@ fn adopt(
         stdout,
         stderr,
         Arc::clone(&entry),
-        (done, Arc::clone(request.ends)),
+        (done, Arc::clone(host.ends)),
         (stdout_archive, stderr_archive, archive_timeout),
     ));
-    Ok((entry, status))
+    (entry, status)
 }
 
 fn missing_pipe() -> ToolError {
@@ -150,6 +173,8 @@ async fn run(
 ) {
     let (stdout_archive, stderr_archive, archive_timeout) = archives;
     let timeout = entry.record.lock().await.status.timeout_ms;
+    // From the command's start, which a shell command moved here preceded.
+    let deadline = tokio::time::Instant::from_std(entry.started) + Duration::from_millis(timeout);
     let record = Arc::clone(&entry.record);
     let (capture, capture_failed, release) =
         spawn_capture(stdout, stderr, record, (stdout_archive, stderr_archive));
@@ -160,7 +185,7 @@ async fn run(
             return leave_running(child, group, (capture, release), &entry, done).await;
         }
         () = entry.stop.cancelled() => (ProcessEnd::Stopped, Ok(())),
-        () = tokio::time::sleep(Duration::from_millis(timeout)) => (ProcessEnd::TimedOut, Ok(())),
+        () = tokio::time::sleep_until(deadline) => (ProcessEnd::TimedOut, Ok(())),
         status = child.wait() => (ProcessEnd::Exited, status.map(|_| ())),
         () = capture_failed.cancelled() => (ProcessEnd::Failed, Err(std::io::Error::other("capture failed"))),
     };
@@ -363,30 +388,19 @@ mod tests {
     async fn refused_stop_finishes_the_job_as_failed() {
         let root = tempfile::tempdir().unwrap();
         let env = CommandEnv::default();
-        let request = Launch {
-            owner: Some("a"),
-            command: "sleep 30",
-            cwd: root.path(),
-            env: &env,
-            ends: &Arc::new(crate::ends::Ends::new()),
-        };
-        let shell = crate::unix::shell_command(request.command, request.cwd, &env, Stdio::piped());
-        let (child, mut group) = crate::unix::spawn(shell, "spawn").unwrap();
-        let pid = group.pid().unwrap();
+        let mut spawned = launch("sleep 30", root.path(), &env, Stdio::piped()).unwrap();
+        let pid = spawned.group.pid().unwrap();
         // A shell under other credentials refuses every signal.
-        group.refuse_all();
+        spawned.group.refuse_all();
         let status = crate::persistent::initial_status("p1".into(), ".".into(), 60_000);
-        let limits = ProcessLimits::default();
-        let stop = CancellationToken::new();
-        let (entry, _) = adopt(
-            (child, group),
-            &request,
-            status,
-            limits,
-            (stop, CancellationToken::new()),
-            None,
-        )
-        .unwrap();
+        let host = Host {
+            limits: ProcessLimits::default(),
+            outputs: None,
+            ends: &Arc::new(crate::ends::Ends::new()),
+            stop: CancellationToken::new(),
+            detach: CancellationToken::new(),
+        };
+        let (entry, _) = adopt(spawned, (Some("a"), "sleep 30"), status, host);
         entry.stop.cancel();
         let mut done = entry.done.clone();
         let finished =

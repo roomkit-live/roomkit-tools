@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import AsyncIterator, Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import _native
 from ._ends import _JobEnds
 from .output import OutputStore
+
+if TYPE_CHECKING:
+    from .process import ProcessSession
 
 DEFAULT_INHERITED_ENV: tuple[str, ...] = tuple(_native.DEFAULT_INHERITED_ENV)
 """Host variables commands receive by default, when the host has them set."""
@@ -42,11 +45,21 @@ class ShellTool:
     interactive stdin or persistent session is provided.
     Stdin is closed. Each command leads a new Unix session without a controlling
     terminal, so opening /dev/tty fails. Unix is implemented; Linux is validated.
+    With a ProcessSession, a command runs on in the background as one of its
+    processes when started with run_in_background, or when background_on_timeout
+    moves it there at its timeout.
     """
 
-    def __init__(self, native: _native._ShellTool, outputs: OutputStore | None = None) -> None:
+    def __init__(
+        self,
+        native: _native._ShellTool,
+        outputs: OutputStore | None = None,
+        processes: ProcessSession | None = None,
+    ) -> None:
         self._native = native
         self._outputs = outputs
+        # Kept alive with the tool: dropping the last reference closes it.
+        self._processes = processes
 
     @classmethod
     async def create(
@@ -54,6 +67,7 @@ class ShellTool:
         root: str | os.PathLike[str],
         *,
         outputs: OutputStore | None = None,
+        processes: ProcessSession | None = None,
         inherit_env: Sequence[str] = DEFAULT_INHERITED_ENV,
         env: Mapping[str, str] | None = None,
         max_command_bytes: int | None = None,
@@ -61,6 +75,7 @@ class ShellTool:
         default_timeout_ms: int | None = None,
         max_timeout_ms: int | None = None,
         keep_background_jobs: bool | None = None,
+        background_on_timeout: bool | None = None,
     ) -> ShellTool:
         """Resolve an existing root; omitted limits use Rust defaults.
 
@@ -77,9 +92,26 @@ class ShellTool:
         cancellation still stops every member (default False). The tool
         follows the jobs it keeps: ends() tells when they ended, close() stops
         them and detach() lets them go.
+
+        processes runs background commands as processes of that ProcessSession:
+        those started with run_in_background, and those background_on_timeout
+        moves there. They take its identifiers, quotas, lifetimes, output
+        retention and ends(), under the caller's owner, so its process tools
+        read and stop them; they keep this tool's environment, and stdin stays
+        closed. Closing this tool leaves them to the session.
+        background_on_timeout moves a command still running at its timeout to
+        the background instead of stopping it: it runs on until the session's
+        maximum lifetime counted from its start, and the result names it in
+        process_id. A move the session refuses, its quota reached, stops the
+        command as without it. It needs processes (InvalidInputError
+        otherwise; default False).
         """
+        from .process import ProcessSession
+
         if outputs is not None and not isinstance(outputs, OutputStore):
             raise TypeError("outputs requires an OutputStore")
+        if processes is not None and not isinstance(processes, ProcessSession):
+            raise TypeError("processes requires a ProcessSession")
         environment = _env_options(inherit_env, env)
         options = {
             name: value
@@ -89,6 +121,7 @@ class ShellTool:
                 "default_timeout_ms": default_timeout_ms,
                 "max_timeout_ms": max_timeout_ms,
                 "keep_background_jobs": keep_background_jobs,
+                "background_on_timeout": background_on_timeout,
             }.items()
             if value is not None
         } | environment
@@ -99,10 +132,11 @@ class ShellTool:
                 json.dumps(options, allow_nan=False),
                 cancel,
                 None if outputs is None else outputs._native,
+                None if processes is None else processes._native,
             )
         finally:
             cancel.cancel()
-        return cls(native, outputs)
+        return cls(native, outputs, processes)
 
     @staticmethod
     def definition() -> dict[str, Any]:
@@ -147,6 +181,7 @@ class ShellTool:
         *,
         cwd: str | os.PathLike[str] | None = None,
         timeout_ms: int | None = None,
+        run_in_background: bool = False,
     ) -> dict[str, Any]:
         """Run with a per-call cwd and a runtime within the host maximum.
 
@@ -156,12 +191,19 @@ class ShellTool:
         A timeout returns partial output; output_complete says whether pipes
         reached EOF. Runtime starts after spawn, excluding path resolution;
         termination/reaping can extend wall-clock duration beyond the timeout.
+        run_in_background starts the command as a process of the tool's
+        ProcessSession and returns its process_id at once; timeout_ms is then
+        its lifetime, within the session's limits. Without a session it raises
+        InvalidInputError. A result with a process_id runs on in the
+        background, started there or moved there at its timeout: exit_code and
+        signal are None, and the session's process tools read the rest.
         """
         return await self.call(
             {
                 "command": command,
                 "cwd": None if cwd is None else os.fspath(cwd),
                 "timeout_ms": timeout_ms,
+                "run_in_background": run_in_background,
             }
         )
 

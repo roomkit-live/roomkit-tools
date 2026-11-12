@@ -33,7 +33,13 @@ class _JobEnds:
 
 class _ShellTool:
     @staticmethod
-    def create(root: str, options_json: str, cancellation: _Cancellation, outputs: _OutputStore | None = None) -> Awaitable[_ShellTool]: ...
+    def create(
+        root: str,
+        options_json: str,
+        cancellation: _Cancellation,
+        outputs: _OutputStore | None = None,
+        processes: _ProcessSession | None = None,
+    ) -> Awaitable[_ShellTool]: ...
     @staticmethod
     def definition_json() -> str: ...
     def ends(self) -> _JobEnds: ...

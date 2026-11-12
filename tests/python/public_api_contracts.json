@@ -968,6 +968,7 @@
    "fields": [
     "command",
     "cwd",
+    "run_in_background",
     "timeout_ms"
    ]
   },
@@ -976,6 +977,7 @@
     "cwd",
     "exit_code",
     "output_complete",
+    "process_id",
     "signal",
     "stderr",
     "stdout",

@@ -66,6 +66,10 @@ name = "job_ends"
 path = "job_ends.rs"
 
 [[example]]
+name = "shell_background"
+path = "shell_background.rs"
+
+[[example]]
 name = "read_output"
 path = "read_output.rs"
 

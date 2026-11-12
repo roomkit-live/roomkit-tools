@@ -6,6 +6,16 @@ part of an existing published preview.
 
 ## Unreleased
 
+- A shell command can run on in the background as a process. With
+  `ShellTool.create(processes=session)` (Rust: `ShellTool::with_processes`),
+  `shell(..., run_in_background=True)` starts it as one of the session's
+  processes and returns its `process_id` at once, and
+  `background_on_timeout=True` (Rust: `ShellLimits::background_on_timeout`)
+  moves a command still running at its timeout there instead of stopping it,
+  with no byte lost. The result's new `process_id` names it; the session's
+  process tools read, stop and tell it. The tool description steers models to
+  `run_in_background` rather than `&`.
+
 - A host is told when a background job ends, without polling it:
   `ProcessSession.ends()` and `ShellTool.ends()` are async iterators (Rust
   `Stream`s) of dicts (`JobEnd`: owner, tool, process_id, command, cwd, end,

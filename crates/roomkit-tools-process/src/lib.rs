@@ -30,6 +30,9 @@ mod persistent_unix;
 mod process_types;
 #[forbid(unsafe_code)]
 mod shell;
+#[cfg(unix)]
+#[forbid(unsafe_code)]
+mod shell_handover;
 #[forbid(unsafe_code)]
 mod shell_jobs;
 #[cfg(unix)]

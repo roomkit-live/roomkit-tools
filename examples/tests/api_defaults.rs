@@ -201,7 +201,8 @@ fn processes() -> Vec<(String, Value)> {
             roomkit_tools_process::ShellInput::new("a"),
             command,
             cwd,
-            timeout_ms
+            timeout_ms,
+            run_in_background
         ),
         dump!(
             roomkit_tools_process::ShellLimits::default(),
@@ -209,7 +210,8 @@ fn processes() -> Vec<(String, Value)> {
             max_output_bytes,
             default_timeout_ms,
             max_timeout_ms,
-            keep_background_jobs
+            keep_background_jobs,
+            background_on_timeout
         ),
     ]
 }

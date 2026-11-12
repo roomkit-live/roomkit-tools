@@ -13,7 +13,7 @@ use roomkit::{
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{AiChannel, AiChannelOptions, Tool, ToolEntry};
 use roomkit_tools_process::{JobEnds, ProcessSession, ShellLimits, ShellTool};
-use roomkit_tools_roomkit::{ProcessStart, Shell, notify_job_ends};
+use roomkit_tools_roomkit::{ProcessRead, ProcessStart, Shell, notify_job_ends};
 
 /// A kit whose agent answers from `model` with `tools`, steering and
 /// serializing its room turns as roomkit-code's agents do, with `ends` told
@@ -238,4 +238,80 @@ async fn attach(kit: &RoomKit, room: &str) {
             .await
             .unwrap();
     }
+}
+
+/// A model that runs `shell` with `arguments`, answers, then reads the
+/// process its notice names and answers again.
+fn reading_model(arguments: &str) -> ScriptedProvider {
+    ScriptedProvider::new([
+        ScriptedRound::calling("", [("c1", "shell", arguments)]),
+        ScriptedRound::answering("It runs in the background."),
+        ScriptedRound::calling("", [("c2", "process_read", r#"{"process_id":"p1"}"#)]),
+        ScriptedRound::answering("Read."),
+    ])
+}
+
+/// The tools of an agent whose shell runs background commands in `session`.
+fn shell_and_reader(shell: ShellTool, session: &ProcessSession) -> Vec<Arc<dyn Tool>> {
+    vec![
+        Arc::new(Shell::new(shell.with_processes(session.clone()))),
+        Arc::new(ProcessRead::new(session.clone())),
+    ]
+}
+
+#[tokio::test]
+async fn a_shell_command_run_in_the_background_is_its_agent_s_process() {
+    let workspace = tempfile::tempdir().unwrap();
+    let session = ProcessSession::new(workspace.path()).await.unwrap();
+    let shell = ShellTool::new(workspace.path()).await.unwrap();
+    let command = "sleep 0.3; printf built";
+    let model = reading_model(&format!(
+        r#"{{"command":"{command}","run_in_background":true}}"#
+    ));
+    let (kit, room) = kit(&model, shell_and_reader(shell, &session), session.ends());
+    ask(&kit, &room).await;
+    let asked = requests(&model, 4).await;
+    assert!(asked[1].contains("p1 started in the background"), "{}", asked[1]);
+    let told = format!("Background process p1 (`{command}`) exited with code 0 after");
+    assert!(asked[2].contains(&told), "{}", asked[2]);
+    // The agent's own process: its process tools read it.
+    assert!(asked[3].contains("built"), "{}", asked[3]);
+    assert!(session.close().await);
+    kit.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn a_shell_command_still_running_at_its_timeout_moves_to_its_agent_s_processes() {
+    let workspace = tempfile::tempdir().unwrap();
+    let session = ProcessSession::new(workspace.path()).await.unwrap();
+    let shell = ShellTool::new(workspace.path()).await.unwrap();
+    let limits = ShellLimits {
+        default_timeout_ms: 200,
+        background_on_timeout: true,
+        ..ShellLimits::default()
+    };
+    let command = "printf compiling; sleep 0.5; printf built";
+    let model = reading_model(&format!(r#"{{"command":"{command}"}}"#));
+    let tools = vec![
+        Arc::new(Shell::new(
+            shell
+                .with_processes(session.clone())
+                .with_limits(limits)
+                .unwrap(),
+        )) as Arc<dyn Tool>,
+        Arc::new(ProcessRead::new(session.clone())),
+    ];
+    let (kit, room) = kit(&model, tools, session.ends());
+    ask(&kit, &room).await;
+    let asked = requests(&model, 4).await;
+    assert!(
+        asked[1].contains("moved to the background as p1") && asked[1].contains("compiling"),
+        "{}",
+        asked[1]
+    );
+    let told = format!("Background process p1 (`{command}`) exited with code 0 after");
+    assert!(asked[2].contains(&told), "{}", asked[2]);
+    assert!(asked[3].contains("built"), "{}", asked[3]);
+    assert!(session.close().await);
+    kit.close().await.unwrap();
 }

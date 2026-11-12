@@ -11,6 +11,7 @@ use tokio::process::{Child, ChildStderr, ChildStdout, Command};
 use tokio_util::sync::CancellationToken;
 
 use crate::capture::Capture;
+use crate::persistent_unix::Spawned;
 use crate::{CommandEnv, ShellLimits, ShellResult};
 
 /// `/bin/sh -c command` started in `cwd` with the host-selected environment,
@@ -159,6 +160,8 @@ pub(crate) struct Foreground {
     pub(crate) jobs: Arc<crate::shell_jobs::ShellJobs>,
     /// When the command started: its jobs' ends count from it.
     pub(crate) started: std::time::Instant,
+    /// The session the command moves to at its timeout, if it moves.
+    pub(crate) processes: Option<crate::ProcessSession>,
 }
 
 pub(crate) async fn run(
@@ -168,60 +171,128 @@ pub(crate) async fn run(
     if cancel.is_cancelled() {
         return Err(ToolError::Cancelled);
     }
-    let command = shell_command(
+    let mut command = shell_command(
         &foreground.command,
         &foreground.cwd,
         &foreground.env,
         Stdio::null(),
     );
+    // A command that may move to the background must outlive its handle once
+    // its session lets it go; its group stops it on every other path.
+    command.kill_on_drop(foreground.processes.is_none());
     let (child, group) = spawn(command, "spawn shell")?;
     supervise(child, group, foreground, &cancel).await
 }
 
+/// How the wait for a foreground command ended.
+enum Waited {
+    /// The shell exited on its own.
+    Exited(ExitStatus),
+    TimedOut,
+    Cancelled,
+}
+
+/// Capture `command`'s output until it exits, times out or is cancelled. A
+/// read cut short loses no byte: each one read is captured before the next
+/// await, so capture can go on from the same pipes.
+async fn wait(
+    command: &mut Spawned,
+    (out, err): (&mut Capture, &mut Capture),
+    timeout_ms: u64,
+    cancel: &CancellationToken,
+) -> std::io::Result<Waited> {
+    let Spawned {
+        child,
+        stdout,
+        stderr,
+        ..
+    } = command;
+    tokio::select! {
+        biased;
+        () = cancel.cancelled() => Ok(Waited::Cancelled),
+        () = tokio::time::sleep(Duration::from_millis(timeout_ms)) => Ok(Waited::TimedOut),
+        status = child.wait() => status.map(Waited::Exited),
+        error = async {
+            tokio::try_join!(out.drain(stdout), err.drain(stderr))?;
+            // EOF is not process exit: a command can close both streams and run on.
+            std::future::pending::<std::io::Result<Waited>>().await
+        } => error,
+    }
+}
+
 /// Capture a spawned command until it exits, times out or is cancelled, then
-/// stop its group, reap it and drain what its pipes still hold.
+/// stop its group, reap it and drain what its pipes still hold. One still
+/// running at its timeout moves to the background instead, when it may.
 async fn supervise(
     mut child: Child,
-    mut group: Group,
+    group: Group,
     foreground: Foreground,
     cancel: &CancellationToken,
 ) -> Result<Output<ShellResult>, ToolError> {
-    let mut stdout = child
+    let stdout = child
         .stdout
         .take()
         .ok_or_else(|| missing_pipe("open shell stdout"))?;
-    let mut stderr = child
+    let stderr = child
         .stderr
         .take()
         .ok_or_else(|| missing_pipe("open shell stderr"))?;
+    let mut command = Spawned {
+        child,
+        group,
+        stdout,
+        stderr,
+        started: foreground.started,
+    };
     let mut out = Capture::new(foreground.limits.max_output_bytes);
     let mut err = Capture::new(foreground.limits.max_output_bytes);
     if let Some((store, owner)) = &foreground.outputs {
         out.archive(Some(store.begin(owner.as_deref())));
         err.archive(Some(store.begin(owner.as_deref())));
     }
-    let mut timed_out = false;
-    let mut cancelled = false;
-    let result = tokio::select! {
-        biased;
-        () = cancel.cancelled() => { cancelled = true; Ok(None) },
-        () = tokio::time::sleep(Duration::from_millis(foreground.timeout_ms)) => { timed_out = true; Ok(None) },
-        status = child.wait() => status.map(Some),
-        error = async {
-            tokio::try_join!(out.drain(&mut stdout), err.drain(&mut stderr))?;
-            // EOF is not process exit: a command can close both streams and run on.
-            std::future::pending::<std::io::Result<Option<ExitStatus>>>().await
-        } => error,
-    };
+    let captures = (&mut out, &mut err);
+    let waited = wait(&mut command, captures, foreground.timeout_ms, cancel).await;
+    let mut refused = None;
+    if let (Ok(Waited::TimedOut), Some(processes)) = (&waited, &foreground.processes) {
+        match crate::shell_handover::take_over(processes, &foreground, command, cancel).await {
+            Ok(status) => {
+                return Ok(crate::shell_handover::moved((out, err), status, &foreground).await);
+            }
+            Err((error, back)) => {
+                command = *back;
+                refused = Some(error);
+            }
+        }
+    }
+    let result = stop(command, (out, err), waited, &foreground, cancel).await?;
+    Ok(render(result, refused.as_ref()))
+}
+
+/// Stop the group of a command that ended its wait, unless it exited on its
+/// own leaving jobs to keep, reap it and drain what its pipes still hold.
+async fn stop(
+    mut command: Spawned,
+    (mut out, mut err): (Capture, Capture),
+    waited: std::io::Result<Waited>,
+    foreground: &Foreground,
+    cancel: &CancellationToken,
+) -> Result<ShellResult, ToolError> {
+    let timed_out = matches!(waited, Ok(Waited::TimedOut));
+    let cancelled = matches!(waited, Ok(Waited::Cancelled));
     // A shell that ended on its own may leave its background jobs running.
-    let kept = foreground.limits.keep_background_jobs && matches!(result, Ok(Some(_)));
-    let status = if kept {
-        result.as_ref().ok().copied().flatten()
-    } else {
-        stop_and_reap(&mut group, &mut child).await?
+    let exited = match &waited {
+        Ok(Waited::Exited(status)) => Some(*status),
+        _ => None,
     };
-    result.map_err(|source| io("capture shell output", source))?;
-    let output_complete = drain_rest(&mut out, &mut err, &mut stdout, &mut stderr).await?;
+    let kept = foreground.limits.keep_background_jobs && exited.is_some();
+    let status = if kept {
+        exited
+    } else {
+        stop_and_reap(&mut command.group, &mut command.child).await?
+    };
+    waited.map_err(|source| io("capture shell output", source))?;
+    let (stdout, stderr) = (&mut command.stdout, &mut command.stderr);
+    let output_complete = drain_rest(&mut out, &mut err, stdout, stderr).await?;
     tokio::join!(out.finish_archive(), err.finish_archive());
     // A cancelled call returns no result: its archives are all that is left.
     // Its kept jobs stop with it, the group not being released.
@@ -229,19 +300,19 @@ async fn supervise(
         return Err(ToolError::Cancelled);
     }
     if kept {
-        if let Some(pgid) = group.release() {
-            follow(&foreground, pgid);
+        if let Some(pgid) = command.group.release() {
+            follow(foreground, pgid);
         }
         // A job still holding a pipe writes to a drainer from now on.
         if !output_complete {
-            hand_off(stdout, stderr);
+            hand_off(command.stdout, command.stderr);
         }
     }
     if let Some((store, _)) = &foreground.outputs {
         out.discard_whole_archive(store);
         err.discard_whole_archive(store);
     }
-    Ok(render(ShellResult {
+    Ok(ShellResult {
         cwd: foreground.shown_cwd.clone(),
         exit_code: status.and_then(|status| status.code()),
         signal: status.and_then(|status| status.signal()),
@@ -250,7 +321,8 @@ async fn supervise(
         output_complete,
         stdout: out.finish(),
         stderr: err.finish(),
-    }))
+        process_id: None,
+    })
 }
 
 /// Follow the group `pgid` that `foreground` left running, if any job is left
@@ -348,7 +420,35 @@ async fn drain_rest(
     }
 }
 
-fn render(data: ShellResult) -> Output<ShellResult> {
+/// The text of `data`, with why a command was not moved to the background.
+pub(crate) fn render(data: ShellResult, refused: Option<&ToolError>) -> Output<ShellResult> {
+    let mut text = match &data.process_id {
+        Some(id) => format!(
+            "still running after {} ms: moved to the background as {id}; read the rest of its output with process_read",
+            data.timeout_ms
+        ),
+        None => outcome(&data),
+    };
+    if data.stdout.text.is_empty() && data.stderr.text.is_empty() {
+        text.push_str(" (no output)");
+    }
+    text.push('\n');
+    if let Some(error) = refused {
+        let _written = writeln!(text, "not moved to the background: {error}");
+    }
+    // Before what the command wrote, which could imitate these lines.
+    crate::output::append_metadata(
+        &mut text,
+        data.stdout.archive.as_ref(),
+        data.stderr.archive.as_ref(),
+    );
+    crate::output::push_stream(&mut text, "stdout:", &data.stdout.text);
+    crate::output::push_stream(&mut text, "stderr:", &data.stderr.text);
+    Output::new(data, text)
+}
+
+/// How a command ended, under the names of its result.
+fn outcome(data: &ShellResult) -> String {
     let mut text = format!("exit_code={}", crate::output::nullable(data.exit_code));
     if let Some(signal) = data.signal {
         let _written = write!(text, ", signal={signal}");
@@ -359,19 +459,7 @@ fn render(data: ShellResult) -> Output<ShellResult> {
     if !data.output_complete {
         text.push_str(", output_complete=false");
     }
-    if data.stdout.text.is_empty() && data.stderr.text.is_empty() {
-        text.push_str(" (no output)");
-    }
-    text.push('\n');
-    // Before what the command wrote, which could imitate these lines.
-    crate::output::append_metadata(
-        &mut text,
-        data.stdout.archive.as_ref(),
-        data.stderr.archive.as_ref(),
-    );
-    crate::output::push_stream(&mut text, "stdout:", &data.stdout.text);
-    crate::output::push_stream(&mut text, "stderr:", &data.stderr.text);
-    Output::new(data, text)
+    text
 }
 
 #[cfg(test)]
@@ -411,6 +499,7 @@ mod tests {
             owner: None,
             jobs: Arc::default(),
             started: std::time::Instant::now(),
+            processes: None,
         };
         let command = shell_command(
             &foreground.command,
@@ -450,6 +539,7 @@ mod tests {
             owner: None,
             jobs: Arc::default(),
             started: std::time::Instant::now(),
+            processes: None,
         };
         let shell = shell_command(
             &foreground.command,

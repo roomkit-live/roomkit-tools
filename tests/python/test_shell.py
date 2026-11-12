@@ -39,7 +39,8 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(definition, json.loads(_native._ShellTool.definition_json()))
         self.assertEqual(definition["name"], "shell")
         self.assertEqual(
-            set(definition["input_schema"]["properties"]), {"command", "cwd", "timeout_ms"}
+            set(definition["input_schema"]["properties"]),
+            {"command", "cwd", "timeout_ms", "run_in_background"},
         )
         self.assertFalse(definition["input_schema"]["additionalProperties"])
         self.assertIn("output_complete", definition["output_schema"]["properties"])

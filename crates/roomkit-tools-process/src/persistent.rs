@@ -1,4 +1,6 @@
 mod definitions;
+#[cfg(unix)]
+mod handover;
 mod read;
 mod registry;
 mod stdin;
@@ -13,6 +15,8 @@ use tokio::sync::{Mutex, watch};
 use tokio_util::sync::CancellationToken;
 
 use crate::output::nullable;
+#[cfg(unix)]
+pub(crate) use handover::ShellJob;
 use registry::Registry;
 pub(crate) use registry::{Entry, Record, initial_status};
 
@@ -309,34 +313,19 @@ impl ProcessSession {
             limits.max_timeout_ms,
         )?;
         let cwd = self.start_directory(&input, cancel).await?;
-        let mut registry = self.inner.registry.lock().await;
-        self.check(owner, cancel)?;
-        let next = registry.next_for(owner, limits)?;
         let shown = crate::relative_cwd(&self.inner.root, &cwd)?;
-        let status = initial_status(format!("p{next}"), shown, timeout_ms);
         #[cfg(unix)]
         {
-            let request = crate::persistent_unix::Launch {
-                owner,
-                command: &input.command,
-                cwd: &cwd,
-                env: &self.inner.env,
-                ends: &self.inner.ends,
-            };
-            let (entry, status) = crate::persistent_unix::launch(
-                &request,
-                status.clone(),
-                limits,
-                self.inner.closed.child_token(),
-                self.inner.detached.clone(),
-                self.inner.outputs.as_ref(),
+            let reserved = self.reserve(owner, cancel).await?;
+            let status = initial_status(reserved.process_id(), shown, timeout_ms);
+            let spawned = crate::persistent_unix::launch(
+                &input.command,
+                &cwd,
+                &self.inner.env,
+                std::process::Stdio::piped(),
             )?;
-            registry.next_id = next;
-            let done = entry.done.clone();
-            registry.entries.insert(status.process_id.clone(), entry);
-            self.inner.changes.send_replace(());
-            notify_finished(done, self.inner.changes.clone());
             // No await after spawn: ownership and the recoverable ID are committed together.
+            let status = self.commit(reserved, (owner, &input.command), status, spawned);
             let mut text = format!(
                 "{} started; use process_read for output\n",
                 status.process_id
@@ -350,7 +339,7 @@ impl ProcessSession {
         }
         #[cfg(not(unix))]
         {
-            let _ = (&mut registry, status);
+            let _ = (shown, timeout_ms);
             Err(ToolError::UnsupportedResource(
                 "persistent process groups require Unix".into(),
             ))

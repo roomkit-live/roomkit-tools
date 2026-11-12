@@ -12,6 +12,7 @@ from roomkit.models.event import TextContent
 from roomkit.providers.ai.base import AIResponse, AIToolCall
 from roomkit.providers.ai.mock import MockAIProvider
 from roomkit_tools import (
+    ProcessRead,
     ProcessSession,
     ProcessStart,
     Shell,
@@ -91,8 +92,22 @@ async def asked(provider: MockAIProvider, count: int) -> list[str]:
     return [repr(context) for context in provider.calls]
 
 
-def call(name: str, arguments: dict) -> AIResponse:
-    return AIResponse(content="", tool_calls=[AIToolCall(id="c1", name=name, arguments=arguments)])
+def call(name: str, arguments: dict, call_id: str = "c1") -> AIResponse:
+    return AIResponse(
+        content="", tool_calls=[AIToolCall(id=call_id, name=name, arguments=arguments)]
+    )
+
+
+def reading_model(arguments: dict) -> MockAIProvider:
+    """Runs shell with arguments, answers, then reads the process its notice names."""
+    return MockAIProvider(
+        ai_responses=[
+            call("shell", arguments),
+            AIResponse(content="It runs in the background."),
+            call("process_read", {"process_id": "p1"}, "c2"),
+            AIResponse(content="Read."),
+        ]
+    )
 
 
 class NotifyJobEndsTests(unittest.IsolatedAsyncioTestCase):
@@ -144,6 +159,40 @@ class NotifyJobEndsTests(unittest.IsolatedAsyncioTestCase):
                     requests[2],
                 )
                 self.assertTrue(await shell.close())
+            await asyncio.wait_for(self.telling, 5)
+
+    async def test_a_shell_command_run_in_the_background_is_its_agent_s_process(self):
+        with tempfile.TemporaryDirectory() as root:
+            async with ProcessSession(root) as session, RoomKit() as kit:
+                shell = await ShellTool.create(root, processes=session)
+                command = "sleep 0.3; printf built"
+                provider = reading_model({"command": command, "run_in_background": True})
+                tools = [Shell(shell), ProcessRead(session)]
+                await self.run_turn(kit, tools, provider, session.ends())
+                requests = await asked(provider, 4)
+                self.assertIn("p1 started in the background", requests[1])
+                told = f"Background process p1 (`{command}`) exited with code 0 after"
+                self.assertIn(told, requests[2])
+                # The agent's own process: its process tools read it.
+                self.assertIn("built", requests[3])
+            await asyncio.wait_for(self.telling, 5)
+
+    async def test_a_shell_command_still_running_at_its_timeout_moves_to_its_processes(self):
+        with tempfile.TemporaryDirectory() as root:
+            async with ProcessSession(root) as session, RoomKit() as kit:
+                shell = await ShellTool.create(
+                    root, processes=session, default_timeout_ms=200, background_on_timeout=True
+                )
+                command = "printf compiling; sleep 0.5; printf built"
+                provider = reading_model({"command": command})
+                tools = [Shell(shell), ProcessRead(session)]
+                await self.run_turn(kit, tools, provider, session.ends())
+                requests = await asked(provider, 4)
+                self.assertIn("moved to the background as p1", requests[1])
+                self.assertIn("compiling", requests[1])
+                told = f"Background process p1 (`{command}`) exited with code 0 after"
+                self.assertIn(told, requests[2])
+                self.assertIn("built", requests[3])
             await asyncio.wait_for(self.telling, 5)
 
     async def test_one_agent_s_turn_does_not_hold_back_another_room_s_notice(self):

@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{CapturedOutput, CommandEnv};
 
-/// A command to run in the foreground.
+/// A command to run in the foreground, or in the background as a process.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ShellInput {
@@ -18,9 +18,14 @@ pub struct ShellInput {
     /// Starting directory in the workspace; defaults to its root.
     #[serde(default)]
     pub cwd: Option<String>,
-    /// Runtime limit in ms; one above the host maximum is refused.
+    /// Runtime limit in ms, or a background command's lifetime; one above the
+    /// host maximum is refused.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
+    /// Start it as a background process and return its `process_id` at once,
+    /// for a server or a long job; read its output with `process_read`.
+    #[serde(default)]
+    pub run_in_background: bool,
 }
 
 impl ShellInput {
@@ -30,6 +35,7 @@ impl ShellInput {
             command: command.into(),
             cwd: None,
             timeout_ms: None,
+            run_in_background: false,
         }
     }
 }
@@ -54,6 +60,13 @@ pub struct ShellLimits {
     /// when they ended, [`ShellTool::close`] stops them and
     /// [`ShellTool::detach`] lets them go. Default: false.
     pub keep_background_jobs: bool,
+    /// Move a command still running at its timeout to the background instead
+    /// of stopping it: it runs on as a process of the session attached with
+    /// [`ShellTool::with_processes`], until that session's maximum lifetime
+    /// counted from its start, and the result names it in `process_id`. A
+    /// move the session refuses, its quota reached, stops the command as
+    /// without this. Needs that session. Default: false.
+    pub background_on_timeout: bool,
 }
 
 impl Default for ShellLimits {
@@ -64,11 +77,13 @@ impl Default for ShellLimits {
             default_timeout_ms: 10_000,
             max_timeout_ms: 120_000,
             keep_background_jobs: false,
+            background_on_timeout: false,
         }
     }
 }
 
-/// A completed command, including nonzero exits and timeouts.
+/// A completed command, including nonzero exits and timeouts, or one that
+/// runs on in the background.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct ShellResult {
     /// Initial working directory, relative to the workspace (`.` for its
@@ -91,6 +106,12 @@ pub struct ShellResult {
     pub stdout: CapturedOutput,
     /// Captured standard error, kept separate from stdout.
     pub stderr: CapturedOutput,
+    /// Set when the command runs on in the background as this process:
+    /// started with `run_in_background`, or still running at its timeout and
+    /// moved there. `exit_code` and `signal` are then null; read the rest of
+    /// its output with `process_read`.
+    #[serde(default)]
+    pub process_id: Option<String>,
 }
 
 /// A shell with a host-selected root and limits, independent of any agent runtime.
@@ -113,6 +134,7 @@ pub struct ShellTool {
     env: Arc<CommandEnv>,
     outputs: Option<crate::OutputStore>,
     jobs: Arc<crate::shell_jobs::ShellJobs>,
+    processes: Option<crate::ProcessSession>,
 }
 
 impl ShellTool {
@@ -147,6 +169,7 @@ impl ShellTool {
             env: Arc::default(),
             outputs: None,
             jobs: Arc::default(),
+            processes: None,
         })
     }
 
@@ -171,10 +194,23 @@ impl ShellTool {
         self.outputs.is_some()
     }
 
+    /// Run background commands as processes of `processes`: those started
+    /// with `run_in_background`, and those [`ShellLimits::background_on_timeout`]
+    /// moves there. They take its identifiers, quotas, lifetimes, output
+    /// retention and ends, under the caller's owner, so its process tools read
+    /// and stop them; they keep this tool's environment, and stdin stays
+    /// closed. Closing this tool leaves them to the session.
+    #[must_use]
+    pub fn with_processes(mut self, processes: crate::ProcessSession) -> Self {
+        self.processes = Some(processes);
+        self
+    }
+
     /// Configure positive host limits; the default timeout cannot exceed its cap.
     ///
     /// # Errors
-    /// Rejects zero bounds and timeouts greater than 24 hours (timer overflow guard).
+    /// Rejects zero bounds, timeouts greater than 24 hours (timer overflow
+    /// guard) and `background_on_timeout` before [`Self::with_processes`].
     pub fn with_limits(mut self, limits: ShellLimits) -> Result<Self, ToolError> {
         if limits.max_command_bytes == 0
             || limits.max_output_bytes == 0
@@ -183,6 +219,11 @@ impl ShellTool {
             || limits.default_timeout_ms > limits.max_timeout_ms
         {
             return Err(ToolError::InvalidInput("invalid shell limits".into()));
+        }
+        if limits.background_on_timeout && self.processes.is_none() {
+            return Err(ToolError::InvalidInput(
+                "background_on_timeout needs a process session".into(),
+            ));
         }
         self.limits = limits;
         Ok(self)
@@ -229,7 +270,7 @@ impl ShellTool {
     pub fn definition() -> Definition {
         Definition::new::<ShellInput, ShellResult>(
             "shell",
-            "Run a command with /bin/sh -c and wait for it. Check exit_code and timed_out; output is bounded. No stdin. Each call starts a new shell: cd and exported variables do not carry over. Not a sandbox: host permissions apply.",
+            "Run a command with /bin/sh -c and wait for it. Check exit_code and timed_out; output is bounded. No stdin. Each call starts a new shell: cd and exported variables do not carry over. For a server or a long job, set run_in_background rather than ending the command with &. A result with a process_id runs on in the background: read it with process_read. Not a sandbox: host permissions apply.",
         )
     }
 
@@ -287,6 +328,9 @@ impl ShellTool {
                 "shell command exceeds the host limit".into(),
             ));
         }
+        if input.run_in_background {
+            return self.background(owner, input, cancel).await;
+        }
         let timeout_ms = crate::requested_timeout(
             input.timeout_ms,
             self.limits.default_timeout_ms,
@@ -317,6 +361,10 @@ impl ShellTool {
                 owner: owner.map(str::to_owned),
                 jobs: Arc::clone(&self.jobs),
                 started: std::time::Instant::now(),
+                processes: self
+                    .processes
+                    .clone()
+                    .filter(|_| self.limits.background_on_timeout),
             };
             tokio::spawn(crate::unix::run(foreground, child_cancel))
                 .await
@@ -330,6 +378,50 @@ impl ShellTool {
             let _ = (cwd, timeout_ms);
             Err(ToolError::UnsupportedResource(
                 "shell process-group cleanup currently requires Unix".into(),
+            ))
+        }
+    }
+
+    /// Start `input` as a process of the attached session and return at once.
+    async fn background(
+        &self,
+        owner: Option<&str>,
+        input: ShellInput,
+        cancel: &CancellationToken,
+    ) -> Result<Output<ShellResult>, ToolError> {
+        let Some(processes) = &self.processes else {
+            return Err(ToolError::InvalidInput(
+                "run_in_background is not available: this host gives the shell no process session"
+                    .into(),
+            ));
+        };
+        let cwd = crate::working_directory(
+            &self.workspace,
+            input.cwd.as_deref(),
+            "resolve shell working directory",
+            cancel,
+        )
+        .await?;
+        let shown_cwd = crate::relative_cwd(&self.root, &cwd)?;
+        #[cfg(unix)]
+        {
+            let job = crate::persistent::ShellJob {
+                owner,
+                command: &input.command,
+                cwd: &cwd,
+                shown_cwd: &shown_cwd,
+                env: &self.env,
+            };
+            let status = processes
+                .start_shell(&job, input.timeout_ms, cancel)
+                .await?;
+            Ok(crate::shell_handover::started(status))
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (processes, owner, shown_cwd);
+            Err(ToolError::UnsupportedResource(
+                "background shell commands require Unix".into(),
             ))
         }
     }

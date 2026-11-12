@@ -209,6 +209,38 @@ See [the standalone process example](../examples/run_process.py), which verifies
 exact newline bytes, paged reads with open stdin, explicit EOF and normal exit:
 `.venv/bin/python examples/run_process.py`.
 
+## Shell commands in the background
+
+A shell given a process session runs commands on in the background as that
+session's processes, under the caller's owner, so its process tools read, stop
+and tell them like any other:
+
+```python
+shell = await ShellTool.create(
+    "./workspace",
+    processes=session,           # Rust: ShellTool::with_processes(session)
+    background_on_timeout=True,  # Rust: ShellLimits::background_on_timeout
+)
+started = await shell.shell("npm run dev", run_in_background=True)
+started["data"]["process_id"]    # "p1", returned at once
+```
+
+With `run_in_background`, the command starts as a process and the call returns
+its `process_id` at once; `timeout_ms` is then its lifetime, within the
+session's limits. With `background_on_timeout`, a command still running at its
+foreground timeout is moved there instead of stopped, without losing or
+repeating a byte: the result has what it wrote until then, `process_id`, null
+`exit_code` and `signal`, and `timed_out` false; `process_read` gives the rest
+from offset 0. It runs on until the session's maximum lifetime, counted from
+its start. A move the session refuses, its quota reached, stops the command as
+before, and the result's text says why. Either way the command keeps the
+shell's environment and directory, its stdin stays closed, and the session's
+`ends()` tells its end. `run_in_background` without a session, and
+`background_on_timeout` without one, raise `InvalidInputError`. The shell
+keeps its session alive; closing the shell leaves these processes to it. See
+[the RoomKit example](../examples/roomkit_shell_background.py):
+`.venv/bin/python examples/roomkit_shell_background.py`.
+
 ## Told when a background job ends
 
 A host learns that a job ended without polling it. `processes.ends()` and,

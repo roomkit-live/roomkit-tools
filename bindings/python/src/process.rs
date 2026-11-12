@@ -95,7 +95,7 @@ impl ProcessOptions {
 }
 
 #[derive(Debug)]
-struct SessionState {
+pub(super) struct SessionState {
     root: PathBuf,
     limits: ProcessLimits,
     env: CommandEnv,
@@ -106,7 +106,7 @@ struct SessionState {
 }
 
 impl SessionState {
-    async fn resolve(&self) -> Result<ProcessSession, roomkit_tools_core::ToolError> {
+    pub(super) async fn resolve(&self) -> Result<ProcessSession, roomkit_tools_core::ToolError> {
         if self.closed.is_cancelled() {
             return Err(roomkit_tools_core::ToolError::AccessRefused(
                 "process session is closed".into(),
@@ -141,7 +141,7 @@ impl SessionState {
 #[pyclass(name = "_ProcessSession", frozen, module = "roomkit_tools._native")]
 #[derive(Debug)]
 pub(super) struct PythonProcessSession {
-    state: Arc<SessionState>,
+    pub(super) state: Arc<SessionState>,
 }
 
 impl Drop for PythonProcessSession {

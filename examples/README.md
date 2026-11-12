@@ -62,6 +62,7 @@ tool call; examples inspect actual tool results.
 | `python examples/roomkit_outline.py` | Locate a method, read its range, edit with its revision and rerun tests |
 | `python examples/roomkit_output.py` | Retrieve an omitted diagnostic from an archived log without rerunning the command |
 | `python examples/roomkit_job_ends.py` | The agent is told when its background process ends, and answers in a turn of its own |
+| `python examples/roomkit_shell_background.py` | A build outlives the shell's timeout and moves to the background; the agent is told when it ends and reads the rest |
 
 Add `--live` for a configured model. `roomkit_code.py --chat` opens an interactive
 session: `/start` sends the complete task once, `/check` verifies observed results,
@@ -146,6 +147,7 @@ and verify their outputs without RoomKit, a model or external credentials.
 | `shell_command` | Bounded command output and status |
 | `process_session` | Persistent process I/O and cleanup |
 | `job_ends` | Told when a process and a shell command's background job end |
+| `shell_background` | Shell commands run on as processes: started in the background, or moved there at their timeout |
 | `read_output` | Archived output paging |
 | `fetch_page` | Local HTTP redirect and Markdown conversion |
 | `search_web` | Local search fixture; `--live` explicitly uses Exa |
