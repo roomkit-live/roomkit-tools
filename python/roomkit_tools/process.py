@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from types import TracebackType
 from typing import Any, Self
 
 from . import _native
+from ._ends import _JobEnds
 from ._shell import DEFAULT_INHERITED_ENV, ShellTool, _env_options
 from .output import OutputStore
 
@@ -141,6 +142,19 @@ class ProcessSession:
         within two seconds; False means workers continue, as for close.
         """
         return await self._native.detach()
+
+    def ends(self) -> AsyncIterator[dict[str, Any]]:
+        """Follow the jobs that finish from now on, whatever their owner.
+
+        ``async for end in session.ends()`` gives one dict per job that
+        exited, timed out, was stopped or failed: owner, tool ("process"),
+        process_id, command, cwd, end, exit_code, signal and elapsed_ms. Call
+        it before starting the jobs to follow; an end before the call is not
+        told. A detached job is let go, not ended, and is not told. The
+        iteration stops once the session closes. owner is the host's key:
+        filter by it before telling another principal.
+        """
+        return _JobEnds(self._native.ends())
 
     async def close_owner(self, owner: str | None) -> bool:
         """Stop one owner's jobs and release their records; the session stays open.

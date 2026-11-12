@@ -12,6 +12,7 @@ categories = ["os::unix-apis", "development-tools", "asynchronous"]
 
 [dependencies]
 roomkit-tools-core.workspace = true
+futures-core.workspace = true
 schemars.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util", "macros", "process", "rt", "time"] }

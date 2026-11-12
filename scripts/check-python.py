@@ -72,6 +72,7 @@ CORE_TESTS = [
     ("test_diff_patch.py", None),
     ("test_shell.py", None),
     ("test_process.py", None),
+    ("test_job_ends.py", None),
     ("test_output.py", None),
     ("test_web.py", "ROOMKIT_WEB_RESULTS"),
     ("test_search.py", "ROOMKIT_SEARCH_RESULTS"),

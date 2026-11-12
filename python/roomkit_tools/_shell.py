@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 from . import _native
+from ._ends import _JobEnds
 from .output import OutputStore
 
 DEFAULT_INHERITED_ENV: tuple[str, ...] = tuple(_native.DEFAULT_INHERITED_ENV)
@@ -73,7 +74,9 @@ class ShellTool:
         running once its shell exits on its own, instead of stopping its whole
         process group; a job still holding the command's pipes then writes to a
         drainer that discards its output and outlives the host. A timeout or
-        cancellation still stops every member (default False).
+        cancellation still stops every member (default False). The tool
+        follows the jobs it keeps: ends() tells when they ended, close() stops
+        them and detach() lets them go.
         """
         if outputs is not None and not isinstance(outputs, OutputStore):
             raise TypeError("outputs requires an OutputStore")
@@ -105,6 +108,38 @@ class ShellTool:
     def definition() -> dict[str, Any]:
         """Return fresh input/output schemas derived from the Rust types."""
         return json.loads(_native._ShellTool.definition_json())
+
+    def ends(self) -> AsyncIterator[dict[str, Any]]:
+        """Follow the background jobs that commands leave running from now on.
+
+        With keep_background_jobs, ``async for end in tool.ends()`` gives one
+        dict once every job a command left has ended, whatever its owner:
+        owner, tool ("shell"), process_id (None), command, cwd, end, exit_code
+        and signal (None: the jobs are not the host's children) and
+        elapsed_ms. A job that leaves the command's process group, such as a
+        daemon, is not followed. Call it before running the commands to
+        follow; the iteration stops once the tool closes. owner is the host's
+        key: filter by it before telling another principal.
+        """
+        return _JobEnds(self._native.ends())
+
+    async def close(self) -> bool:
+        """Permanently close the tool: stop the background jobs it follows.
+
+        Their ends are told, then ends() stops; later commands raise
+        AccessRefusedError. True means every job stopped within two seconds.
+        Dropping the tool instead leaves its jobs running, as before the tool
+        followed them.
+        """
+        return await self._native.close()
+
+    async def detach(self) -> bool:
+        """Permanently close the tool but leave the jobs it follows running, untold.
+
+        For a host that exits while a job must outlive it. True means every
+        job was let go within two seconds.
+        """
+        return await self._native.detach()
 
     async def shell(
         self,

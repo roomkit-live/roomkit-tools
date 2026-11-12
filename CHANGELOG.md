@@ -6,6 +6,14 @@ part of an existing published preview.
 
 ## Unreleased
 
+- A host is told when a background job ends, without polling it:
+  `ProcessSession.ends()` and `ShellTool.ends()` are async iterators (Rust
+  `Stream`s) of dicts (`JobEnd`: owner, tool, process_id, command, cwd, end,
+  exit_code, signal, elapsed_ms). `ShellTool` follows the jobs a command
+  leaves running with `keep_background_jobs` until their process group is
+  empty, and gains `close()`, which stops them, and `detach()`, which lets
+  them go; dropping it leaves them running, as before.
+
 - A tool's `input_schema` lists its variants under `anyOf` rather than
   `oneOf`, with the same variants: Kimi K2.7 refused the `$ref` to a `oneOf`
   in `code_outline`'s, `patch`'s and `web_fetch`'s schemas.

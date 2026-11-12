@@ -14,6 +14,8 @@
 #[forbid(unsafe_code)]
 mod capture;
 #[forbid(unsafe_code)]
+mod ends;
+#[forbid(unsafe_code)]
 mod env;
 #[forbid(unsafe_code)]
 mod journal;
@@ -28,10 +30,13 @@ mod persistent_unix;
 mod process_types;
 #[forbid(unsafe_code)]
 mod shell;
+#[forbid(unsafe_code)]
+mod shell_jobs;
 #[cfg(unix)]
 mod unix;
 
 pub use capture::CapturedOutput;
+pub use ends::{JobEnd, JobEnds, JobTool};
 pub use env::{CommandEnv, DEFAULT_INHERITED_ENV};
 pub use output::{
     OutputArchive, OutputForgetInput, OutputForgetResult, OutputLimits, OutputPage,

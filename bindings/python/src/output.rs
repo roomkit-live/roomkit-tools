@@ -232,6 +232,35 @@ impl PythonShellTool {
         })
     }
 
+    fn ends(&self) -> super::ends::PythonJobEnds {
+        super::ends::PythonJobEnds::subscribed(self.tool.ends())
+    }
+
+    fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        super::fork::ensure_unforked()?;
+        // Started synchronously: an abandoned Python future still stops the jobs.
+        let tool = self.tool.clone();
+        let worker =
+            pyo3_async_runtimes::tokio::get_runtime().spawn(async move { tool.close().await });
+        crate::runtime::future_into_py(py, async move {
+            worker
+                .await
+                .map_err(|_| ToolError::new_err("Unable to join shell cleanup"))
+        })
+    }
+
+    fn detach<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        super::fork::ensure_unforked()?;
+        let tool = self.tool.clone();
+        let worker =
+            pyo3_async_runtimes::tokio::get_runtime().spawn(async move { tool.detach().await });
+        crate::runtime::future_into_py(py, async move {
+            worker
+                .await
+                .map_err(|_| ToolError::new_err("Unable to join shell cleanup"))
+        })
+    }
+
     #[staticmethod]
     fn definition_json() -> PyResult<String> {
         serde_json::to_string(&ShellTool::definition())

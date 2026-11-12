@@ -165,9 +165,15 @@ def describe(obj: Any, package: Package, paths: dict[int, str]) -> dict[str, Spe
 
 
 def contracts(package: Package, signatures: dict[str, dict[str, Spec]]) -> dict[str, Any]:
-    """The JSON shape of every tool contract a public class returns."""
+    """The JSON shape of every tool contract a public class returns, and of
+    the contract types no tool contract holds that the package gives as dicts
+    (a job end)."""
     tools: dict[str, dict[str, str | None]] = {}
     types: dict[str, dict[str, Any]] = {}
+    native = importlib.import_module(f"{package.name}._native")
+    if hasattr(native, "contract_types_json"):
+        for name, schema in json.loads(native.contract_types_json()).items():
+            _collect(schema, types, name, name)
     for path, members in signatures.items():
         module, _, name = path.rpartition(".")
         cls = getattr(importlib.import_module(module), name)

@@ -102,6 +102,7 @@ struct SessionState {
     manager: OnceCell<ProcessSession>,
     closed: CancellationToken,
     outputs: Option<Arc<super::output::State>>,
+    ends: super::ends::Pending,
 }
 
 impl SessionState {
@@ -121,6 +122,7 @@ impl SessionState {
                 if let Some(outputs) = &self.outputs {
                     manager = manager.with_output_store(outputs.resolve().await?)?;
                 }
+                self.ends.built(&manager);
                 Ok::<_, roomkit_tools_core::ToolError>(manager)
             })
             .await?;
@@ -180,12 +182,20 @@ impl PythonProcessSession {
                 manager: OnceCell::new(),
                 closed: CancellationToken::new(),
                 outputs: outputs.map(|outputs| Arc::clone(&outputs.state)),
+                ends: super::ends::Pending::default(),
             }),
         })
     }
 
     fn is_closed(&self) -> bool {
         self.state.closed.is_cancelled()
+    }
+
+    fn ends(&self) -> super::ends::PythonJobEnds {
+        if self.state.closed.is_cancelled() {
+            return super::ends::PythonJobEnds::ended();
+        }
+        self.state.ends.subscribe()
     }
 
     fn initialize<'py>(
@@ -295,6 +305,7 @@ impl PythonProcessSession {
         // Mark closed and start the worker synchronously: cancellation or never
         // awaiting the returned Python future cannot abandon shutdown.
         self.state.closed.cancel();
+        self.state.ends.close();
         let worker = self.state.manager.get().cloned().map(|manager| {
             pyo3_async_runtimes::tokio::get_runtime().spawn(async move { manager.close().await })
         });
@@ -315,6 +326,7 @@ impl PythonProcessSession {
         // worker synchronously, so an abandoned future still lets jobs go.
         fork::ensure_unforked()?;
         self.state.closed.cancel();
+        self.state.ends.close();
         let worker = self.state.manager.get().cloned().map(|manager| {
             pyo3_async_runtimes::tokio::get_runtime().spawn(async move { manager.detach().await })
         });

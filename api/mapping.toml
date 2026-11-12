@@ -122,7 +122,8 @@ native_wrapper = { python = "__init__", decision = "luge-hitl:f13c7655 Q28" }
 tool_protocol = { trait = "Tool", members = ["definition", "handler"], decision = "roomkit-rs names table: the Tool protocol, a definition property and async handler(name, arguments) | the Tool trait, definition() -> AiTool and handler(name, arguments) -> ToolFuture; luge-hitl:588ea590 (the adapters take Python's names)" }
 # The Rust types a Python builtin stands for: the envelope a call returns
 # and a tool definition, which Python returns as dicts.
-builtins = { "roomkit_tools_core::Output" = "dict", "roomkit_tools_core::Definition" = "dict", decision = "roomkit-rs api/mapping.toml [rules.builtins]: \"roomkit::model::Metadata\" = { python = \"dict\" }" }
+# A session's job ends, a `Stream`, are Python's AsyncIterator of dicts.
+builtins = { "roomkit_tools_core::Output" = "dict", "roomkit_tools_core::Definition" = "dict", "roomkit_tools_process::JobEnds" = "AsyncIterator", decision = "roomkit-rs api/mapping.toml [rules.builtins]: \"roomkit::model::Metadata\" = { python = \"dict\" }; \"roomkit_ai::TextStream\" = { python = \"AsyncIterator\" }, a Stream" }
 # The error variants a Python builtin exception stands for, by path.
 builtin_errors = { "roomkit_tools_core::ToolError::Cancelled" = "asyncio.CancelledError", decision = "roomkit-rs api/mapping.toml [rules] builtin_errors: \"roomkit::RoomKitError::Cancelled\" = \"asyncio.CancelledError\"" }
 

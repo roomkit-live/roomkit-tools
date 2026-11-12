@@ -16,6 +16,7 @@ use tokio_util::sync::CancellationToken;
 
 mod agents;
 mod docs;
+mod ends;
 mod fork;
 mod ocr;
 mod plans;
@@ -398,6 +399,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PythonGrepTool>()?;
     module.add_class::<PythonDiffTool>()?;
     module.add_class::<output::PythonShellTool>()?;
+    module.add_class::<ends::PythonJobEnds>()?;
+    module.add_function(wrap_pyfunction!(ends::contract_types_json, module)?)?;
     module.add_class::<output::PythonOutputStore>()?;
     module.add_class::<process::PythonProcessSession>()?;
     process::install(module)?;

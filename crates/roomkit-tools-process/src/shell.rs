@@ -50,7 +50,9 @@ pub struct ShellLimits {
     /// own, instead of stopping its whole process group. A job still holding
     /// the command's pipes then writes to a drainer that discards its output
     /// and outlives the host. A timeout or a cancellation still stops every
-    /// member. Default: false.
+    /// member. The tool follows the jobs it keeps: [`ShellTool::ends`] tells
+    /// when they ended, [`ShellTool::close`] stops them and
+    /// [`ShellTool::detach`] lets them go. Default: false.
     pub keep_background_jobs: bool,
 }
 
@@ -110,6 +112,7 @@ pub struct ShellTool {
     limits: ShellLimits,
     env: Arc<CommandEnv>,
     outputs: Option<crate::OutputStore>,
+    jobs: Arc<crate::shell_jobs::ShellJobs>,
 }
 
 impl ShellTool {
@@ -143,6 +146,7 @@ impl ShellTool {
             limits: ShellLimits::default(),
             env: Arc::default(),
             outputs: None,
+            jobs: Arc::default(),
         })
     }
 
@@ -195,6 +199,32 @@ impl ShellTool {
         Ok(self)
     }
 
+    /// The ends of the background jobs that commands leave running from now
+    /// on, with [`ShellLimits::keep_background_jobs`]: one end once every job
+    /// a command left has ended, whatever its owner. A job that leaves the
+    /// command's process group, such as a daemon, is not followed. Call it
+    /// before running the commands to follow; the ends stop once the tool
+    /// closes. Filter by `owner` before telling another principal.
+    pub fn ends(&self) -> crate::JobEnds {
+        self.jobs.ends.subscribe()
+    }
+
+    /// Permanently close the tool: stop the background jobs it follows, tell
+    /// their ends, then end [`Self::ends`]. Every clone shares this state;
+    /// later commands are refused. Returns whether every job stopped within
+    /// two seconds. Dropping the tool instead leaves its jobs running, as
+    /// before the tool followed them.
+    pub async fn close(&self) -> bool {
+        self.jobs.close(false).await
+    }
+
+    /// Permanently close the tool but leave the background jobs it follows
+    /// running, untold, as when the host exits and they must outlive it.
+    /// Returns whether every job was let go within two seconds.
+    pub async fn detach(&self) -> bool {
+        self.jobs.close(true).await
+    }
+
     /// Schemas derived from the actual input and result types.
     pub fn definition() -> Definition {
         Definition::new::<ShellInput, ShellResult>(
@@ -244,6 +274,9 @@ impl ShellTool {
         if cancel.is_cancelled() {
             return Err(ToolError::Cancelled);
         }
+        if self.jobs.is_closed() {
+            return Err(ToolError::AccessRefused("shell tool is closed".into()));
+        }
         if input.command.trim().is_empty() || input.command.contains('\0') {
             return Err(ToolError::InvalidInput(
                 "command must be nonempty and contain no NUL".into(),
@@ -281,6 +314,9 @@ impl ShellTool {
                     .outputs
                     .as_ref()
                     .map(|store| (store.clone(), owner.map(str::to_owned))),
+                owner: owner.map(str::to_owned),
+                jobs: Arc::clone(&self.jobs),
+                started: std::time::Instant::now(),
             };
             tokio::spawn(crate::unix::run(foreground, child_cancel))
                 .await

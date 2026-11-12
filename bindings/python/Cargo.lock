@@ -1316,6 +1316,7 @@ dependencies = [
 name = "roomkit-tools-process"
 version = "0.1.0-alpha.16"
 dependencies = [
+ "futures-core",
  "roomkit-tools-core",
  "rustix",
  "schemars",
@@ -1329,6 +1330,7 @@ dependencies = [
 name = "roomkit-tools-python"
 version = "0.1.0-alpha.16"
 dependencies = [
+ "futures-core",
  "pyo3",
  "pyo3-async-runtimes",
  "roomkit-tools-agents",
@@ -1342,6 +1344,7 @@ dependencies = [
  "roomkit-tools-process",
  "roomkit-tools-search",
  "roomkit-tools-web",
+ "schemars",
  "serde",
  "serde_json",
  "tokio",

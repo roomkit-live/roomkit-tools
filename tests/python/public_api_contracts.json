@@ -497,6 +497,25 @@
     "mime_type"
    ]
   },
+  "JobEnd": {
+   "fields": [
+    "command",
+    "cwd",
+    "elapsed_ms",
+    "end",
+    "exit_code",
+    "owner",
+    "process_id",
+    "signal",
+    "tool"
+   ]
+  },
+  "JobTool": {
+   "values": [
+    "process",
+    "shell"
+   ]
+  },
   "ListInput": {
    "fields": [
     "limit",

@@ -51,6 +51,9 @@ thiserror = "2"
 # Runtime dependencies belong to the tools, never the contracts crate.
 tokio = { version = "1", default-features = false }
 tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
+# The `Stream` a session's job ends are read as, Python's AsyncIterator;
+# already in the tree through tokio-util.
+futures-core = { version = "0.3", default-features = false }
 # Atomic staged writes in filesystem tools; also test/example fixtures.
 tempfile = "3"
 # Unix sessions and process-group signals. The only unsafe code is the

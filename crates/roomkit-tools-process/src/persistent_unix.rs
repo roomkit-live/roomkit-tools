@@ -22,6 +22,8 @@ pub(crate) struct Launch<'a> {
     pub(crate) command: &'a str,
     pub(crate) cwd: &'a Path,
     pub(crate) env: &'a CommandEnv,
+    /// Who is told the job's end.
+    pub(crate) ends: &'a Arc<crate::ends::Ends>,
 }
 
 pub(crate) fn launch(
@@ -84,7 +86,7 @@ fn adopt(
         stdout,
         stderr,
         Arc::clone(&entry),
-        done,
+        (done, Arc::clone(request.ends)),
         (stdout_archive, stderr_archive, archive_timeout),
     ));
     Ok((entry, status))
@@ -139,7 +141,7 @@ async fn run(
     stdout: ChildStdout,
     stderr: ChildStderr,
     entry: Arc<Entry>,
-    done: watch::Sender<bool>,
+    (done, ends): (watch::Sender<bool>, Arc<crate::ends::Ends>),
     archives: (
         Option<crate::output::Sink>,
         Option<crate::output::Sink>,
@@ -171,7 +173,25 @@ async fn run(
     settle_archives(&entry, archive_timeout).await;
     let error = failure(&execution, &stopped, reaped.as_ref(), drained);
     publish(&entry, end, reaped, drained, error).await;
+    // Told before `done`: a close that waited for the job has told its end.
+    ends.send(&job_end(&entry).await);
     done.send_replace(true);
+}
+
+/// The end of `entry`'s job, which finished.
+async fn job_end(entry: &Entry) -> crate::JobEnd {
+    let status = entry.record.lock().await.status.clone();
+    crate::JobEnd {
+        owner: entry.owner.clone(),
+        tool: crate::JobTool::Process,
+        process_id: Some(status.process_id),
+        command: entry.command.clone(),
+        cwd: status.cwd,
+        end: status.end.unwrap_or(ProcessEnd::Failed),
+        exit_code: status.exit_code,
+        signal: status.signal,
+        elapsed_ms: crate::ends::millis(entry.finished.get().copied().unwrap_or_default()),
+    }
 }
 
 /// Let a detached job go, still running: its group is no longer stopped,
@@ -348,6 +368,7 @@ mod tests {
             command: "sleep 30",
             cwd: root.path(),
             env: &env,
+            ends: &Arc::new(crate::ends::Ends::new()),
         };
         let shell = crate::unix::shell_command(request.command, request.cwd, &env, Stdio::piped());
         let (child, mut group) = crate::unix::spawn(shell, "spawn").unwrap();

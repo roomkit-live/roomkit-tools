@@ -111,9 +111,9 @@ impl Group {
     }
 
     /// Leave every member running: the group is no longer stopped, by
-    /// [`Self::stop`] or on drop.
-    pub(crate) fn release(&mut self) {
-        self.pid = None;
+    /// [`Self::stop`] or on drop. Returns its id, unless already stopped.
+    pub(crate) fn release(&mut self) -> Option<Pid> {
+        self.pid.take()
     }
 
     /// Send SIGKILL to every member at once; there is no graceful phase.
@@ -153,6 +153,12 @@ pub(crate) struct Foreground {
     pub(crate) timeout_ms: u64,
     /// The store and the archives' owner, `None` for the standalone one.
     pub(crate) outputs: Option<(crate::OutputStore, Option<String>)>,
+    /// The caller's trusted owner, `None` for the standalone one.
+    pub(crate) owner: Option<String>,
+    /// Who follows the jobs the command leaves running.
+    pub(crate) jobs: Arc<crate::shell_jobs::ShellJobs>,
+    /// When the command started: its jobs' ends count from it.
+    pub(crate) started: std::time::Instant,
 }
 
 pub(crate) async fn run(
@@ -223,7 +229,9 @@ async fn supervise(
         return Err(ToolError::Cancelled);
     }
     if kept {
-        group.release();
+        if let Some(pgid) = group.release() {
+            follow(&foreground, pgid);
+        }
         // A job still holding a pipe writes to a drainer from now on.
         if !output_complete {
             hand_off(stdout, stderr);
@@ -243,6 +251,23 @@ async fn supervise(
         stdout: out.finish(),
         stderr: err.finish(),
     }))
+}
+
+/// Follow the group `pgid` that `foreground` left running, if any job is left
+/// in it, so that its end is told.
+fn follow(foreground: &Foreground, pgid: Pid) {
+    let end = crate::JobEnd {
+        owner: foreground.owner.clone(),
+        tool: crate::JobTool::Shell,
+        process_id: None,
+        command: foreground.command.clone(),
+        cwd: foreground.shown_cwd.clone(),
+        end: crate::ProcessEnd::Exited,
+        exit_code: None,
+        signal: None,
+        elapsed_ms: 0,
+    };
+    foreground.jobs.follow(pgid, end, foreground.started);
 }
 
 /// Hand the pipes of a command whose jobs run on to drainers that outlive the
@@ -383,6 +408,9 @@ mod tests {
             limits: ShellLimits::default(),
             timeout_ms: 10_000,
             outputs: None,
+            owner: None,
+            jobs: Arc::default(),
+            started: std::time::Instant::now(),
         };
         let command = shell_command(
             &foreground.command,
@@ -419,6 +447,9 @@ mod tests {
             limits: ShellLimits::default(),
             timeout_ms,
             outputs: None,
+            owner: None,
+            jobs: Arc::default(),
+            started: std::time::Instant::now(),
         };
         let shell = shell_command(
             &foreground.command,

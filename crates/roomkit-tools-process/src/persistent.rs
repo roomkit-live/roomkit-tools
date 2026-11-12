@@ -34,6 +34,7 @@ struct Inner {
     detached: CancellationToken,
     outputs: Option<crate::OutputStore>,
     changes: watch::Sender<()>,
+    ends: Arc<crate::ends::Ends>,
 }
 
 impl Drop for Inner {
@@ -110,6 +111,7 @@ impl ProcessSession {
                 detached: CancellationToken::new(),
                 outputs: None,
                 changes: watch::channel(()).0,
+                ends: Arc::new(crate::ends::Ends::new()),
             }),
         })
     }
@@ -125,6 +127,15 @@ impl ProcessSession {
     /// bytes do not trigger notifications; page output only when needed.
     pub fn subscribe(&self) -> watch::Receiver<()> {
         self.inner.changes.subscribe()
+    }
+
+    /// The ends of the jobs that finish from now on, whatever their owner:
+    /// an exit, a timeout, a stop or a failure. Call it before starting the
+    /// jobs to follow; an end before the call is not told. A detached job is
+    /// let go, not ended, and is not told. The ends stop once the session
+    /// closes. Filter by `owner` before telling another principal.
+    pub fn ends(&self) -> crate::JobEnds {
+        self.inner.ends.subscribe()
     }
 
     /// Inspect all retained jobs for the owning host, including completed jobs,
@@ -310,6 +321,7 @@ impl ProcessSession {
                 command: &input.command,
                 cwd: &cwd,
                 env: &self.inner.env,
+                ends: &self.inner.ends,
             };
             let (entry, status) = crate::persistent_unix::launch(
                 &request,
@@ -482,7 +494,9 @@ impl ProcessSession {
             .iter()
             .map(|(id, entry)| (id.clone(), Arc::clone(entry)))
             .collect();
-        self.finish_close(entries).await
+        let finished = self.finish_close(entries).await;
+        self.inner.ends.close();
+        finished
     }
 
     /// Permanently close the session but leave its running processes
