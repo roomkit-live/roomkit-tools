@@ -20,6 +20,7 @@ from .commands import (
     roomkit_owner,
 )
 from .docs import DocsList, DocsRead, DocsSearch
+from .ends import notify_job_ends
 from .files import CodeOutline, Diff, Glob, Grep, List, Read
 from .images import Ocr, ViewImage
 from .mutations import Edit, Patch, Write
@@ -62,5 +63,6 @@ __all__ = [
     "WebSearch",
     "Write",
     "ask_user_handler",
+    "notify_job_ends",
     "roomkit_owner",
 ]

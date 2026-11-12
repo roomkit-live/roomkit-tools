@@ -53,7 +53,18 @@ class Shell(_ToolAdapter[ShellTool]):
     _tool_type = ShellTool
 
     async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        owner = None if self._tool._outputs is None else _roomkit_owner("shell archive")
+        # Archives need the caller; without them, a call outside RoomKit runs
+        # standalone, and one inside files its kept jobs under its caller,
+        # whom their end is told to.
+        if self._tool._outputs is not None:
+            owner = _roomkit_owner("shell archive")
+        else:
+            from roomkit.core.exceptions import ToolRefusedError
+
+            try:
+                owner = _roomkit_owner("shell")
+            except ToolRefusedError:
+                owner = None
         return await self._tool._call(arguments, owner)
 
 

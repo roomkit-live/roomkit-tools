@@ -69,7 +69,16 @@ impl Tool for Shell {
     fn handler(&self, name: String, arguments: Metadata) -> ToolFuture {
         let tool = Arc::clone(&self.tool);
         let archives = tool.has_output_store();
-        let owner = move || archives.then(|| current_owner("shell archive")).transpose();
+        // Archives need the caller; without them, a call outside RoomKit runs
+        // standalone, and one inside files its kept jobs under its caller,
+        // whom their end is told to.
+        let owner = move || {
+            if archives {
+                current_owner("shell archive").map(Some)
+            } else {
+                Ok(current_owner("shell").ok())
+            }
+        };
         serve(
             "shell",
             name,

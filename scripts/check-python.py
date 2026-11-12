@@ -103,6 +103,7 @@ ROOMKIT_EXAMPLES = [
     ("roomkit_agents.py", "--dynamic"),
     ("roomkit_agents.py", "--dynamic", "--parallel"),
     ("roomkit_output.py",),
+    ("roomkit_job_ends.py",),
     ("roomkit_web.py",),
     ("roomkit_search.py",),
     ("roomkit_search.py", "--service", "fixture-openai"),

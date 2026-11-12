@@ -1,7 +1,7 @@
 {
  "rustdoc": "1.99.1 (58cf8f9c3 2026-10-13)",
  "counts": {
-  "items": 31,
+  "items": 32,
   "methods": 29,
   "associated_constants": 0,
   "trait_methods": 0,
@@ -839,6 +839,29 @@
      ],
      "returns": "Result<HumanInputToolHandler, AiError>",
      "where": null
+    }
+   },
+   {
+    "path": "roomkit_tools_roomkit::notify_job_ends",
+    "kind": "fn",
+    "decl": "pub async fn notify_job_ends<S>(kit: &RoomKit<S>, ends: JobEnds)where S: ConversationStore + Send + Sync + 'static,",
+    "non_exhaustive": false,
+    "signature": {
+     "name": "notify_job_ends",
+     "async": true,
+     "receiver": null,
+     "params": [
+      {
+       "name": "kit",
+       "type": "&RoomKit<S>"
+      },
+      {
+       "name": "ends",
+       "type": "JobEnds"
+      }
+     ],
+     "returns": null,
+     "where": "S: ConversationStore + Send + Sync + 'static,"
     }
    },
    {

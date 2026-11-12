@@ -9,6 +9,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+futures-core.workspace = true
 roomkit-tools-docs = { workspace = true, features = ["files"] }
 roomkit-tools-plans.workspace = true
 roomkit-tools-code.workspace = true
@@ -59,6 +60,10 @@ path = "patch_hours.rs"
 [[example]]
 name = "process_session"
 path = "process_session.rs"
+
+[[example]]
+name = "job_ends"
+path = "job_ends.rs"
 
 [[example]]
 name = "read_output"

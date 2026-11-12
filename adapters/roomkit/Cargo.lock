@@ -1426,6 +1426,7 @@ dependencies = [
 name = "roomkit-tools-process"
 version = "0.1.0-alpha.16"
 dependencies = [
+ "futures-core",
  "roomkit-tools-core",
  "rustix",
  "schemars",
@@ -1440,6 +1441,7 @@ name = "roomkit-tools-roomkit"
 version = "0.1.0-alpha.16"
 dependencies = [
  "base64",
+ "futures-core",
  "roomkit",
  "roomkit-ai",
  "roomkit-tools-agents",
@@ -1458,6 +1460,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
+ "tracing",
 ]
 
 [[package]]

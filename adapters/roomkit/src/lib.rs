@@ -30,9 +30,11 @@ pub use docs::{DocsList, DocsRead, DocsSearch};
 mod image;
 #[cfg(feature = "image")]
 pub use image::ViewImage;
+mod ends;
 mod output;
 mod process;
 pub use ask::ask_user_handler;
+pub use ends::notify_job_ends;
 pub use output::{OutputForget, OutputRead, Shell};
 
 pub use process::{ProcessRead, ProcessStart, ProcessStatus, ProcessStop, ProcessWrite};

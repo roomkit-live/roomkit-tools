@@ -13,6 +13,10 @@ part of an existing published preview.
   leaves running with `keep_background_jobs` until their process group is
   empty, and gains `close()`, which stops them, and `detach()`, which lets
   them go; dropping it leaves them running, as before.
+  `notify_job_ends(kit, ends)` tells each RoomKit agent the end of a job it
+  started, as an instruction that gives it a turn or is read by its running
+  turn; a stop is not told. The `Shell` adapter files a call's jobs under its
+  caller even without an output store.
 
 - A tool's `input_schema` lists its variants under `anyOf` rather than
   `oneOf`, with the same variants: Kimi K2.7 refused the `$ref` to a `oneOf`

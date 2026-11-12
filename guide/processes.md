@@ -209,6 +209,39 @@ See [the standalone process example](../examples/run_process.py), which verifies
 exact newline bytes, paged reads with open stdin, explicit EOF and normal exit:
 `.venv/bin/python examples/run_process.py`.
 
+## Told when a background job ends
+
+A host learns that a job ended without polling it. `processes.ends()` and,
+with `keep_background_jobs`, `shell.ends()` are async iterators (Rust
+`Stream`s): each gives one dict per job that ended from the call on, whatever
+its owner, with `owner`, `tool` (`process` or `shell`), `process_id`,
+`command`, `cwd`, `end` (`exited`, `timed_out`, `stopped` or `failed`),
+`exit_code`, `signal` and `elapsed_ms`. Call it before the jobs start: an end
+before the call is not told. The iteration stops once the session or tool
+closes; a detached job is let go, not ended, and is not told. `owner` is the
+host's key: filter by it before telling anyone.
+
+A shell command's background jobs are followed while their process group has a
+member left, checked every 250 ms, and are told once, when the last one ends.
+They are not the host's children, so `exit_code` and `signal` are null. A job
+that leaves the group, such as a daemon (`setsid`), is not followed. The
+followed jobs stop with `await shell.close()`, which tells them `stopped`, or
+are let go untold with `await shell.detach()`; both refuse later commands.
+Dropping the tool leaves them running, as before it followed them.
+
+To tell RoomKit agents, run `notify_job_ends(kit, processes.ends())`, and one for
+the shell's ends, in a task of their own. Each end of a job an agent started
+through the process or shell adapters reaches that agent as an instruction,
+which gives it a turn, or is read by the turn it is running:
+
+```text
+Background process p1 (`sleep 0.5`) exited with code 0 after 504ms. Read its output with process_read.
+```
+
+A stop is not told: whoever stopped the job knows. See
+[the RoomKit example](../examples/roomkit_job_ends.py):
+`.venv/bin/python examples/roomkit_job_ends.py`.
+
 ## Optional command output retention
 
 Pass one host-owned `OutputStore` to the command tools that need disk copies.

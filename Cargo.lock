@@ -1479,6 +1479,7 @@ name = "roomkit-tools-examples"
 version = "0.1.0-alpha.16"
 dependencies = [
  "base64",
+ "futures-core",
  "roomkit-tools-agents",
  "roomkit-tools-code",
  "roomkit-tools-core",

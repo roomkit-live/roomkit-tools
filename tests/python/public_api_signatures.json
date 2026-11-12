@@ -446,6 +446,9 @@
   "roomkit_tools.ask_user_handler": {
     "__call__": ["def", "timeout"]
   },
+  "roomkit_tools.notify_job_ends": {
+    "__call__": ["async def", "kit", "ends"]
+  },
   "roomkit_tools.ocr.BoundOcrBackend": {
     "call": ["async def", "arguments"]
   },

@@ -82,6 +82,7 @@
     "Write",
     "WriteTool",
     "ask_user_handler",
+    "notify_job_ends",
     "roomkit_owner"
   ],
   "roomkit_tools.agents": [
@@ -176,6 +177,7 @@
     "WebSearch",
     "Write",
     "ask_user_handler",
+    "notify_job_ends",
     "roomkit_owner"
   ],
   "roomkit_tools.roomkit.agents": [
@@ -201,6 +203,9 @@
     "DocsList",
     "DocsRead",
     "DocsSearch"
+  ],
+  "roomkit_tools.roomkit.ends": [
+    "notify_job_ends"
   ],
   "roomkit_tools.roomkit.files": [
     "CodeOutline",

@@ -72,6 +72,7 @@ from .roomkit import (
     WebSearch,
     Write,
     ask_user_handler,
+    notify_job_ends,
     roomkit_owner,
 )
 from .search import WebSearchTool
@@ -161,5 +162,6 @@ __all__ = [
     "WebSearchTool",
     "WebFetchTool",
     "ask_user_handler",
+    "notify_job_ends",
     "roomkit_owner",
 ]
