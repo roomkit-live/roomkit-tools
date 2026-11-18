@@ -49,12 +49,6 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "base64"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
-
-[[package]]
-name = "base64"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
@@ -615,7 +609,7 @@ version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddc03d96684f9226b8a787cdb71488417b53ab5ea8fdb1dac946cb9431cc8bff"
 dependencies = [
- "base64 0.23.1",
+ "base64",
  "bytes",
  "futures-channel",
  "futures-util",
@@ -1253,7 +1247,7 @@ version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
- "base64 0.23.1",
+ "base64",
  "bytes",
  "futures-core",
  "http",
@@ -1298,7 +1292,7 @@ dependencies = [
 [[package]]
 name = "roomkit"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=93b5fa1b046fa416953b3870119b8ac1562c3e6e#93b5fa1b046fa416953b3870119b8ac1562c3e6e"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=cbacf852e370b7163266d900c381ce646759df66#cbacf852e370b7163266d900c381ce646759df66"
 dependencies = [
  "futures-core",
  "getrandom 0.4.3",
@@ -1317,9 +1311,9 @@ dependencies = [
 [[package]]
 name = "roomkit-ai"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=93b5fa1b046fa416953b3870119b8ac1562c3e6e#93b5fa1b046fa416953b3870119b8ac1562c3e6e"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=cbacf852e370b7163266d900c381ce646759df66#cbacf852e370b7163266d900c381ce646759df66"
 dependencies = [
- "base64 0.22.1",
+ "base64",
  "fancy-regex",
  "futures-core",
  "roomkit",
@@ -1338,7 +1332,7 @@ dependencies = [
 [[package]]
 name = "roomkit-core"
 version = "0.1.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=93b5fa1b046fa416953b3870119b8ac1562c3e6e#93b5fa1b046fa416953b3870119b8ac1562c3e6e"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=cbacf852e370b7163266d900c381ce646759df66#cbacf852e370b7163266d900c381ce646759df66"
 dependencies = [
  "jiff",
  "serde",
@@ -1431,7 +1425,7 @@ dependencies = [
 name = "roomkit-tools-image"
 version = "0.1.0-alpha.16"
 dependencies = [
- "base64 0.23.1",
+ "base64",
  "image",
  "roomkit-tools-core",
  "schemars",
@@ -1484,7 +1478,7 @@ dependencies = [
 name = "roomkit-tools-roomkit"
 version = "0.1.0-alpha.16"
 dependencies = [
- "base64 0.23.1",
+ "base64",
  "futures-core",
  "roomkit",
  "roomkit-ai",
