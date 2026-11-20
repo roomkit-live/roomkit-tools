@@ -291,14 +291,13 @@ part of an existing published preview.
   only those steps change, the others and their order are kept, and the
   result's `text` gives the new revision and the changed steps alone: changing
   one status of an 18-step plan no longer sends the whole list, and no longer
-  returns it to a model that reads the `text` alone, as roomkit-code's does
-  (RoomKit's own adapters still hand it the whole envelope). `steps` still
-  replaces the whole list; a call gives one or the other. `PlanUpdateTool`
-  applies them to the plan its backend reads, so a backend receives the
-  complete `steps` as before; `MemoryPlanBackend.update` also takes
-  `step_changes`. The `text` of every plan and documentation result is now
-  lines a model reads (a plan's numbered steps, a document's numbered lines)
-  rather than the JSON of `data`, which is unchanged.
+  returns it to a model that reads the `text` alone, as RoomKit's adapters now
+  give it. `steps` still replaces the whole list; a call gives one or the
+  other. `PlanUpdateTool` applies them to the plan its backend reads, so a
+  backend receives the complete `steps` as before; `MemoryPlanBackend.update`
+  also takes `step_changes`. The `text` of every plan and documentation
+  result is now lines a model reads (a plan's numbered steps, a document's
+  numbered lines) rather than the JSON of `data`, which is unchanged.
 
 - `process_read` takes `wait_ms`: the read first waits, up to that many
   milliseconds, until the process ends or writes past the given offsets, so an
@@ -380,9 +379,18 @@ part of an existing published preview.
   does (`state=finished, end=exited`, `has_more=true`), with no `Some(...)`. An
   archive's line comes before what the command wrote, and is left out when it
   holds nothing and nothing went wrong.
-- Through RoomKit, the shell gives `{data, text}` like every other tool, so a
-  host can show the model the text alone and keep the data for its display: an
-  `ON_TOOL_CALL` hook replaces the result and leaves the structured copy.
+- Through RoomKit, a host's model reads a tool's `text` alone, where it read
+  the whole `{data, text}` envelope again on every later request: a
+  `plan_update` gave it 1,245 bytes, of which the text was 94. The `data` goes
+  to the host as the call's structured content, `{"data": ...}`: an
+  `ON_TOOL_CALL` hook reads it as `event.structured_content`, and the call's
+  end event carries it; a handler called outside a RoomKit tool call returns
+  the text alone. Python's and Rust's adapters do so for every tool, the shell
+  included, which gave its `data` alone, but `view_image`, whose text and image
+  parts are unchanged. Refusals, failures and cancellation are unchanged. A
+  host that read the data from the result reads it from the structured
+  content; a hook that already split the envelope, as roomkit-code's does,
+  finds the text alone and leaves it.
 - The RoomKit Rust adapter follows roomkit-rs v0.2.0 (4f271c6), which changes no
   existing adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
   requests also declare the kit's `read_stored_result`, which pages through an

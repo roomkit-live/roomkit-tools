@@ -24,7 +24,7 @@ use roomkit::model::HookResult;
 use roomkit::model::Metadata;
 use roomkit::model::hook::AllowOptions;
 use roomkit::{HookExecution, HookOptions, HookTrigger, RoomKit, RoomKitOptions, ToolCallEvent};
-use roomkit_ai::{Tool, ToolError, ToolResult};
+use roomkit_ai::{AiToolResultPart, Tool, ToolError, ToolResult};
 use roomkit_tools_fs::{ReadLimits, ReadTool};
 use roomkit_tools_image::{ViewImageLimits, ViewImageTool};
 use roomkit_tools_roomkit::{Read, ViewImage};
@@ -117,9 +117,9 @@ async fn each_native_error_gives_the_handler_python_s_class_and_words() {
     assert!(differences.is_empty(), "{differences:#?}");
 }
 
-/// What the model and the host's `ON_TOOL_CALL` hook read of a case's call,
-/// through a real kit, as its fixture writes it.
-async fn read_through_a_kit(root: &Path, case: &Value) -> Value {
+/// What the model reads of a case's call, through a real kit, and the call
+/// as the host's `ON_TOOL_CALL` hook reads it.
+async fn through_a_kit(root: &Path, case: &Value) -> (AiToolResultPart, ToolCallEvent) {
     let name = case["tool"].as_str().unwrap();
     let seen = Arc::new(Mutex::new(None));
     let kit = RoomKit::new(RoomKitOptions::default());
@@ -145,6 +145,13 @@ async fn read_through_a_kit(root: &Path, case: &Value) -> Value {
         .unwrap_or_else(PoisonError::into_inner)
         .take()
         .expect("the hook observes the call");
+    (read, event)
+}
+
+/// What the model and the host's `ON_TOOL_CALL` hook read of a case's
+/// failed call, as its fixture writes it.
+async fn read_through_a_kit(root: &Path, case: &Value) -> Value {
+    let (read, event) = through_a_kit(root, case).await;
     let ToolResult::Text(model_reads) = read.result else {
         panic!("the model reads a failed call as text: {:?}", read.result);
     };
@@ -154,6 +161,7 @@ async fn read_through_a_kit(root: &Path, case: &Value) -> Value {
         "model_reads": model_reads,
         "error_detail": event.error_detail,
         "refused": event.refused,
+        "structured_content": event.structured_content,
     })
 }
 
@@ -167,6 +175,7 @@ async fn each_native_error_reaches_the_model_and_the_host_in_python_s_words() {
             "model_reads": case["model_reads"],
             "error_detail": case["error_detail"],
             "refused": case["refused"],
+            "structured_content": case["structured_content"],
         });
         let actual = read_through_a_kit(root.path(), case).await;
         if actual != expected {
@@ -179,4 +188,23 @@ async fn each_native_error_reaches_the_model_and_the_host_in_python_s_words() {
         }
     }
     assert!(differences.is_empty(), "{differences:#?}");
+}
+
+/// A served call gives the model the tool's text alone, and the host's hook
+/// its data as the call's structured content, in Python's words.
+#[tokio::test]
+async fn a_served_call_gives_the_model_its_text_and_the_host_its_data() {
+    let fixture = fixture();
+    let root = workspace(&fixture);
+    for case in fixture["served"].as_array().unwrap() {
+        let (read, event) = through_a_kit(root.path(), case).await;
+        let model_reads = case["model_reads"].as_str().unwrap();
+        assert!(!read.is_error && !event.is_error, "{case}");
+        assert_eq!(read.result, ToolResult::Text(model_reads.to_owned()));
+        assert_eq!(event.result, Some(json!(model_reads)));
+        assert_eq!(
+            event.structured_content.as_ref(),
+            Some(&case["structured_content"])
+        );
+    }
 }

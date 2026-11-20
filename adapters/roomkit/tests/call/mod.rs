@@ -15,11 +15,14 @@ use roomkit::{
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{
     AiChannel, AiChannelOptions, AiTool, Tool, ToolEntry, ToolError, ToolFuture, ToolResult,
+    current_tool_call,
 };
 use serde_json::Value;
 
-/// What a tool's handler answered.
-pub type Answer = Result<ToolResult, ToolError>;
+/// What a tool's handler answered: on success, the result the model reads
+/// and the `data` of the call's structured content, `{"data": ...}`, which
+/// the host reads.
+pub type Answer = Result<(ToolResult, Value), ToolError>;
 
 /// `tool`, keeping a copy of what its handler answers.
 struct Recording<T> {
@@ -37,10 +40,25 @@ impl<T: Tool> Tool for Recording<T> {
         let answer = Arc::clone(&self.answer);
         Box::pin(async move {
             let answered = call.await;
-            *answer.lock().unwrap_or_else(PoisonError::into_inner) = Some(answered.clone());
+            let recorded = answered.clone().map(|result| (result, data_left()));
+            *answer.lock().unwrap_or_else(PoisonError::into_inner) = Some(recorded);
             answered
         })
     }
+}
+
+/// The data a served call left the host as its call's structured content.
+#[expect(
+    clippy::expect_used,
+    reason = "a call outside the adapters' contract must fail the test"
+)]
+fn data_left() -> Value {
+    let mut copy = current_tool_call()
+        .and_then(|call| call.structured_content.get())
+        .expect("a served call leaves its data on its call")
+        .to_metadata();
+    assert_eq!(copy.len(), 1, "the copy holds the data alone: {copy:?}");
+    copy.remove("data").expect("the copy holds the data")
 }
 
 /// What `tool`'s handler answered the call of `name` with `arguments`, made

@@ -227,6 +227,8 @@ roomkit-tools-fs = { git = "https://github.com/roomkit-live/roomkit-tools", rev 
   explicit objects the host creates, shares between tools and closes.
 - **Results carry both forms.** `data` is for the host; `text` is for the model.
   Pagination, truncation and omitted bytes appear in `data`, never only in prose.
+  Through RoomKit, the model reads the `text` alone, and the host gets the
+  `data` as the call's structured content.
 - **Errors are values the host can classify.** A refused path, a limit, an
   unsupported file and an I/O failure are different error types; a command that
   exits non-zero or times out is a normal result.

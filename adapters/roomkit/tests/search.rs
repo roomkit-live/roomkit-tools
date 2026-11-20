@@ -1,5 +1,7 @@
 //! Generic search adapter preserves provider output and cancels dropped calls.
 #![expect(clippy::unwrap_used, reason = "test assertions")]
+mod served;
+
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_roomkit::WebSearch;
@@ -52,15 +54,12 @@ async fn search_is_independently_selectable_and_dropping_a_call_cancels_it() {
         tools.handler("web_search".into(), query("")).await,
         Err(ToolError::Refused(_))
     ));
-    let ToolResult::Json(result) = tools
-        .handler("web_search".into(), query("query"))
+    let (text, result) = served::call(&tools, "web_search", query("query"))
         .await
-        .unwrap()
-    else {
-        panic!("expected JSON")
-    };
-    assert_eq!(result["data"]["provider"], "custom");
-    assert_eq!(result["data"]["payload"]["results"], json!([]));
+        .unwrap();
+    assert!(matches!(text, ToolResult::Text(_)), "{text:?}");
+    assert_eq!(result["provider"], "custom");
+    assert_eq!(result["payload"]["results"], json!([]));
     // RoomKit cancels a call by dropping it: the backend's token is cancelled.
     let mut pending = tools.handler("web_search".into(), query("wait"));
     let token = tokio::time::timeout(std::time::Duration::from_secs(2), async {
@@ -103,21 +102,18 @@ async fn native_openai_answer_preserves_citations_and_usage_through_roomkit() {
     )
     .unwrap();
     let tools = WebSearch::new(WebSearchTool::new(Arc::new(backend)));
-    let ToolResult::Json(result) = tools
-        .handler("web_search".into(), query("query"))
+    let (text, result) = served::call(&tools, "web_search", query("query"))
         .await
-        .unwrap()
-    else {
-        panic!("expected JSON")
+        .unwrap();
+    assert_eq!(result["payload"]["kind"], "answer");
+    assert_eq!(result["payload"]["citations"][0]["end"], 9);
+    assert_eq!(result["usage"]["search_requests"], 1);
+    let ToolResult::Text(text) = text else {
+        panic!("expected the text alone, got {text:?}")
     };
-    assert_eq!(result["data"]["payload"]["kind"], "answer");
-    assert_eq!(result["data"]["payload"]["citations"][0]["end"], 9);
-    assert_eq!(result["data"]["usage"]["search_requests"], 1);
     assert!(
-        result["text"]
-            .as_str()
-            .unwrap()
-            .contains("[source 1](<https://example.com/guide>)")
+        text.contains("[source 1](<https://example.com/guide>)"),
+        "{text}"
     );
     assert_eq!(server.seen.lock().unwrap().len(), 1);
 }

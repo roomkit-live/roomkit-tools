@@ -3,6 +3,7 @@
 #![expect(clippy::unwrap_used, reason = "a broken fixture must fail the test")]
 
 mod common;
+mod served;
 
 use std::sync::Arc;
 
@@ -30,7 +31,7 @@ async fn only_this_tool<T: Tool>(tool: T, name: &str, input: Value) {
     ));
     assert!(matches!(
         tool.handler(name.into(), arguments(&input)).await,
-        Ok(ToolResult::Json(_))
+        Ok(ToolResult::Text(_))
     ));
 }
 
@@ -67,14 +68,14 @@ async fn grep_context_reaches_roomkit_without_changing_match_pagination() {
         GrepTool::definition().input_schema
     );
     let input = json!({"pattern":"hit", "context_before":1, "context_after":1, "limit":1});
-    let ToolResult::Json(result) = grep
-        .handler("grep".into(), arguments(&input))
+    let (text, result) = served::call(&grep, "grep", arguments(&input))
         .await
-        .unwrap()
-    else {
-        panic!("expected JSON")
-    };
-    let found = &result["data"]["matches"][0];
+        .unwrap();
+    assert_eq!(
+        text,
+        ToolResult::Text("\"notes\"-1- first\n\"notes\":2: hit\n\"notes\"-3- last\n".into())
+    );
+    let found = &result["matches"][0];
     assert_eq!(found["line"], 2);
     assert_eq!(
         found["context_before"][0],
@@ -84,11 +85,31 @@ async fn grep_context_reaches_roomkit_without_changing_match_pagination() {
         found["context_after"][0],
         json!({"number":3, "text":"last"})
     );
-    assert!(result["data"]["next_offset"].is_null());
-    assert_eq!(result["data"]["truncated"], false);
+    assert!(result["next_offset"].is_null());
+    assert_eq!(result["truncated"], false);
 }
 
-async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>) {
+/// The outcome of each call `chat` saw end, and the data it received of each
+/// (null for none).
+fn ended(chat: &RecordingTransport) -> (Vec<ToolCallOutcome>, Vec<Value>) {
+    chat.deliveries()
+        .iter()
+        .filter(|delivery| delivery.event.r#type == EventType::ToolCallEnd)
+        .filter_map(|delivery| {
+            if let EventContent::ToolCall(call) = &delivery.event.content {
+                let copy = call.structured_content.as_ref();
+                let data = copy.map_or(Value::Null, |copy| copy["data"].clone());
+                Some((call.outcome?, data))
+            } else {
+                None
+            }
+        })
+        .unzip()
+}
+
+/// What the model read of each call, each call's outcome, and the data the
+/// chat received of each (null for none).
+async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>, Vec<Value>) {
     let root = tempfile::tempdir().unwrap();
     std::fs::create_dir(root.path().join("info")).unwrap();
     std::fs::write(
@@ -175,47 +196,39 @@ async fn scenario(block_list: bool) -> (Vec<String>, Vec<ToolCallOutcome>) {
         .filter(|message| message.tool_result().is_some())
         .map(roomkit_ai::AiMessage::text)
         .collect();
-    let outcomes = chat
-        .deliveries()
-        .iter()
-        .filter(|delivery| delivery.event.r#type == EventType::ToolCallEnd)
-        .filter_map(|delivery| {
-            if let EventContent::ToolCall(call) = &delivery.event.content {
-                call.outcome
-            } else {
-                None
-            }
-        })
-        .collect();
+    let (outcomes, data) = ended(&chat);
     assert!(
         chat.texts()
             .contains(&"On Saturday we open from 08:30 to 16:00.".to_owned())
     );
     kit.close().await.unwrap();
-    (results, outcomes)
+    (results, outcomes, data)
 }
 
 #[tokio::test]
 async fn the_same_agent_discovers_searches_and_reads_a_file() {
-    let (results, outcomes) = scenario(false).await;
+    let (results, outcomes, data) = scenario(false).await;
     assert_eq!(outcomes, [ToolCallOutcome::Served; 4]);
-    let data: Vec<Value> = results
-        .iter()
-        .map(|result| serde_json::from_str(result).unwrap())
-        .collect();
-    assert_eq!(data[0]["data"]["entries"][0]["path"], "info");
-    assert_eq!(data[1]["data"]["entries"][0]["path"], "info/hours.txt");
-    assert_eq!(data[2]["data"]["matches"][0]["line"], 2);
-    assert_eq!(
-        data[2]["data"]["matches"][0]["text"],
-        "Saturday: 08:30-16:00"
+    // The model reads each tool's text alone, which names what it found.
+    assert_eq!(results[0], "1: directory \"info\"\n");
+    assert_eq!(results[1], "1: file \"info/hours.txt\"\n");
+    assert_eq!(results[2], "\"info/hours.txt\":2: Saturday: 08:30-16:00\n");
+    assert!(
+        results[3].starts_with("1: Monday: closed\n2: Saturday: 08:30-16:00\n"),
+        "{}",
+        results[3]
     );
-    assert_eq!(data[3]["data"]["lines"][1]["text"], "Saturday: 08:30-16:00");
+    // The chat gets each call's data.
+    assert_eq!(data[0]["entries"][0]["path"], "info");
+    assert_eq!(data[1]["entries"][0]["path"], "info/hours.txt");
+    assert_eq!(data[2]["matches"][0]["line"], 2);
+    assert_eq!(data[2]["matches"][0]["text"], "Saturday: 08:30-16:00");
+    assert_eq!(data[3]["lines"][1]["text"], "Saturday: 08:30-16:00");
 }
 
 #[tokio::test]
 async fn roomkit_can_refuse_one_tool_while_leaving_the_others_available() {
-    let (results, outcomes) = scenario(true).await;
+    let (results, outcomes, data) = scenario(true).await;
     assert_eq!(
         outcomes,
         [
@@ -227,4 +240,6 @@ async fn roomkit_can_refuse_one_tool_while_leaving_the_others_available() {
     );
     assert!(results[0].contains("Listing is disabled"));
     assert!(!results[0].contains("hours.txt"));
+    // A refused call hands the chat no data.
+    assert_eq!(data[0], Value::Null);
 }

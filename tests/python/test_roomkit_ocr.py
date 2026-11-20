@@ -1,11 +1,11 @@
 """RoomKit selects only the requested OCR facade, with no engine dependency."""
 
-import json
 import tempfile
 import unittest
 
 from roomkit.core.exceptions import UnservedToolCallError
 from roomkit.tools.compose import extract_tools
+from roomkit_helpers import served
 from roomkit_tools import (
     Ocr,
     OcrTool,
@@ -22,8 +22,8 @@ class RoomKitOcrTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertEqual([d.name for d in definitions], ["ocr"])
             self.assertEqual(definitions[0].parameters, OcrTool.definition()["input_schema"])
-            result = await handler("ocr", {"path": "page.png"})
-            self.assertEqual(json.loads(result)["data"]["text"], "fixture")
+            _, data = await served(handler, "ocr", {"path": "page.png"})
+            self.assertEqual(data["text"], "fixture")
             self.assertEqual(backend.calls, [{"path": "page.png"}])
             with self.assertRaises(UnservedToolCallError):
                 await handler("read", {"path": "page.png"})

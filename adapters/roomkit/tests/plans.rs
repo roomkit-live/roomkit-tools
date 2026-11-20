@@ -12,12 +12,13 @@ use roomkit_tools_roomkit::{PlanCreate, PlanDelete, PlanList, PlanRead, PlanUpda
 use serde_json::{Value, json};
 use std::sync::Arc;
 
+/// The data a served call handed the host.
 #[expect(clippy::panic, reason = "unexpected test output must fail the test")]
-fn data(output: Result<ToolResult, ToolError>) -> Value {
-    let Ok(ToolResult::Json(value)) = output else {
-        panic!("expected JSON, got {output:?}");
+fn data(output: call::Answer) -> Value {
+    let Ok((ToolResult::Text(_), data)) = output else {
+        panic!("expected a text and its data, got {output:?}");
     };
-    value["data"].clone()
+    data
 }
 #[tokio::test]
 async fn scoped_crud_adapters_share_the_host_store_by_room_and_agent() {
@@ -98,8 +99,8 @@ async fn plan_adapters_refuse_calls_outside_a_roomkit_tool_call() {
     );
 }
 
-/// `step_changes` changes one step of an 18-step plan, and the text names
-/// that step alone.
+/// `step_changes` changes one step of an 18-step plan: the model reads the
+/// text, which names that step alone, and the host the whole plan.
 #[tokio::test]
 async fn a_step_change_answers_with_that_step_alone_in_its_text() {
     let store = Arc::new(MemoryPlanBackend::default());
@@ -113,15 +114,16 @@ async fn a_step_change_answers_with_that_step_alone_in_its_text() {
     data(call::run(&creator, room, agent, "plan_create", request).await);
     let change = json!({"plan_id": "plan-1", "expected_revision": 1,
         "step_changes": [{"step_id": "s3", "status": "completed"}]});
-    let Ok(ToolResult::Json(envelope)) =
-        call::run(&updater, room, agent, "plan_update", change.clone()).await
+    let Ok((text, data)) = call::run(&updater, room, agent, "plan_update", change.clone()).await
     else {
-        unreachable!("plan_update returns its envelope");
+        unreachable!("plan_update serves the change");
     };
     assert_eq!(
-        envelope["text"],
-        "plan-1 (revision 2): 1 step changed\n3. s3 [completed]\n"
+        text,
+        ToolResult::Text(
+            "plan-1 (revision 2): 1 step changed\n3. s3 [completed]\n".into()
+        )
     );
-    assert_eq!(envelope["data"]["steps"].as_array().unwrap().len(), 18);
+    assert_eq!(data["steps"].as_array().unwrap().len(), 18);
     assert!(change.to_string().len() < 150);
 }

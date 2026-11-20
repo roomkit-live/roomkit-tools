@@ -1,7 +1,6 @@
 """Host-selected documentation and structured RoomKit delivery."""
 
 import asyncio
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -31,18 +30,24 @@ class RoomKitDocsTests(unittest.IsolatedAsyncioTestCase):
             lister, reader = DocsList(DocsListTool(backend)), DocsRead(DocsReadTool(backend))
             call = ToolCallContext(room_id="docs", channel_id="assistant")
             with tool_turn_context(room_id="docs", actor_id="user", call=call):
-                result = json.loads(await lister.handler("docs_list", {}))
-                self.assertEqual(call.structured_content, result)
-                self.assertEqual(result["data"]["documents"][0]["version"], "demo")
+                # The model reads the text, which names each document; the
+                # host reads the data, the call's structured content.
+                text = await lister.handler("docs_list", {})
+                self.assertIn('"guide.md"', text)
+                self.assertEqual(list(call.structured_content), ["data"])
+                data = call.structured_content["data"]
+                self.assertEqual(data["documents"][0]["version"], "demo")
                 with self.assertRaises(UnservedToolCallError):
                     await reader.handler("read", {"document_id": "guide.md"})
                 with self.assertRaises(ToolRefusedError):
                     await reader.handler("docs_read", {"document_id": "unknown.md"})
                 with self.assertRaises(ToolRefusedError):
                     await reader.handler("docs_read", {"document_id": "guide.md", "offset": 0})
-                result = json.loads(await reader.handler("docs_read", {"document_id": "guide.md"}))
-                self.assertEqual(call.structured_content, result)
-                self.assertEqual(result["data"]["lines"][1]["text"], "Read reference material.")
+                text = await reader.handler("docs_read", {"document_id": "guide.md"})
+                self.assertIn("2: Read reference material.\n", text)
+                self.assertEqual(list(call.structured_content), ["data"])
+                data = call.structured_content["data"]
+                self.assertEqual(data["lines"][1]["text"], "Read reference material.")
 
     def test_an_adapter_takes_its_built_tool(self):
         backend = FileDocs(".")

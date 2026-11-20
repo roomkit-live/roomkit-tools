@@ -39,7 +39,7 @@ fn roomkit_owner_returns_the_shared_fixture_keys() {
     }
 }
 
-#[expect(clippy::panic, reason = "a result other than JSON must fail the test")]
+/// The data of the process `command` the agent `agent` starts in `room`.
 async fn start(toolset: &ProcessStart, room: &str, agent: &str, command: &str) -> Value {
     let started = call::run(
         toolset,
@@ -49,10 +49,7 @@ async fn start(toolset: &ProcessStart, room: &str, agent: &str, command: &str) -
         json!({ "command": command }),
     )
     .await;
-    let Ok(ToolResult::Json(started)) = started else {
-        panic!("expected JSON, got {started:?}");
-    };
-    started["data"].clone()
+    started.unwrap().1
 }
 
 /// Wait until the running job `id` of `owner` has printed `text`.
@@ -217,14 +214,16 @@ async fn owner_scoped_adapters_refuse_calls_outside_a_roomkit_tool_call() {
 }
 
 /// A shell keeping no archive needs no caller, as Python's `Shell`: it runs
-/// outside a RoomKit tool call.
+/// outside a RoomKit tool call, and answers its text, with no call to take
+/// its data.
 #[tokio::test]
 async fn a_shell_without_archives_runs_outside_a_roomkit_tool_call() {
     let root = tempfile::tempdir().unwrap();
     let shell = Shell::new(ShellTool::new(root.path()).await.unwrap());
     let arguments: Metadata = serde_json::from_value(json!({"command":"printf ran"})).unwrap();
-    let Ok(ToolResult::Json(result)) = shell.handler("shell".into(), arguments).await else {
-        unreachable!("the shell answers outside RoomKit");
-    };
-    assert_eq!(result["data"]["stdout"]["text"], "ran");
+    let answered = shell.handler("shell".into(), arguments).await;
+    assert_eq!(
+        answered,
+        Ok(ToolResult::Text("exit_code=0\nstdout:\nran\n".into()))
+    );
 }

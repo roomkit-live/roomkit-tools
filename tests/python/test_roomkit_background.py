@@ -1,9 +1,9 @@
 """RoomKit owns child tasks; real Rust tools execute only in the worker room."""
 
 import asyncio
+import copy
 import importlib.util
 import io
-import json
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -90,14 +90,14 @@ class RoomKitBackgroundTests(unittest.IsolatedAsyncioTestCase):
             for case in ("range", "revision", "path", "order"):
                 with self.subTest(case=case):
                     demo.tools[:] = original
-                    result = json.loads(read.result)
+                    data = copy.deepcopy(read.structured_content["data"])
                     if case == "range":
-                        result["data"]["lines"] = result["data"]["lines"][1:]
+                        data["lines"] = data["lines"][1:]
                     elif case == "revision":
-                        result["data"]["revision"] = "sha256:stale"
+                        data["revision"] = "sha256:stale"
                     elif case == "path":
-                        result["data"]["path"] = "other.py"
-                    demo.tools[read_index] = replace(read, result=json.dumps(result))
+                        data["path"] = "other.py"
+                    demo.tools[read_index] = replace(read, structured_content={"data": data})
                     if case == "order":
                         demo.tools.insert(0, demo.tools.pop(read_index))
                     with self.assertRaisesRegex(RuntimeError, "no read matched an earlier"):

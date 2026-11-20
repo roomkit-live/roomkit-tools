@@ -19,8 +19,8 @@ class _PlanAdapter[T](_ToolAdapter[T]):
     async def handler(self, name: str, arguments: dict[str, Any]) -> str:
         """Use RoomKit's trusted conversation/channel identity for every call.
 
-        A call outside a RoomKit tool call is refused; the result is also the
-        call's structured content.
+        A call outside a RoomKit tool call is refused. The model reads the
+        text; the data is the call's structured content.
         """
         from roomkit.core.exceptions import UnservedToolCallError
 

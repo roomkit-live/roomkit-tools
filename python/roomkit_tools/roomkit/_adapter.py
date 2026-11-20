@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Awaitable
 from typing import Any, ClassVar
 
@@ -44,13 +43,13 @@ class _ToolAdapter[T]:
         return shown
 
     async def handler(self, name: str, arguments: dict[str, Any]) -> str:
-        """Return data and text, preserving refusal, failure and cancellation."""
+        """Return the text for the model and hand the data to the call's
+        structured content, preserving refusal, failure and cancellation."""
         from roomkit.core.exceptions import UnservedToolCallError
 
         if name != self.definition["name"]:
             raise UnservedToolCallError(name)
-        result = await _mapped(self._call(arguments))
-        return json.dumps(result, ensure_ascii=False)
+        return _structured(await _mapped(self._call(arguments)))
 
     async def _call(self, arguments: dict[str, Any]) -> dict[str, Any]:
         return await self._tool.call(arguments)
@@ -85,10 +84,15 @@ def _trusted_caller(tools: str) -> tuple[str, str]:
 
 
 def _structured(result: dict[str, Any]) -> str:
-    """Hand RoomKit's current call the structured result; return its text."""
+    """The text of *result*, which the model reads again on every later request.
+
+    Its data goes to the host as RoomKit's current call's structured content,
+    ``{"data": ...}``, which the model never reads. Outside a RoomKit tool
+    call nobody reads the data.
+    """
     from roomkit.tools.context import current_tool_call
 
     context = current_tool_call()
     if context is not None:
-        context.structured_content = result
-    return json.dumps(result, ensure_ascii=False)
+        context.structured_content = {"data": result["data"]}
+    return result["text"]

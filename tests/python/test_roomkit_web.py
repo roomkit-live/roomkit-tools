@@ -2,13 +2,13 @@
 
 import importlib.util
 import io
-import json
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
 from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
 from roomkit.tools.compose import extract_tools
+from roomkit_helpers import served
 from roomkit_tools import (
     WebFetch,
     WebFetchTool,
@@ -41,6 +41,6 @@ class RoomKitWebTests(unittest.IsolatedAsyncioTestCase):
                 await handler("web_fetch", {"url": "https://example.com"})
             with self.assertRaises(ToolFailedError):
                 await handler("web_fetch", {"url": server.origin + "/binary"})
-            result = json.loads(await handler("web_fetch", {"url": server.origin + "/missing"}))
-            self.assertEqual(result["data"]["status"], 404)
-            self.assertFalse(result["data"]["http_ok"])
+            _, data = await served(handler, "web_fetch", {"url": server.origin + "/missing"})
+            self.assertEqual(data["status"], 404)
+            self.assertFalse(data["http_ok"])

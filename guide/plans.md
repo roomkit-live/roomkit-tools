@@ -121,7 +121,9 @@ numbered steps with their status and description; for `plan_create`, only
 what the model did not write, `plan-1 (revision 1) created` and each step as
 `1. inspect [pending]`. The RoomKit adapter
 `PlanCreate(tool)` has the RoomKit `.definition` and a `.handler()` that uses
-trusted RoomKit context and records structured results.
+trusted RoomKit context: it returns the `text`, which the model reads, and
+leaves the `data` as the call's structured content, `{"data": ...}`, for the
+host.
 
 Cancellation can arrive after a mutation has committed but before its receipt
 is delivered. It does not roll back that mutation. Recover with `plan_read` or

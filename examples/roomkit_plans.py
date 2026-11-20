@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 
 from roomkit import (
     AIChannel,
@@ -36,6 +37,17 @@ from roomkit_tools import (
 )
 
 ROOM = "plans-demo"
+# What the model reads of a plan: a heading with its ID and revision, then a
+# line per step with its stable ID and status.
+PLAN_HEADING = re.compile(r"^(\S+) \(revision (\d+)\)", re.M)
+STEP_LINE = re.compile(r"^\d+\. (\S+) \[(\w+)\]: ", re.M)
+
+
+def plan_heading(text):
+    """The ID and revision of the first plan a plan tool's text names."""
+    found = PLAN_HEADING.search(text)
+    assert found, text
+    return found[1], int(found[2])
 
 
 class ScriptedPlanner(MockAIProvider):
@@ -74,37 +86,37 @@ class ScriptedPlanner(MockAIProvider):
                 },
             )
         elif index == 1:
-            data = json.loads(parts[-1].result)["data"]
-            name, arguments = "plan_read", {"plan_id": data["plan_id"]}
+            plan_id, _ = plan_heading(parts[-1].result)
+            name, arguments = "plan_read", {"plan_id": plan_id}
         elif index == 2:
-            data = json.loads(parts[-1].result)["data"]
-            steps = data["steps"]
-            steps[0]["status"] = "in_progress"
+            text = parts[-1].result
+            plan_id, revision = plan_heading(text)
+            first_step = STEP_LINE.search(text)[1]
             name, arguments = (
                 "plan_update",
                 {
-                    "plan_id": data["plan_id"],
-                    "expected_revision": data["revision"],
-                    "steps": steps,
+                    "plan_id": plan_id,
+                    "expected_revision": revision,
+                    "step_changes": [{"step_id": first_step, "status": "in_progress"}],
                 },
             )
         elif index == 3:
+            changed = STEP_LINE.findall(parts[-1].result)
+            assert changed == [("inspect", "in_progress")], parts[-1].result
             name, arguments = "plan_list", {}
         elif index == 4:
-            data = json.loads(parts[-1].result)["data"]["plans"][0]
-            assert data["revision"] == 2 and data["total_steps"] == 2
+            text = parts[-1].result
+            plan_id, revision = plan_heading(text)
+            assert revision == 2 and "0/2 steps completed" in text, text
             name, arguments = (
                 "plan_delete",
-                {
-                    "plan_id": data["plan_id"],
-                    "expected_revision": data["revision"],
-                },
+                {"plan_id": plan_id, "expected_revision": revision},
             )
         elif index == 5:
-            assert json.loads(parts[-1].result)["data"]["deleted"]
+            assert parts[-1].result.endswith(" deleted\n"), parts[-1].result
             name, arguments = "plan_list", {}
         else:
-            assert json.loads(parts[-1].result)["data"]["plans"] == []
+            assert parts[-1].result == "no plans\n", parts[-1].result
             return AIResponse(
                 content="The plan was created, read, updated, listed and deleted. "
                 "No shipping work was executed."

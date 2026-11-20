@@ -3,6 +3,7 @@
 #![expect(clippy::unwrap_used, reason = "a broken fixture must fail the test")]
 
 mod common;
+mod served;
 
 use std::sync::Arc;
 
@@ -39,23 +40,17 @@ async fn exposes_the_derived_schema_and_keeps_pagination_in_the_result() {
     let definition = tools.definition();
     assert_eq!(definition.name, "read");
     assert_eq!(definition.parameters, ReadTool::definition().input_schema);
-    let output = tools
-        .handler(
-            "read".into(),
-            arguments(json!({"path":"hours.txt", "limit":1})),
-        )
-        .await
-        .unwrap();
-    let ToolResult::Json(value) = output else {
-        panic!("expected structured output")
+    let read = arguments(json!({"path":"hours.txt", "limit":1}));
+    let (output, data) = served::call(&tools, "read", read).await.unwrap();
+    let ToolResult::Text(text) = output else {
+        panic!("expected the text alone, got {output:?}")
     };
-    let text = value["text"].as_str().unwrap();
     assert!(
         text.starts_with("1: Monday: closed\n[next_offset=2,"),
         "{text}"
     );
-    assert_eq!(value["data"]["truncated"], true);
-    assert_eq!(value["data"]["next_offset"], 2);
+    assert_eq!(data["truncated"], true);
+    assert_eq!(data["next_offset"], 2);
 }
 
 #[tokio::test]
@@ -131,16 +126,21 @@ async fn reports_limits_as_safe_failures_and_io_as_diagnostic_errors() {
     );
 }
 
-/// Run the public RoomKit agent and return the outcome delivered to the chat and what
-/// the second model request actually received from the tool.
-async fn turn(tools: Read, arguments: &str, blocked: bool) -> (ToolCallOutcome, String) {
+/// Run the public RoomKit agent and return the outcome delivered to the chat, what
+/// the second model request actually received from the tool, and the structured
+/// content the chat received.
+async fn turn(
+    tools: Read,
+    arguments: &str,
+    blocked: bool,
+) -> (ToolCallOutcome, String, Option<Metadata>) {
     let model = ScriptedProvider::new([
         ScriptedRound::calling("", [("read_hours", "read", arguments)]),
         ScriptedRound::answering("Answer after the tool result."),
     ]);
     let (kit, chat) = converse(&model, tools, blocked).await;
     let deliveries = chat.deliveries();
-    let outcome = deliveries
+    let (outcome, structured) = deliveries
         .iter()
         .find_map(|delivery| {
             let event = &delivery.event;
@@ -148,7 +148,7 @@ async fn turn(tools: Read, arguments: &str, blocked: bool) -> (ToolCallOutcome, 
                 return None;
             }
             if let EventContent::ToolCall(row) = &event.content {
-                row.outcome
+                Some((row.outcome?, row.structured_content.clone()))
             } else {
                 None
             }
@@ -167,7 +167,7 @@ async fn turn(tools: Read, arguments: &str, blocked: bool) -> (ToolCallOutcome, 
             .contains(&"Answer after the tool result.".to_owned())
     );
     kit.close().await.unwrap();
-    (outcome, result)
+    (outcome, result, structured)
 }
 
 /// Run one turn of the public RoomKit agent serving `tools` to `model`, with
@@ -245,17 +245,22 @@ async fn the_model_reads_the_schema_a_valid_call_needs() {
 #[tokio::test]
 async fn the_agent_receives_file_contents_through_the_real_tool_loop() {
     let (_root, tools) = fixture().await;
-    let (outcome, text) = turn(tools, r#"{"path":"hours.txt"}"#, false).await;
+    let (outcome, text, structured) = turn(tools, r#"{"path":"hours.txt"}"#, false).await;
     assert_eq!(outcome, ToolCallOutcome::Served);
-    let output: Value = serde_json::from_str(&text).unwrap();
-    assert_eq!(output["data"]["lines"][1]["text"], "Tuesday: 08:30-18:00");
-    assert_eq!(output["data"]["next_offset"], Value::Null);
+    // The model reads the text alone; the chat gets the data.
+    assert!(
+        text.starts_with("1: Monday: closed\n2: Tuesday: 08:30-18:00\n[revision=sha256:"),
+        "{text}"
+    );
+    let data = &structured.unwrap()["data"];
+    assert_eq!(data["lines"][1]["text"], "Tuesday: 08:30-18:00");
+    assert_eq!(data["next_offset"], Value::Null);
 }
 
 #[tokio::test]
 async fn roomkit_can_block_the_call_before_the_adapter_runs() {
     let (_root, tools) = fixture().await;
-    let (outcome, text) = turn(tools, r#"{"path":"hours.txt"}"#, true).await;
+    let (outcome, text, _) = turn(tools, r#"{"path":"hours.txt"}"#, true).await;
     // BEFORE_TOOL_USE rejects execution as Refused; Blocked is used when
     // an ON_TOOL_CALL hook withholds an already computed result.
     assert_eq!(outcome, ToolCallOutcome::Refused);
@@ -267,7 +272,7 @@ async fn roomkit_can_block_the_call_before_the_adapter_runs() {
 #[tokio::test]
 async fn io_diagnostics_do_not_reach_the_model() {
     let (_root, tools) = fixture().await;
-    let (outcome, text) = turn(tools, r#"{"path":"hours.txt/private-child.txt"}"#, false).await;
+    let (outcome, text, _) = turn(tools, r#"{"path":"hours.txt/private-child.txt"}"#, false).await;
     assert_eq!(outcome, ToolCallOutcome::Failed);
     assert!(!text.contains("private-child"));
     assert!(!text.contains("os error"));
@@ -279,7 +284,7 @@ async fn io_diagnostics_do_not_reach_the_model() {
 #[tokio::test]
 async fn the_model_reads_which_path_is_missing() {
     let (root, tools) = fixture().await;
-    let (outcome, text) = turn(tools, r#"{"path":"src/absent.rs"}"#, false).await;
+    let (outcome, text, _) = turn(tools, r#"{"path":"src/absent.rs"}"#, false).await;
     assert_eq!(outcome, ToolCallOutcome::Refused);
     assert_eq!(
         text,

@@ -8,7 +8,7 @@ name is `roomkit-tools`; the import name is `roomkit_tools`.
 | Use | Example | Result |
 | --- | --- | --- |
 | Standalone async API | `await read.read("notes.txt")` on a `ReadTool` | Rust `data`/`text` envelope as a Python dictionary |
-| RoomKit tool selection | `tools=[Read(await ReadTool.create("./project"))]` | RoomKit calls the tool with the same Rust-derived input schema |
+| RoomKit tool selection | `tools=[Read(await ReadTool.create("./project"))]` | The same Rust-derived input schema; the model reads `text`, the host gets `data` as the call's structured content |
 
 Most tools have a short RoomKit class (`Read`, `Grep`, `ViewImage`) and a
 standalone tool (`ReadTool`, `GrepTool`, `ViewImageTool`). The RoomKit class
@@ -116,7 +116,11 @@ context = multiprocessing.get_context("spawn")
 ```
 
 The RoomKit classes expose the Rust-derived input schema through its `Tool` protocol.
-Text tools return both result representations; `ViewImage` returns typed text and
+A handler returns the tool's `text`, which the model reads again on every later
+request, and leaves its `data` as the call's structured content,
+`{"data": ...}`: an `ON_TOOL_CALL` hook reads it as `event.structured_content`,
+and the model never does. Called outside a RoomKit tool call, it returns the text
+alone. `ViewImage` returns typed text and
 image parts instead of embedding pixels in ordinary text. Refusal and resource failure stay
 distinct: every RoomKit adapter raises `ToolRefusedError` for `InvalidInputError` and
 `AccessRefusedError`, `ToolFailedError` for `LimitExceededError` and

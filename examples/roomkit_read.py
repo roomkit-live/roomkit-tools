@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -112,8 +111,10 @@ async def main(root: Path, live: bool) -> None:
     # Check the actual tool result, not the scripted model's answer.
     if not live:
         assert len(calls) == 1 and calls[0].name == "read" and not calls[0].is_error
-        text = json.loads(calls[0].result)["text"]
-        assert text.startswith("1: Project: Sample\n2: Status: ready\n")
+        # The model reads the text alone; the host gets the data.
+        assert calls[0].result.startswith("1: Project: Sample\n2: Status: ready\n")
+        data = calls[0].structured_content["data"]
+        assert [line["text"] for line in data["lines"]] == ["Project: Sample", "Status: ready"]
 
 
 if __name__ == "__main__":

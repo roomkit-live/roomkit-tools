@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import shlex
 import sys
 import tempfile
@@ -139,9 +140,10 @@ class CodingProvider(MockAIProvider):
                 for part in message.content
                 if isinstance(part, AIToolResultPart) and part.name == "read" and not part.is_error
             ]
-            response.tool_calls[0].arguments["expected_revision"] = json.loads(reads[-1].result)[
-                "data"
-            ]["revision"]
+            # The model reads the read's text alone, whose facts line gives the revision.
+            revision = re.search(r"\brevision=(sha256:[0-9a-f]+)", reads[-1].result)
+            require(revision is not None, "the read gave no revision")
+            response.tool_calls[0].arguments["expected_revision"] = revision[1]
         return response
 
 
@@ -180,7 +182,7 @@ def check_test_result(data: dict[str, Any], *, fixed: bool) -> None:
 def verify_trace(events: list[ToolCallEvent], root: Path) -> None:
     """Check real before/after evidence, allowing equivalent paths and discovery order."""
     successful = [
-        (event, json.loads(event.result)["data"]) for event in events if not event.is_error
+        (event, event.structured_content["data"]) for event in events if not event.is_error
     ]
 
     def path_is(argument: Any, name: str) -> bool:

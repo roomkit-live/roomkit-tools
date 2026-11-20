@@ -1,5 +1,8 @@
 //! Selected documentation adapters share their host-owned snapshot.
 #![cfg(feature = "docs")]
+
+mod served;
+
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_docs::{
@@ -16,12 +19,15 @@ use tokio_util::sync::CancellationToken;
 fn arguments(arguments: Value) -> Metadata {
     serde_json::from_value(arguments).unwrap()
 }
+/// The data a call of `name` with `arguments` handed the host, served by
+/// `tool` within a RoomKit tool call.
 #[expect(clippy::panic, reason = "unexpected fixture output must fail")]
-fn data(output: Result<ToolResult, ToolError>) -> Value {
-    let Ok(ToolResult::Json(value)) = output else {
-        panic!("expected JSON, got {output:?}")
+async fn data(tool: &dyn Tool, name: &str, arguments: Metadata) -> Value {
+    let output = served::call(tool, name, arguments).await;
+    let Ok((ToolResult::Text(_), data)) = output else {
+        panic!("expected a text and its data, got {output:?}")
     };
-    value["data"].clone()
+    data
 }
 #[tokio::test]
 async fn selected_tools_use_actual_schemas_and_share_the_host_snapshot() {
@@ -48,29 +54,21 @@ async fn selected_tools_use_actual_schemas_and_share_the_host_snapshot() {
         reader.definition().parameters,
         DocsReadTool::definition().input_schema
     );
-    let listing = data(
-        lister
-            .handler("docs_list".into(), arguments(json!({})))
-            .await,
-    );
+    let listing = data(&lister, "docs_list", arguments(json!({}))).await;
     let hits = data(
-        searcher
-            .handler(
-                "docs_search".into(),
-                arguments(json!({"query":"expected_revision"})),
-            )
-            .await,
-    );
+        &searcher,
+        "docs_search",
+        arguments(json!({"query":"expected_revision"})),
+    )
+    .await;
     assert_eq!(hits["matches"][0]["document"], listing["documents"][0]);
     let document = &listing["documents"][0];
     let page = data(
-        reader
-            .handler(
-                "docs_read".into(),
-                arguments(json!({"document_id":document["document_id"], "expected_revision":document["revision"]})),
-            )
-            .await,
-    );
+        &reader,
+        "docs_read",
+        arguments(json!({"document_id":document["document_id"], "expected_revision":document["revision"]})),
+    )
+    .await;
     assert_eq!(page["lines"][1]["text"], "Use expected_revision.");
     assert!(matches!(
         reader.handler("read".into(), arguments(json!({}))).await,

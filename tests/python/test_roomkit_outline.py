@@ -3,7 +3,6 @@
 import asyncio
 import importlib.util
 import io
-import json
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -11,6 +10,7 @@ from pathlib import Path
 
 from roomkit.core.exceptions import ToolFailedError, ToolRefusedError, UnservedToolCallError
 from roomkit.tools.compose import extract_tools
+from roomkit_helpers import served
 from roomkit_tools import (
     CodeOutline,
     CodeOutlineTool,
@@ -31,9 +31,10 @@ class RoomKitOutlineTests(unittest.IsolatedAsyncioTestCase):
             ["shell", "code_outline", "read", "edit", "diff", "shell", "read"],
         )
         self.assertTrue(all(not e.is_error for e in events))
-        outline = json.loads(events[1].result)["data"]
+        # The host's hook reads each call's data as its structured content.
+        outline = events[1].structured_content["data"]
         self.assertEqual(outline["total_symbols"], 5)
-        self.assertEqual(len(json.loads(events[2].result)["data"]["lines"]), 5)
+        self.assertEqual(len(events[2].structured_content["data"]["lines"]), 5)
         self.assertIn("Verified:", output.getvalue())
 
     async def test_individual_selection_and_error_mapping(self):
@@ -45,8 +46,8 @@ class RoomKitOutlineTests(unittest.IsolatedAsyncioTestCase):
                 await handler("shell", {"command": "true"})
             with self.assertRaises(ToolRefusedError):
                 await handler("code_outline", {"path": "source.py", "offset": 0})
-            result = json.loads(await handler("code_outline", {"path": "source.py"}))
-            self.assertEqual(result["data"]["symbols"][0]["name"], "example")
+            _, data = await served(handler, "code_outline", {"path": "source.py"})
+            self.assertEqual(data["symbols"][0]["name"], "example")
             _, limited = extract_tools(
                 [CodeOutline(await CodeOutlineTool.create(root, max_file_bytes=1))]
             )

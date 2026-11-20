@@ -1,4 +1,6 @@
 //! The independently selected outline adapter preserves its native contract.
+mod served;
+
 use roomkit::model::Metadata;
 use roomkit_ai::{Tool, ToolError, ToolResult};
 use roomkit_tools_code::CodeOutlineTool;
@@ -20,16 +22,13 @@ async fn definitions_results_and_declined_calls_follow_the_native_outline() {
         CodeOutlineTool::definition().input_schema
     );
     let arguments: Metadata = serde_json::from_value(json!({"path":"source.rs"})).unwrap();
-    let ToolResult::Json(result) = tool
-        .handler("code_outline".into(), arguments.clone())
+    let (text, result) = served::call(&tool, "code_outline", arguments.clone())
         .await
-        .unwrap()
-    else {
-        panic!("expected structured result");
-    };
-    assert_eq!(result["data"]["symbols"][2]["name"], "run");
-    assert_eq!(result["data"]["symbols"][2]["parent"], 2);
-    assert_eq!(result["data"]["syntax_errors"], false);
+        .unwrap();
+    assert!(matches!(text, ToolResult::Text(_)), "{text:?}");
+    assert_eq!(result["symbols"][2]["name"], "run");
+    assert_eq!(result["symbols"][2]["parent"], 2);
+    assert_eq!(result["syntax_errors"], false);
     assert!(matches!(
         tool.handler("read".into(), arguments).await,
         Err(ToolError::UnservedToolCall(_))

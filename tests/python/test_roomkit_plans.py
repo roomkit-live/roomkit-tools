@@ -1,10 +1,10 @@
 """Plan ownership comes from RoomKit context, never tool arguments."""
 
-import json
 import unittest
 
 from roomkit.core.exceptions import ToolRefusedError, UnservedToolCallError
 from roomkit.tools.context import ToolCallContext, tool_turn_context
+from roomkit_helpers import served
 from roomkit_tools import (
     MemoryPlanBackend,
     PlanCreate,
@@ -27,9 +27,12 @@ class RoomKitPlansTests(unittest.IsolatedAsyncioTestCase):
             await creator.handler("plan_create", arguments)
         call = ToolCallContext(room_id="conversation", channel_id="assistant")
         with tool_turn_context(room_id="conversation", actor_id="user", call=call):
-            result = json.loads(await creator.handler("plan_create", arguments))
-            self.assertEqual(call.structured_content, result)
-            plan = result["data"]
+            # The model reads the text, which names the plan; the host reads
+            # the data, the call's structured content.
+            text = await creator.handler("plan_create", arguments)
+            self.assertEqual(list(call.structured_content), ["data"])
+            plan = call.structured_content["data"]
+            self.assertIn(plan["plan_id"], text)
             with self.assertRaises(ToolRefusedError):
                 await creator.handler("plan_create", {**arguments, "caller_id": "other"})
             with self.assertRaises(UnservedToolCallError):
@@ -45,8 +48,8 @@ class RoomKitPlansTests(unittest.IsolatedAsyncioTestCase):
                 actor_id="user",
                 call=ToolCallContext(room_id=room, channel_id=channel),
             ):
-                result = json.loads(await PlanList(PlanListTool(backend)).handler("plan_list", {}))
-                self.assertEqual(result["data"]["plans"], [])
+                _, data = await served(PlanList(PlanListTool(backend)).handler, "plan_list", {})
+                self.assertEqual(data["plans"], [])
                 with self.assertRaises(ToolRefusedError):
                     await PlanRead(PlanReadTool(backend)).handler(
                         "plan_read", {"plan_id": plan["plan_id"]}

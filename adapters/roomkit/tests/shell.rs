@@ -15,7 +15,7 @@ use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{AiChannelOptions, ToolEntry, ToolResult};
 use roomkit_tools_process::ShellTool;
 use roomkit_tools_roomkit::Shell;
-use serde_json::{Value, json};
+use serde_json::json;
 
 #[tokio::test]
 async fn real_agent_receives_shell_output_or_a_policy_refusal() {
@@ -87,13 +87,9 @@ async fn real_agent_receives_shell_output_or_a_policy_refusal() {
             assert!(text.contains("Commands disabled"));
             assert!(!root.path().join("marker").exists());
         } else {
-            let value: Value = serde_json::from_str(text).unwrap();
-            assert_eq!(value["data"]["stdout"]["text"], "Saturday: 08:30-16:00\n");
-            assert_eq!(value["data"]["stderr"]["text"], "warning");
-            assert_eq!(value["data"]["exit_code"], 3);
-            // Like every tool's: a host can show the model the text alone.
+            // The model reads the shell's text alone, as every tool's.
             assert_eq!(
-                value["text"],
+                text,
                 "exit_code=3\nstdout:\nSaturday: 08:30-16:00\nstderr:\nwarning\n"
             );
             assert_eq!(
@@ -151,7 +147,7 @@ async fn roomkit_dropping_a_running_shell_call_kills_its_process() {
 async fn timeout_is_a_structured_result() {
     let root = tempfile::tempdir().unwrap();
     let shell = Shell::new(ShellTool::new(root.path()).await.unwrap());
-    let ToolResult::Json(result) = call::run(
+    let (ToolResult::Text(text), result) = call::run(
         &shell,
         "example",
         "assistant",
@@ -160,8 +156,9 @@ async fn timeout_is_a_structured_result() {
     )
     .await
     .unwrap() else {
-        panic!("expected structured result");
+        panic!("expected a text");
     };
-    assert_eq!(result["data"]["timed_out"], true);
-    assert_eq!(result["data"]["stdout"]["text"], "ready");
+    assert_eq!(result["timed_out"], true);
+    assert_eq!(result["stdout"]["text"], "ready");
+    assert!(text.contains("timed_out=true"), "{text}");
 }

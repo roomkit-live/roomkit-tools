@@ -15,13 +15,13 @@ use roomkit_tools_process::ProcessSession;
 use roomkit_tools_roomkit::{ProcessRead, ProcessStart, ProcessStatus, ProcessStop, ProcessWrite};
 use serde_json::{Value, json};
 
-/// The JSON a served call answered.
-#[expect(clippy::panic, reason = "an answer other than JSON must fail the test")]
-fn json_answer(answer: Result<ToolResult, ToolError>) -> Value {
-    let Ok(ToolResult::Json(value)) = answer else {
-        panic!("expected JSON, got {answer:?}");
+/// The data a served call handed the host.
+#[expect(clippy::panic, reason = "a call that did not serve must fail the test")]
+fn data(answer: call::Answer) -> Value {
+    let Ok((ToolResult::Text(_), data)) = answer else {
+        panic!("expected a text and its data, got {answer:?}");
     };
-    value
+    data
 }
 
 #[tokio::test]
@@ -34,7 +34,7 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
     let status = ProcessStatus::new(session.clone());
     let stop = ProcessStop::new(session.clone());
     let (room, agent) = ("example", "assistant");
-    let started = json_answer(
+    let started = data(
         call::run(
             &start,
             room,
@@ -44,7 +44,7 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
         )
         .await,
     );
-    let id = started["data"]["process_id"].as_str().unwrap();
+    let id = started["process_id"].as_str().unwrap();
     for (other_room, other_agent) in [("other-room", "assistant"), ("example", "other-agent")] {
         let process = json!({"process_id":id});
         assert!(matches!(
@@ -73,7 +73,7 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
             call::run(&stop, other_room, other_agent, "process_stop", process).await,
             Err(ToolError::Refused(_))
         ));
-        let list = json_answer(
+        let list = data(
             call::run(
                 &status,
                 other_room,
@@ -83,9 +83,9 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
             )
             .await,
         );
-        assert_eq!(list["data"], json!({"processes": []}));
+        assert_eq!(list, json!({"processes": []}));
     }
-    let sent = json_answer(
+    let sent = data(
         call::run(
             &write,
             room,
@@ -95,13 +95,12 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
         )
         .await,
     );
-    assert_eq!(sent["data"]["complete"], true);
+    assert_eq!(sent["complete"], true);
     let output = tokio::time::timeout(std::time::Duration::from_secs(5), async {
         loop {
-            let output = json_answer(
-                call::run(&read, room, agent, "process_read", json!({"process_id":id})).await,
-            );
-            if output["data"]["status"]["state"] == "finished" {
+            let output =
+                data(call::run(&read, room, agent, "process_read", json!({"process_id":id})).await);
+            if output["status"]["state"] == "finished" {
                 return output;
             }
             tokio::task::yield_now().await;
@@ -109,9 +108,9 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
     })
     .await
     .unwrap();
-    assert_eq!(output["data"]["stdout"]["text"], "order 43\n");
-    assert_eq!(output["data"]["status"]["exit_code"], 0);
-    let stopped = json_answer(
+    assert_eq!(output["stdout"]["text"], "order 43\n");
+    assert_eq!(output["status"]["exit_code"], 0);
+    let stopped = data(
         call::run(
             &stop,
             room,
@@ -121,7 +120,7 @@ async fn individual_adapters_share_only_the_trusted_room_and_agent_scope() {
         )
         .await,
     );
-    assert_eq!(stopped["data"]["forgotten"], true);
+    assert_eq!(stopped["forgotten"], true);
     // The host, not the adapters, closes the shared session.
     assert!(session.close().await);
 }
@@ -202,7 +201,8 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
             .parameters,
         ProcessSession::start_definition().input_schema
     );
-    let result_of = |request: usize, call: &str| -> Value {
+    // The model reads each call's text alone, which names the process.
+    let result_of = |request: usize, call: &str| -> String {
         let message = requests[request]
             .messages
             .iter()
@@ -211,12 +211,12 @@ async fn agent_can_start_send_inspect_stop_and_read_a_process_across_calls() {
                     .is_some_and(|result| result.tool_call_id == call)
             })
             .unwrap();
-        serde_json::from_str(&message.text()).unwrap()
+        message.text()
     };
     let stopped = result_of(5, "p4");
-    assert_eq!(stopped["data"]["status"]["state"], "finished");
+    assert!(stopped.starts_with("p1: state=finished"), "{stopped}");
     let read = result_of(6, "p5");
-    assert_eq!(read["data"]["status"]["state"], "finished");
+    assert!(read.starts_with("p1: state=finished"), "{read}");
     kit.close().await.unwrap();
     assert!(session.close().await);
 }
@@ -339,8 +339,8 @@ async fn an_agent_awaits_a_process_in_one_read() {
         .iter()
         .find(|m| m.tool_result().is_some_and(|r| r.tool_call_id == "p2"))
         .unwrap();
-    let read: Value = serde_json::from_str(&read.text()).unwrap();
-    assert_eq!(read["data"]["stdout"]["text"], "fini\n");
+    let read = read.text();
+    assert!(read.contains("stdout (next_offset=5):\nfini\n"), "{read}");
     kit.close().await.unwrap();
     assert!(session.close().await);
 }

@@ -99,6 +99,10 @@ search tools. Declare them individually in an AI channel's
 roots, limits and lifetimes. An adapter serves only its own tool's name and
 leaves any other call to the channel's next tool. RoomKit manages argument
 validation, policies, hooks and turn cancellation; dropping a call cancels it.
+As in Python, a handler answers the tool's `text` as `ToolResult::Text`, which
+the model reads, and leaves its `data` as the call's structured content,
+`{"data": ...}`, which an `OnToolCall` hook reads as
+`ToolCallEvent::structured_content`; `ViewImage` answers text and image parts.
 Process/archive owners are derived from the conversation and agent of the
 current RoomKit tool call, and a call made outside one is refused:
 `roomkit_owner(room_id, channel_id)` returns that key, so the host can pass it

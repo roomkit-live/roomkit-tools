@@ -1,4 +1,5 @@
-"""Each native error an adapter maps, in the words the Rust adapters must give.
+"""Each native error an adapter maps, in the words the Rust adapters must give,
+and what a served call gives the model and the host.
 
 The expected words are in the fixture the RoomKit Rust adapter's
 adapters/roomkit/tests/errors.rs reads too.
@@ -116,3 +117,14 @@ class SharedErrorTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(event.result, case["model_reads"])
                 self.assertEqual(event.error_detail, case["error_detail"])
                 self.assertEqual(event.refused, case["refused"])
+                self.assertEqual(event.structured_content, case["structured_content"])
+
+    async def test_a_served_call_gives_the_model_its_text_and_the_host_its_data(self):
+        for case in FIXTURE["served"]:
+            with self.subTest(tool=case["tool"]):
+                read, event = await read_through_a_kit(self.root, case)
+                self.assertFalse(read.is_error)
+                self.assertEqual(read.result, case["model_reads"])
+                self.assertFalse(event.is_error)
+                self.assertEqual(event.result, case["model_reads"])
+                self.assertEqual(event.structured_content, case["structured_content"])

@@ -16,6 +16,7 @@ from roomkit import (
 from roomkit.core.exceptions import ToolRefusedError
 from roomkit.providers.ai import AIResponse, MockAIProvider
 from roomkit.tools.context import ToolCallContext, tool_turn_context
+from roomkit_helpers import served
 from roomkit_tools import (
     AccessRefusedError,
     AgentFollowupTool,
@@ -177,15 +178,13 @@ class RoomKitAgentTests(unittest.IsolatedAsyncioTestCase):
             actor_id="user",
             call=ToolCallContext(room_id="parent", channel_id="assistant"),
         ):
-            status = json.loads(
-                await TaskStatus(TaskStatusTool(backend)).handler("task_status", {})
+            _, status = await served(TaskStatus(TaskStatusTool(backend)).handler, "task_status", {})
+            self.assertEqual(status["tasks"][0]["task_id"], receipt["task_id"])
+            _, cancelled = await served(
+                CancelTask(CancelTaskTool(backend)).handler,
+                "cancel_task",
+                {"task_id": receipt["task_id"]},
             )
-            self.assertEqual(status["data"]["tasks"][0]["task_id"], receipt["task_id"])
-            cancelled = json.loads(
-                await CancelTask(CancelTaskTool(backend)).handler(
-                    "cancel_task", {"task_id": receipt["task_id"]}
-                )
-            )["data"]
         self.assertTrue(cancelled["cancelled"])
         self.assertEqual(cancelled["task"]["status"], "cancelled")
         self.assertEqual(cancelled["task"]["delivery"], "suppressed")

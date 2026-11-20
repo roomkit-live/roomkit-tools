@@ -15,7 +15,7 @@ tells the agent, which reads the rest of its output with process_read.
 from __future__ import annotations
 
 import asyncio
-import json
+import re
 import tempfile
 
 from roomkit import (
@@ -48,14 +48,22 @@ def parts(messages: list) -> list:
     ]
 
 
-def result(messages: list, tool: str) -> dict:
-    """The last result of tool the model was sent, as the tool returned it."""
+def result(messages: list, tool: str) -> str:
+    """The text of the last result of tool the model was sent: all it reads."""
     found = [
         part.result
         for part in parts(messages)
         if getattr(part, "type", None) == "tool_result" and part.name == tool
     ]
-    return json.loads(found[-1])
+    return found[-1]
+
+
+def stdout(text: str) -> str:
+    """What a process_read text gives of the process's stdout."""
+    found = re.search(r"^stdout \(next_offset=\d+\):\n(.*?)^stderr ", text, re.M | re.S)
+    if found is None:
+        raise SystemExit(f"no stdout in {text!r}")
+    return found[1]
 
 
 def notice(messages: list) -> str:
@@ -104,14 +112,13 @@ async def main() -> None:
 
             moved = result(provider.calls[1].messages, "shell")
             told = notice(provider.calls[2].messages)
-            rest = result(provider.calls[3].messages, "process_read")["data"]["stdout"]["text"]
-            if moved["data"]["process_id"] != "p1" or moved["data"]["stdout"]["text"] != (
-                "compiling\n"
-            ):
-                raise SystemExit(f"unexpected shell result: {moved}")
+            rest = stdout(result(provider.calls[3].messages, "process_read"))
+            process = re.search(r"moved to the background as (\S+);", moved)
+            if not process or process[1] != "p1" or not moved.endswith("\nstdout:\ncompiling\n"):
+                raise SystemExit(f"unexpected shell result: {moved!r}")
             if "p1" not in told or "exited with code 0" not in told or rest != "built\n":
                 raise SystemExit(f"unexpected notice or output: {told!r}, {rest!r}")
-            print(f"The shell returned: {moved['text'].splitlines()[0]}")
+            print(f"The shell returned: {moved.splitlines()[0]}")
             print(f"The agent read: {told}")
             print(f"process_read gave the rest: {rest.strip()}")
         await asyncio.wait_for(telling, 5)

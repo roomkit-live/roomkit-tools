@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 from contextlib import asynccontextmanager
 
@@ -155,7 +154,7 @@ async def run(provider=None):
             room_id="web-demo",
         )
         responses = [
-            json.loads(e.result)["data"] for e in events if e.name == "web_fetch" and not e.is_error
+            e.structured_content["data"] for e in events if e.name == "web_fetch" and not e.is_error
         ]
         if not any(
             r["final_url"] == origin + "/guide"

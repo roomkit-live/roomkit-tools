@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 from pathlib import Path
 
 from roomkit import (
@@ -43,6 +44,18 @@ QUESTION = (
 )
 
 
+# A document's line in docs_list and docs_search text: its quoted ID, quoted
+# title, then its revision among the facts in parentheses.
+DOCUMENT_LINE = re.compile(r'^1\. ("(?:[^"\\]|\\.)*") .*?revision (sha256:[0-9a-f]+)', re.M)
+
+
+def first_document(text):
+    """The ID and revision of the first document a docs_search text lists."""
+    found = DOCUMENT_LINE.search(text)
+    assert found, text
+    return json.loads(found[1]), found[2]
+
+
 class ScriptedReader(MockAIProvider):
     async def generate(self, context):
         self.calls.append(context)
@@ -61,12 +74,10 @@ class ScriptedReader(MockAIProvider):
             name = "docs_search"
             arguments = {"query": "agent_followup" if index == 1 else "expected_revision"}
         elif index in (2, 4):
-            document = json.loads(parts[-1].result)["data"]["matches"][0]["document"]
+            # The model reads the text alone: the ID and revision come from it.
+            document_id, revision = first_document(parts[-1].result)
             name = "docs_read"
-            arguments = {
-                "document_id": document["document_id"],
-                "expected_revision": document["revision"],
-            }
+            arguments = {"document_id": document_id, "expected_revision": revision}
         else:
             return AIResponse(
                 content="Use agent_followup with an idle agent's actual ID (agents.md:5-6). "
@@ -102,7 +113,7 @@ def verify(events, before):
         if event.is_error:
             continue
         names.add(event.name)
-        data = json.loads(event.result)["data"]
+        data = event.structured_content["data"]
         if event.name == "docs_list":
             documents = data["documents"]
         elif event.name == "docs_search":

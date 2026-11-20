@@ -3,6 +3,7 @@
 #![expect(clippy::unwrap_used, reason = "a broken fixture must fail the test")]
 
 mod common;
+mod served;
 
 use std::sync::Arc;
 
@@ -58,7 +59,7 @@ fn script() -> [ScriptedRound; 6] {
     ]
 }
 
-async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, Option<String>) {
+async fn scenario(block_mutations: bool) -> (Vec<String>, Vec<ToolCallOutcome>, Option<String>) {
     let root = tempfile::tempdir().unwrap();
     let workspace = Workspace::new(root.path()).await.unwrap();
     let model = ScriptedProvider::new(script());
@@ -122,10 +123,7 @@ async fn scenario(block_mutations: bool) -> (Vec<Value>, Vec<ToolCallOutcome>, O
         .messages
         .iter()
         .filter(|message| message.tool_result().is_some())
-        .map(|message| {
-            let text = message.text();
-            serde_json::from_str(&text).unwrap_or(Value::String(text))
-        })
+        .map(roomkit_ai::AiMessage::text)
         .collect();
     let outcomes = chat
         .deliveries()
@@ -156,12 +154,19 @@ async fn agent_mutations_reach_the_file_and_the_model_receives_the_real_results(
         contents.as_deref(),
         Some("Orders\n43 | Taylor | 3 notebooks\n")
     );
-    assert_eq!(results[0]["data"]["created"], true);
+    // The model reads each tool's text alone.
+    assert!(
+        results[0].starts_with("write \"orders.txt\": created=true, changed=true,"),
+        "{}",
+        results[0]
+    );
     for result in &results[1..4] {
-        assert_eq!(result["data"]["replacements"], 1);
-        assert_eq!(result["data"]["changed"], true);
+        assert!(
+            result.starts_with("edit \"orders.txt\": replacements=1, changed=true,"),
+            "{result}"
+        );
     }
-    let read = results[4]["text"].as_str().unwrap();
+    let read = &results[4];
     assert!(
         read.starts_with("1: Orders\n2: 43 | Taylor | 3 notebooks\n[revision=sha256:"),
         "{read}"
@@ -174,7 +179,7 @@ async fn roomkit_can_refuse_mutations_before_any_file_is_created() {
     assert_eq!(&outcomes[..4], [ToolCallOutcome::Refused; 4]);
     assert!(contents.is_none());
     for result in &results[..4] {
-        assert!(result.to_string().contains("File mutations are disabled"));
+        assert!(result.contains("File mutations are disabled"), "{result}");
     }
 }
 
@@ -191,15 +196,17 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
     let workspace = Workspace::new(root.path()).await.unwrap();
     let edit = Edit::new(EditTool::from_workspace(workspace.clone()));
     let write = Write::new(WriteTool::from_workspace(workspace));
-    let ToolResult::Json(original) = read
-        .handler("read".into(), arguments(json!({"path":"notes", "limit":1})))
-        .await
-        .unwrap()
-    else {
-        panic!("expected JSON")
-    };
-    let revision = &original["data"]["revision"];
+    let (text, original) =
+        served::call(&read, "read", arguments(json!({"path":"notes", "limit":1})))
+            .await
+            .unwrap();
+    let revision = &original["revision"];
     assert!(revision.as_str().unwrap().starts_with("sha256:"));
+    // The model reads the revision in the text, to pass it on.
+    let ToolResult::Text(text) = text else {
+        panic!("expected the text alone, got {text:?}")
+    };
+    assert!(text.contains(revision.as_str().unwrap()), "{text}");
     assert!(
         edit.definition().parameters["properties"]
             .get("expected_revision")
@@ -221,21 +228,14 @@ async fn revision_round_trip_refuses_stale_calls_and_accepts_a_fresh_read() {
         std::fs::read_to_string(&path).unwrap(),
         "count=1\nowner=Drew\n"
     );
-    let ToolResult::Json(current) = read
-        .handler("read".into(), arguments(json!({"path":"notes"})))
+    let (_, current) = served::call(&read, "read", arguments(json!({"path":"notes"})))
         .await
-        .unwrap()
-    else {
-        panic!("expected JSON")
-    };
+        .unwrap();
     let mut fresh = stale_edit;
-    fresh["expected_revision"] = current["data"]["revision"].clone();
-    let ToolResult::Json(changed) = edit.handler("edit".into(), arguments(fresh)).await.unwrap()
-    else {
-        panic!("expected JSON")
-    };
-    assert_eq!(changed["data"]["changed"], true);
-    assert_ne!(changed["data"]["revision"], current["data"]["revision"]);
+    fresh["expected_revision"] = current["revision"].clone();
+    let (_, changed) = served::call(&edit, "edit", arguments(fresh)).await.unwrap();
+    assert_eq!(changed["changed"], true);
+    assert_ne!(changed["revision"], current["revision"]);
     assert_eq!(
         std::fs::read_to_string(path).unwrap(),
         "count=2\nowner=Drew\n"
@@ -253,7 +253,7 @@ async fn adapters_keep_overwrite_and_ambiguity_refusals_and_decline_other_tools(
     let make_write = || arguments(json!({"path":"orders", "content":"a a"}));
     assert!(matches!(
         write.handler("write".into(), make_write()).await,
-        Ok(ToolResult::Json(_))
+        Ok(ToolResult::Text(_))
     ));
     assert!(matches!(
         write.handler("write".into(), make_write()).await,

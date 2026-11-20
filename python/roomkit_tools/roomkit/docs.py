@@ -14,7 +14,7 @@ class _DocsAdapter[T](_ToolAdapter[T]):
 
         Refusals and resource failures expose their public messages. I/O and
         other tool errors propagate for RoomKit to report without host details.
-        The result is also the call's structured content.
+        The model reads the text; the data is the call's structured content.
         """
         from roomkit.core.exceptions import UnservedToolCallError
 

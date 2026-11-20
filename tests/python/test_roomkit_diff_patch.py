@@ -21,6 +21,7 @@ from roomkit.models.room import Room
 from roomkit.providers.ai.base import AIResponse, AIToolCall, AIToolResultPart
 from roomkit.providers.ai.mock import MockAIProvider
 from roomkit.tools.compose import extract_tools
+from roomkit_helpers import served
 from roomkit_tools import (
     Diff,
     DiffTool,
@@ -36,6 +37,7 @@ from roomkit_tools import (
     Write,
     WriteTool,
 )
+from text_helpers import content
 
 
 class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
@@ -187,16 +189,22 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(len(parts), 5)
         self.assertFalse(any(part.is_error for part in parts))
-        results = [json.loads(part.result)["data"] for part in parts]
-        self.assertTrue(results[0]["changed"])
-        self.assertTrue(results[1]["dry_run"])
-        self.assertEqual(results[1]["applied"], [])
-        self.assertFalse(results[2]["dry_run"])
-        self.assertTrue(results[2]["completed"])
-        self.assertIsNone(results[2]["failure"])
-        self.assertEqual(len(results[2]["applied"]), 2)
-        self.assertFalse(results[3]["changed"])
-        self.assertEqual(results[4]["lines"][0]["text"], "Count increased.")
+        # The model reads each tool's text alone.
+        results = [part.result for part in parts]
+        self.assertEqual(
+            results[0], '--- "old.txt"\n+++ "new.txt"\n@@ -1,1 +1,1 @@\n-count=2\n+count=3\n'
+        )
+        self.assertTrue(results[1].startswith("patch: dry_run=true, completed=true\n"))
+        self.assertNotIn("applied #", results[1])
+        self.assertTrue(
+            results[2].startswith(
+                "patch: dry_run=false, completed=true\n"
+                'applied #1 update "old.txt"\napplied #2 add "summary.txt"\n'
+            ),
+            results[2],
+        )
+        self.assertEqual(results[3], "no differences\n")
+        self.assertEqual(content(results[4]), "1: Count increased.\n")
         self.assertEqual((self.root / "old.txt").read_text(), "count=3\n")
 
     async def test_partial_result_is_preserved_and_cancellation_is_not_wrapped(self) -> None:
@@ -215,8 +223,8 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
         }
         native = SimpleNamespace(call=AsyncMock(return_value=json.dumps(partial)))
         facade = Patch(PatchTool(native))
-        result = await facade.handler("patch", {"changes": [], "dry_run": False})
-        self.assertEqual(json.loads(result), partial)
+        result = await served(facade.handler, "patch", {"changes": [], "dry_run": False})
+        self.assertEqual(result, (partial["text"], partial["data"]))
         native.call.side_effect = asyncio.CancelledError
         with self.assertRaises(asyncio.CancelledError):
             await facade.handler("patch", {"changes": []})
@@ -239,7 +247,7 @@ class DiffPatchLifecycleTests(unittest.TestCase):
             }
             asyncio.run(patch.handler("patch", batch))
             result = asyncio.run(diff.handler("diff", {"old_path": "file", "new_path": "file"}))
-            self.assertFalse(json.loads(result)["data"]["changed"])
+            self.assertEqual(result, "no differences\n")
 
 
 if __name__ == "__main__":

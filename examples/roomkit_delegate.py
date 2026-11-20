@@ -8,7 +8,6 @@ See roomkit_agents.py for dynamic resolution, follow-ups and concurrent missions
 
 import argparse
 import asyncio
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -67,7 +66,7 @@ async def main(root, *, live=False):
         @kit.hook(HookTrigger.ON_TOOL_CALL, execution=HookExecution.ASYNC)
         async def observe_read(event, _context):
             if event.name == "read" and not event.is_error:
-                reads.append(json.loads(event.result))
+                reads.append(event)
 
         reader = await ReadTool.create(root)
         async with RoomKitAgentBackend(
@@ -126,7 +125,10 @@ async def main(root, *, live=False):
                 assert len(tasks) == 1, "expected an actual delegation"
                 result = await agents.wait(tasks[0]["task_id"])
             assert result["status"] == "completed" and result["delivery"] == "delivered"
-            assert reads and reads[-1]["text"].startswith("1: Project: Sample\n2: Status: ready\n")
+            # The researcher's model reads the text alone; the host gets the data.
+            assert reads and reads[-1].result.startswith("1: Project: Sample\n2: Status: ready\n")
+            lines = reads[-1].structured_content["data"]["lines"]
+            assert [line["text"] for line in lines] == ["Project: Sample", "Status: ready"]
             print("Verified: delegated Rust read completed; report delivered to the principal.")
 
 

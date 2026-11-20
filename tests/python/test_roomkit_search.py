@@ -2,7 +2,6 @@
 
 import importlib.util
 import io
-import json
 import unittest
 from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -30,7 +29,12 @@ def load_example():
 
 
 def event(name, data, *, is_error=False):
-    return SimpleNamespace(name=name, result=json.dumps({"data": data}), is_error=is_error)
+    """A call as the host's ON_TOOL_CALL hook reads it: a failed call's words
+    and no structured content, or a served call's text and its data."""
+    if is_error:
+        return SimpleNamespace(name=name, result=data, structured_content=None, is_error=True)
+    copy = {"data": data}
+    return SimpleNamespace(name=name, result="", structured_content=copy, is_error=False)
 
 
 class RoomKitSearchTests(unittest.IsolatedAsyncioTestCase):
@@ -49,12 +53,14 @@ class RoomKitSearchTests(unittest.IsolatedAsyncioTestCase):
         spec.loader.exec_module(example)
         with redirect_stdout(io.StringIO()):
             events = await example.run(service="fixture-openai")
-        output = json.loads(events[0].result)
-        self.assertEqual(output["data"]["payload"]["kind"], "answer")
-        self.assertEqual(output["data"]["usage"]["search_requests"], 1)
-        self.assertIn("[source 1](<http://127.0.0.1:", output["text"])
+        # The model reads the text alone; the host gets the data.
+        self.assertIn("[source 1](<http://127.0.0.1:", events[0].result)
+        searched = events[0].structured_content["data"]
+        self.assertEqual(searched["payload"]["kind"], "answer")
+        self.assertEqual(searched["usage"]["search_requests"], 1)
         self.assertEqual(events[1].name, "web_fetch")
-        self.assertTrue(json.loads(events[1].result)["data"]["url"].endswith("?utm_source=openai"))
+        fetched = events[1].structured_content["data"]
+        self.assertTrue(fetched["url"].endswith("?utm_source=openai"))
 
     async def test_agent_corrects_removed_tracking_query_before_fetch_runs(self):
         example = load_example()
@@ -110,7 +116,7 @@ class RoomKitSearchTests(unittest.IsolatedAsyncioTestCase):
         ):
             events = await example.run(service="fixture-openai")
         self.assertEqual([e.is_error for e in events], [False, False])
-        fetched = json.loads(events[1].result)["data"]
+        fetched = events[1].structured_content["data"]
         self.assertNotIn("#", fetched["url"])
         self.assertTrue(fetched["http_ok"])
 

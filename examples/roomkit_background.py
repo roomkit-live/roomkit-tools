@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -73,13 +74,26 @@ def require(condition, message):
 
 
 def results(context, name):
+    """The texts the model read of its successful calls of `name`."""
     return [
-        json.loads(part.result)
+        part.result
         for message in context.messages
         if isinstance(message.content, list)
         for part in message.content
         if isinstance(part, AIToolResultPart) and part.name == name and not part.is_error
     ]
+
+
+def symbol_lines(outline, name):
+    """The first and last line of the symbol `name` in a code_outline text."""
+    found = re.search(rf"^\d+: \w+ {re.escape(json.dumps(name))} \[(\d+)-(\d+)\]", outline, re.M)
+    require(found is not None, f"{name} is not in the outline")
+    return int(found[1]), int(found[2])
+
+
+def numbered_lines(text):
+    """The numbered source lines of a read text, without its facts line."""
+    return [(int(number), line) for number, line in re.findall(r"^(\d+): (.*)$", text, re.M)]
 
 
 def call(name, arguments):
@@ -122,23 +136,23 @@ class WorkerProvider(MockAIProvider):
         outlines = results(context, "code_outline")
         if not outlines:
             return call("code_outline", {"path": "shipping.py"})
-        method = next(s for s in outlines[-1]["data"]["symbols"] if s["name"] == "calculate_fee")
+        # The model reads each tool's text alone: the range and the quoted
+        # line come from it.
+        start, end = symbol_lines(outlines[-1], "calculate_fee")
         reads = results(context, "read")
         if not reads:
             return call(
                 "read",
-                {
-                    "path": "shipping.py",
-                    "offset": method["start_line"],
-                    "limit": method["end_line"] - method["start_line"] + 1,
-                },
+                {"path": "shipping.py", "offset": start, "limit": end - start + 1},
             )
         if not results(context, "grep"):
             return call("grep", {"pattern": "subtotal > 50", "path": "shipping.py"})
-        line = next(line for line in reads[-1]["data"]["lines"] if "subtotal >" in line["text"])
+        number, text = next(
+            (number, text) for number, text in numbered_lines(reads[-1]) if "subtotal >" in text
+        )
         return AIResponse(
             content=(
-                f"shipping.py:{line['number']}: {line['text'].strip()}. "
+                f"shipping.py:{number}: {text.strip()}. "
                 "calculate_fee excludes exactly 50. Suggested correction: >= 50. "
                 "Files were only read; no tests were run."
             )
@@ -458,7 +472,7 @@ class BackgroundDemo:
 
     def worker_results(self, room):
         return [
-            (e, json.loads(e.result)["data"])
+            (e, e.structured_content["data"])
             for e in self.tools
             if e.room_id == room and e.channel_id == "researcher" and not e.is_error
         ]

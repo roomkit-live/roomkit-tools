@@ -60,7 +60,8 @@ line count and version, and its source when it is not the ID; a read names its
 document with the revision and source too, and numbers its lines as `read`
 numbers them; each ends with the `next_offset` and `catalog_revision` facts.
 `data` keeps the complete provenance, revisions included, and lines.
-RoomKit also receives the envelope as structured tool content.
+Through RoomKit, the model reads the `text` alone, and the host receives the
+`data` as the call's structured content, `{"data": ...}`.
 
 ## Discovery, search and reading
 

@@ -29,7 +29,7 @@ async fn archived_shell_output_uses_room_and_agent_scope() {
     );
     let read = OutputRead::new(store.clone());
     let forget = OutputForget::new(store.clone());
-    let ToolResult::Json(result) = call::run(
+    let (ToolResult::Text(text), result) = call::run(
         &shell,
         "one",
         "agent",
@@ -38,11 +38,11 @@ async fn archived_shell_output_uses_room_and_agent_scope() {
     )
     .await
     .unwrap() else {
-        panic!("expected JSON");
+        panic!("expected a text");
     };
-    let aid = result["data"]["stdout"]["archive"]["archive_id"]
-        .as_str()
-        .unwrap();
+    let aid = result["stdout"]["archive"]["archive_id"].as_str().unwrap();
+    // The model reads the archive's ID in the text, to read it.
+    assert!(text.contains(aid), "{text}");
     for (room, agent) in [("two", "agent"), ("one", "another")] {
         assert!(matches!(
             call::run(&read, room, agent, "output_read", json!({"archive_id":aid})).await,
@@ -60,7 +60,7 @@ async fn archived_shell_output_uses_room_and_agent_scope() {
             Err(ToolError::Refused(_))
         ));
     }
-    let ToolResult::Json(page) = call::run(
+    let (_, page) = call::run(
         &read,
         "one",
         "agent",
@@ -68,10 +68,8 @@ async fn archived_shell_output_uses_room_and_agent_scope() {
         json!({"archive_id":aid}),
     )
     .await
-    .unwrap() else {
-        panic!("expected JSON");
-    };
-    assert_eq!(page["data"]["text"], "saved");
+    .unwrap();
+    assert_eq!(page["text"], "saved");
     call::run(
         &forget,
         "one",

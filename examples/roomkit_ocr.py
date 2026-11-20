@@ -6,7 +6,6 @@ configured vLLM agent call the tool and summarize the recognized text.
 
 import argparse
 import asyncio
-import json
 import os
 from pathlib import Path
 
@@ -52,9 +51,10 @@ class ScriptedReader(MockAIProvider):
             )
         result = results[-1]
         assert not result.is_error, result.result
-        data = json.loads(result.result)["data"]
-        assert data["backend"]["provider"] == "rusto"
-        return AIResponse(content="Observed OCR text:\n" + data["text"])
+        # The model reads the text alone: a heading line, then the recognized text.
+        heading, _, recognized = result.result.partition("\n")
+        assert heading.startswith("OCR "), result.result
+        return AIResponse(content="Observed OCR text:\n" + recognized)
 
 
 def live_provider():
@@ -116,7 +116,9 @@ async def run(models: Path, image: Path, *, live=False):
                 room_id="ocr-demo",
             )
         assert result.error is None, result.error
-        assert any(not event.is_error for event in calls), "no successful OCR call observed"
+        recognized = [event.structured_content["data"] for event in calls if not event.is_error]
+        assert recognized, "no successful OCR call observed"
+        assert all(data["backend"]["provider"] == "rusto" for data in recognized), recognized
         assert replies and replies[-1].strip(), "no final answer"
         assert await asyncio.to_thread(image.read_bytes) == original
     print("Verified: actual OCR result reached RoomKit; source image unchanged.")

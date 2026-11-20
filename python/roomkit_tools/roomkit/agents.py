@@ -24,8 +24,8 @@ class _AgentAdapter[T](_ToolAdapter[T]):
     async def handler(self, name: str, arguments: dict[str, Any]) -> str:
         """Resolve RoomKit's trusted caller; never accept scope from the model.
 
-        A call outside a RoomKit tool call is refused; the result is also the
-        call's structured content.
+        A call outside a RoomKit tool call is refused. The model reads the
+        text; the data is the call's structured content.
         """
         from roomkit.core.exceptions import UnservedToolCallError
 

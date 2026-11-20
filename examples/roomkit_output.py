@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -46,6 +46,10 @@ TASK = (
     "Report only the observed diagnostic and whether the archive is complete. "
     "Do not rerun shell to retrieve the log."
 )
+
+
+# The shell's text names the archive of a stream it cut short.
+STDOUT_ARCHIVE = re.compile(r"^\[stdout archive (\S+):", re.M)
 
 
 class ArchiveProvider(MockAIProvider):
@@ -89,9 +93,10 @@ class ArchiveProvider(MockAIProvider):
                 for part in message.content
                 if isinstance(part, AIToolResultPart) and part.name == "shell" and not part.is_error
             ]
-            response.tool_calls[0].arguments["archive_id"] = json.loads(parts[-1].result)["data"][
-                "stdout"
-            ]["archive"]["archive_id"]
+            # The model reads the shell's text alone, which names the archive.
+            archive = STDOUT_ARCHIVE.search(parts[-1].result)
+            assert archive, parts[-1].result
+            response.tool_calls[0].arguments["archive_id"] = archive[1]
         return response
 
 
@@ -147,10 +152,10 @@ async def run(root: Path, provider) -> list[ToolCallEvent]:
             or await asyncio.to_thread((root / "runs").read_bytes) != b"run"
         ):
             raise RuntimeError("Expected one real command followed by an archive read")
-        stdout = json.loads(shells[0].result)["data"]["stdout"]
+        stdout = shells[0].structured_content["data"]["stdout"]
         if not stdout["truncated"] or not stdout["archive"]["complete"]:
             raise RuntimeError("Expected a truncated preview and complete disk copy")
-        pages = [json.loads(event.result)["data"] for event in reads]
+        pages = [event.structured_content["data"] for event in reads]
         if not any(
             page["archive"]["archive_id"] == stdout["archive"]["archive_id"]
             and page["offset"] == OFFSET

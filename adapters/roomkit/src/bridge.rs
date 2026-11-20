@@ -5,7 +5,7 @@ use std::future::Future;
 
 use roomkit::model::{Metadata, ToolCall};
 use roomkit_ai::{AiTool, ToolError, ToolFuture, ToolResult, current_tool_call};
-use roomkit_tools_core::Definition;
+use roomkit_tools_core::{Definition, Output};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
@@ -31,8 +31,9 @@ pub(crate) fn ai_tool(definition: Definition) -> AiTool {
 }
 
 /// Serve the call `name` with `arguments` for the tool named `wire`, as
-/// [`serve_result`] does; `run`'s output reaches the model as JSON.
-pub(crate) fn serve<C, I, O, A, F, Fut>(
+/// [`serve_result`] does; the model reads the text of `run`'s output, and its
+/// data goes to the host, as Python's adapters give them.
+pub(crate) fn serve<C, I, T, A, F, Fut>(
     wire: &'static str,
     name: String,
     arguments: Metadata,
@@ -41,21 +42,31 @@ pub(crate) fn serve<C, I, O, A, F, Fut>(
 ) -> ToolFuture
 where
     I: DeserializeOwned,
-    O: Serialize,
+    T: Serialize,
     A: FnOnce() -> Result<C, ToolError> + Send + 'static,
     C: Send + 'static,
     F: FnOnce(C, I, CancellationToken) -> Fut + Send + 'static,
-    Fut: Future<Output = Result<O, ToolError>> + Send + 'static,
+    Fut: Future<Output = Result<Output<T>, ToolError>> + Send + 'static,
 {
     let run = move |caller, input, cancel| {
         let running = run(caller, input, cancel);
-        async move {
-            serde_json::to_value(running.await?)
-                .map(ToolResult::Json)
-                .map_err(|error| ToolError::raised(&error))
-        }
+        async move { text_for_model(running.await?) }
     };
     serve_result(wire, name, arguments, caller, run)
+}
+
+/// The text of `output`, which the model reads again on every later request;
+/// its data goes to the host as the current call's structured content,
+/// `{"data": ...}`, which the model never reads. Outside a RoomKit tool call
+/// nobody reads the data.
+fn text_for_model<T: Serialize>(output: Output<T>) -> Result<ToolResult, ToolError> {
+    let Output { data, text, .. } = output;
+    if let Some(call) = current_tool_call() {
+        let data = serde_json::to_value(data).map_err(|error| ToolError::raised(&error))?;
+        let copy = Metadata::from_iter([("data".to_owned(), data)]);
+        call.structured_content.replace(Some(copy.into()));
+    }
+    Ok(ToolResult::Text(text))
 }
 
 /// Serve the call `name` with `arguments` for the tool named `wire`.

@@ -2,11 +2,14 @@
 #![expect(clippy::unwrap_used, reason = "broken fixtures must fail tests")]
 
 mod common;
+mod served;
 
 use std::sync::Arc;
 
 use roomkit::RoomKit;
-use roomkit::model::{ChannelId, ChannelType, InboundMessage, Metadata, RoomId, TextContent};
+use roomkit::model::{
+    ChannelId, ChannelType, EventContent, EventType, InboundMessage, Metadata, RoomId, TextContent,
+};
 use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{Tool, ToolEntry, ToolError, ToolResult};
@@ -51,7 +54,25 @@ fn script() -> [ScriptedRound; 5] {
     ]
 }
 
-async fn scenario(refused: bool) -> Vec<Value> {
+/// The data `chat` received of each call that ended (null for none).
+fn data_received(chat: &RecordingTransport) -> Vec<Value> {
+    chat.deliveries()
+        .iter()
+        .filter(|delivery| delivery.event.r#type == EventType::ToolCallEnd)
+        .filter_map(|delivery| match &delivery.event.content {
+            EventContent::ToolCall(call) => Some(
+                call.structured_content
+                    .as_ref()
+                    .map_or(Value::Null, |copy| copy["data"].clone()),
+            ),
+            _ => None,
+        })
+        .collect()
+}
+
+/// What the model read of each call, and the data the chat received of each
+/// (null for none).
+async fn scenario(refused: bool) -> (Vec<String>, Vec<Value>) {
     let root = tempfile::tempdir().unwrap();
     for (path, value) in [
         ("hours", "Saturday: 16:00\n"),
@@ -123,15 +144,13 @@ async fn scenario(refused: bool) -> Vec<Value> {
         requests[0].tools[1].parameters,
         PatchTool::definition().input_schema
     );
-    let outputs = requests[4]
+    let texts = requests[4]
         .messages
         .iter()
         .filter(|message| message.tool_result().is_some())
-        .map(|message| {
-            let text = message.text();
-            serde_json::from_str(&text).unwrap_or(Value::String(text))
-        })
+        .map(roomkit_ai::AiMessage::text)
         .collect();
+    let data = data_received(&chat);
     assert_eq!(
         std::fs::read_to_string(root.path().join("hours")).unwrap(),
         if refused {
@@ -145,26 +164,39 @@ async fn scenario(refused: bool) -> Vec<Value> {
     assert_eq!(root.path().join("orders").exists(), refused);
     assert_eq!(root.path().join("archived-orders").exists(), !refused);
     kit.close().await.unwrap();
-    outputs
+    (texts, data)
 }
 
 #[tokio::test]
 async fn agent_receives_real_hunks_preview_application_and_final_equality() {
-    let outputs = scenario(false).await;
-    assert_eq!(outputs[0]["data"]["additions"], 1);
-    assert_eq!(outputs[1]["data"]["dry_run"], true);
-    assert_eq!(outputs[1]["data"]["applied"], json!([]));
-    assert_eq!(outputs[2]["data"]["completed"], true);
-    assert_eq!(outputs[2]["data"]["applied"].as_array().unwrap().len(), 5);
-    assert_eq!(outputs[3]["data"]["changed"], false);
+    let (texts, data) = scenario(false).await;
+    // The model reads each tool's text alone; the chat gets the data.
+    assert!(
+        texts[1].starts_with("patch: dry_run=true, completed=true\n"),
+        "{}",
+        texts[1]
+    );
+    assert!(
+        texts[2].starts_with("patch: dry_run=false, completed=true\n"),
+        "{}",
+        texts[2]
+    );
+    assert_eq!(texts[3], "no differences\n");
+    assert_eq!(data[0]["additions"], 1);
+    assert_eq!(data[1]["dry_run"], true);
+    assert_eq!(data[1]["applied"], json!([]));
+    assert_eq!(data[2]["completed"], true);
+    assert_eq!(data[2]["applied"].as_array().unwrap().len(), 5);
+    assert_eq!(data[3]["changed"], false);
 }
 
 #[tokio::test]
 async fn roomkit_can_refuse_patch_while_allowing_diff() {
-    let outputs = scenario(true).await;
-    assert!(outputs[1].to_string().contains("Patch disabled"));
-    assert!(outputs[2].to_string().contains("Patch disabled"));
-    assert_eq!(outputs[3]["data"]["changed"], true);
+    let (texts, data) = scenario(true).await;
+    assert!(texts[1].contains("Patch disabled"), "{}", texts[1]);
+    assert!(texts[2].contains("Patch disabled"), "{}", texts[2]);
+    assert_eq!(data[1], Value::Null);
+    assert_eq!(data[3]["changed"], true);
 }
 
 fn arguments(input: Value) -> Metadata {
@@ -188,9 +220,9 @@ async fn each_adapter_serves_only_its_own_tool() {
         diff.handler("patch".into(), arguments(changes())).await,
         Err(ToolError::UnservedToolCall(_))
     ));
-    let Ok(ToolResult::Json(compared)) = diff.handler("diff".into(), arguments(compare)).await
-    else {
-        panic!("expected JSON")
-    };
-    assert_eq!(compared["data"]["changed"], false);
+    let (text, compared) = served::call(&diff, "diff", arguments(compare))
+        .await
+        .unwrap();
+    assert_eq!(text, ToolResult::Text("no differences\n".into()));
+    assert_eq!(compared["changed"], false);
 }

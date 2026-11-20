@@ -73,10 +73,16 @@ FOLLOWUP_TASK = (
 )
 
 
+def numbered_lines(text):
+    """The numbered source lines of a read text, without its facts line."""
+    return [(int(number), line) for number, line in re.findall(r"^(\d+): (.*)$", text, re.M)]
+
+
 class ScriptedWorker(MockAIProvider):
     async def generate(self, context):
+        # The model reads each read's text alone: it quotes the line from it.
         reads = [
-            json.loads(part.result)
+            part.result
             for message in context.messages
             if isinstance(message.content, list)
             for part in message.content
@@ -84,11 +90,13 @@ class ScriptedWorker(MockAIProvider):
         ]
         if context.messages[-1].role != "tool" or not reads:
             return tool_call("read", {"path": "shipping.py"})
-        line = next(line for line in reads[-1]["data"]["lines"] if "subtotal >" in line["text"])
+        number, text = next(
+            (number, text) for number, text in numbered_lines(reads[-1]) if "subtotal >" in text
+        )
         markers = re.findall(r"PARALLEL_[0-9a-f]{12}", str(context.messages))
         acknowledgement = f" Verification marker: {markers[-1]}." if markers else ""
         return AIResponse(
-            content=f"shipping.py:{line['number']}: {line['text'].strip()}. "
+            content=f"shipping.py:{number}: {text.strip()}. "
             "Exactly 50 is excluded. Suggested correction: >= 50. No files were modified."
             + acknowledgement
         )
@@ -528,7 +536,7 @@ async def run(root, *, dynamic=False, live=False, chat=False, held=False, parall
                             f"(observed={len(observed)}) or principal delivery "
                             f"(delivery={record['delivery']})"
                         )
-                    pages = [json.loads(event.result)["data"] for event in observed]
+                    pages = [event.structured_content["data"] for event in observed]
                     if not any(
                         page["path"] == "shipping.py"
                         and {"number": 3, "text": "    if subtotal > 50:"} in page["lines"]

@@ -1,5 +1,6 @@
 //! Independently selectable network tool, results and dropped calls.
 #![expect(clippy::unwrap_used, reason = "test fixture failures must fail tests")]
+mod served;
 #[path = "../../../crates/roomkit-tools-web/tests/support/web.rs"]
 mod web;
 use roomkit::model::Metadata;
@@ -38,18 +39,12 @@ async fn schema_result_policy_and_dropped_calls_preserve_native_contracts() {
         Err(ToolError::Refused(_))
     ));
     let start = format!("{}/start", server.origin);
-    let ToolResult::Json(result) = tools
-        .handler("web_fetch".into(), url(&start))
+    let (text, result) = served::call(&tools, "web_fetch", url(&start))
         .await
-        .unwrap()
-    else {
-        panic!("expected JSON")
-    };
-    assert_eq!(
-        result["data"]["final_url"],
-        format!("{}/doc", server.origin)
-    );
-    assert_eq!(result["data"]["redirects"], 1);
+        .unwrap();
+    assert!(matches!(text, ToolResult::Text(_)), "{text:?}");
+    assert_eq!(result["final_url"], format!("{}/doc", server.origin));
+    assert_eq!(result["redirects"], 1);
     assert_eq!(*server.seen.lock().unwrap(), ["/start", "/doc"]);
     // RoomKit cancels a call by dropping it; the adapter keeps serving.
     let mut pending = tools.handler("web_fetch".into(), url(&format!("{}/slow", server.origin)));
@@ -68,7 +63,7 @@ async fn schema_result_policy_and_dropped_calls_preserve_native_contracts() {
     drop(pending);
     assert!(matches!(
         tools.handler("web_fetch".into(), url(&start)).await,
-        Ok(ToolResult::Json(_))
+        Ok(ToolResult::Text(_))
     ));
     assert_eq!(
         *server.seen.lock().unwrap(),

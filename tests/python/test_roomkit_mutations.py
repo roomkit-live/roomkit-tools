@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +19,7 @@ from roomkit.models.room import Room
 from roomkit.providers.ai.base import AIResponse, AIToolCall, AIToolResultPart
 from roomkit.providers.ai.mock import MockAIProvider
 from roomkit.tools.compose import extract_tools
+from roomkit_helpers import served
 from roomkit_tools import (
     Edit,
     EditTool,
@@ -67,21 +68,20 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(definitions[1].parameters, EditTool.definition()["input_schema"])
         with self.assertRaises(UnservedToolCallError):
             await handler("read", {"path": "orders.txt"})
-        first = json.loads(await handler("write", {"path": "orders.txt", "content": "value: 2\n"}))
+        _, first = await served(handler, "write", {"path": "orders.txt", "content": "value: 2\n"})
         with self.assertRaises(ToolRefusedError):
             await handler("write", {"path": "orders.txt", "content": "new"})
-        changed = json.loads(
-            await handler(
-                "edit",
-                {
-                    "path": "orders.txt",
-                    "old_text": "2",
-                    "new_text": "3",
-                    "expected_revision": first["data"]["revision"],
-                },
-            )
+        _, changed = await served(
+            handler,
+            "edit",
+            {
+                "path": "orders.txt",
+                "old_text": "2",
+                "new_text": "3",
+                "expected_revision": first["revision"],
+            },
         )
-        self.assertNotEqual(changed["data"]["revision"], first["data"]["revision"])
+        self.assertNotEqual(changed["revision"], first["revision"])
         with self.assertRaises(ToolRefusedError):
             await handler(
                 "edit",
@@ -89,7 +89,7 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
                     "path": "orders.txt",
                     "old_text": "3",
                     "new_text": "4",
-                    "expected_revision": first["data"]["revision"],
+                    "expected_revision": first["revision"],
                 },
             )
         with self.assertRaises(ToolRefusedError):
@@ -225,11 +225,13 @@ class RoomKitMutationTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(len(parts), 3)
         self.assertFalse(any(part.is_error for part in parts))
-        results = [json.loads(part.result) for part in parts]
-        self.assertEqual(results[0]["data"]["revision"], revision)
-        self.assertEqual(results[1]["data"]["replacements"], 1)
-        self.assertEqual(results[1]["data"]["revision"], results[2]["data"]["revision"])
-        self.assertEqual(page_lines(results[2]["text"]), "1: Order 43 - Alex: 3 items\n")
+        # The model reads each tool's text alone, which gives the revisions.
+        results = [part.result for part in parts]
+        revisions = [re.search(r"revision=(sha256:[0-9a-f]+)", text)[1] for text in results]
+        self.assertEqual(revisions[0], revision)
+        self.assertIn("replacements=1", results[1])
+        self.assertEqual(revisions[1], revisions[2])
+        self.assertEqual(page_lines(results[2]), "1: Order 43 - Alex: 3 items\n")
         self.assertEqual((self.root / "orders.txt").read_text(), "Order 43 - Alex: 3 items\n")
 
 

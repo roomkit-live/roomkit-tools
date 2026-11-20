@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import sys
 import tempfile
@@ -22,6 +21,7 @@ from roomkit.models.room import Room
 from roomkit.providers.ai.base import AIResponse, AIToolCall, AIToolResultPart
 from roomkit.providers.ai.mock import MockAIProvider
 from roomkit.tools.compose import extract_tools
+from roomkit_helpers import served
 from roomkit_tools import (
     InvalidInputError,
     Shell,
@@ -67,11 +67,11 @@ class RoomKitShellTests(unittest.IsolatedAsyncioTestCase):
             ToolRefusedError, "timeout_ms exceeds the host maximum of 100 ms"
         ):
             await bounded.handler("shell", {"command": "printf abcd", "timeout_ms": 200})
-        result = json.loads(
-            await bounded.handler("shell", {"command": "printf abcd", "timeout_ms": 100})
+        _, data = await served(
+            bounded.handler, "shell", {"command": "printf abcd", "timeout_ms": 100}
         )
-        self.assertEqual(result["data"]["timeout_ms"], 100)
-        self.assertEqual(result["data"]["stdout"]["omitted_bytes"], 2)
+        self.assertEqual(data["timeout_ms"], 100)
+        self.assertEqual(data["stdout"]["omitted_bytes"], 2)
 
     async def test_environment_is_kept_as_validated_at_construction(self) -> None:
         command = 'printf "%s|%s" "${HOST_TEST_NAME-unset}" "${GREETING-unset}"'
@@ -85,14 +85,13 @@ class RoomKitShellTests(unittest.IsolatedAsyncioTestCase):
         values["BAD=NAME"] = "value"
         with patch.dict(os.environ, {"HOST_TEST_NAME": "host"}):
             results = [
-                json.loads(await shell.handler("shell", {"command": command}))
+                await served(shell.handler, "shell", {"command": command})
                 for shell in (listed, generated)
             ]
-        texts = [result["data"]["stdout"]["text"] for result in results]
-        self.assertEqual(texts, ["host|hello", "host|unset"])
-        # Like every tool's: a host can show the model the text alone.
-        self.assertEqual([sorted(result) for result in results], [["data", "text"]] * 2)
-        self.assertEqual(results[0]["text"], "exit_code=0\nstdout:\nhost|hello\n")
+        outputs = [data["stdout"]["text"] for _, data in results]
+        self.assertEqual(outputs, ["host|hello", "host|unset"])
+        # Like every tool's: the model reads the text alone.
+        self.assertEqual(results[0][0], "exit_code=0\nstdout:\nhost|hello\n")
 
     async def test_agent_observes_output_nonzero_exit_and_timeout_as_results(self) -> None:
         (self.root / "notes").write_text("first\nsecond\n")
@@ -145,14 +144,15 @@ class RoomKitShellTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(len(parts), 3)
         self.assertFalse(any(part.is_error for part in parts))
-        first, failed, timed = [json.loads(part.result)["data"] for part in parts]
-        self.assertEqual(first["stdout"]["text"], "first\nsecond\n")
-        self.assertEqual(first["exit_code"], 0)
-        self.assertEqual(failed["exit_code"], 7)
-        self.assertEqual(failed["stderr"]["text"], "warning")
-        self.assertTrue(timed["timed_out"])
-        self.assertEqual(timed["stdout"]["text"], "started")
-        self.assertEqual(timed["signal"], 9)
+        # The model reads each command's text alone.
+        self.assertEqual(
+            [part.result for part in parts],
+            [
+                "exit_code=0\nstdout:\nfirst\nsecond\n",
+                "exit_code=7\nstderr:\nwarning\n",
+                "exit_code=null, signal=9, timed_out=true\nstdout:\nstarted\n",
+            ],
+        )
 
     @unittest.skipUnless(sys.platform == "linux", "observe Linux process cleanup")
     async def test_concurrent_first_calls_and_cancelled_handler_cleanup(self) -> None:
@@ -161,8 +161,7 @@ class RoomKitShellTests(unittest.IsolatedAsyncioTestCase):
         short = asyncio.create_task(shell.handler("shell", {"command": "printf independent"}))
         try:
             ids = await read_pids(self.root / "pids")
-            result = json.loads(await short)
-            self.assertEqual(result["data"]["stdout"]["text"], "independent")
+            self.assertEqual(await short, "exit_code=0\nstdout:\nindependent\n")
             long.cancel()
             with self.assertRaises(asyncio.CancelledError):
                 await long
@@ -170,8 +169,8 @@ class RoomKitShellTests(unittest.IsolatedAsyncioTestCase):
         finally:
             long.cancel()
             short.cancel()
-        retry = json.loads(await shell.handler("shell", {"command": "printf retry"}))
-        self.assertEqual(retry["data"]["stdout"]["text"], "retry")
+        retry = await shell.handler("shell", {"command": "printf retry"})
+        self.assertEqual(retry, "exit_code=0\nstdout:\nretry\n")
 
 
 class RoomKitShellLifecycleTests(unittest.TestCase):
@@ -183,8 +182,8 @@ class RoomKitShellLifecycleTests(unittest.TestCase):
             root.mkdir()
             shell = Shell(asyncio.run(ShellTool.create(root)))
             for _ in range(2):
-                result = asyncio.run(shell.handler("shell", {"command": "pwd"}))
-                self.assertEqual(json.loads(result)["data"]["cwd"], ".")
+                _, data = asyncio.run(served(shell.handler, "shell", {"command": "pwd"}))
+                self.assertEqual(data["cwd"], ".")
 
 
 if __name__ == "__main__":

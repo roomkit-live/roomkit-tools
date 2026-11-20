@@ -12,6 +12,11 @@
 //! and archives. [`ask_user_handler`] serves `ask_user` through RoomKit's
 //! human input instead: give it as the channel's `human_input_handler`.
 //!
+//! The model reads a served call's `text` alone, again on every later
+//! request; its `data` goes to the host as the call's structured content,
+//! `{"data": ...}`, which an `OnToolCall` hook and the call's events carry.
+//! `ViewImage` answers its text and image parts instead.
+//!
 //! Each adapter has the name of its Python RoomKit tool (`Read`, `Write`,
 //! `Shell`, `ProcessStart`, ...). Where `std::io::Read` or `std::io::Write`
 //! is in scope, name the adapter by path, `roomkit_tools_roomkit::Read`.
@@ -107,7 +112,8 @@ adapter!(
 adapter!(
     /// The `read` tool with its host-selected root and limits.
     ///
-    /// Returns both structured `data` and numbered `text`. Dropping a call
+    /// The model reads the numbered `text`; the host gets the `data` as the
+    /// call's structured content. Dropping a call
     /// cancels its token; already-issued Tokio file operations may finish in
     /// the blocking pool.
     Read, ReadTool, read, "read"

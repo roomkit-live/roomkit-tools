@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import shlex
 import sys
 import tempfile
@@ -90,13 +91,30 @@ def test_command():
 
 
 def tool_results(context, name):
+    """The texts the model read of its successful calls of `name`."""
     return [
-        json.loads(part.result)["data"]
+        part.result
         for message in context.messages
         if isinstance(message.content, list)
         for part in message.content
         if isinstance(part, AIToolResultPart) and part.name == name and not part.is_error
     ]
+
+
+def symbol_lines(outline, name):
+    """The first and last line of the symbol `name` in a code_outline text."""
+    found = re.search(rf"^\d+: \w+ {re.escape(json.dumps(name))} \[(\d+)-(\d+)\]", outline, re.M)
+    if found is None:
+        raise RuntimeError(f"{name} is not in the outline")
+    return int(found[1]), int(found[2])
+
+
+def revision(text):
+    """The revision a read text gives in its facts line."""
+    found = re.search(r"\brevision=(sha256:[0-9a-f]+)", text)
+    if found is None:
+        raise RuntimeError("the read gave no revision")
+    return found[1]
 
 
 class OutlineProvider(MockAIProvider):
@@ -131,14 +149,14 @@ class OutlineProvider(MockAIProvider):
     async def generate(self, context):
         response = await super().generate(context)
         for call in response.tool_calls or []:
+            # The model reads each tool's text alone: the range and the
+            # revision come from it.
             if call.name == "read":
-                symbols = tool_results(context, "code_outline")[-1]["symbols"]
-                method = next(s for s in symbols if s["name"] == "calculate_fee")
-                call.arguments.update(
-                    offset=method["start_line"], limit=method["end_line"] - method["start_line"] + 1
-                )
+                outline = tool_results(context, "code_outline")[-1]
+                start, end = symbol_lines(outline, "calculate_fee")
+                call.arguments.update(offset=start, limit=end - start + 1)
             if call.name == "edit":
-                call.arguments["expected_revision"] = tool_results(context, "read")[-1]["revision"]
+                call.arguments["expected_revision"] = revision(tool_results(context, "read")[-1])
         return response
 
 
@@ -159,7 +177,7 @@ def check_tests(result, fixed):
 
 
 async def verify(root, events):
-    successful = [(e, json.loads(e.result)["data"]) for e in events if not e.is_error]
+    successful = [(e, e.structured_content["data"]) for e in events if not e.is_error]
     edits = [
         (i, e) for i, (e, data) in enumerate(successful) if e.name == "edit" and data["changed"]
     ]
