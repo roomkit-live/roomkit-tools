@@ -128,8 +128,9 @@ Host bounds are explicit constructor keywords for both APIs:
 | `Grep` / `GrepTool` | Same glob bounds, plus `max_file_bytes=8388608`, `max_total_bytes=33554432`, `max_context_lines=20` per side, `max_line_bytes=65536` |
 
 Omitted bounds retain Rust defaults. Bounds must be positive, except
-`max_context_lines=0` disables context. A host bound reached mid-scan never
-fails the call: it returns what was found, sorted, with `truncated: true`, and
+`max_context_lines=0` disables context. `max_scan_entries`, `max_depth` and
+grep's `max_total_bytes` never fail the call: reached mid-scan, the tool
+returns what it found, sorted, with `truncated: true`, and
 the facts line names the bound and the path where the scan stopped, as
 `[truncated_by=max_scan_entries, stopped_at="data"]`; `next_offset` pages
 through what was found. Narrow `path`, the pattern or `include` to see past
