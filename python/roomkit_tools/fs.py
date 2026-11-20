@@ -166,8 +166,9 @@ class GlobTool(_DiscoveryTool):
 
     Files, directories and symlinks can match. Hidden entries are included;
     what the workspace's ``.gitignore`` and ``.ignore`` files exclude, and
-    ``.git``, are left out unless ``include_ignored``. Child symlinks are not
-    followed."""
+    ``.git``, are left out unless ``include_ignored``, as is what a Git
+    repository's ``info/exclude`` and the ignore files between its root and
+    the workspace exclude. Child symlinks are not followed."""
 
     _native_type = _native._GlobTool
 
@@ -218,9 +219,12 @@ class GrepTool(_DiscoveryTool):
 
     Matches contain whole source lines and optional context. Hidden files are
     included; what the workspace's ``.gitignore`` and ``.ignore`` files
-    exclude, and ``.git``, are not searched unless ``include_ignored``. Child
-    symlinks are not followed.
-    Binary/non-UTF-8 files are skipped and counted; other failures are raised."""
+    exclude, and ``.git``, are not searched unless ``include_ignored``, nor is
+    what a Git repository's ``info/exclude`` and the ignore files between its
+    root and the workspace exclude. Child symlinks are not followed.
+    Binary/non-UTF-8 files and files over max_file_bytes are skipped and
+    counted. Once max_total_bytes runs out, the matches found so far are
+    returned, truncated; other failures are raised."""
 
     _native_type = _native._GrepTool
 

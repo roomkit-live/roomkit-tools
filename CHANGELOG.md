@@ -180,6 +180,13 @@ part of an existing published preview.
   special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
   non-public, where the whole /16 was.
 
+- `grep` and `glob` also leave out what a Git repository's
+  `.git/info/exclude` excludes (a worktree's is its repository's) and, when
+  the workspace is a directory below the repository's root, what the ignore
+  files of the directories between them exclude: a `target/` named there
+  made the scan exceed `max_scan_entries`. An ignore file over its bounds is
+  named in the error, as is one above the workspace (`../.gitignore`).
+
 - Once `grep` has read `max_total_bytes` (32 MiB by default), it returns the
   matches found so far with `truncated: true` and no `next_offset`, and its
   facts line names the file it stopped at,

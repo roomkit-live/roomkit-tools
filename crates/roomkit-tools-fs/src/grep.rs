@@ -160,7 +160,8 @@ impl Default for GrepLimits {
 ///
 /// Hidden files are included. Unless `include_ignored`, what the
 /// `.gitignore` and `.ignore` files of the workspace exclude, and `.git`, are
-/// not searched. Binary and non-UTF-8 files, and files over
+/// not searched; in a Git repository, nor is what its `info/exclude` and the
+/// ignore files between its root and the workspace's exclude. Binary and non-UTF-8 files, and files over
 /// `max_file_bytes`, are skipped and counted; binary content is told from a
 /// file's first 8 KiB, and the rest of it is not read. Once
 /// `max_total_bytes` runs out, the search returns the matches found so far,

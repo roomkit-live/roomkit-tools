@@ -78,11 +78,15 @@ usable by `read`. Every page rescans; results are not snapshots across external 
 Hidden entries are included. Glob and grep leave out what the workspace's
 `.gitignore` and `.ignore` files exclude, from the root down to each
 directory, and `.git`, without entering them; `include_ignored=True` scans
-everything. A `path` searched explicitly is searched even when ignored. As in
+everything. In a Git repository they also apply its `.git/info/exclude`
+(a worktree's is its repository's) and, when the workspace is a directory
+below the repository's root, the ignore files of the directories between
+them; Git's global excludes file is not read. A `path` searched explicitly is searched even when ignored. As in
 ripgrep, the `.ignore` rules of every level decide before any `.gitignore`
 rule, the deepest matching rule of each kind first. An ignore file over
-256 KiB, or more than 2 MiB of them in one scan, fails the call as a limit;
-one the scan cannot read fails it naming the file.
+256 KiB, or more than 2 MiB of them in one scan, fails the call as a limit,
+and one the scan cannot read fails it, each naming the file; one above the
+workspace is named with `..`, as `../.gitignore`.
 Child symlinks are not traversed. Grep supports Rust regex syntax, `literal=True`,
 `ignore_case=True`, `include`, `context_before` and `context_after`.
 It skips binary and non-UTF-8 files, and files over `max_file_bytes`, and
