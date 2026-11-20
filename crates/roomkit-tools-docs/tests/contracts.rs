@@ -118,3 +118,71 @@ async fn an_empty_catalogue_has_one_empty_page() {
         Err(ToolError::InvalidInput(_))
     ));
 }
+
+/// A list or search line names the document, its title, line count and
+/// version; its revision stays in `data`, and its source is shown only when
+/// it is not the ID. A read keeps both.
+#[tokio::test]
+async fn list_and_search_lines_leave_the_revision_to_data() {
+    use roomkit_tools_docs::{
+        DocsListInput, DocsListResult, DocsReadInput, DocsSearchInput, DocumentInfo, render,
+    };
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(
+        root.path().join("plans.md"),
+        "# Plans\nUse expected_revision.\n",
+    )
+    .unwrap();
+    let backend: Arc<dyn DocsBackend> = Arc::new(
+        FileDocs::new(root.path(), FileDocsLimits::default())
+            .unwrap()
+            .with_version("v1")
+            .unwrap(),
+    );
+    let token = CancellationToken::new();
+    let list = DocsListTool::new(Arc::clone(&backend))
+        .call(DocsListInput::default(), &token)
+        .await
+        .unwrap();
+    let catalog = &list.data.catalog_revision;
+    assert_eq!(
+        list.text,
+        format!(
+            "1 documents\n1. \"plans.md\" \"Plans\" (2 lines, version \"v1\")\n\
+             [catalog_revision={catalog}]\n"
+        )
+    );
+    let search = DocsSearchTool::new(Arc::clone(&backend))
+        .call(DocsSearchInput::new("expected_revision"), &token)
+        .await
+        .unwrap();
+    assert_eq!(
+        search.text,
+        format!(
+            "1 of 1 documents match\n1. \"plans.md\" \"Plans\" (2 lines, version \"v1\")\n   \
+             2: Use expected_revision.\n[catalog_revision={catalog}]\n"
+        )
+    );
+    let read = DocsReadTool::new(Arc::clone(&backend))
+        .call(DocsReadInput::new("plans.md"), &token)
+        .await
+        .unwrap();
+    let revision = &read.data.document.revision;
+    assert!(read.text.starts_with(&format!(
+        "\"plans.md\" \"Plans\" (2 lines, revision {revision}, version \"v1\", source \"plans.md\")\n"
+    )));
+    // A source other than the ID is kept.
+    let document = DocumentInfo {
+        source: "https://docs.example.com/plans".into(),
+        version: None,
+        ..list.data.documents[0].clone()
+    };
+    let other = render(DocsListResult {
+        documents: vec![document],
+        ..list.data
+    })
+    .unwrap();
+    assert!(other.text.contains(
+        "\n1. \"plans.md\" \"Plans\" (2 lines, source \"https://docs.example.com/plans\")\n"
+    ));
+}

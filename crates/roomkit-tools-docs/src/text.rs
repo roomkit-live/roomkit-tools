@@ -8,7 +8,8 @@ use roomkit_tools_core::append_facts;
 
 use crate::types::{DocsListResult, DocsReadResult, DocsSearchResult, DocumentInfo};
 
-/// A document's identity: what to pass to `docs_read` and cite.
+/// A document's identity in a read: what to cite, revision and source
+/// included.
 fn document(info: &DocumentInfo) -> String {
     let mut text = format!(
         "{:?} {:?} ({} lines, revision {}",
@@ -18,6 +19,24 @@ fn document(info: &DocumentInfo) -> String {
         let _written = write!(text, ", version {version:?}");
     }
     let _written = write!(text, ", source {:?})", info.source);
+    text
+}
+
+/// A document's line in a list or a search: what to pass to `docs_read`.
+/// The revision, and a source that only repeats the ID, took about half of
+/// a list's text; `data` keeps both.
+fn entry(info: &DocumentInfo) -> String {
+    let mut text = format!(
+        "{:?} {:?} ({} lines",
+        info.document_id, info.title, info.line_count
+    );
+    if let Some(version) = &info.version {
+        let _written = write!(text, ", version {version:?}");
+    }
+    if info.source != info.document_id {
+        let _written = write!(text, ", source {:?}", info.source);
+    }
+    text.push(')');
     text
 }
 
@@ -35,7 +54,7 @@ fn next(text: &mut String, next_offset: Option<usize>, catalog_revision: &str) {
 pub(crate) fn list(result: &DocsListResult) -> String {
     let mut text = format!("{} documents\n", result.total_documents);
     for (index, info) in result.documents.iter().enumerate() {
-        let _written = writeln!(text, "{}. {}", result.offset + index, document(info));
+        let _written = writeln!(text, "{}. {}", result.offset + index, entry(info));
     }
     if result.documents.is_empty() {
         text.push_str("no documents on this page\n");
@@ -51,12 +70,7 @@ pub(crate) fn search(result: &DocsSearchResult) -> String {
         result.matched_documents, result.total_documents
     );
     for (index, hit) in result.matches.iter().enumerate() {
-        let _written = writeln!(
-            text,
-            "{}. {}",
-            result.offset + index,
-            document(&hit.document)
-        );
+        let _written = writeln!(text, "{}. {}", result.offset + index, entry(&hit.document));
         let clipped = if hit.truncated { " [clipped]" } else { "" };
         let _written = match hit.line {
             Some(line) => writeln!(text, "   {line}: {}{clipped}", hit.text),

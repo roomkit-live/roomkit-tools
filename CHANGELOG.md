@@ -63,6 +63,10 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- `docs_list` and `docs_search` lines leave a document's revision to `data`
+  and show its source only when it is not the document ID: the two took
+  about half of a list's `text`. `docs_read` still names both.
+
 - A `FileDocs` document's title is its first `# ` heading outside fenced
   code: a `# fetch the sources` comment in a ```` ```sh ```` block above the
   heading became the title.

@@ -55,10 +55,11 @@ if result["data"]["matches"]:
 
 `FileDocs.list/search/read` expose the same operations as data dictionaries;
 the tool facades add the standard `{data, text}` envelope. `text` is what a model
-reads: one line per document with its quoted ID, title, line count, revision,
-version and source, a read's lines numbered as `read` numbers them, and the
-`next_offset` and `catalog_revision` facts; `data` keeps the complete
-provenance and lines.
+reads: a list or search gives one line per document with its quoted ID, title,
+line count and version, and its source when it is not the ID; a read names its
+document with the revision and source too, and numbers its lines as `read`
+numbers them; each ends with the `next_offset` and `catalog_revision` facts.
+`data` keeps the complete provenance, revisions included, and lines.
 RoomKit also receives the envelope as structured tool content.
 
 ## Discovery, search and reading
