@@ -20,7 +20,7 @@ roomkit-tools-image = { version = "0.2.0", path = "crates/roomkit-tools-image" }
 roomkit-tools-ocr = { version = "0.2.0", path = "crates/roomkit-tools-ocr" }
 roomkit-tools-ocr-rusto = { version = "0.2.0", path = "crates/roomkit-tools-ocr-rusto" }
 rusto-rs = { version = "0.3.2", default-features = false }
-rten = { version = "0.27", default-features = false, features = ["onnx_format", "rten_format"] }
+rten = { version = "0.28", default-features = false, features = ["onnx_format", "rten_format"] }
 rten-tensor = "0.27"
 ndarray = "0.16"
 rayon = "1"
