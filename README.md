@@ -36,9 +36,11 @@ their own, without RoomKit or a model.
 - **Bounded results.** Reads, searches, command output and downloads all have
   explicit limits. Results report truncation and pagination in structured
   fields, so a partial result is never mistaken for a complete one.
-- **Edits that detect conflicts.** Reads return a content revision. Writes,
-  edits and patches can require it and refuse to overwrite a file that changed
-  in the meantime. A shared `Workspace` serializes mutations from several tools.
+- **Edits that detect conflicts.** Reads return a content revision. Writes
+  and edits can require it and refuse to overwrite a file that changed in the
+  meantime; a patch refuses a file whose text differs from the complete
+  `old_content` it gives. A shared `Workspace` serializes mutations from
+  several tools.
 - **One implementation, two languages.** Input and output schemas are derived
   from the Rust types the tools use. Python returns the same `data` and `text`
   envelope, checked against Rust with shared fixtures.
