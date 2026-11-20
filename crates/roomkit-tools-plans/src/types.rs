@@ -42,7 +42,7 @@ pub struct PlanStep {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlanCreateInput {
-    /// Nonempty, at most 256 bytes.
+    /// Short name shown by `plan_list`, a few words; nonempty, at most 256 bytes.
     pub title: String,
     /// Desired outcome, at most 16 KiB.
     pub objective: String,
@@ -78,8 +78,8 @@ pub struct PlanUpdateInput {
     pub objective: Option<String>,
     /// The ENTIRE new ordered step list.
     pub steps: Option<Vec<PlanStep>>,
-    /// Changes to existing steps by `step_id`, instead of `steps`: the
-    /// other steps and the order are kept.
+    // One line: schemars keeps a doc comment's line breaks in the schema.
+    /// Changes to existing steps by `step_id`, instead of `steps`: the other steps and the order are kept.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub step_changes: Option<Vec<StepChange>>,
 }

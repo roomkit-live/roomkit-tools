@@ -37,7 +37,7 @@ pub struct AskUserOption {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AskUserQuestion {
-    /// A label of at most 12 characters naming the question.
+    /// A short label naming the question, ideally 12 characters or fewer; at most 64 bytes.
     #[serde(default, deserialize_with = "or_default")]
     pub header: String,
     /// The question, ending with a question mark.

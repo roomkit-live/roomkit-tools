@@ -142,6 +142,22 @@ async fn step_changes_change_only_the_steps_they_name() {
     }
 }
 
+/// `title` reads as the plan's short name, not its whole content: a weak
+/// model sent `objective_title` for it; `step_changes` reads on one line.
+#[test]
+fn the_title_and_step_changes_descriptions_say_what_to_send() {
+    let create = PlanCreateTool::definition().input_schema;
+    assert_eq!(
+        create["properties"]["title"]["description"],
+        "Short name shown by `plan_list`, a few words; nonempty, at most 256 bytes."
+    );
+    let update = PlanUpdateTool::definition().input_schema;
+    let step_changes = update["properties"]["step_changes"]["description"]
+        .as_str()
+        .unwrap();
+    assert!(!step_changes.contains('\n'), "{step_changes:?}");
+}
+
 /// A revision of 0 is refused, so the schema does not offer it.
 #[test]
 fn an_expected_revision_starts_at_one_in_the_schema() {

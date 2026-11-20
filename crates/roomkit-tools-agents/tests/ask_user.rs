@@ -189,6 +189,20 @@ fn each_field_is_bounded_in_utf8_bytes() {
     assert!(AskUserTool::read(&arguments(at_limits)).is_ok());
 }
 
+/// The header's description gives the bound the check enforces, 64 bytes,
+/// and the length to aim for, rather than a 12-character limit it does not
+/// enforce.
+#[test]
+fn the_header_description_states_its_real_bound() {
+    let schema = AskUserTool::definition().input_schema;
+    assert_eq!(
+        schema["$defs"]["AskUserQuestion"]["properties"]["header"]["description"],
+        "A short label naming the question, ideally 12 characters or fewer; at most 64 bytes."
+    );
+    let header = json!({"questions": [{"question": "Q?", "header": "Deployment target"}]});
+    assert!(AskUserTool::read(&arguments(header)).is_ok());
+}
+
 #[test]
 fn a_refusal_quoting_a_long_value_is_cut() {
     let long = "x".repeat(300_000);

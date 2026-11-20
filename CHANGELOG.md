@@ -63,6 +63,13 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- Clearer argument descriptions: `plan_create`'s `title` is the short name
+  `plan_list` shows, a few words (a model took `objective` for the whole
+  plan and sent `objective_title` for the title); `ask_user`'s `header`
+  aims at 12 characters and gives the 64 bytes the check enforces, where it
+  announced a 12-character limit; `plan_update`'s `step_changes`
+  description holds no line break.
+
 - The input schemas give the bounds the tools enforce: `minimum: 1` for
   `plan_update`'s and `plan_delete`'s `expected_revision`, which offered 0,
   a refused revision, and `minimum: 1` with `maximum` 100, 50 and 500 for
