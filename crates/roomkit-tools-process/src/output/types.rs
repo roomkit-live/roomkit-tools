@@ -45,7 +45,7 @@ pub struct OutputArchive {
     pub observed_bytes: u64,
     /// Confirmed, readable prefix length; excludes queued or in-flight writes.
     pub stored_bytes: u64,
-    /// The source pipe reached EOF.
+    /// The source pipe reached EOF, or its shell command moved to the background: its process captures the rest.
     pub eof: bool,
     /// The disk writer has stopped; independent of source/process completion.
     pub finished: bool,

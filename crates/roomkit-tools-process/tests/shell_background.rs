@@ -503,6 +503,52 @@ async fn a_moved_command_s_kept_jobs_stop_with_the_shell_or_outlive_it_detached(
 }
 
 #[tokio::test]
+async fn a_move_closes_the_shell_s_copies_whole_and_says_where_reads_start() {
+    let root = tempfile::tempdir().unwrap();
+    let parent = tempfile::tempdir().unwrap();
+    let outputs = roomkit_tools_process::OutputStore::new(
+        Some(parent.path()),
+        roomkit_tools_process::OutputLimits::default(),
+    )
+    .await
+    .unwrap();
+    let processes = ProcessSession::new(root.path())
+        .await
+        .unwrap()
+        .with_output_store(outputs.clone())
+        .unwrap();
+    let shell = ShellTool::new(root.path())
+        .await
+        .unwrap()
+        .with_processes(processes.clone())
+        .with_limits(ShellLimits {
+            max_output_bytes: 64,
+            default_timeout_ms: 300,
+            background_on_timeout: true,
+            ..ShellLimits::default()
+        })
+        .unwrap()
+        .with_output_store(outputs.clone());
+    // 201 bytes, more than the result keeps, then the move.
+    let command = "head -c 200 /dev/zero | tr '\\0' a; echo; sleep 0.6; printf after";
+    let (result, text) = run(&shell, "a", ShellInput::new(command)).await;
+    let id = result.process_id.clone().unwrap();
+    let archive = result.stdout.archive.clone().unwrap();
+    // Every byte until the move is stored: the copy is whole, not cut short.
+    assert_eq!((archive.observed_bytes, archive.stored_bytes), (201, 201));
+    assert_eq!((archive.complete, archive.error), (true, None));
+    let archive_id = archive.archive_id.unwrap();
+    let moved = format!(
+        "still running after 300 ms: moved to the background as {id}; process_read reads \
+         what it writes after the move, each stream from offset 0\n\
+         [stdout archive {archive_id}: 201 of 201 bytes stored; output_read reads it]\n"
+    );
+    assert!(text.starts_with(&moved), "{text}");
+    assert!(processes.close().await);
+    assert!(outputs.close().await);
+}
+
+#[tokio::test]
 async fn a_moved_command_keeps_its_archives_within_a_shared_store_s_quota() {
     let root = tempfile::tempdir().unwrap();
     let parent = tempfile::tempdir().unwrap();

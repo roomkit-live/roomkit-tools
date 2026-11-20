@@ -49,7 +49,7 @@ pub(crate) async fn moved(
     status: ProcessStatus,
     foreground: &Foreground,
 ) -> Output<ShellResult> {
-    tokio::join!(out.finish_archive(), err.finish_archive());
+    tokio::join!(out.finish_archive_at_move(), err.finish_archive_at_move());
     if let Some((store, _)) = &foreground.outputs {
         out.discard_whole_archive(store);
         err.discard_whole_archive(store);

@@ -235,8 +235,10 @@ its `process_id` at once; `timeout_ms` is then its lifetime, within the
 session's limits. With `background_on_timeout`, a command still running at its
 foreground timeout is moved there instead of stopped, without losing or
 repeating a byte: the result has what it wrote until then, `process_id`, null
-`exit_code` and `signal`, and `timed_out` false; `process_read` gives the rest
-from offset 0. It runs on until the session's maximum lifetime, counted from
+`exit_code` and `signal`, and `timed_out` false; `process_read` gives the rest,
+each stream from offset 0, as the result's text says. With an output store, a
+stream the result cut short keeps its archive, closed `complete` at the move;
+the process's own archives hold the rest. It runs on until the session's maximum lifetime, counted from
 its start. A move the session refuses, its quota held by running processes,
 stops the command as before, and the result's text says why. Either way the command keeps the
 shell's environment and directory, its stdin stays closed, and the session's
@@ -349,8 +351,9 @@ archive every stream. An ID may be absent when a record quota is full and none
 of the owner's archives can be released: each is still written by a running
 job or call, or other owners fill the store's total.
 
-`complete` means the source reached EOF, the writer finished without errors,
-and every observed byte was stored. It does not mean the command succeeded or
+`complete` means the source reached EOF (or, for a shell command moved to the
+background, the move), the writer finished without errors, and every observed
+byte was stored. It does not mean the command succeeded or
 captured every possible descendant output: check command status and
 `output_complete` separately. A timeout can still leave a complete copy of the
 bytes captured before termination. An incomplete disk copy is a prefix, with

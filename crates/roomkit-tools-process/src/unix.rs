@@ -420,14 +420,18 @@ async fn drain_rest(
 /// The text of `data`, with why a command was not moved to the background.
 pub(crate) fn render(data: ShellResult, refused: Option<&ToolError>) -> Output<ShellResult> {
     let mut text = match &data.process_id {
-        Some(id) => format!(
-            "still running after {} ms: moved to the background as {id}; read the rest of its output with process_read",
-            data.timeout_ms
-        ),
+        Some(_) => format!("still running after {} ms", data.timeout_ms),
         None => outcome(&data),
     };
     if data.stdout.text.is_empty() && data.stderr.text.is_empty() {
         text.push_str(" (no output)");
+    }
+    // Its process's offsets count from the move, not from the command's start.
+    if let Some(id) = &data.process_id {
+        let _written = write!(
+            text,
+            ": moved to the background as {id}; process_read reads what it writes after the move, each stream from offset 0"
+        );
     }
     text.push('\n');
     if let Some(error) = refused {

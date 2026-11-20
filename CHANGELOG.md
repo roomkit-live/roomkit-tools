@@ -6,6 +6,14 @@ part of an existing published preview.
 
 ## Unreleased
 
+- A shell command moved to the background closes its shell archives at the
+  move as complete: every byte until then is stored, where the archive said
+  `complete=false, error="capture_incomplete"`. The result's text now says
+  that `process_read` reads what the command writes after the move, each
+  stream from offset 0, so a model no longer passes the shell's
+  `total_bytes` as an offset and meets "output cursor is past the observed
+  stream end".
+
 - At a process quota, a new process, or a shell command moved to the
   background, releases its owner's oldest finished record first, as the
   output store does for archives: the record's archives stay. Finished

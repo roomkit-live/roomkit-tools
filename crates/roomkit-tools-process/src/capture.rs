@@ -64,6 +64,16 @@ impl Capture {
         }
     }
 
+    /// Finish the copy of a command moved to the background, whole up to the
+    /// move as at the end of its stream: its process captures the rest.
+    pub(crate) async fn finish_archive_at_move(&mut self) {
+        if let Some(archive) = &mut self.archive {
+            archive.flush_pending().await;
+            archive.end(true);
+            archive.finish().await;
+        }
+    }
+
     fn push(&mut self, bytes: &[u8]) {
         self.total = self.total.saturating_add(bytes.len() as u64);
         let kept = bytes
