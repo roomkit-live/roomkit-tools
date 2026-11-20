@@ -275,19 +275,26 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             ProcessSession(self.root, inherit_env="PATH")
 
-    async def test_finished_jobs_count_until_forget_and_ids_are_not_reused(self) -> None:
+    async def test_a_finished_job_makes_room_at_the_quota_and_ids_are_not_reused(self) -> None:
         async with ProcessSession(self.root, max_processes=2, max_processes_per_owner=1) as session:
             first = (await session.start("exit 7"))["data"]["process_id"]
             final = await wait_status(session, first, state="finished")
             self.assertEqual(final["exit_code"], 7)
-            with self.assertRaises(LimitExceededError):
-                await session.start("true")
             self.assertFalse((await session.stop(first))["data"]["forgotten"])
-            self.assertTrue((await session.stop(first, forget=True))["data"]["forgotten"])
+            # At the quota, the finished record is released for the new job.
+            second = (await session.start("sleep 30"))["data"]["process_id"]
+            self.assertNotEqual(second, first)
             with self.assertRaises(AccessRefusedError):
                 await session.read(first)
-            second = (await session.start("true"))["data"]["process_id"]
-            self.assertNotEqual(second, first)
+            with self.assertRaisesRegex(
+                LimitExceededError,
+                "quota of 1 reached: every process of this conversation still runs; "
+                "stop one with process_stop",
+            ):
+                await session.start("true")
+            self.assertTrue((await session.stop(second, forget=True))["data"]["forgotten"])
+            third = (await session.start("true"))["data"]["process_id"]
+            self.assertNotIn(third, (first, second))
 
     async def test_all_host_limits_and_model_argument_types_are_validated_in_rust(self) -> None:
         fields = [

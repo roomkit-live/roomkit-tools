@@ -44,14 +44,17 @@ pub(crate) struct ShellJob<'a> {
 
 impl ProcessSession {
     /// Reserve `owner`'s next identifier, once the session is open and its
-    /// quota admits one more job.
+    /// quota admits one more job, its oldest finished ones released if need be.
     pub(super) async fn reserve(
         &self,
         owner: Option<&str>,
         cancel: &CancellationToken,
     ) -> Result<Reserved<'_>, ToolError> {
-        let registry = self.inner.registry.lock().await;
+        let mut registry = self.inner.registry.lock().await;
         self.check(owner, cancel)?;
+        if registry.make_room(owner, self.inner.limits) {
+            self.inner.changes.send_replace(());
+        }
         let next = registry.next_for(owner, self.inner.limits)?;
         Ok(Reserved { registry, next })
     }

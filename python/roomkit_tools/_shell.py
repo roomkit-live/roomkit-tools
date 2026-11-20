@@ -103,8 +103,8 @@ class ShellTool:
         background_on_timeout moves a command still running at its timeout to
         the background instead of stopping it: it runs on until the session's
         maximum lifetime counted from its start, and the result names it in
-        process_id. A move the session refuses, its quota reached, stops the
-        command as without it. It needs processes (InvalidInputError
+        process_id. A move the session refuses, its quota held by running
+        processes, stops the command as without it. It needs processes (InvalidInputError
         otherwise; default False).
         """
         from .process import ProcessSession

@@ -71,22 +71,60 @@ pub(super) struct Registry {
 }
 
 impl Registry {
-    /// The next identifier number for `owner`, within the host quotas.
+    fn held(&self, owner: Option<&str>) -> usize {
+        self.entries
+            .values()
+            .filter(|entry| entry.owner.as_deref() == owner)
+            .count()
+    }
+
+    fn full(&self, owner: Option<&str>, limits: ProcessLimits) -> bool {
+        self.entries.len() >= limits.max_processes
+            || self.held(owner) >= limits.max_processes_per_owner
+    }
+
+    /// Release `owner`'s oldest finished records while one more job would
+    /// pass a quota, as `forget` would, their archives kept: the most recent
+    /// job is the one a model goes back to. A job still running is never
+    /// released, nor another owner's. Whether any was.
+    pub(super) fn make_room(&mut self, owner: Option<&str>, limits: ProcessLimits) -> bool {
+        let mut released = false;
+        while self.full(owner, limits) {
+            let oldest = self
+                .entries
+                .iter()
+                .filter(|(_, entry)| entry.owner.as_deref() == owner)
+                // Finished as its status reads: what `forget` checks.
+                .filter(|(_, entry)| entry.finished.get().is_some())
+                .min_by_key(|&(id, _)| roomkit_tools_core::identifiers::creation_order(id))
+                .map(|(id, _)| id.clone());
+            let Some(id) = oldest else { break };
+            self.entries.remove(&id);
+            released = true;
+        }
+        released
+    }
+
+    /// The next identifier number for `owner`, within the host quotas, once
+    /// [`Self::make_room`] released what it could.
     pub(super) fn next_for(
         &self,
         owner: Option<&str>,
         limits: ProcessLimits,
     ) -> Result<u64, ToolError> {
-        let retained = self
-            .entries
-            .values()
-            .filter(|e| e.owner.as_deref() == owner)
-            .count();
-        if self.entries.len() >= limits.max_processes || retained >= limits.max_processes_per_owner
-        {
-            return Err(ToolError::LimitExceeded(
-                "process quota reached; stop with forget=true to release completed records".into(),
-            ));
+        if self.held(owner) >= limits.max_processes_per_owner {
+            return Err(ToolError::LimitExceeded(format!(
+                "process quota of {} reached: every process of this conversation still runs; \
+                 stop one with process_stop",
+                limits.max_processes_per_owner
+            )));
+        }
+        if self.entries.len() >= limits.max_processes {
+            return Err(ToolError::LimitExceeded(format!(
+                "session process quota of {} reached: every process still runs or is another \
+                 conversation's",
+                limits.max_processes
+            )));
         }
         self.next_id
             .checked_add(1)

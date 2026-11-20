@@ -181,8 +181,13 @@ All bounds must be positive. Per-owner quota cannot exceed total quota, the
 write deadline cannot exceed 60 seconds, and default lifetime cannot exceed
 the maximum (at most 24 hours). A requested lifetime above the maximum is
 refused with `InvalidInputError`, whose message gives the maximum.
-Completed jobs retain output and consume quota until `stop(..., forget=True)`
-or session shutdown. `stop` sends SIGKILL to the Unix process group at once,
+Completed jobs retain output and count against the quotas until
+`stop(..., forget=True)`, session shutdown, or a new job that needs their
+room: at a quota, a new job releases its owner's oldest finished record first,
+never a running one nor another owner's, and its archives stay in the output
+store. Only when every job of the owner still runs, or the session is full of
+running jobs and other owners', is a start refused, in words that say which.
+`stop` sends SIGKILL to the Unix process group at once,
 without a graceful phase, waits up to two seconds and reports `forgotten=False`
 if cleanup is still pending. Lifetime expiry and `close()` stop jobs the same way.
 A job whose shell runs under other credentials and refuses SIGKILL finishes
@@ -232,8 +237,8 @@ foreground timeout is moved there instead of stopped, without losing or
 repeating a byte: the result has what it wrote until then, `process_id`, null
 `exit_code` and `signal`, and `timed_out` false; `process_read` gives the rest
 from offset 0. It runs on until the session's maximum lifetime, counted from
-its start. A move the session refuses, its quota reached, stops the command as
-before, and the result's text says why. Either way the command keeps the
+its start. A move the session refuses, its quota held by running processes,
+stops the command as before, and the result's text says why. Either way the command keeps the
 shell's environment and directory, its stdin stays closed, and the session's
 `ends()` tells its end. With `keep_background_jobs`, a moved command keeps
 its background jobs as in the foreground: once its shell exits on its own,

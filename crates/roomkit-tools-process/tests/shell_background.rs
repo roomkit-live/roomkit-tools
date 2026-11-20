@@ -329,6 +329,30 @@ async fn a_move_the_session_refuses_stops_the_command_as_before() {
 }
 
 #[tokio::test]
+async fn finished_moved_commands_make_room_for_the_next_move() {
+    let root = tempfile::tempdir().unwrap();
+    let limits = ProcessLimits {
+        max_processes_per_owner: 2,
+        ..ProcessLimits::default()
+    };
+    let processes = session(root.path(), limits).await;
+    let mut ends = processes.ends();
+    let shell = moving_shell(root.path(), processes.clone(), 100).await;
+    let build = || ShellInput::new("sleep 0.3; echo built");
+    for _ in 0..2 {
+        assert!(run(&shell, "a", build()).await.0.process_id.is_some());
+    }
+    for _ in 0..2 {
+        assert_eq!(next(&mut ends).await.unwrap().end, ProcessEnd::Exited);
+    }
+    // Moved, not killed: the finished records make room for it.
+    let (third, text) = run(&shell, "a", build()).await;
+    assert!(third.process_id.is_some(), "{text}");
+    assert!(!third.timed_out, "{text}");
+    assert!(processes.close().await);
+}
+
+#[tokio::test]
 async fn a_cancelled_command_is_never_moved() {
     let root = tempfile::tempdir().unwrap();
     let processes = session(root.path(), ProcessLimits::default()).await;

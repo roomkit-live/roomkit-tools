@@ -7,8 +7,9 @@ use std::time::{Duration, Instant};
 
 use roomkit_tools_core::ToolError;
 use roomkit_tools_process::{
-    CommandEnv, ProcessEnd, ProcessLimits, ProcessReadInput, ProcessSession, ProcessStartInput,
-    ProcessState, ProcessStatus, ProcessStatusInput, ProcessStopInput, ProcessWriteInput,
+    CommandEnv, OutputLimits, OutputReadInput, OutputStore, ProcessEnd, ProcessLimits,
+    ProcessReadInput, ProcessSession, ProcessStartInput, ProcessState, ProcessStatus,
+    ProcessStatusInput, ProcessStopInput, ProcessWriteInput,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -341,12 +342,6 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
     assert_eq!(stopped.status.end, Some(ProcessEnd::Stopped));
     assert_eq!(stopped.status.signal, Some(9));
     assert!(!stopped.forgotten);
-    assert!(matches!(
-        manager
-            .start(Some("a"), ProcessStartInput::new("true"), &token)
-            .await,
-        Err(ToolError::LimitExceeded(_))
-    ));
     assert!(
         manager
             .stop(
@@ -403,6 +398,90 @@ async fn isolation_quotas_forget_and_shutdown_are_explicit() {
             .await,
         Err(ToolError::AccessRefused(_))
     ));
+}
+
+/// The identifiers of `owner`'s retained jobs, in creation order.
+#[expect(clippy::unwrap_used, reason = "fixture failure must fail tests")]
+async fn retained(manager: &ProcessSession, owner: &str) -> Vec<String> {
+    let listed = manager
+        .status(
+            Some(owner),
+            ProcessStatusInput::default(),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    listed
+        .data
+        .processes
+        .into_iter()
+        .map(|status| status.process_id)
+        .collect()
+}
+
+#[tokio::test]
+async fn at_its_quota_an_owner_s_oldest_finished_job_makes_room() {
+    let root = tempfile::tempdir().unwrap();
+    let outputs = OutputStore::new(None, OutputLimits::default())
+        .await
+        .unwrap();
+    let limits = ProcessLimits {
+        max_processes: 3,
+        max_processes_per_owner: 2,
+        ..ProcessLimits::default()
+    };
+    let manager = ProcessSession::new(root.path())
+        .await
+        .unwrap()
+        .with_output_store(outputs.clone())
+        .unwrap()
+        .with_limits(limits)
+        .unwrap();
+    let token = CancellationToken::new();
+    let start = |owner: &'static str, command: &'static str| {
+        manager.start(Some(owner), ProcessStartInput::new(command), &token)
+    };
+    let first = start("a", "printf first").await.unwrap().data;
+    let p1 = first.process_id;
+    let archive = first.stdout_archive.unwrap().archive_id.unwrap();
+    let p2 = start("a", "sleep 30").await.unwrap().data.process_id;
+    finished(&manager, "a", &p1).await;
+    // The finished job is released, not the running one; its archive stays.
+    let p3 = start("a", "sleep 30").await.unwrap().data.process_id;
+    assert_eq!(retained(&manager, "a").await, [p2, p3]);
+    assert!(matches!(
+        manager
+            .read(Some("a"), ProcessReadInput::new(&p1), &token)
+            .await,
+        Err(ToolError::AccessRefused(_))
+    ));
+    let page = outputs
+        .read(Some("a"), OutputReadInput::new(archive), &token)
+        .await
+        .unwrap();
+    assert_eq!(page.data.text, "first");
+    // Every job of the owner runs: refused in words that say so.
+    let Err(ToolError::LimitExceeded(message)) = start("a", "true").await else {
+        panic!("a running job was released");
+    };
+    assert_eq!(
+        message,
+        "process quota of 2 reached: every process of this conversation still runs; \
+         stop one with process_stop"
+    );
+    // The session is full: another owner's finished job is not released.
+    let theirs = start("b", "true").await.unwrap().data.process_id;
+    finished(&manager, "b", &theirs).await;
+    let Err(ToolError::LimitExceeded(message)) = start("c", "true").await else {
+        panic!("another owner's job was released");
+    };
+    assert_eq!(
+        message,
+        "session process quota of 3 reached: every process still runs or is another \
+         conversation's"
+    );
+    assert!(manager.close().await);
+    assert!(outputs.close().await);
 }
 
 #[tokio::test]

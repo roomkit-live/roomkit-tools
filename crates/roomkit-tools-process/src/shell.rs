@@ -65,8 +65,8 @@ pub struct ShellLimits {
     /// of stopping it: it runs on as a process of the session attached with
     /// [`ShellTool::with_processes`], until that session's maximum lifetime
     /// counted from its start, and the result names it in `process_id`. A
-    /// move the session refuses, its quota reached, stops the command as
-    /// without this. Needs that session. Default: false.
+    /// move the session refuses, its quota held by running processes, stops
+    /// the command as without this. Needs that session. Default: false.
     pub background_on_timeout: bool,
 }
 

@@ -122,8 +122,10 @@ impl ProcessStopInput {
 #[derive(Clone, Copy, Debug)]
 pub struct ProcessLimits {
     /// Maximum retained processes across all owners, including finished ones (32).
+    /// At a quota, a new process releases its owner's oldest finished one.
     pub max_processes: usize,
-    /// Maximum retained processes for one owner (8).
+    /// Maximum retained processes for one owner (8), finished ones included
+    /// until a new one needs their room.
     pub max_processes_per_owner: usize,
     /// Maximum command input bytes (16 KiB).
     pub max_command_bytes: usize,

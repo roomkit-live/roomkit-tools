@@ -6,6 +6,16 @@ part of an existing published preview.
 
 ## Unreleased
 
+- At a process quota, a new process, or a shell command moved to the
+  background, releases its owner's oldest finished record first, as the
+  output store does for archives: the record's archives stay. Finished
+  records filled the quota (8 per owner by default) until
+  `process_stop(forget=true)`, so after eight moved builds the ninth long
+  command was killed (`signal=9`) instead of moved, and `process_start` was
+  refused. A start is refused only when every job of the owner still runs, or
+  the session is full of running jobs and other owners', in words that say
+  which.
+
 - With `keep_background_jobs`, a shell command moved to the background at
   its timeout keeps its background jobs as in the foreground: once its shell
   exits on its own, they run on, and the shell's `ends()`, `close()` and

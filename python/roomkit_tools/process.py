@@ -64,6 +64,8 @@ class ProcessSession:
         wait, below RoomKit's 30 s default tool timeout. The per-owner
         quota applies to the standalone owner and to each room and agent; the
         total quota to the whole session. Neither is global across sessions.
+        At a quota, a new job releases its owner's oldest finished record,
+        never a running one nor another owner's; its archives stay.
         All bounds must be positive, per-owner quota <= total quota, stdin
         deadline <= 60 s, default lifetime <= maximum lifetime <= 24 h, and
         longest read wait <= 24 h.
