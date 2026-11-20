@@ -131,6 +131,13 @@ part of an existing published preview.
   fell outside `[start_line, end_line]`. Plain comments stay outside; the
   signature is unchanged.
 
+- `view_image` previews an ordinary 4K photograph instead of refusing it: a
+  PNG preview over `max_image_bytes` is made again with an edge three
+  quarters as long until it fits (a 3840×2160 photo gets 1536×864 at the
+  defaults), and `resized` is set. An image whose preview fits at no size
+  fails with `the image's PNG preview exceeds the host's N-byte limit at every
+  size`, which no longer tells the model to change host settings.
+
 - `web_search` refuses a query or limit naming the field and what it
   accepts, such as `limit must be between 1 and 10` (the host's
   `max_results`, or the backend's ceiling when lower) or `query must not be

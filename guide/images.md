@@ -64,8 +64,12 @@ metadata. It does not upscale or perform color-profile conversion. Animated
 PNG/WebP, GIF, SVG, PDF and remote URLs are unsupported. The source is unchanged.
 Results include its workspace-relative `path` (the host's absolute path is not
 returned), its SHA-256 `revision`, original and preview dimensions,
-`orientation_applied`, `resized`, and byte counts. A preview that cannot fit the
-output budget fails explicitly; it is never returned as a partial image.
+`orientation_applied`, `resized`, and byte counts. Photographs compress poorly
+as PNG: a preview over the output budget is made again from the source with an
+edge three quarters as long, until its PNG fits, and `resized` is set: at the
+defaults, a 3840×2160 photograph gets a 1536×864 preview. An image whose
+preview fits at no size fails explicitly; it is never returned as a partial
+image.
 
 Host defaults are 10 MiB input, 16,384 pixels per source edge, 16,777,216 source
 pixels, 128 MiB of best-effort decoder allocations, a 2,048-pixel preview edge,

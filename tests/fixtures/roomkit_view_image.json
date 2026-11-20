@@ -19,6 +19,6 @@
   ],
   "failure": {
     "max_image_bytes": 1,
-    "message": "Limit exceeded: PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound"
+    "message": "Limit exceeded: the image's PNG preview exceeds the host's 1-byte limit at every size"
   }
 }

@@ -237,3 +237,92 @@ async fn root_escape_invalid_limits_and_precancel_are_refused() {
         Err(ToolError::InvalidInput(_))
     ));
 }
+
+/// Photo-like pixels: a gradient under strong noise, which PNG compresses
+/// about as poorly as a camera picture.
+fn photo(width: u32, height: u32) -> RgbImage {
+    let mut state = 0x9e37_79b9_u32;
+    RgbImage::from_fn(width, height, |x, y| {
+        let mut channel = |base: u32| {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            u8::try_from(base / 2 + (state & 127)).unwrap_or(u8::MAX)
+        };
+        Rgb([
+            channel(x * 255 / width),
+            channel(y * 255 / height),
+            channel((x + y) * 255 / (width + height)),
+        ])
+    })
+}
+
+#[tokio::test]
+async fn an_ordinary_4k_photo_is_previewed_at_the_default_limits() {
+    let root = tempfile::tempdir().unwrap();
+    let mut jpeg = Cursor::new(Vec::new());
+    DynamicImage::ImageRgb8(photo(3840, 2160))
+        .write_to(&mut jpeg, ImageFormat::Jpeg)
+        .unwrap();
+    std::fs::write(root.path().join("photo.jpg"), jpeg.into_inner()).unwrap();
+    let mut request = input("photo.jpg");
+    // Unoptimized test builds are far slower than the 10-second default.
+    request.timeout_ms = std::num::NonZeroU64::new(120_000);
+    let result = ViewImageTool::new(root.path())
+        .await
+        .unwrap()
+        .view(request, &CancellationToken::new())
+        .await
+        .unwrap();
+    let data = &result.data;
+    assert_eq!((data.original_width, data.original_height), (3840, 2160));
+    assert!(data.resized);
+    assert!(data.output_bytes <= ViewImageLimits::default().max_image_bytes);
+    assert!(data.width < 2048, "{}x{}", data.width, data.height);
+    assert!((i64::from(data.width) * 9 - i64::from(data.height) * 16).abs() <= 16);
+    let png = STANDARD.decode(&data.image.base64).unwrap();
+    assert_eq!(png.len(), data.output_bytes);
+    let preview = image::load_from_memory(&png).unwrap();
+    assert_eq!(
+        (preview.width(), preview.height()),
+        (data.width, data.height)
+    );
+    let shown = format!("-> {}x{} PNG preview", data.width, data.height);
+    assert!(result.text.contains(&shown), "{}", result.text);
+}
+
+#[tokio::test]
+async fn a_preview_steps_its_edge_down_until_its_png_fits_or_fails_at_every_size() {
+    let root = tempfile::tempdir().unwrap();
+    DynamicImage::ImageRgb8(photo(400, 300))
+        .save_with_format(root.path().join("photo.png"), ImageFormat::Png)
+        .unwrap();
+    let tool = ViewImageTool::new(root.path()).await.unwrap();
+    let limited = |max_image_bytes| {
+        tool.clone()
+            .with_limits(ViewImageLimits {
+                max_image_bytes,
+                ..Default::default()
+            })
+            .unwrap()
+    };
+    let result = limited(100_000)
+        .view(input("photo.png"), &CancellationToken::new())
+        .await
+        .unwrap()
+        .data;
+    assert!(result.resized);
+    assert!(result.output_bytes <= 100_000, "{}", result.output_bytes);
+    assert!(result.width < 400 && result.width > 100, "{}", result.width);
+    assert!((i64::from(result.width) * 3 - i64::from(result.height) * 4).abs() <= 4);
+    match limited(1)
+        .view(input("photo.png"), &CancellationToken::new())
+        .await
+    {
+        Err(ToolError::LimitExceeded(message)) => assert_eq!(
+            message,
+            "the image's PNG preview exceeds the host's 1-byte limit at every size"
+        ),
+        other => panic!("{other:?}"),
+    }
+}

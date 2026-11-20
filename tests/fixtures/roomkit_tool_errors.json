@@ -42,9 +42,9 @@
         "max_image_bytes": 1
       },
       "raises": "ToolFailedError",
-      "message": "Limit exceeded: PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound",
-      "model_reads": "Limit exceeded: PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound",
-      "error_detail": "Limit exceeded: PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound",
+      "message": "Limit exceeded: the image's PNG preview exceeds the host's 1-byte limit at every size",
+      "model_reads": "Limit exceeded: the image's PNG preview exceeds the host's 1-byte limit at every size",
+      "error_detail": "Limit exceeded: the image's PNG preview exceeds the host's 1-byte limit at every size",
       "refused": false
     },
     {

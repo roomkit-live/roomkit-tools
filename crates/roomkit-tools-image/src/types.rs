@@ -99,7 +99,8 @@ pub struct ViewImageResult {
     pub height: u32,
     /// Whether decoded orientation metadata required a transform.
     pub orientation_applied: bool,
-    /// Whether the oriented image was reduced to fit the host's maximum edge.
+    /// Whether the oriented image was reduced to fit the host's maximum edge
+    /// or its PNG byte budget.
     pub resized: bool,
     /// Encoded preview size before base64 expansion.
     pub output_bytes: usize,
@@ -123,7 +124,9 @@ pub struct ViewImageLimits {
     pub max_decode_bytes: usize,
     /// Maximum preview width or height (default 2,048); no upscaling.
     pub max_edge: usize,
-    /// Maximum encoded PNG bytes, excluding base64/metadata (default 4 MiB).
+    /// Maximum encoded PNG bytes, excluding base64/metadata (default 4 MiB). A
+    /// preview over it is made again with an edge three quarters as long until
+    /// it fits; one that fits at no size fails.
     pub max_image_bytes: usize,
     /// Default total deadline including queueing and I/O (default 10 seconds).
     pub default_timeout_ms: usize,

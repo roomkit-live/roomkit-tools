@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::{self, Cursor, Write};
 use std::time::Instant;
 
@@ -9,7 +10,7 @@ use image::codecs::{
     webp::WebPDecoder,
 };
 use image::metadata::Orientation;
-use image::{DynamicImage, ImageDecoder, ImageFormat, Limits};
+use image::{ColorType, DynamicImage, ImageDecoder, ImageFormat, Limits};
 use roomkit_tools_core::{Output, ToolError};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
@@ -135,6 +136,81 @@ impl Write for BoundedWriter<'_> {
     }
 }
 
+/// An encoded preview and its dimensions.
+struct Preview {
+    png: Vec<u8>,
+    width: u32,
+    height: u32,
+    /// Smaller than the oriented source.
+    resized: bool,
+}
+
+/// The largest preview of `image`, at most `edge` pixels on its longest side,
+/// whose PNG fits `max_bytes`. Photographs compress poorly, so a preview over
+/// the budget is made again with an edge three quarters as long, from the
+/// source each time, down to one pixel.
+fn fitting_preview(
+    image: &DynamicImage,
+    edge: u32,
+    max_bytes: usize,
+    control: &Control,
+) -> Result<Preview, ToolError> {
+    let longest = image.width().max(image.height());
+    let mut target = edge.min(longest);
+    loop {
+        control.check()?;
+        let resized = target < longest;
+        let scaled =
+            resized.then(|| image.resize(target, target, image::imageops::FilterType::Triangle));
+        let preview = scaled.as_ref().unwrap_or(image);
+        if let Some(png) = encode_png(preview, max_bytes, control)? {
+            return Ok(Preview {
+                png,
+                width: preview.width(),
+                height: preview.height(),
+                resized,
+            });
+        }
+        if target <= 1 {
+            return Err(ToolError::LimitExceeded(format!(
+                "the image's PNG preview exceeds the host's {max_bytes}-byte limit at every size"
+            )));
+        }
+        target = (target - target / 4).min(target - 1);
+    }
+}
+
+/// `image` as an interoperable 8-bit PNG, alpha preserved and metadata
+/// stripped, or `None` once it passes `max_bytes`.
+fn encode_png(
+    image: &DynamicImage,
+    max_bytes: usize,
+    control: &Control,
+) -> Result<Option<Vec<u8>>, ToolError> {
+    control.check()?;
+    let color = image.color();
+    let normalized = if color == ColorType::Rgb8 || color == ColorType::Rgba8 {
+        Cow::Borrowed(image)
+    } else if color.has_alpha() {
+        Cow::Owned(DynamicImage::ImageRgba8(image.to_rgba8()))
+    } else {
+        Cow::Owned(DynamicImage::ImageRgb8(image.to_rgb8()))
+    };
+    let mut output = BoundedWriter {
+        bytes: Vec::new(),
+        maximum: max_bytes,
+        exceeded: false,
+        control,
+    };
+    let encoded = normalized.write_with_encoder(PngEncoder::new(&mut output));
+    control.check()?;
+    if output.exceeded {
+        return Ok(None);
+    }
+    encoded.map_err(image_error)?;
+    Ok(Some(output.bytes))
+}
+
 pub(crate) fn prepare(
     path: String,
     bytes: &[u8],
@@ -151,31 +227,9 @@ pub(crate) fn prepare(
     decoded.apply_orientation(orientation);
     let edge = u32::try_from(limits.max_edge)
         .map_err(|_| ToolError::InvalidInput("max_edge is too large".into()))?;
-    let resized = decoded.width().max(decoded.height()) > edge;
-    if resized {
-        decoded = decoded.resize(edge, edge, image::imageops::FilterType::Triangle);
-    }
-    control.check()?;
-    // Normalize to an interoperable 8-bit PNG; preserve alpha, strip metadata.
-    let normalized = if decoded.color().has_alpha() {
-        DynamicImage::ImageRgba8(decoded.into_rgba8())
-    } else {
-        DynamicImage::ImageRgb8(decoded.into_rgb8())
-    };
-    let mut output = BoundedWriter {
-        bytes: Vec::new(),
-        maximum: limits.max_image_bytes,
-        exceeded: false,
-        control,
-    };
-    let encoded = normalized.write_with_encoder(PngEncoder::new(&mut output));
-    control.check()?;
-    if output.exceeded {
-        return Err(ToolError::LimitExceeded(
-            "PNG preview exceeds max_image_bytes; reduce max_edge or raise the host bound".into(),
-        ));
-    }
-    encoded.map_err(image_error)?;
+    let preview = fitting_preview(&decoded, edge, limits.max_image_bytes, control)?;
+    drop(decoded);
+    let resized = preview.resized;
     let result = ViewImageResult {
         path,
         revision: roomkit_tools_core::revision::sha256(&Sha256::digest(bytes)),
@@ -183,14 +237,14 @@ pub(crate) fn prepare(
         input_bytes: bytes.len(),
         original_width,
         original_height,
-        width: normalized.width(),
-        height: normalized.height(),
+        width: preview.width,
+        height: preview.height,
         orientation_applied: orientation != Orientation::NoTransforms,
         resized,
-        output_bytes: output.bytes.len(),
+        output_bytes: preview.png.len(),
         image: ImagePayload {
             mime_type: ImageMime::Png,
-            base64: STANDARD.encode(&output.bytes),
+            base64: STANDARD.encode(&preview.png),
         },
     };
     control.check()?;
