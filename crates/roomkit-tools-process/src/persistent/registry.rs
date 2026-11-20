@@ -85,56 +85,59 @@ impl Registry {
             .count()
     }
 
-    fn full(&self, owner: Option<&str>, limits: ProcessLimits) -> bool {
-        self.entries.len() >= limits.max_processes
-            || self.held(owner) >= limits.max_processes_per_owner
-    }
-
-    /// Release the records of `owner` that finished first while one more
-    /// job would pass a quota, as `forget` would, their archives kept: the
-    /// latest end is the one a model goes back to, told of it. A job still
-    /// running is never released, nor another owner's. Whether any was.
-    pub(super) fn make_room(&mut self, owner: Option<&str>, limits: ProcessLimits) -> bool {
-        let mut released = false;
-        while self.full(owner, limits) {
-            let first = self
-                .entries
-                .iter()
-                .filter(|(_, entry)| entry.owner.as_deref() == owner)
-                .filter_map(|(id, entry)| Some((entry.finished_at()?, id)))
-                .min()
-                .map(|(_, id)| id.clone());
-            let Some(id) = first else { break };
-            self.entries.remove(&id);
-            released = true;
+    /// The records of `owner` to release for one more job to fit the quotas,
+    /// as `forget` would, their archives kept: those that finished first.
+    /// The latest end is the one a model goes back to, told of it. A job
+    /// still running is never released, nor another owner's.
+    fn room_for(&self, owner: Option<&str>, limits: ProcessLimits) -> Vec<String> {
+        let mut finished: Vec<_> = self
+            .entries
+            .iter()
+            .filter(|(_, entry)| entry.owner.as_deref() == owner)
+            .filter_map(|(id, entry)| Some((entry.finished_at()?, id)))
+            .collect();
+        finished.sort_unstable();
+        let (mut held, mut total) = (self.held(owner), self.entries.len());
+        let mut releasing = Vec::new();
+        for (_, id) in finished {
+            if held < limits.max_processes_per_owner && total < limits.max_processes {
+                break;
+            }
+            releasing.push(id.clone());
+            held -= 1;
+            total -= 1;
         }
-        released
+        releasing
     }
 
-    /// The next identifier number for `owner`, within the host quotas, once
-    /// [`Self::make_room`] released what it could.
-    pub(super) fn next_for(
+    /// The next identifier number for `owner`, within the host quotas, and
+    /// the records to release for it once it is committed: a start that
+    /// fails before then releases nothing.
+    pub(super) fn admit(
         &self,
         owner: Option<&str>,
         limits: ProcessLimits,
-    ) -> Result<u64, ToolError> {
-        if self.held(owner) >= limits.max_processes_per_owner {
+    ) -> Result<(u64, Vec<String>), ToolError> {
+        let releasing = self.room_for(owner, limits);
+        if self.held(owner) - releasing.len() >= limits.max_processes_per_owner {
             return Err(ToolError::LimitExceeded(format!(
                 "process quota of {} reached: every process of this conversation still runs; \
                  stop one with process_stop",
                 limits.max_processes_per_owner
             )));
         }
-        if self.entries.len() >= limits.max_processes {
+        if self.entries.len() - releasing.len() >= limits.max_processes {
             return Err(ToolError::LimitExceeded(format!(
                 "session process quota of {} reached: every process still runs or is another \
                  conversation's",
                 limits.max_processes
             )));
         }
-        self.next_id
+        let next = self
+            .next_id
             .checked_add(1)
-            .ok_or_else(|| ToolError::LimitExceeded("process identifiers exhausted".into()))
+            .ok_or_else(|| ToolError::LimitExceeded("process identifiers exhausted".into()))?;
+        Ok((next, releasing))
     }
 
     /// Retained entries that `keep` selects, in creation order.

@@ -558,6 +558,30 @@ async fn at_its_quota_the_process_that_finished_first_makes_room() {
 }
 
 #[tokio::test]
+async fn a_start_that_fails_to_spawn_releases_no_finished_process() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("notes.txt"), "not a directory").unwrap();
+    let manager = holding_two(root.path()).await;
+    let token = CancellationToken::new();
+    let mut ids = Vec::new();
+    for _ in 0..2 {
+        let start = manager.start(Some("a"), ProcessStartInput::new("true"), &token);
+        let id = start.await.unwrap().data.process_id;
+        finished(&manager, "a", &id).await;
+        ids.push(id);
+    }
+    // The quota admits it, then the spawn fails: a file is no directory.
+    let input = ProcessStartInput {
+        cwd: Some("notes.txt".into()),
+        ..ProcessStartInput::new("true")
+    };
+    let failed = manager.start(Some("a"), input, &token).await;
+    assert!(matches!(failed, Err(ToolError::Io { .. })), "{failed:?}");
+    assert_eq!(retained(&manager, "a").await, ids);
+    assert!(manager.close().await);
+}
+
+#[tokio::test]
 async fn the_standalone_owner_is_apart_from_an_owner_named_default() {
     let root = tempfile::tempdir().unwrap();
     let limits = ProcessLimits {

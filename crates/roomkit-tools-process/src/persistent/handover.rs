@@ -15,10 +15,12 @@ use crate::persistent_unix::{Host, Spawned};
 use crate::shell_jobs::ShellJobs;
 use crate::{CommandEnv, ProcessStatus};
 
-/// An identifier the quota admits, held with the registry until committed.
+/// An identifier the quota admits, held with the registry until committed,
+/// and the finished records the commit releases to make room for it.
 pub(super) struct Reserved<'a> {
     registry: MutexGuard<'a, Registry>,
     next: u64,
+    releasing: Vec<String>,
 }
 
 impl Reserved<'_> {
@@ -44,19 +46,21 @@ pub(crate) struct ShellJob<'a> {
 
 impl ProcessSession {
     /// Reserve `owner`'s next identifier, once the session is open and its
-    /// quota admits one more job, those that finished first released if need be.
+    /// quota admits one more job, those that finished first to be released
+    /// if need be.
     pub(super) async fn reserve(
         &self,
         owner: Option<&str>,
         cancel: &CancellationToken,
     ) -> Result<Reserved<'_>, ToolError> {
-        let mut registry = self.inner.registry.lock().await;
+        let registry = self.inner.registry.lock().await;
         self.check(owner, cancel)?;
-        if registry.make_room(owner, self.inner.limits) {
-            self.inner.changes.send_replace(());
-        }
-        let next = registry.next_for(owner, self.inner.limits)?;
-        Ok(Reserved { registry, next })
+        let (next, releasing) = registry.admit(owner, self.inner.limits)?;
+        Ok(Reserved {
+            registry,
+            next,
+            releasing,
+        })
     }
 
     /// Adopt `spawned` under the reserved identifier, which `status` carries.
@@ -81,6 +85,9 @@ impl ProcessSession {
         let (entry, status) =
             crate::persistent_unix::adopt(spawned, (owner, command), status, host);
         reserved.registry.next_id = reserved.next;
+        for id in &reserved.releasing {
+            reserved.registry.entries.remove(id);
+        }
         let done = entry.done.clone();
         reserved
             .registry
