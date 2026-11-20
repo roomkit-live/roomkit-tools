@@ -252,17 +252,17 @@ fn render_preview(
     )?;
     totals.output_bytes = totals.output_bytes.saturating_add(compared.text.len());
     let mut text = format!("{heading}{}", compared.text);
-    if compared.clipped {
-        let data = &compared.data;
-        append_facts(
-            &mut text,
-            [
-                ("clipped", Some("true".to_owned())),
-                ("additions", Some(data.additions.to_string())),
-                ("deletions", Some(data.deletions.to_string())),
-            ],
-        );
-    }
+    let data = &compared.data;
+    let clipped = |value: String| compared.clipped.then_some(value);
+    append_facts(
+        &mut text,
+        [
+            ("compared", compared.whole.then(|| "whole".to_owned())),
+            ("clipped", clipped("true".to_owned())),
+            ("additions", clipped(data.additions.to_string())),
+            ("deletions", clipped(data.deletions.to_string())),
+        ],
+    );
     Ok(PatchPreview {
         index: change.index,
         operation,

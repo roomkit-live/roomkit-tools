@@ -26,11 +26,14 @@ pub(crate) enum Bound {
     Clip,
 }
 
-/// A rendered comparison; `clipped` when lines were left out to fit.
+/// A rendered comparison; `clipped` when lines were left out to fit,
+/// `whole` when the lines between the common ends were shown replaced whole
+/// instead of compared.
 pub(crate) struct Rendered {
     pub(crate) data: DiffResult,
     pub(crate) text: String,
     pub(crate) clipped: bool,
+    pub(crate) whole: bool,
 }
 
 /// The paths a comparison is labelled with.
@@ -62,6 +65,7 @@ pub(crate) fn render(
         },
         text: String::new(),
         clipped: false,
+        whole: false,
     };
     let header = format!("--- {:?}\n+++ {:?}\n", labels.old, labels.new);
     if !ranges.is_empty() && !rendered.fits(&header, maximum, bound)? {

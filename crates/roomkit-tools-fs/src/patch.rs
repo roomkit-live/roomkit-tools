@@ -90,8 +90,9 @@ pub struct PatchLimits {
     pub max_lines: usize,
     /// Maximum work of each file's comparison, as
     /// [`DiffLimits::max_comparison_cells`]. Past it, the preview shows the
-    /// lines between the common first and last ones replaced whole, rather
-    /// than refusing the patch. Default: 1,000,000.
+    /// lines between the common first and last ones replaced whole, and its
+    /// text ends `[compared=whole]`, rather than refusing the patch.
+    /// Default: 1,000,000.
     pub max_comparison_cells: usize,
     /// Maximum rendered bytes of all previews' diffs together. A preview past
     /// it is cut at a line and ends `[clipped=true, additions=N,

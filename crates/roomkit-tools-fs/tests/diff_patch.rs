@@ -603,6 +603,12 @@ async fn a_comparison_past_its_bound_previews_the_changed_lines_whole() {
     let diff = &preview.data.previews[0].diff;
     assert_eq!((diff.additions, diff.deletions), (100, 100));
     assert_eq!(diff.hunks.len(), 1);
+    // The counts are those of the whole region, and the text says so.
+    assert!(
+        preview.text.ends_with("+0\n[compared=whole]\n"),
+        "{}",
+        preview.text
+    );
     input.dry_run = false;
     let applied = tool.patch(input, &CancellationToken::new()).await.unwrap();
     assert!(applied.data.completed);

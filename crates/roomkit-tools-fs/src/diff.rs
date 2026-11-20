@@ -307,15 +307,22 @@ pub(crate) fn preview(
     budget: usize,
     cancel: &CancellationToken,
 ) -> Result<Rendered, ToolError> {
+    let mut whole = false;
     let kinds = |old: &[&str], new: &[&str]| {
         Ok(
-            diff_align::align(old, new, limits.max_comparison_cells, cancel)?
-                .unwrap_or_else(|| diff_align::replace_middle(old, new)),
+            diff_align::align(old, new, limits.max_comparison_cells, cancel)?.unwrap_or_else(
+                || {
+                    whole = true;
+                    diff_align::replace_middle(old, new)
+                },
+            ),
         )
     };
     let lines = aligned(old, new, limits, cancel, kinds)?;
     let context = PREVIEW_CONTEXT.min(limits.max_context_lines);
-    diff_render::render(&lines, labels, context, budget, Bound::Clip, cancel)
+    let mut rendered = diff_render::render(&lines, labels, context, budget, Bound::Clip, cancel)?;
+    rendered.whole = whole;
+    Ok(rendered)
 }
 
 /// Context lines around a change in a patch's preview.

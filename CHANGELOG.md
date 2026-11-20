@@ -199,7 +199,8 @@ part of an existing published preview.
   max_output_bytes", where `write` of the same text worked. The preview that
   reaches `max_output_bytes` is cut at a line and ends
   `[clipped=true, additions=N, deletions=M]`, and past `max_comparison_cells`
-  a preview shows the changed lines replaced whole. A preview's `text` starts
+  a preview shows the changed lines replaced whole and says so,
+  `[compared=whole]`. A preview's `text` starts
   `preview only: nothing written; call again with dry_run: false` instead of
   `completed=true`, and an applied patch's `text` lists its effects without
   repeating the diffs, which `data.previews` still holds.
