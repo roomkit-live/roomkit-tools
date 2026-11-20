@@ -167,9 +167,10 @@ part of an existing published preview.
 - `web_fetch` reads JavaScript, YAML, TOML, shell scripts and
   newline-delimited JSON served under `application/` (and `+yaml` types), a
   body without a Content-Type when it is UTF-8 without NUL, and an ASCII body
-  declared Latin-1 or windows-1252; it refused all of them. A refused
-  response now names its Content-Type and HTTP status, such as
-  `response type is not supported text (Content-Type:
+  declared Latin-1 or windows-1252; it refused all of them. A response
+  refused for its Content-Type, charset, content encoding or bytes, or for a
+  body over `max_response_bytes`, now names its Content-Type and HTTP status,
+  such as `response type is not supported text (Content-Type:
   application/octet-stream, HTTP 404)`, so a 404 no longer loses its status.
 
 - `web_fetch` and the search backends reach the public addresses of

@@ -191,6 +191,14 @@ async fn a_refused_response_names_its_content_type_and_status() {
             "/nul",
             "response contains NUL bytes (Content-Type: text/plain, HTTP 200)",
         ),
+        (
+            "/missing-br",
+            "unsupported HTTP content encoding (Content-Type: text/plain, HTTP 404)",
+        ),
+        (
+            "/non-ascii-type",
+            "response Content-Type is not ASCII (Content-Type: text/plain; charset=\\xc3\\xa9, HTTP 200)",
+        ),
     ] {
         let url = format!("{}{path}", server.origin);
         match tool
@@ -198,6 +206,30 @@ async fn a_refused_response_names_its_content_type_and_status() {
             .await
         {
             Err(ToolError::UnsupportedResource(error)) => assert_eq!(error, message, "{path}"),
+            other => panic!("{path}: {other:?}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_body_over_the_limit_is_refused_naming_its_type_and_status() {
+    let server = web::Server::start().await;
+    let limits = WebFetchLimits {
+        max_response_bytes: 64,
+        ..WebFetchLimits::default()
+    };
+    let tool = local(&server).with_limits(limits).unwrap();
+    // A declared length and a streamed body are refused at different points.
+    for path in ["/large", "/stream"] {
+        let url = format!("{}{path}", server.origin);
+        match tool
+            .fetch(WebFetchInput::new(url), &CancellationToken::new())
+            .await
+        {
+            Err(ToolError::LimitExceeded(error)) => assert_eq!(
+                error, "HTTP body exceeds host byte limit (Content-Type: text/plain, HTTP 200)",
+                "{path}"
+            ),
             other => panic!("{path}: {other:?}"),
         }
     }

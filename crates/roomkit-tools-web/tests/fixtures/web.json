@@ -259,6 +259,18 @@
       "status": 404,
       "type": "application/octet-stream",
       "body": "Not Found"
+    },
+    "/missing-br": {
+      "status": 404,
+      "type": "text/plain",
+      "headers": {
+        "Content-Encoding": "br"
+      },
+      "body": "x"
+    },
+    "/non-ascii-type": {
+      "type": "text/plain; charset=\u00e9",
+      "body": "plain"
     }
   },
   "cases": [
@@ -524,6 +536,24 @@
       "name": "http_error_binary",
       "input": {
         "url": "$ORIGIN/missing-binary"
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "http_error_encoding",
+      "input": {
+        "url": "$ORIGIN/missing-br"
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "non_ascii_type",
+      "input": {
+        "url": "$ORIGIN/non-ascii-type"
       },
       "expect": {
         "/error": "unsupported"

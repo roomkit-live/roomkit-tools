@@ -66,23 +66,37 @@ impl Head {
     /// Refuses a Content-Type that is not visible ASCII.
     pub(crate) fn of(response: &Response) -> Result<Self, ToolError> {
         let status = response.status().as_u16();
-        let content_type = match response.headers().get(header::CONTENT_TYPE) {
-            None => None,
-            Some(value) => Some(
-                value
-                    .to_str()
-                    .map_err(|_| {
-                        ToolError::UnsupportedResource(format!(
-                            "response Content-Type is not ASCII (HTTP {status})"
-                        ))
-                    })?
-                    .to_owned(),
-            ),
+        let Some(value) = response.headers().get(header::CONTENT_TYPE) else {
+            return Ok(Self {
+                content_type: None,
+                status,
+            });
+        };
+        let Ok(content_type) = value.to_str() else {
+            // Shown with its other bytes escaped, never as raw header bytes.
+            let escaped = value.as_bytes().escape_ascii().to_string();
+            let head = Self {
+                content_type: Some(escaped),
+                status,
+            };
+            return Err(head.refuse("response Content-Type is not ASCII"));
         };
         Ok(Self {
-            content_type,
+            content_type: Some(content_type.to_owned()),
             status,
         })
+    }
+
+    /// `error`, a refusal of the response's body, ending with what the
+    /// response declares, as every refusal of this module does.
+    pub(crate) fn describe(&self, error: ToolError) -> ToolError {
+        if let ToolError::UnsupportedResource(problem) = &error {
+            return self.refuse(problem);
+        }
+        if let ToolError::LimitExceeded(problem) = &error {
+            return ToolError::LimitExceeded(format!("{problem} ({})", self.declared()));
+        }
+        error
     }
 
     /// Whether the declared type and charset are text this tool reads. A
@@ -146,11 +160,18 @@ impl Head {
     }
 
     fn refuse(&self, problem: &str) -> ToolError {
-        let declared = match self.content_type.as_deref().map(str::trim) {
-            Some(value) if !value.is_empty() => format!("Content-Type: {}", shown(value)),
-            _ => "no Content-Type".to_owned(),
-        };
-        ToolError::UnsupportedResource(format!("{problem} ({declared}, HTTP {})", self.status))
+        ToolError::UnsupportedResource(format!("{problem} ({})", self.declared()))
+    }
+
+    /// `Content-Type: X, HTTP N`, or `no Content-Type, HTTP N`.
+    fn declared(&self) -> String {
+        let status = self.status;
+        match self.content_type.as_deref().map(str::trim) {
+            Some(value) if !value.is_empty() => {
+                format!("Content-Type: {}, HTTP {status}", shown(value))
+            }
+            _ => format!("no Content-Type, HTTP {status}"),
+        }
     }
 }
 

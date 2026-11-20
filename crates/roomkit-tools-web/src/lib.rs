@@ -126,8 +126,9 @@ impl WebFetchTool {
         let (mut response, final_url, redirects) = self.response(url.clone()).await?;
         let head = content::Head::of(&response)?;
         let text = head.text()?;
-        let bytes =
-            roomkit_tools_http::read_body(&mut response, self.limits.max_response_bytes).await?;
+        let bytes = roomkit_tools_http::read_body(&mut response, self.limits.max_response_bytes)
+            .await
+            .map_err(|error| head.describe(error))?;
         let response_bytes = bytes.len();
         let source = head.decode(bytes, &text)?;
         let html = text.html;
