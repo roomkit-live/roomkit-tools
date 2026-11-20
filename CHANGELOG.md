@@ -390,7 +390,11 @@ part of an existing published preview.
   parts are unchanged. Refusals, failures and cancellation are unchanged. A
   host that read the data from the result reads it from the structured
   content; a hook that already split the envelope, as roomkit-code's does,
-  finds the text alone and leaves it.
+  finds the text alone and leaves it. A Rust handler answers
+  `ToolResult::Text` where it answered a `ToolResult::Json` object, so a
+  wrapper or hook that matched that object no longer finds it: roomkit-code's
+  `Scoped` instructions wrapper, which adds `project_instructions` as a field
+  of such an object, now appends the rules to the text instead.
 - The RoomKit Rust adapter follows roomkit-rs v0.2.0 (4f271c6), which changes no
   existing adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
   requests also declare the kit's `read_stored_result`, which pages through an
