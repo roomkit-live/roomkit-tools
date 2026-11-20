@@ -145,6 +145,8 @@ pub(crate) struct Matches {
     first_skipped: Option<String>,
     /// Where a host bound stopped the search before the page was full.
     stopped: Option<Stop>,
+    /// The context used, stated when the request was capped.
+    context: Option<(usize, usize)>,
     text: String,
     seen: usize,
     offset: usize,
@@ -166,6 +168,7 @@ impl Matches {
             },
             first_skipped: None,
             stopped: None,
+            context: None,
             text: String::new(),
             seen: 0,
             offset: input.offset.get(),
@@ -203,6 +206,12 @@ impl Matches {
         self.text.push_str(&rendered);
         self.data.matches.push(found);
         Ok(true)
+    }
+
+    /// State in the facts the context `input` holds, the request capped to
+    /// the host's bound.
+    pub(crate) fn state_context(&mut self, input: &GrepInput) {
+        self.context = Some((input.context_before, input.context_after));
     }
 
     /// Count a file skipped as binary, non-UTF-8 or over `max_file_bytes`.
@@ -258,6 +267,14 @@ impl Matches {
                 ),
                 truncated_by,
                 stopped_at,
+                (
+                    "context_before",
+                    self.context.map(|(before, _)| before.to_string()),
+                ),
+                (
+                    "context_after",
+                    self.context.map(|(_, after)| after.to_string()),
+                ),
                 ("clipped", clipped),
                 ("skipped_files", count(self.data.skipped_files)),
                 ("first_skipped_file", self.first_skipped),

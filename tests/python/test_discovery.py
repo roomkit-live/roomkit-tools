@@ -275,9 +275,12 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("truncated_by=max_total_bytes, stopped_at=", page["text"])
         tool = await GrepTool.create(self.root, max_context_lines=0)
         self.assertEqual(len((await tool.grep("Tags:"))["data"]["matches"]), 2)
+        # Context beyond the host's bound is capped, and the text says so.
         for context in [{"context_before": 1}, {"context_after": 1}]:
-            with self.assertRaises(LimitExceededError):
-                await tool.grep("Tags:", **context)
+            page = await tool.grep("Tags:", **context)
+            self.assertNotIn("context_before", page["data"]["matches"][0])
+            self.assertNotIn("context_after", page["data"]["matches"][0])
+            self.assertIn("[context_before=0, context_after=0, skipped_files=1", page["text"])
         for value in [-1, True]:
             with self.assertRaises(InvalidInputError):
                 await GrepTool.create(self.root, max_context_lines=value)

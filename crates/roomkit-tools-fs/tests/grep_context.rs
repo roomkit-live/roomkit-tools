@@ -5,7 +5,6 @@ mod support;
 use std::num::NonZeroUsize;
 use support::content;
 
-use roomkit_tools_core::ToolError;
 use roomkit_tools_fs::{GrepInput, GrepLimits, GrepTool};
 use tokio_util::sync::CancellationToken;
 
@@ -156,10 +155,8 @@ async fn the_host_can_bound_or_disable_context_and_invalid_json_is_refused() {
     let mut input = GrepInput::new("hit");
     assert!(tool.grep(input.clone(), &cancel).await.is_ok());
     input.context_after = 1;
-    assert!(matches!(
-        tool.grep(input, &cancel).await,
-        Err(ToolError::LimitExceeded(_))
-    ));
+    let capped = tool.grep(input, &cancel).await.unwrap();
+    assert_eq!(capped.data.matches[0].context_after, []);
     for arguments in [
         serde_json::json!({"pattern":"hit", "context_before":-1}),
         serde_json::json!({"pattern":"hit", "context_after":1.5}),
@@ -167,4 +164,29 @@ async fn the_host_can_bound_or_disable_context_and_invalid_json_is_refused() {
     ] {
         assert!(serde_json::from_value::<GrepInput>(arguments).is_err());
     }
+}
+
+/// Context asked beyond `max_context_lines` is capped, as diff caps its own,
+/// and the facts line states the context used.
+#[tokio::test]
+async fn context_beyond_the_host_bound_is_capped_and_stated() {
+    let root = tempfile::tempdir().unwrap();
+    let lines: Vec<String> = (1..=50).map(|line| format!("line {line}\n")).collect();
+    let text = format!("{}hit\n{}", lines.concat(), lines.concat());
+    std::fs::write(root.path().join("a"), text).unwrap();
+    let tool = GrepTool::new(root.path()).await.unwrap();
+    let mut input = GrepInput::new("hit");
+    input.context_before = 30;
+    input.context_after = 45;
+    let found = tool.grep(input, &CancellationToken::new()).await.unwrap();
+    let limit = GrepLimits::default().max_context_lines;
+    assert_eq!(found.data.matches[0].context_before.len(), limit);
+    assert_eq!(found.data.matches[0].context_after.len(), limit);
+    assert!(
+        found
+            .text
+            .ends_with("[context_before=20, context_after=20]\n"),
+        "{}",
+        found.text
+    );
 }

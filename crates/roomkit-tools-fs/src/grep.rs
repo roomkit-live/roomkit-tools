@@ -41,7 +41,8 @@ pub struct GrepInput {
     /// Lines shown before each match, capped by the host.
     #[serde(default)]
     pub context_before: usize,
-    /// Lines shown after each match, capped by the host.
+    /// Lines shown after each match, capped by the host; a capped request is
+    /// stated in the text.
     #[serde(default)]
     pub context_after: usize,
     /// First match, ordered by path then line.
@@ -135,8 +136,9 @@ pub struct GrepLimits {
     /// search returns the matches found so far, truncated, and names the file
     /// it stopped at. Default: 32 MiB.
     pub max_total_bytes: usize,
-    /// Maximum requested context lines on either side of a match. Default: 20.
-    /// Zero disables context without disabling ordinary matching.
+    /// Maximum context lines on either side of a match: more is capped, and
+    /// the text states the context used. Default: 20. Zero disables context
+    /// without disabling ordinary matching.
     pub max_context_lines: usize,
     /// Longest line handed to the regex, in bytes. Longer lines are not
     /// searched and are counted in `skipped_lines`; this bounds the work done
@@ -301,10 +303,14 @@ impl GrepTool {
     /// blocking worker that observes `cancel`.
     async fn search(
         &self,
-        input: GrepInput,
+        mut input: GrepInput,
         cancel: CancellationToken,
     ) -> Result<Output<GrepPage>, ToolError> {
-        let regex = self.regex(&input)?;
+        let regex = Self::regex(&input)?;
+        let asked = (input.context_before, input.context_after);
+        input.context_before = asked.0.min(self.limits.max_context_lines);
+        input.context_after = asked.1.min(self.limits.max_context_lines);
+        let capped = asked != (input.context_before, input.context_after);
         let include = input.include.as_deref().map(Include::new).transpose()?;
         let path = self.root.resolve(&input.path).await?;
         let include_depth = include.as_ref().and_then(Include::depth);
@@ -316,6 +322,9 @@ impl GrepTool {
             .files(&path, &directories, include_depth, input.include_ignored)
             .await?;
         let mut page = Matches::new(self.root.relative(&path)?, &input, self.limits);
+        if capped {
+            page.state_context(&input);
+        }
         page.data.skipped_entries = files.skipped;
         if let Some(stop) = files.stopped {
             page.stop(stop);
@@ -336,15 +345,8 @@ impl GrepTool {
         .await
     }
 
-    /// Check model arguments against host bounds and compile the pattern.
-    fn regex(&self, input: &GrepInput) -> Result<Regex, ToolError> {
-        if input.context_before > self.limits.max_context_lines
-            || input.context_after > self.limits.max_context_lines
-        {
-            return Err(ToolError::LimitExceeded(
-                "requested grep context exceeds max_context_lines".into(),
-            ));
-        }
+    /// Check the pattern against its bounds and compile it.
+    fn regex(input: &GrepInput) -> Result<Regex, ToolError> {
         if input.pattern.is_empty() || input.pattern.len() > 4096 {
             return Err(ToolError::InvalidInput(
                 "grep pattern must contain 1 to 4096 bytes".into(),

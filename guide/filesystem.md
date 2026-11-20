@@ -88,7 +88,9 @@ rule, the deepest matching rule of each kind first. An ignore file over
 and one the scan cannot read fails it, each naming the file; one above the
 workspace is named with `..`, as `../.gitignore`.
 Child symlinks are not traversed. Grep supports Rust regex syntax, `literal=True`,
-`ignore_case=True`, `include`, `context_before` and `context_after`.
+`ignore_case=True`, `include`, `context_before` and `context_after`. Context
+beyond `max_context_lines` is capped, as `diff` caps its own, and the facts
+line states the context used, as `[context_before=20, context_after=20]`.
 It skips binary and non-UTF-8 files, and files over `max_file_bytes`, and
 reports them in `data.skipped_files`; the facts line names the first one, as
 `first_skipped_file="scan.pdf"`. A file whose first 8 KiB hold a NUL or bytes
