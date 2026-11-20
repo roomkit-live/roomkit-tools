@@ -184,6 +184,53 @@ async fn a_clipped_match_and_skipped_files_are_said() {
     assert!(facts.contains("skipped_files=1"), "{}", page.text);
 }
 
+/// Every description in a schema, with where it is.
+fn descriptions(value: &serde_json::Value, at: &str, found: &mut Vec<(String, String)>) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, item) in map {
+                if let ("description", Some(text)) = (key.as_str(), item.as_str()) {
+                    found.push((at.to_owned(), text.to_owned()));
+                }
+                descriptions(item, &format!("{at}/{key}"), found);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                descriptions(item, at, found);
+            }
+        }
+        serde_json::Value::Null
+        | serde_json::Value::Bool(_)
+        | serde_json::Value::Number(_)
+        | serde_json::Value::String(_) => {}
+    }
+}
+
+/// A description is one line: a doc comment wrapped over two lines must not
+/// reach the model as a line break.
+#[test]
+fn argument_descriptions_have_no_stray_line_breaks() {
+    let mut found = Vec::new();
+    for definition in [
+        ReadTool::definition(),
+        ListTool::definition(),
+        GlobTool::definition(),
+        GrepTool::definition(),
+        WriteTool::definition(),
+        EditTool::definition(),
+        DiffTool::definition(),
+        PatchTool::definition(),
+    ] {
+        descriptions(&definition.input_schema, &definition.name, &mut found);
+    }
+    let broken: Vec<_> = found
+        .iter()
+        .filter(|(_, text)| text.contains('\n'))
+        .collect();
+    assert_eq!(broken, Vec::<&(String, String)>::new());
+}
+
 #[tokio::test]
 async fn identical_files_read_as_no_differences() {
     let root = workspace(&[("a", "same\n"), ("b", "same\n")]);

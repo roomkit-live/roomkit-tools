@@ -14,8 +14,8 @@ use crate::{Workspace, line_endings, mutation, revision};
 pub struct EditInput {
     /// Existing file in the workspace.
     pub path: String,
-    /// Exact nonempty text, whitespace included. In an all-CRLF file, LF here and in
-    /// `new_text` stands for CRLF.
+    // One line: the model reads a wrapped doc comment's line break.
+    /// Exact nonempty text, whitespace included. In an all-CRLF file, LF here and in `new_text` stands for CRLF.
     pub old_text: String,
     /// Replacement; empty removes the match.
     pub new_text: String,

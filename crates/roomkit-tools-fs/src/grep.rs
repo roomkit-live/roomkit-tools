@@ -25,8 +25,8 @@ pub struct GrepInput {
     /// File or directory to search.
     #[serde(default = "workspace_path")]
     pub path: String,
-    /// Glob on file names at any depth, e.g. `*.rs`; with a `/`, on paths
-    /// relative to `path`, e.g. `src/**/*.rs`.
+    // One line: the model reads a wrapped doc comment's line break.
+    /// Glob on file names at any depth, e.g. `*.rs`; with a `/`, on paths relative to `path`, e.g. `src/**/*.rs`.
     #[serde(default)]
     pub include: Option<String>,
     /// Also search what `.gitignore` and `.ignore` exclude, and `.git`.
@@ -41,8 +41,7 @@ pub struct GrepInput {
     /// Lines shown before each match, capped by the host.
     #[serde(default)]
     pub context_before: usize,
-    /// Lines shown after each match, capped by the host; a capped request is
-    /// stated in the text.
+    /// Lines shown after each match, capped by the host; the text states a capped request.
     #[serde(default)]
     pub context_after: usize,
     /// First match, ordered by path then line.
