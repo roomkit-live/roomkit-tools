@@ -361,3 +361,35 @@ fn a_long_result_keeps_its_lines() {
     assert!(text.lines().skip(2).all(|l| l == format!("   {line}")));
     assert!(!text.contains("\\n"));
 }
+
+/// A lone carriage return, U+2028 and U+2029 break a line for whoever reads
+/// it, so each starts an indented line, as `\n` and `\r\n` do: none leaves
+/// what follows on the line of a task or an answer.
+#[test]
+fn every_line_break_starts_an_indented_line() {
+    let breaks = "one\rtwo\u{2028}three\u{2029}four\r\nfive\nsix";
+    let text = render(TaskInfo {
+        status: TaskState::Completed,
+        delivery: DeliveryState::Delivered,
+        result: Some(breaks.into()),
+        ..receipt()
+    })
+    .unwrap()
+    .text;
+    let result: Vec<&str> = text.split('\n').skip(2).collect();
+    assert_eq!(
+        result,
+        [
+            "   one", "   two", "   three", "   four", "   five", "   six", ""
+        ]
+    );
+    let answers = render(AskUserResult {
+        answers: vec![AskUserAnswer {
+            selected: vec![],
+            other: Some("Yes\rbut later\u{2028}today".into()),
+        }],
+    })
+    .unwrap()
+    .text;
+    assert_eq!(answers, "1. wrote: Yes\n   but later\n   today\n");
+}

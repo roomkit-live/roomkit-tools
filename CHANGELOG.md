@@ -67,7 +67,8 @@ part of an existing published preview.
   `agent_followup`, `agent_send` and `ask_user` is lines rather than the JSON
   of `data`, which is unchanged: a task's quoted IDs and states on one line
   and its result, up to 8 KiB, on its own indented lines instead of one
-  escaped string; a message's outcome; one line per answer.
+  escaped string, a lone `\r`, U+2028 and U+2029 breaking lines as `\n`
+  does; a message's outcome; one line per answer.
 
 - Clearer argument descriptions: `plan_create`'s `title` is the short name
   `plan_list` shows, a few words (a model took `objective` for the whole

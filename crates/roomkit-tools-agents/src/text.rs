@@ -26,6 +26,14 @@ fn plural(count: usize) -> &'static str {
     if count == 1 { "" } else { "s" }
 }
 
+/// The lines of `text`, broken wherever a reader breaks a line: at `\n` and
+/// `\r\n`, and at a lone `\r`, U+2028 and U+2029, which would otherwise
+/// leave what follows them on an indented line's own line.
+fn lines(text: &str) -> impl Iterator<Item = &str> {
+    text.lines()
+        .flat_map(|line| line.split(['\r', '\u{2028}', '\u{2029}']))
+}
+
 /// A task: its states and agent on one line, then its result, if any, one
 /// indented line per line.
 fn task(text: &mut String, info: &TaskInfo) {
@@ -50,7 +58,7 @@ fn task(text: &mut String, info: &TaskInfo) {
             ""
         };
         let _written = writeln!(text, "{INDENT}result{truncated}:");
-        for line in result.lines() {
+        for line in lines(result) {
             let _written = writeln!(text, "{INDENT}{line}");
         }
     }
@@ -139,9 +147,9 @@ fn answer_lines(text: &mut String, answer: &AskUserAnswer) {
     if !selected.is_empty() {
         text.push_str("; ");
     }
-    let mut lines = other.lines();
-    let _written = writeln!(text, "wrote: {}", lines.next().unwrap_or_default());
-    for line in lines {
+    let mut wrote = lines(other);
+    let _written = writeln!(text, "wrote: {}", wrote.next().unwrap_or_default());
+    for line in wrote {
         let _written = writeln!(text, "{INDENT}{line}");
     }
 }
