@@ -63,6 +63,10 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- A `plan_update` by `step_changes` that changes a step's status alone
+  lists that step as `3. s3 [completed]`, without the description the model
+  just left unchanged.
+
 - A plan step's description over 2,048 bytes is refused naming the step and
   both sizes, `step agent-par-conversation: description is 2071 bytes, at
   most 2048`, where "step description exceeds 2048 UTF-8 bytes" left the

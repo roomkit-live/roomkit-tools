@@ -2,7 +2,7 @@
 
 use std::fmt::Write as _;
 
-use crate::types::{Plan, PlanDeleteResult, PlanListResult, PlanStep, StepStatus};
+use crate::types::{Plan, PlanDeleteResult, PlanListResult, PlanStep, StepChange, StepStatus};
 
 /// A status as the schema spells it.
 fn status(value: StepStatus) -> String {
@@ -39,10 +39,16 @@ pub(crate) fn plan(plan: &Plan) -> String {
     text
 }
 
+/// One step without its description, which the model already has.
+fn status_line(text: &mut String, number: usize, step: &PlanStep) {
+    let _written = writeln!(text, "{number}. {} [{}]", step.step_id, status(step.status));
+}
+
 /// An update by step: the new revision and only the steps it changed, at
-/// their place in the plan.
-pub(crate) fn changed(plan: &Plan, changed: &[String]) -> String {
-    let count = changed.len();
+/// their place in the plan; a step whose status alone changed, without its
+/// description.
+pub(crate) fn changed(plan: &Plan, changes: &[StepChange]) -> String {
+    let count = changes.len();
     let mut text = format!(
         "{} (revision {}): {count} step{} changed\n",
         plan.plan_id,
@@ -50,8 +56,12 @@ pub(crate) fn changed(plan: &Plan, changed: &[String]) -> String {
         if count == 1 { "" } else { "s" }
     );
     for (index, step) in plan.steps.iter().enumerate() {
-        if changed.contains(&step.step_id) {
-            step_line(&mut text, index + 1, step);
+        match changes.iter().find(|change| change.step_id == step.step_id) {
+            Some(change) if change.description.is_some() => {
+                step_line(&mut text, index + 1, step);
+            }
+            Some(_) => status_line(&mut text, index + 1, step),
+            None => {}
         }
     }
     text

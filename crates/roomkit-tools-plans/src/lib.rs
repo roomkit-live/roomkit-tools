@@ -121,8 +121,7 @@ pub fn render_update(input: &PlanUpdateInput, plan: Plan) -> Result<Output<Plan>
     let text = if plan.revision == input.expected_revision {
         text::unchanged(&plan)
     } else {
-        let step_ids: Vec<String> = changes.iter().map(|c| c.step_id.clone()).collect();
-        text::changed(&plan, &step_ids)
+        text::changed(&plan, changes)
     };
     Ok(Output::new(plan, text))
 }

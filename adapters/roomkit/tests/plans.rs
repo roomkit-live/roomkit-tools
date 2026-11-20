@@ -120,7 +120,7 @@ async fn a_step_change_answers_with_that_step_alone_in_its_text() {
     };
     assert_eq!(
         envelope["text"],
-        "plan-1 (revision 2): 1 step changed\n3. s3 [completed]: \"Step 3\"\n"
+        "plan-1 (revision 2): 1 step changed\n3. s3 [completed]\n"
     );
     assert_eq!(envelope["data"]["steps"].as_array().unwrap().len(), 18);
     assert!(change.to_string().len() < 150);

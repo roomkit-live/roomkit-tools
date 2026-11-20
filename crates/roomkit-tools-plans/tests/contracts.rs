@@ -115,7 +115,7 @@ async fn step_changes_change_only_the_steps_they_name() {
     );
     assert_eq!(
         changed.text,
-        "plan-1 (revision 2): 1 step changed\n3. s3 [completed]: \"Step 3\"\n"
+        "plan-1 (revision 2): 1 step changed\n3. s3 [completed]\n"
     );
     for (arguments, refusal) in [
         (

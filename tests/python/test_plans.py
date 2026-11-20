@@ -141,9 +141,7 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(host.received), 18)
         self.assertEqual(host.received[2]["status"], "completed")
         self.assertEqual(host.received[3]["status"], "pending")
-        self.assertEqual(
-            result["text"], 'plan-1 (revision 2): 1 step changed\n3. s3 [completed]: "Step 3"\n'
-        )
+        self.assertEqual(result["text"], "plan-1 (revision 2): 1 step changed\n3. s3 [completed]\n")
         with self.assertRaises(InvalidInputError):
             await PlanUpdateTool(host).call(
                 {

@@ -59,8 +59,10 @@ transition workflow is imposed. An empty steps list is valid.
 An update preserves omitted/null fields. To change a step's status or
 description, give `step_changes`, a list of `{step_id, status?, description?}`:
 only those steps change, the others and the order are kept, and the result's
-`text` gives the new revision and the changed steps alone; `data` is still the
-whole plan. A change naming no step of the plan is refused. **Supplying `steps`
+`text` gives the new revision and the changed steps alone, as
+`3. s3 [completed]` when only the status changed and with the description
+when it changed; `data` is still the whole plan. A change naming no step of
+the plan is refused. **Supplying `steps`
 instead replaces the entire ordered list.** Include unchanged steps, keep their
 IDs and omit entries you want to remove. Sending `steps: []` clears the list.
 `steps` and `step_changes` cannot be combined. There is no automatic deletion of
