@@ -47,7 +47,7 @@ are meaningful only with that backend and scope.
 | `plan_create` | `title`, `objective`, ordered `steps` | Full plan with generated `plan_id` and revision 1 |
 | `plan_read` | `plan_id` | Current full plan |
 | `plan_list` | `{}` | All accessible summaries: ID, revision, title, total/completed step counts |
-| `plan_update` | `plan_id`, `expected_revision`, one or more of `title`, `objective`, `steps` | Full updated plan |
+| `plan_update` | `plan_id`, `expected_revision`, one or more of `title`, `objective`, `step_changes` or `steps` | Updated plan in `data`; with `step_changes` alone, `text` names the changed steps only |
 | `plan_delete` | `plan_id`, `expected_revision` | Receipt with ID, deleted revision and `deleted: true` |
 
 Each step has a unique `step_id`, a `description` and a `status`:
@@ -95,11 +95,10 @@ result = await PlanCreateTool(store).call({
     "steps": [{"step_id": "inspect", "description": "Read the source", "status": "pending"}],
 }, scope=scope)
 plan = result["data"]
-plan["steps"][0]["status"] = "in_progress"
 await PlanUpdateTool(store).call({
     "plan_id": plan["plan_id"],
     "expected_revision": plan["revision"],
-    "steps": plan["steps"],
+    "step_changes": [{"step_id": "inspect", "status": "in_progress"}],
 }, scope=scope)
 current = await PlanReadTool(store).call({"plan_id": plan["plan_id"]}, scope=scope)
 ```
