@@ -44,8 +44,11 @@ pub struct OcrLimits {
     pub max_decode_bytes: usize,
     /// Maximum bytes of returned text: each kept block's text once, joined by
     /// newlines, as in `text`. Blocks past it are omitted whole. The envelope
-    /// repeats that text in `data.text` and the rendered `text`, and adds each
-    /// block's geometry, which `max_blocks` bounds.
+    /// is larger: about three times that text as JSON escapes it (each block,
+    /// `data.text` and the rendered `text`; a quote takes two bytes), plus
+    /// about 150 bytes of geometry per block, up to `max_blocks`. At the
+    /// defaults, up to about 235 KB for plain text and 430 KB for text full
+    /// of quotes.
     pub max_output_bytes: usize,
     /// Maximum complete returned blocks.
     pub max_blocks: usize,

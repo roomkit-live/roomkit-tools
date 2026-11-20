@@ -136,7 +136,11 @@ part of an existing published preview.
   envelope, which repeats that text three times and adds every block's
   geometry: a dense page of 200 blocks and 20 KB of text, which filled the
   default 64 KiB and lost 42 blocks, now returns them all. Blocks past it are
-  still omitted whole; `max_blocks` bounds the geometry.
+  still omitted whole; `max_blocks` bounds the geometry. A host that hands the
+  whole envelope to a model gets more than before: about three times the text
+  as JSON escapes it, plus about 150 bytes per block, up to about 235 KB at
+  the defaults for plain text and 430 KB for text full of quotes, where the
+  envelope was at most 64 KiB.
 
 - `view_image` previews an ordinary 4K photograph instead of refusing it: a
   PNG preview over `max_image_bytes` is made again with an edge three

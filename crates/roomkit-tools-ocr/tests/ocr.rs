@@ -236,6 +236,33 @@ async fn the_output_budget_counts_each_block_s_text_once() {
 }
 
 #[tokio::test]
+async fn the_envelope_stays_within_its_documented_bound() {
+    // Text full of quotes, which JSON doubles: the envelope's worst ordinary
+    // case. The documented bound is three times the escaped text, plus about
+    // 150 bytes of geometry per block, plus the metadata.
+    let root = fixture_root();
+    let mut backend = fixture();
+    backend.text = "\"".repeat(99);
+    backend.count = 200;
+    let tool = OcrTool::new(root.path(), OcrEngine::new(backend).unwrap())
+        .await
+        .unwrap();
+    let result = tool
+        .ocr(input("image.png"), &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(result.data.blocks.len(), 200);
+    let text = result.data.text.len();
+    let escaped = serde_json::to_string(&result.data.text).unwrap().len();
+    let envelope = serde_json::to_vec(&result).unwrap().len();
+    assert!(envelope > 5 * text, "{envelope} for {text} bytes of text");
+    assert!(
+        envelope <= 3 * escaped + 200 * 150 + 1024,
+        "{envelope} for {escaped} escaped bytes"
+    );
+}
+
+#[tokio::test]
 async fn cancelling_a_caller_keeps_the_shared_slot_until_native_work_ends() {
     let root = fixture_root();
     let mut backend = fixture();

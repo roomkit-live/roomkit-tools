@@ -121,7 +121,11 @@ bounded resolution. Transparency is composited onto white.
 `max_output_bytes`, bounds the returned text: each kept block's text counted
 once, with the newlines that join them, as `data.text` holds it. The envelope
 repeats that text in each block and in the readable `text`, and adds each
-block's polygon and score, which the block limit bounds.
+block's polygon and score, which the block limit bounds. A host that hands the
+whole envelope to a model should budget about three times the text as JSON
+escapes it (a quote takes two bytes), plus about 150 bytes per block: at the
+defaults, up to about 235 KB for plain text and 430 KB for text full of
+quotes.
 An oversized single block may result in an empty, explicitly truncated result.
 A blank image can instead return empty text without truncation.
 
