@@ -35,6 +35,11 @@ class PlanTests(unittest.IsolatedAsyncioTestCase):
         backend = MemoryPlanBackend()
         tools = {cls.name: cls(backend) for cls in CLASSES}
         results = [await tools[c["tool"]].call(c["arguments"], scope=OWNER) for c in FIXTURE]
+        # A creation's text gives the ID, revision and steps, not the plan written.
+        self.assertEqual(
+            results[1]["text"],
+            "plan-1 (revision 1) created\n1. inspect [in_progress]\n2. test [pending]\n",
+        )
         self.assertEqual(results[3]["data"]["steps"][0]["step_id"], "test")
         self.assertEqual(results[4]["data"]["revision"], 2)
         self.assertEqual(results[-1]["data"]["plans"], [])

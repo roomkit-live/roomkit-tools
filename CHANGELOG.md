@@ -63,6 +63,12 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- `plan_create`'s `text` gives the plan's ID and revision and its steps' IDs
+  with their statuses, `plan-1 (revision 1) created` then
+  `1. inspect [in_progress]`, rather than echoing the title, objective and
+  descriptions the model just wrote (5.5 KB for a 17-step plan). `data` is
+  still the whole plan.
+
 - The `text` of `delegate_task`, `task_status`, `cancel_task`,
   `agent_followup`, `agent_send` and `ask_user` is lines rather than the JSON
   of `data`, which is unchanged: a task's quoted IDs and states on one line

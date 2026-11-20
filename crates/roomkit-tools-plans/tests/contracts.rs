@@ -41,6 +41,13 @@ async fn shared_crud_scenario() {
             _ => panic!("unknown fixture tool"),
         });
     }
+    // A creation's text gives the ID, the revision and the steps' IDs and
+    // statuses, not the plan the model just wrote; data holds the plan.
+    assert_eq!(
+        outputs[1]["text"],
+        "plan-1 (revision 1) created\n1. inspect [in_progress]\n2. test [pending]\n"
+    );
+    assert_eq!(outputs[1]["data"]["objective"], "Validate the fee boundary");
     assert_eq!(outputs[2]["data"]["revision"], 1);
     // The model reads the plan as lines, not the JSON of data.
     assert_eq!(

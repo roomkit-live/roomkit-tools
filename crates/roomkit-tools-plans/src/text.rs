@@ -44,6 +44,19 @@ fn status_line(text: &mut String, number: usize, step: &PlanStep) {
     let _written = writeln!(text, "{number}. {} [{}]", step.step_id, status(step.status));
 }
 
+/// A creation: the plan's ID and revision, and its steps without the title,
+/// objective and descriptions the model just wrote.
+pub(crate) fn created(plan: &Plan) -> String {
+    let mut text = format!("{} (revision {}) created\n", plan.plan_id, plan.revision);
+    if plan.steps.is_empty() {
+        text.push_str("no steps\n");
+    }
+    for (index, step) in plan.steps.iter().enumerate() {
+        status_line(&mut text, index + 1, step);
+    }
+    text
+}
+
 /// An update by step: the new revision and only the steps it changed, at
 /// their place in the plan; a step whose status alone changed, without its
 /// description.

@@ -44,7 +44,7 @@ are meaningful only with that backend and scope.
 
 | Tool | Input | Result |
 | --- | --- | --- |
-| `plan_create` | `title`, `objective`, ordered `steps` | Full plan with generated `plan_id` and revision 1 |
+| `plan_create` | `title`, `objective`, ordered `steps` | Full plan with generated `plan_id` and revision 1 in `data`; `text` gives the ID, the revision and the step IDs with their statuses |
 | `plan_read` | `plan_id` | Current full plan |
 | `plan_list` | `{}` | All accessible summaries: ID, revision, title, total/completed step counts |
 | `plan_update` | `plan_id`, `expected_revision`, one or more of `title`, `objective`, `step_changes` or `steps` | Updated plan in `data`; with `step_changes` alone, `text` names the changed steps only |
@@ -115,8 +115,11 @@ bounded records; declare its persistence guarantees. Implementations can use
 application storage. No database backend is included in this version.
 
 `PlanCreateTool.definition()` (and the other tools') exposes Rust-derived
-input/output schemas, and `.call()` returns `{data, text}`, where `text` is the
-plan as lines: its heading, objective and numbered steps with their status. The RoomKit adapter
+input/output schemas, and `.call()` returns `{data, text}`, where `text` is
+lines a model reads: for `plan_read`, the plan's heading, objective and
+numbered steps with their status and description; for `plan_create`, only
+what the model did not write, `plan-1 (revision 1) created` and each step as
+`1. inspect [pending]`. The RoomKit adapter
 `PlanCreate(tool)` has the RoomKit `.definition` and a `.handler()` that uses
 trusted RoomKit context and records structured results.
 

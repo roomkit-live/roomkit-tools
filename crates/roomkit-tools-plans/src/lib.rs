@@ -105,6 +105,18 @@ pub fn render<T: PlanContract>(data: T) -> Result<Output<T>, ToolError> {
     Ok(Output::new(data, text))
 }
 
+/// Render a creation's result: the whole plan in `data`, and in `text` its
+/// ID, its revision and its steps' IDs and statuses, not the title,
+/// objective and descriptions the model just wrote.
+/// # Errors
+/// Rejects a backend result that violates the common contract.
+#[doc(hidden)]
+pub fn render_create(plan: Plan) -> Result<Output<Plan>, ToolError> {
+    plan.validate()?;
+    let text = text::created(&plan);
+    Ok(Output::new(plan, text))
+}
+
 /// Render an update's result: the whole plan, or with `step_changes`, its
 /// revision and the steps they changed.
 /// # Errors
@@ -246,12 +258,23 @@ macro_rules! tool {
     };
 }
 tool!(
-    PlanCreateTool,
+    @facade PlanCreateTool,
     PlanCreateInput,
     Plan,
-    create,
     "plan_create",
     "Create a plan: title, objective and ordered steps with unique, stable `step_id` values. Returns `plan_id` and revision. If the reply is lost, check `plan_list` before creating again."
+);
+tool!(
+    @call PlanCreateTool,
+    PlanCreateInput,
+    Plan,
+    async |backend: &dyn PlanBackend,
+           scope: &PlanScope,
+           input: PlanCreateInput,
+           cancel: &CancellationToken|
+           -> Result<Output<Plan>, ToolError> {
+        render_create(backend.create(scope, &input, cancel).await?)
+    }
 );
 tool!(
     PlanReadTool,

@@ -5,7 +5,7 @@ use roomkit_tools_plans::{
     MemoryPlanBackend, MemoryPlanLimits, Plan, PlanBackend, PlanContract, PlanCreateInput,
     PlanCreateTool, PlanDeleteInput, PlanDeleteResult, PlanDeleteTool, PlanListInput,
     PlanListResult, PlanListTool, PlanReadInput, PlanReadTool, PlanScope, PlanUpdateInput,
-    PlanUpdateTool, decode, render, render_update, resolve_update,
+    PlanUpdateTool, decode, render, render_create, render_update, resolve_update,
 };
 
 #[derive(Debug)]
@@ -51,7 +51,11 @@ impl PythonPlanContract {
     #[staticmethod]
     fn output_json(name: &str, json: &str) -> PyResult<String> {
         match name {
-            "plan_create" | "plan_read" | "plan_update" => output::<Plan>(json),
+            "plan_create" => {
+                let data = decode::<Plan>(json).map_err(|e| tool_error(&e))?;
+                encode(&render_create(data).map_err(|e| tool_error(&e))?)
+            }
+            "plan_read" | "plan_update" => output::<Plan>(json),
             "plan_list" => output::<PlanListResult>(json),
             "plan_delete" => output::<PlanDeleteResult>(json),
             _ => Err(unknown()),
