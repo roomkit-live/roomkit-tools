@@ -23,6 +23,7 @@ from roomkit import (
     WebSocketChannel,
 )
 from roomkit.providers.ai import AIResponse, AIToolCall, AIToolResultPart, MockAIProvider
+from roomkit.tools.context import ToolCallContext, tool_turn_context
 from roomkit_tools import Read, ReadTool, ViewImage, ViewImageTool
 
 FIXTURE = json.loads(
@@ -106,6 +107,19 @@ class SharedErrorTests(unittest.IsolatedAsyncioTestCase):
                     await tool.handler(case["tool"], case["arguments"])
                 self.assertEqual(type(raised.exception).__name__, case["raises"])
                 self.assertEqual(str(raised.exception), case["message"])
+
+    async def test_a_failed_call_leaves_its_call_no_structured_content(self):
+        # The adapter hands the host data only once the tool served the call.
+        # The kit drops a failed call's copy too, so only the handler's call
+        # shows this.
+        for case in FIXTURE["cases"]:
+            with self.subTest(tool=case["tool"], variant=case["variant"]):
+                tool = await adapter(self.root, case)
+                call = ToolCallContext()
+                with tool_turn_context(call=call), self.assertRaises(Exception) as raised:
+                    await tool.handler(case["tool"], case["arguments"])
+                self.assertEqual(type(raised.exception).__name__, case["raises"])
+                self.assertIsNone(call.structured_content)
 
     async def test_each_native_error_reaches_the_model_and_the_host_in_its_words(self):
         for case in FIXTURE["cases"]:

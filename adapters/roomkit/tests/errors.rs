@@ -24,7 +24,10 @@ use roomkit::model::HookResult;
 use roomkit::model::Metadata;
 use roomkit::model::hook::AllowOptions;
 use roomkit::{HookExecution, HookOptions, HookTrigger, RoomKit, RoomKitOptions, ToolCallEvent};
-use roomkit_ai::{AiToolResultPart, Tool, ToolError, ToolResult};
+use roomkit_ai::{
+    AiToolResultPart, Tool, ToolCallContext, ToolError, ToolResult, ToolTurnContextOptions,
+    tool_turn_context,
+};
 use roomkit_tools_fs::{ReadLimits, ReadTool};
 use roomkit_tools_image::{ViewImageLimits, ViewImageTool};
 use roomkit_tools_roomkit::{Read, ViewImage};
@@ -115,6 +118,30 @@ async fn each_native_error_gives_the_handler_python_s_class_and_words() {
         }
     }
     assert!(differences.is_empty(), "{differences:#?}");
+}
+
+/// A refused or failed call leaves its call no structured content: the
+/// adapter hands the host data only once the tool served the call. The kit
+/// drops a failed call's copy too, so only the handler's call shows this.
+#[tokio::test]
+async fn a_failed_call_leaves_its_call_no_structured_content() {
+    let fixture = fixture();
+    let root = workspace(&fixture);
+    for case in fixture["cases"].as_array().unwrap() {
+        let name = case["tool"].as_str().unwrap().to_owned();
+        let tool = adapter(root.path(), case).await;
+        let call = ToolCallContext::default();
+        let options = ToolTurnContextOptions {
+            call: Some(call.clone()),
+            ..ToolTurnContextOptions::default()
+        };
+        let answered = tool_turn_context(options, tool.handler(name, arguments(case)))
+            .await
+            .unwrap();
+        assert!(answered.is_err(), "{case}");
+        let copy = call.structured_content.get();
+        assert!(copy.is_none(), "{case}: {copy:?}");
+    }
 }
 
 /// What the model reads of a case's call, through a real kit, and the call
