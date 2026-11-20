@@ -131,6 +131,11 @@ part of an existing published preview.
   fell outside `[start_line, end_line]`. Plain comments stay outside; the
   signature is unchanged.
 
+- `web_fetch` and the search backends reach the public addresses of
+  192.0.0.0/16, such as WordPress.com's 192.0.78.0/24: only its
+  special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
+  non-public, where the whole /16 was.
+
 - A shell command can run on in the background as a process. With
   `ShellTool.create(processes=session)` (Rust: `ShellTool::with_processes`),
   `shell(..., run_in_background=True)` starts it as one of the session's

@@ -94,7 +94,7 @@ fn public_v4(ip: Ipv4Addr) -> bool {
         || (a == 100 && (64..=127).contains(&b))
         || (a == 169 && b == 254)
         || (a == 172 && (16..=31).contains(&b))
-        || (a == 192 && (b == 168 || b == 0 || (b == 88 && c == 99)))
+        || (a == 192 && (b == 168 || (b == 0 && matches!(c, 0 | 2)) || (b == 88 && c == 99)))
         || (a == 198 && ((18..=19).contains(&b) || (b == 51 && c == 100)))
         || (a == 203 && b == 0 && c == 113))
 }
@@ -296,5 +296,23 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn only_the_special_use_blocks_of_192_0_0_0_16_are_refused() {
+        // 192.0.0.0/24 (protocol assignments) and 192.0.2.0/24 (TEST-NET-1)
+        // are special-use; the rest of the /16 is ordinary public space, where
+        // WordPress.com serves from 192.0.78.0/24.
+        for ip in ["192.0.0.8", "192.0.0.255", "192.0.2.1", "::ffff:192.0.2.1"] {
+            assert!(!public(ip.parse().unwrap()), "{ip}");
+        }
+        for ip in [
+            "192.0.78.24",
+            "192.0.1.1",
+            "192.0.3.1",
+            "::ffff:192.0.78.24",
+        ] {
+            assert!(public(ip.parse().unwrap()), "{ip}");
+        }
     }
 }
