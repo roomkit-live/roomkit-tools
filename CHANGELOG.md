@@ -63,6 +63,11 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- A plan step's description over 2,048 bytes is refused naming the step and
+  both sizes, `step agent-par-conversation: description is 2071 bytes, at
+  most 2048`, where "step description exceeds 2048 UTF-8 bytes" left the
+  model to guess which of its steps to shorten.
+
 - `docs_list` and `docs_search` lines leave a document's revision to `data`
   and show its source only when it is not the document ID: the two took
   about half of a list's `text`. `docs_read` still names both.

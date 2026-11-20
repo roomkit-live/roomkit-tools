@@ -39,7 +39,24 @@ fn steps(values: &[PlanStep]) -> Result<(), ToolError> {
         if !ids.insert(&step.step_id) {
             return Err(ToolError::InvalidInput("duplicate step_id in plan".into()));
         }
-        bounded(&step.description, "step description", 2048)?;
+        description(&step.step_id, &step.description)?;
+    }
+    Ok(())
+}
+/// A step's description, refused naming the step and the sizes: among many
+/// steps, a model cannot tell otherwise which one to shorten, or by how much.
+fn description(step_id: &str, value: &str) -> Result<(), ToolError> {
+    const MAX: usize = 2048;
+    if value.trim().is_empty() || value.contains('\0') {
+        return Err(ToolError::InvalidInput(format!(
+            "step {step_id}: description must be non-empty and contain no NUL"
+        )));
+    }
+    if value.len() > MAX {
+        return Err(ToolError::LimitExceeded(format!(
+            "step {step_id}: description is {} bytes, at most {MAX}",
+            value.len()
+        )));
     }
     Ok(())
 }
@@ -74,8 +91,8 @@ fn step_changes(values: &[StepChange]) -> Result<(), ToolError> {
                 "a step change gives status, description or both".into(),
             ));
         }
-        if let Some(description) = &change.description {
-            bounded(description, "step description", 2048)?;
+        if let Some(value) = &change.description {
+            description(&change.step_id, value)?;
         }
     }
     Ok(())

@@ -142,6 +142,29 @@ async fn step_changes_change_only_the_steps_they_name() {
     }
 }
 
+/// A description over the bound names its step and both sizes, so a model
+/// shortens that one rather than guessing among 17.
+#[test]
+fn a_description_too_long_names_its_step_and_sizes() {
+    let long = "y".repeat(2071);
+    let expected = "step agent-par-conversation: description is 2071 bytes, at most 2048";
+    let create = serde_json::json!({"title": "T", "objective": "O", "steps": [
+        {"step_id": "ok", "description": "fine", "status": "pending"},
+        {"step_id": "agent-par-conversation", "description": long, "status": "pending"}
+    ]});
+    let update = serde_json::json!({"plan_id": "plan-1", "expected_revision": 1,
+        "step_changes": [{"step_id": "agent-par-conversation", "description": long}]});
+    for refused in [
+        decode::<PlanCreateInput>(&create.to_string()).err(),
+        decode::<PlanUpdateInput>(&update.to_string()).err(),
+    ] {
+        assert!(
+            matches!(&refused, Some(roomkit_tools_core::ToolError::LimitExceeded(message)) if message == expected),
+            "{refused:?}"
+        );
+    }
+}
+
 /// A host backend that checks nothing: the tool checks what it hands it.
 #[derive(Debug)]
 struct Lax {
