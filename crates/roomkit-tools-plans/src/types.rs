@@ -70,6 +70,7 @@ pub struct PlanUpdateInput {
     /// From `plan_create` or `plan_list`.
     pub plan_id: String,
     /// Current revision; a stale one is refused.
+    #[schemars(range(min = 1))]
     pub expected_revision: u64,
     /// New title.
     pub title: Option<String>,
@@ -121,6 +122,7 @@ pub struct PlanDeleteInput {
     /// Owned plan to delete.
     pub plan_id: String,
     /// Current revision; a stale one is refused.
+    #[schemars(range(min = 1))]
     pub expected_revision: u64,
 }
 

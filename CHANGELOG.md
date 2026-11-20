@@ -63,6 +63,11 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- The input schemas give the bounds the tools enforce: `minimum: 1` for
+  `plan_update`'s and `plan_delete`'s `expected_revision`, which offered 0,
+  a refused revision, and `minimum: 1` with `maximum` 100, 50 and 500 for
+  the `limit` of `docs_list`, `docs_search` and `docs_read`.
+
 - A `plan_update` by `step_changes` that changes a step's status alone
   lists that step as `3. s3 [completed]`, without the description the model
   just left unchanged.

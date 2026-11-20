@@ -142,6 +142,17 @@ async fn step_changes_change_only_the_steps_they_name() {
     }
 }
 
+/// A revision of 0 is refused, so the schema does not offer it.
+#[test]
+fn an_expected_revision_starts_at_one_in_the_schema() {
+    for definition in [PlanUpdateTool::definition(), PlanDeleteTool::definition()] {
+        let revision = &definition.input_schema["properties"]["expected_revision"];
+        assert_eq!(revision["minimum"], 1, "{}", definition.name);
+    }
+    let zero = serde_json::json!({"plan_id": "plan-1", "expected_revision": 0});
+    assert!(decode::<PlanDeleteInput>(&zero.to_string()).is_err());
+}
+
 /// A description over the bound names its step and both sizes, so a model
 /// shortens that one rather than guessing among 17.
 #[test]

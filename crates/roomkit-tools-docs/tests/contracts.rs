@@ -100,6 +100,20 @@ fn a_result_offset_starts_at_one() {
     assert_eq!(list.input_schema["properties"]["offset"]["default"], 1);
 }
 
+/// The schema gives each page size the bounds validation enforces.
+#[test]
+fn a_limit_carries_its_bounds_in_the_schema() {
+    for (definition, maximum) in [
+        (DocsListTool::definition(), 100),
+        (DocsSearchTool::definition(), 50),
+        (DocsReadTool::definition(), 500),
+    ] {
+        let limit = &definition.input_schema["properties"]["limit"];
+        assert_eq!(limit["minimum"], 1, "{}", definition.name);
+        assert_eq!(limit["maximum"], maximum, "{}", definition.name);
+    }
+}
+
 #[tokio::test]
 async fn an_empty_catalogue_has_one_empty_page() {
     let root = tempfile::tempdir().unwrap();

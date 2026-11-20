@@ -28,6 +28,7 @@ pub struct DocsListInput {
     pub offset: NonZeroUsize,
     /// Results per page, 1..100.
     #[serde(default = "list_limit")]
+    #[schemars(range(min = 1, max = 100))]
     pub limit: usize,
     /// From the previous page; refuses a changed catalogue.
     #[serde(default)]
@@ -54,6 +55,7 @@ pub struct DocsSearchInput {
     pub offset: NonZeroUsize,
     /// Documents per page, 1..50.
     #[serde(default = "search_limit")]
+    #[schemars(range(min = 1, max = 50))]
     pub limit: usize,
     /// From the previous page; refuses a changed catalogue.
     #[serde(default)]
@@ -82,6 +84,7 @@ pub struct DocsReadInput {
     pub offset: NonZeroUsize,
     /// Lines, 1..500; a byte budget may shorten the page.
     #[serde(default = "read_limit")]
+    #[schemars(range(min = 1, max = 500))]
     pub limit: usize,
     /// Revision from list, search or read; refuses a changed document.
     #[serde(default)]
