@@ -28,7 +28,10 @@ with the [example provider configuration](../examples/README.md#use-a-live-model
 for a model-driven run.
 
 The language is inferred from the resolved file's `.rs`, `.py` or `.pyi`
-extension, or selected explicitly with `language="rust"` / `"python"`. Rust
+extension, or selected explicitly with `language="rust"` / `"python"`. Without
+`language`, another file is refused with
+`code_outline reads .rs, .py and .pyi files; use read for Makefile`, and a
+directory as no regular file, whatever its name. Rust
 outlines include functions, methods, structs, enums, traits, impls, modules and
 type aliases; Python includes classes, methods and nested functions. Signatures
 preserve source headers, including Rust attributes and Python decorators. Bodies,

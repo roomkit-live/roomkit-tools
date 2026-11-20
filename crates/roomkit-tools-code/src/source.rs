@@ -36,24 +36,33 @@ pub(crate) async fn load(
     max_bytes: usize,
 ) -> Result<(PathBuf, CodeLanguage, String), ToolError> {
     let path = resolve(root, input).await?;
-    let language = language.map_or_else(|| infer_language(&path), Ok)?;
     let info = fs::metadata(&path).await.map_err(|source| ToolError::Io {
         operation: "inspect the source file",
         source,
     })?;
+    // The file's type before its extension: a directory is no source file,
+    // whatever its name.
     if !info.is_file() {
         return Err(ToolError::UnsupportedResource(
             "code_outline accepts regular files only".into(),
         ));
     }
+    let language = language.map_or_else(|| infer_language(&path, input), Ok)?;
+    let text = read_text(&path, info.len(), max_bytes).await?;
+    Ok((path, language, text))
+}
+
+/// The UTF-8 text of the regular file at `path`, `length` bytes long when
+/// inspected, refused past `max_bytes` even if it grew since.
+async fn read_text(path: &Path, length: u64, max_bytes: usize) -> Result<String, ToolError> {
     let maximum = u64::try_from(max_bytes)
         .map_err(|_| ToolError::InvalidInput("max_file_bytes is too large".into()))?;
-    if info.len() > maximum {
+    if length > maximum {
         return Err(ToolError::LimitExceeded(
             "source exceeds max_file_bytes".into(),
         ));
     }
-    let file = File::open(&path).await.map_err(|source| ToolError::Io {
+    let file = File::open(path).await.map_err(|source| ToolError::Io {
         operation: "open the source file",
         source,
     })?;
@@ -75,9 +84,8 @@ pub(crate) async fn load(
             "source contains NUL bytes".into(),
         ));
     }
-    let text = String::from_utf8(bytes)
-        .map_err(|_| ToolError::UnsupportedResource("source must be UTF-8".into()))?;
-    Ok((path, language, text))
+    String::from_utf8(bytes)
+        .map_err(|_| ToolError::UnsupportedResource("source must be UTF-8".into()))
 }
 
 /// Join and canonicalize `input` on a blocking worker, refusing it outside
@@ -96,12 +104,15 @@ async fn resolve(root: &WorkspaceRoot, input: &str) -> Result<PathBuf, ToolError
     })?
 }
 
-fn infer_language(path: &Path) -> Result<CodeLanguage, ToolError> {
+/// The language of `path`'s extension. Another file is refused naming the
+/// path the model gave, `input`, for the model to read it instead: setting
+/// `language` would only parse it as Rust or Python.
+fn infer_language(path: &Path, input: &str) -> Result<CodeLanguage, ToolError> {
     match path.extension().and_then(std::ffi::OsStr::to_str) {
         Some("rs") => Ok(CodeLanguage::Rust),
         Some("py" | "pyi") => Ok(CodeLanguage::Python),
-        _ => Err(ToolError::UnsupportedResource(
-            "set language to rust or python for this extension".into(),
-        )),
+        _ => Err(ToolError::UnsupportedResource(format!(
+            "code_outline reads .rs, .py and .pyi files; use read for {input}"
+        ))),
     }
 }

@@ -63,6 +63,13 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- `code_outline` on a file of another extension answers
+  `code_outline reads .rs, .py and .pyi files; use read for Makefile`, where
+  it told the model to set `language`, which only parses the file as Rust or
+  Python; on a directory it answers that it accepts regular files only,
+  whatever the directory's name. The `language` description says to omit it
+  for `.rs`, `.py` and `.pyi` files.
+
 - `code_outline`'s range of a Rust item covers its outer doc comments
   (`///`, `/** */`) and the attributes written before or among them: a
   derive written before the item's doc comment, and the doc comment itself,

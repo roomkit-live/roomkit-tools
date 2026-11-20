@@ -19,7 +19,7 @@ pub enum CodeLanguage {
 pub struct CodeOutlineInput {
     /// File in the workspace.
     pub path: String,
-    /// Overrides the language inferred from the extension.
+    /// Omit for .rs, .py and .pyi files. Set only to parse another file as Rust or Python.
     #[serde(default)]
     pub language: Option<CodeLanguage>,
     /// First symbol in source order (not a line).

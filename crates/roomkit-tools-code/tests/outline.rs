@@ -134,6 +134,40 @@ async fn explicit_override_does_not_bypass_path_or_regular_text_checks() {
     ));
 }
 
+/// A model that outlines a Makefile is told to read it, not to set a
+/// language; one that outlines a directory is told it is no file.
+#[tokio::test]
+async fn an_unsupported_file_and_a_directory_are_refused_for_what_they_are() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("Makefile"), "all:\n\tcargo build\n").unwrap();
+    std::fs::create_dir(root.path().join("pkg")).unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let refusal = |path: &'static str| {
+        let tool = tool.clone();
+        let token = token.clone();
+        async move {
+            match tool.outline(CodeOutlineInput::new(path), &token).await {
+                Err(ToolError::UnsupportedResource(message)) => message,
+                other => panic!("{path}: {other:?}"),
+            }
+        }
+    };
+    assert_eq!(
+        refusal("Makefile").await,
+        "code_outline reads .rs, .py and .pyi files; use read for Makefile"
+    );
+    assert_eq!(
+        refusal("pkg").await,
+        "code_outline accepts regular files only"
+    );
+    let schema = CodeOutlineTool::definition().input_schema;
+    assert_eq!(
+        schema["properties"]["language"]["description"],
+        "Omit for .rs, .py and .pyi files. Set only to parse another file as Rust or Python."
+    );
+}
+
 #[tokio::test]
 async fn sources_above_512_kib_are_refused_by_default_before_parsing() {
     let root = tempfile::tempdir().unwrap();
