@@ -98,7 +98,8 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(small["data"]["omitted_blocks"], 4)
         self.assertTrue(small["data"]["truncated"])
         _, handler = extract_tools([Ocr(await OcrTool.create(FIXTURES, backend=backend))])
-        self.assertEqual(json.loads(await handler("ocr", {"path": "page.png"})), result)
+        # Through RoomKit the model reads the text alone (RMK-1642).
+        self.assertEqual(await handler("ocr", {"path": "page.png"}), result["text"])
         self.assertEqual(await asyncio.to_thread((FIXTURES / "page.png").read_bytes), original)
 
 
