@@ -123,7 +123,10 @@ expose the backend's supported result kinds and service limits. A new native bac
 available in Python; there is no Python HTTP fallback.
 
 Input is only `query`, `limit` and a positive `timeout_ms`. The host selects credentials,
-endpoint, origin policy and budgets. Exa and Ollama return
+endpoint, origin policy and budgets. `limit` runs from 1 to the host's
+`max_results`, or to the backend's ceiling when it is lower; a refused query or
+limit names the field and what it accepts, as in `limit must be between 1 and
+10`. Exa and Ollama return
 `data.payload.kind == "results"` with ranked URL/title/excerpt entries.
 `partial`, `omitted_results` and per-excerpt `omitted_bytes` expose known
 omissions. The `text` lists them as lines, `N. Title — URL`, each followed by

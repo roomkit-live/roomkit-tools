@@ -99,33 +99,15 @@ impl WebSearchTool {
         if cancel.is_cancelled() {
             return Err(ToolError::Cancelled);
         }
+        self.check(&input)?;
         let timeout = input
             .timeout_ms
             .map_or(self.limits.default_timeout_ms, NonZeroU64::get);
-        if input.query.trim().is_empty()
-            || input.query.contains('\0')
-            || input.query.len() > self.limits.max_query_bytes
-            || input.limit == 0
-            || input.limit > self.limits.max_results
-        {
-            return Err(ToolError::InvalidInput(
-                "query or limit exceeds search constraints".into(),
-            ));
-        }
         let max = self.limits.max_timeout_ms;
         if timeout > max {
             return Err(ToolError::InvalidInput(format!(
                 "timeout_ms exceeds the host maximum of {max} ms"
             )));
-        }
-        if self
-            .capabilities()
-            .max_results
-            .is_some_and(|max| input.limit > max)
-        {
-            return Err(ToolError::InvalidInput(
-                "limit exceeds backend capabilities".into(),
-            ));
         }
         let token = cancel.child_token();
         let _guard = token.clone().drop_guard();
@@ -137,6 +119,32 @@ impl WebSearchTool {
                 self.finish(input, response)
             }) => result.map_err(|_| ToolError::LimitExceeded("web search deadline exceeded".into()))?,
         }
+    }
+
+    /// Refuse a query or limit outside the host's and the backend's bounds,
+    /// naming the field and what it accepts.
+    fn check(&self, input: &WebSearchInput) -> Result<(), ToolError> {
+        let refuse = |message: String| Err(ToolError::InvalidInput(message));
+        if input.query.trim().is_empty() {
+            return refuse("query must not be empty".into());
+        }
+        if input.query.contains('\0') {
+            return refuse("query must not contain NUL".into());
+        }
+        let max = self.limits.max_query_bytes;
+        if input.query.len() > max {
+            return refuse(format!("query exceeds the host maximum of {max} bytes"));
+        }
+        let max = self
+            .capabilities()
+            .max_results
+            .map_or(self.limits.max_results, |backend| {
+                backend.min(self.limits.max_results)
+            });
+        if input.limit == 0 || input.limit > max {
+            return refuse(format!("limit must be between 1 and {max}"));
+        }
+        Ok(())
     }
 
     fn finish(

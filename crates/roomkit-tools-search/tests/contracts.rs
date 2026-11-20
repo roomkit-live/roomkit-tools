@@ -277,6 +277,69 @@ async fn results_past_the_budget_at_empty_excerpts_are_dropped_from_the_end() {
     ));
 }
 
+/// A backend whose service returns at most three documents.
+#[derive(Debug)]
+struct Three;
+impl SearchBackend for Three {
+    fn capabilities(&self) -> roomkit_tools_search::SearchCapabilities {
+        roomkit_tools_search::SearchCapabilities::direct(3)
+    }
+    fn name(&self) -> &'static str {
+        "three"
+    }
+    fn search<'a>(&'a self, _: &'a WebSearchInput, _: &'a CancellationToken) -> SearchFuture<'a> {
+        Box::pin(async { Ok(BackendOutput::results(vec![])) })
+    }
+}
+
+#[tokio::test]
+async fn a_refused_query_or_limit_names_the_field_and_its_range() {
+    let tool = backend(json!({"payload":{"kind":"results","results":[]}}));
+    let three = WebSearchTool::new(Arc::new(Three));
+    let long = "q".repeat(4097);
+    for (tool, input, message) in [
+        (&tool, json!({"query":" "}), "query must not be empty"),
+        (
+            &tool,
+            json!({"query":"a\u{0}b"}),
+            "query must not contain NUL",
+        ),
+        (
+            &tool,
+            json!({"query":long}),
+            "query exceeds the host maximum of 4096 bytes",
+        ),
+        (
+            &tool,
+            json!({"query":"q","limit":0}),
+            "limit must be between 1 and 10",
+        ),
+        (
+            &tool,
+            json!({"query":"q","limit":11}),
+            "limit must be between 1 and 10",
+        ),
+        (
+            &three,
+            json!({"query":"q","limit":5}),
+            "limit must be between 1 and 3",
+        ),
+    ] {
+        match tool
+            .search(
+                serde_json::from_value(input.clone()).unwrap(),
+                &CancellationToken::new(),
+            )
+            .await
+        {
+            Err(ToolError::InvalidInput(error)) => assert_eq!(error, message, "{input}"),
+            other => panic!("{input}: {other:?}"),
+        }
+    }
+    let schema = WebSearchTool::definition().input_schema;
+    assert_eq!(schema["properties"]["limit"]["minimum"], 1, "{schema}");
+}
+
 #[derive(Debug)]
 struct Pending;
 #[expect(clippy::unwrap_used, reason = "test fixture")]

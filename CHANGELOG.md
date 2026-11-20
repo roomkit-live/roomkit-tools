@@ -131,6 +131,12 @@ part of an existing published preview.
   fell outside `[start_line, end_line]`. Plain comments stay outside; the
   signature is unchanged.
 
+- `web_search` refuses a query or limit naming the field and what it
+  accepts, such as `limit must be between 1 and 10` (the host's
+  `max_results`, or the backend's ceiling when lower) or `query must not be
+  empty`, where it said `query or limit exceeds search constraints`. Its input
+  schema gives `limit` a `minimum` of 1.
+
 - `web_search`'s direct results fit the host's output budget: past it, every
   excerpt is shortened to one common length, then results are dropped from the
   end, each cut counted in `omitted_bytes` or `omitted_results` and the result

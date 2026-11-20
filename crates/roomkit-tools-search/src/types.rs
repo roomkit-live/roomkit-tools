@@ -10,6 +10,7 @@ pub struct WebSearchInput {
     pub query: String,
     /// Maximum documents or answer sources; an answer's cited sources must all fit.
     #[serde(default = "default_limit")]
+    #[schemars(range(min = 1))]
     pub limit: usize,
     /// Total deadline in ms; one above the host maximum is refused.
     #[serde(default)]
