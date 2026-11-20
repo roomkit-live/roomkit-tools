@@ -66,10 +66,11 @@ Results include its workspace-relative `path` (the host's absolute path is not
 returned), its SHA-256 `revision`, original and preview dimensions,
 `orientation_applied`, `resized`, and byte counts. Photographs compress poorly
 as PNG: a preview over the output budget is made again from the source with an
-edge three quarters as long, until its PNG fits, and `resized` is set: at the
-defaults, a 3840×2160 photograph gets a 1536×864 preview. An image whose
-preview fits at no size fails explicitly; it is never returned as a partial
-image.
+edge three quarters as long, until its PNG fits, and `resized` is set. The
+size depends on the picture: at the defaults, a detailed 3840×2160 photograph
+gets, for example, a 1536×864 preview, and a smooth one 2048×1152. An image
+whose preview fits at no size fails explicitly; it is never returned as a
+partial image.
 
 Host defaults are 10 MiB input, 16,384 pixels per source edge, 16,777,216 source
 pixels, 128 MiB of best-effort decoder allocations, a 2,048-pixel preview edge,

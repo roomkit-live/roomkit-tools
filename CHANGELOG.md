@@ -144,8 +144,8 @@ part of an existing published preview.
 
 - `view_image` previews an ordinary 4K photograph instead of refusing it: a
   PNG preview over `max_image_bytes` is made again with an edge three
-  quarters as long until it fits (a 3840×2160 photo gets 1536×864 at the
-  defaults), and `resized` is set. An image whose preview fits at no size
+  quarters as long until it fits, and `resized` is set; at the defaults, a
+  detailed 3840×2160 photo gets, for example, 1536×864. An image whose preview fits at no size
   fails with `the image's PNG preview exceeds the host's N-byte limit at every
   size`, which no longer tells the model to change host settings.
 
