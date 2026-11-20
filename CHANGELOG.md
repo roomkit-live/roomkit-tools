@@ -131,6 +131,14 @@ part of an existing published preview.
   fell outside `[start_line, end_line]`. Plain comments stay outside; the
   signature is unchanged.
 
+- `web_search`'s direct results fit the host's output budget: past it, every
+  excerpt is shortened to one common length, then results are dropped from the
+  end, each cut counted in `omitted_bytes` or `omitted_results` and the result
+  marked `partial`. With roomkit-code's 48 KiB budget, a search for 6 results
+  or more used to fail outright. The `text` lists the results as lines,
+  `N. Title — URL`, then about 600 bytes of excerpt, rather than the JSON of
+  `data`, which keeps every excerpt; an answer's `text` is unchanged.
+
 - `web_fetch` reads JavaScript, YAML, TOML, shell scripts and
   newline-delimited JSON served under `application/` (and `+yaml` types), a
   body without a Content-Type when it is UTF-8 without NUL, and an ASCII body

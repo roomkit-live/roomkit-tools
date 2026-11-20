@@ -7,6 +7,7 @@
 mod answer;
 #[cfg(any(feature = "exa", feature = "ollama", feature = "openai"))]
 mod backends;
+mod results;
 mod types;
 #[cfg(feature = "exa")]
 pub use backends::ExaSearch;
@@ -220,34 +221,14 @@ impl WebSearchTool {
             usage,
             omitted_results,
         };
-        let text = answer::render(&data)?;
-        let output = Output::new(data, text);
-        let bytes = serde_json::to_vec(&output)
-            .map_err(|_| ToolError::UnsupportedResource("invalid search output".into()))?;
-        if bytes.len() > self.limits.max_output_bytes {
-            return Err(ToolError::LimitExceeded(
-                "search output exceeds host byte limit".into(),
-            ));
-        }
-        Ok(output)
+        results::bounded(data, self.limits.max_output_bytes)
     }
 
     fn bound_hit(&self, hit: &mut SearchHit) -> Result<(), ToolError> {
         if !is_source_url(&hit.url) {
             return Err(ToolError::UnsupportedResource("invalid source URL".into()));
         }
-        if let Some(content) = &mut hit.content {
-            let mut end = content.len().min(self.limits.max_content_bytes);
-            while !content.is_char_boundary(end) {
-                end -= 1;
-            }
-            hit.omitted_bytes = hit
-                .omitted_bytes
-                .checked_add(content.len() - end)
-                .ok_or_else(|| ToolError::LimitExceeded("excerpt byte count overflow".into()))?;
-            content.truncate(end);
-        }
-        Ok(())
+        results::clip(hit, self.limits.max_content_bytes)
     }
 }
 

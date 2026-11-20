@@ -165,7 +165,8 @@ pub struct SearchResult {
     /// Usage reported by the service; absent for built-in direct backends.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<SearchUsage>,
-    /// Known direct results or uncited answer sources omitted to respect the requested count.
+    /// Known direct results or uncited answer sources omitted to respect the requested
+    /// count, or direct results dropped to fit the host's output budget.
     pub omitted_results: usize,
 }
 
@@ -180,6 +181,8 @@ pub struct SearchLimits {
     /// Maximum excerpt bytes per source. Default 4096.
     pub max_content_bytes: usize,
     /// Maximum complete serialized Output (data and text). Default 128 KiB.
+    /// Direct results over it lose excerpt bytes, then their last results, and
+    /// are marked partial; an answer over it fails.
     pub max_output_bytes: usize,
     /// Default deadline, milliseconds. Default 30 seconds.
     pub default_timeout_ms: u64,

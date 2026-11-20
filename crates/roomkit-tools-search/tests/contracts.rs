@@ -136,6 +136,147 @@ async fn arguments_and_limits_are_host_controlled() {
             .is_err()
     );
 }
+fn hit(url: &str, title: Option<&str>, content: Option<&str>) -> SearchHit {
+    SearchHit {
+        url: url.into(),
+        title: title.map(Into::into),
+        content: content.map(Into::into),
+        omitted_bytes: 0,
+    }
+}
+
+#[expect(clippy::unwrap_used, reason = "test limits are valid")]
+fn results_tool(results: Vec<SearchHit>, max_output_bytes: usize) -> WebSearchTool {
+    WebSearchTool::new(Arc::new(Custom(BackendOutput::results(results))))
+        .with_limits(SearchLimits {
+            max_output_bytes,
+            ..SearchLimits::default()
+        })
+        .unwrap()
+}
+
+#[tokio::test]
+async fn results_read_as_numbered_lines_with_short_excerpts() {
+    let long = format!("Line one.\n\n  Line two {}", "x".repeat(1000));
+    let tool = results_tool(
+        vec![
+            hit(
+                "https://example.com/guide",
+                Some("Shipping\nguide"),
+                Some(&long),
+            ),
+            hit("https://example.com/api", None, Some("Reference")),
+            hit("https://example.com/empty", Some("Empty"), None),
+        ],
+        SearchLimits::default().max_output_bytes,
+    );
+    let out = tool
+        .search(WebSearchInput::new("q"), &CancellationToken::new())
+        .await
+        .unwrap();
+    let lines: Vec<&str> = out.text.lines().collect();
+    assert_eq!(
+        lines[..3],
+        [
+            "provider=custom, partial=false, omitted_results=0",
+            "",
+            "1. Shipping guide — https://example.com/guide",
+        ]
+    );
+    let excerpt = lines[3].strip_prefix("   Line one. Line two xxx").unwrap();
+    assert!(excerpt.ends_with("x …"), "{excerpt}");
+    assert!(lines[3].len() <= 3 + 600 + " …".len(), "{}", lines[3].len());
+    assert_eq!(
+        lines[4..],
+        [
+            "2. https://example.com/api",
+            "   Reference",
+            "3. Empty — https://example.com/empty",
+        ]
+    );
+    // The text is a summary: data keeps every excerpt whole.
+    let SearchPayload::Results { results } = out.data.payload else {
+        unreachable!()
+    };
+    assert_eq!(results[0].content.as_deref(), Some(long.as_str()));
+    assert_eq!(results[0].omitted_bytes, 0);
+    assert!(!out.data.partial);
+}
+
+/// Ten excerpts of 4 KiB of code, which JSON escapes heavily: what a
+/// code question gets from Exa.
+fn code_results() -> Vec<SearchHit> {
+    let code = "To parse JSON use `serde_json::from_str::<Value>(\"{\\\"a\\\": 1}\")`, then match on \"a\".\n```rust\nlet v: Value = serde_json::from_str(r#\"{\"name\": \"x\"}\"#)?;\n```\n";
+    let mut excerpt = code.repeat(4096 / code.len() + 1);
+    excerpt.truncate(4096);
+    (0..10)
+        .map(|i| {
+            hit(
+                &format!("https://docs.example.com/guide/json-{i}"),
+                Some(&format!("Parsing JSON in Rust, part {i}")),
+                Some(&excerpt),
+            )
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn results_fit_the_output_budget_by_shortening_excerpts_first() {
+    // roomkit-code's budget; ten results used to exceed it outright.
+    let max = 48 * 1024;
+    let mut input = WebSearchInput::new("parse json rust");
+    input.limit = 10;
+    let out = results_tool(code_results(), max)
+        .search(input, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(serde_json::to_vec(&out).unwrap().len() <= max);
+    assert!(out.data.partial);
+    assert_eq!(out.data.omitted_results, 0);
+    let SearchPayload::Results { results } = &out.data.payload else {
+        unreachable!()
+    };
+    assert_eq!(results.len(), 10);
+    for result in results {
+        let kept = result.content.as_ref().unwrap().len();
+        assert!(kept > 1024, "{kept}");
+        assert_eq!(kept + result.omitted_bytes, 4096);
+    }
+    assert!(
+        out.text
+            .starts_with("provider=custom, partial=true, omitted_results=0\n")
+    );
+}
+
+#[tokio::test]
+async fn results_past_the_budget_at_empty_excerpts_are_dropped_from_the_end() {
+    let mut input = WebSearchInput::new("parse json rust");
+    input.limit = 10;
+    let out = results_tool(code_results(), 1500)
+        .search(input.clone(), &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(serde_json::to_vec(&out).unwrap().len() <= 1500);
+    let SearchPayload::Results { results } = &out.data.payload else {
+        unreachable!()
+    };
+    assert!((1..10).contains(&results.len()), "{}", results.len());
+    assert_eq!(out.data.omitted_results, 10 - results.len());
+    assert_eq!(results[0].url, "https://docs.example.com/guide/json-0");
+    for result in results {
+        assert_eq!(result.content.as_deref(), Some(""));
+        assert_eq!(result.omitted_bytes, 4096);
+    }
+    assert!(out.data.partial);
+    // Even no result does not fit: the call fails rather than mislead.
+    assert!(matches!(
+        results_tool(code_results(), 100)
+            .search(input, &CancellationToken::new())
+            .await,
+        Err(ToolError::LimitExceeded(_))
+    ));
+}
+
 #[derive(Debug)]
 struct Pending;
 #[expect(clippy::unwrap_used, reason = "test fixture")]

@@ -126,8 +126,12 @@ Input is only `query`, `limit` and a positive `timeout_ms`. The host selects cre
 endpoint, origin policy and budgets. Exa and Ollama return
 `data.payload.kind == "results"` with ranked URL/title/excerpt entries.
 `partial`, `omitted_results` and per-excerpt `omitted_bytes` expose known
-omissions. Zero results is a valid response, distinct from HTTP/quota failures,
-MCP errors and unsupported formats. Exa uses a bounded parser for its current
+omissions. The `text` lists them as lines, `N. Title — URL`, each followed by
+its first 600 bytes or so of excerpt on one line, ending in `…` when the
+excerpt goes on; `data` keeps each excerpt whole within the budgets below.
+Zero results is a valid
+response, distinct from HTTP/quota failures, MCP errors and unsupported
+formats. Exa uses a bounded parser for its current
 text blocks over JSON or SSE; an upstream format change can require an adapter
 update. This is not a general MCP client.
 
@@ -197,8 +201,12 @@ do not establish account/model availability or replace a live API validation.
 
 Defaults: 4096 query bytes, at most 10 requested results, 4096 excerpt bytes per
 source, 128 KiB complete serialized output, 30 s default / 120 s maximum total
-deadline. Each built-in backend caps decoded HTTP input at 512 KiB (host maximum
-16 MiB) and shares two blocking decoding slots. Network I/O is cancelled when
+deadline. Direct results over the output budget have their excerpts shortened
+to one common length, then lose results from the end, until they fit; each
+cut counts in `omitted_bytes` or `omitted_results` and sets `partial`. Results
+that do not fit with none left, and an answer over it, fail. Each built-in
+backend caps decoded HTTP input at 512 KiB (host maximum 16 MiB) and shares two
+blocking decoding slots. Network I/O is cancelled when
 the call ends; issued DNS and bounded decoding may finish later. These are work
 and output bounds, not a hard peak-memory guarantee.
 

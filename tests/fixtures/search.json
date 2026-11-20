@@ -563,6 +563,57 @@
       }
     },
     {
+      "name": "output-drop",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results/0/content": "",
+        "/data/payload/results/0/omitted_bytes": 29,
+        "/data/omitted_results": 1,
+        "/data/partial": true,
+        "/text": "provider=ollama, partial=true, omitted_results=1\n\n1. Shipping guide — https://example.com/guide\n"
+      },
+      "limits": {
+        "max_output_bytes": 400
+      }
+    },
+    {
+      "name": "results-text",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/text": "provider=ollama, partial=false, omitted_results=0\n\n1. Shipping guide — https://example.com/guide\n   Shipping is free at 50. café\n2. API — https://example.com/api\n   Reference\n"
+      }
+    },
+    {
+      "name": "output-fit",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results/0/content": "Shipping is free at 50",
+        "/data/payload/results/0/omitted_bytes": 7,
+        "/data/payload/results/1/content": "Reference",
+        "/data/omitted_results": 0,
+        "/data/partial": true,
+        "/text": "provider=ollama, partial=true, omitted_results=0\n\n1. Shipping guide — https://example.com/guide\n   Shipping is free at 50 …\n2. API — https://example.com/api\n   Reference\n"
+      },
+      "limits": {
+        "max_output_bytes": 540
+      }
+    },
+    {
       "name": "http-cap",
       "path": "/huge",
       "backend": "ollama",
