@@ -151,10 +151,11 @@ part of an existing published preview.
   empty`, where it said `query or limit exceeds search constraints`. Its input
   schema gives `limit` a `minimum` of 1.
 
-- `web_search`'s direct results fit the host's output budget: past it, every
-  excerpt is shortened to one common length, then results are dropped from the
-  end, each cut counted in `omitted_bytes` or `omitted_results` and the result
-  marked `partial`. With roomkit-code's 48 KiB budget, a search for 6 results
+- `web_search`'s direct results fit the host's output budget: past it, each
+  result that does not fit even without its excerpt (such as one with a huge
+  title) is left out, then every excerpt is shortened to the longest common
+  length that fits, each cut counted in `omitted_bytes` or `omitted_results`
+  and the result marked `partial`. With roomkit-code's 48 KiB budget, a search for 6 results
   or more used to fail outright. The `text` lists the results as lines,
   `N. Title — URL`, then about 600 bytes of excerpt, rather than the JSON of
   `data`, which keeps every excerpt; an answer's `text` is unchanged.

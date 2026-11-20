@@ -264,8 +264,9 @@ async fn results_past_the_budget_at_empty_excerpts_are_dropped_from_the_end() {
     assert_eq!(out.data.omitted_results, 10 - results.len());
     assert_eq!(results[0].url, "https://docs.example.com/guide/json-0");
     for result in results {
-        assert_eq!(result.content.as_deref(), Some(""));
-        assert_eq!(result.omitted_bytes, 4096);
+        let kept = result.content.as_ref().unwrap().len();
+        assert!(kept < 64, "{kept}");
+        assert_eq!(kept + result.omitted_bytes, 4096);
     }
     assert!(out.data.partial);
     // Even no result does not fit: the call fails rather than mislead.
@@ -275,6 +276,87 @@ async fn results_past_the_budget_at_empty_excerpts_are_dropped_from_the_end() {
             .await,
         Err(ToolError::LimitExceeded(_))
     ));
+}
+
+#[tokio::test]
+async fn a_result_that_cannot_fit_is_dropped_alone_and_the_rest_keep_excerpts() {
+    let mut input = WebSearchInput::new("parse json rust");
+    input.limit = 10;
+    // A page can give itself a title larger than the whole budget.
+    for index in [0, 4] {
+        let mut results = code_results();
+        results[index].title = Some("t".repeat(50 * 1024));
+        let out = results_tool(results, 48 * 1024)
+            .search(input.clone(), &CancellationToken::new())
+            .await
+            .unwrap();
+        assert!(serde_json::to_vec(&out).unwrap().len() <= 48 * 1024);
+        let SearchPayload::Results { results } = &out.data.payload else {
+            unreachable!()
+        };
+        let dropped = format!("https://docs.example.com/guide/json-{index}");
+        assert_eq!(results.len(), 9, "{index}");
+        assert!(results.iter().all(|result| result.url != dropped));
+        assert_eq!(out.data.omitted_results, 1);
+        for result in results {
+            let kept = result.content.as_ref().unwrap().len();
+            assert!(kept > 1024, "{index}: {kept}");
+        }
+        assert!(!out.text.contains("No results"), "{}", out.text);
+    }
+}
+
+#[tokio::test]
+async fn results_none_of_which_fits_are_not_reported_as_no_results() {
+    let title = "t".repeat(4096);
+    let out = results_tool(
+        vec![hit("https://example.com/a", Some(&title), Some("x"))],
+        1024,
+    )
+    .search(WebSearchInput::new("q"), &CancellationToken::new())
+    .await
+    .unwrap();
+    assert_eq!(out.data.omitted_results, 1);
+    assert!(out.data.partial);
+    assert_eq!(
+        out.text,
+        "provider=custom, partial=true, omitted_results=1\n\nNo results shown: none fits the output budget.\n"
+    );
+}
+
+#[tokio::test]
+async fn excerpts_are_cut_on_character_boundaries() {
+    // 4093 bytes: every cut at a round length falls inside a character.
+    let excerpt = format!("a{}", "😀".repeat(1023));
+    let results = (0..10)
+        .map(|i| {
+            hit(
+                &format!("https://example.com/{i}"),
+                Some("Emoji"),
+                Some(&excerpt),
+            )
+        })
+        .collect();
+    let mut input = WebSearchInput::new("q");
+    input.limit = 10;
+    let out = results_tool(results, 16 * 1024)
+        .search(input, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(serde_json::to_vec(&out).unwrap().len() <= 16 * 1024);
+    let SearchPayload::Results { results } = &out.data.payload else {
+        unreachable!()
+    };
+    assert_eq!(results.len(), 10);
+    for result in results {
+        let kept = result.content.as_ref().unwrap().len();
+        assert!(kept < excerpt.len());
+        assert_eq!(kept % 4, 1, "{kept}");
+        assert_eq!(kept + result.omitted_bytes, excerpt.len());
+    }
+    for line in out.text.lines().filter(|line| line.starts_with("   a")) {
+        assert!(line.ends_with("😀 …"), "{line}");
+    }
 }
 
 /// A backend whose service returns at most three documents.

@@ -182,8 +182,9 @@ pub struct SearchLimits {
     /// Maximum excerpt bytes per source. Default 4096.
     pub max_content_bytes: usize,
     /// Maximum complete serialized Output (data and text). Default 128 KiB.
-    /// Direct results over it lose excerpt bytes, then their last results, and
-    /// are marked partial; an answer over it fails.
+    /// Direct results over it lose each result that does not fit even without
+    /// its excerpt, then excerpt bytes, and are marked partial; an answer over
+    /// it fails.
     pub max_output_bytes: usize,
     /// Default deadline, milliseconds. Default 30 seconds.
     pub default_timeout_ms: u64,

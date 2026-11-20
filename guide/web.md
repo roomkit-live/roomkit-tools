@@ -204,10 +204,13 @@ do not establish account/model availability or replace a live API validation.
 
 Defaults: 4096 query bytes, at most 10 requested results, 4096 excerpt bytes per
 source, 128 KiB complete serialized output, 30 s default / 120 s maximum total
-deadline. Direct results over the output budget have their excerpts shortened
-to one common length, then lose results from the end, until they fit; each
-cut counts in `omitted_bytes` or `omitted_results` and sets `partial`. Results
-that do not fit with none left, and an answer over it, fail. Each built-in
+deadline. Direct results over the output budget first lose, in rank order,
+each result that does not fit even with no excerpt, such as one whose page
+gave itself a huge title; the others then have their excerpts shortened to the
+longest common length that fits. Each cut counts in `omitted_bytes` or
+`omitted_results` and sets `partial`; when none fits, the `text` says so rather
+than "No results.". An answer over the budget fails, and so do results when
+even none fits. Each built-in
 backend caps decoded HTTP input at 512 KiB (host maximum 16 MiB) and shares two
 blocking decoding slots. Network I/O is cancelled when
 the call ends; issued DNS and bounded decoding may finish later. These are work

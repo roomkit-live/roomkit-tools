@@ -571,14 +571,32 @@
         "limit": 2
       },
       "expect": {
-        "/data/payload/results/0/content": "",
-        "/data/payload/results/0/omitted_bytes": 29,
+        "/data/payload/results/0/content": "Shipping is free at 5",
+        "/data/payload/results/0/omitted_bytes": 8,
         "/data/omitted_results": 1,
         "/data/partial": true,
-        "/text": "provider=ollama, partial=true, omitted_results=1\n\n1. Shipping guide — https://example.com/guide\n"
+        "/text": "provider=ollama, partial=true, omitted_results=1\n\n1. Shipping guide — https://example.com/guide\n   Shipping is free at 5 …\n"
       },
       "limits": {
         "max_output_bytes": 400
+      }
+    },
+    {
+      "name": "output-none",
+      "path": "/ollama",
+      "backend": "ollama",
+      "input": {
+        "query": "shipping policy",
+        "limit": 2
+      },
+      "expect": {
+        "/data/payload/results": [],
+        "/data/omitted_results": 2,
+        "/data/partial": true,
+        "/text": "provider=ollama, partial=true, omitted_results=2\n\nNo results shown: none fits the output budget.\n"
+      },
+      "limits": {
+        "max_output_bytes": 300
       }
     },
     {

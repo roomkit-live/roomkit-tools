@@ -10,8 +10,10 @@ use std::fmt::Write as _;
 const TEXT_EXCERPT_BYTES: usize = 600;
 
 /// `data` and its text within `max_bytes` serialized. Direct results that
-/// exceed it lose excerpt bytes first, all down to one common length, then
-/// results from the end; what is cut is counted and the result is partial.
+/// exceed it first lose, in rank order, each result that does not fit even
+/// without its excerpt (a page can give itself a huge title), then excerpt
+/// bytes, all down to the longest common length that fits; what is cut is
+/// counted and the result is partial.
 ///
 /// # Errors
 /// An answer over the budget, since its text and citations are never
@@ -28,48 +30,73 @@ pub(crate) fn bounded(
         return Err(exceeded());
     };
     let hits = std::mem::take(results);
-    data.partial = true;
-    let cut = Cut {
+    let mut cut = Cut {
         data,
         hits,
+        dropped: 0,
         max_bytes,
     };
-    if let Some(output) = cut.widest_excerpts()? {
-        return Ok(output);
-    }
-    for kept in (0..cut.hits.len()).rev() {
-        if let Some(output) = cut.attempt(0, kept)? {
-            return Ok(output);
-        }
-    }
-    Err(exceeded())
+    cut.drop_misfits()?;
+    cut.widest_excerpts()?.ok_or_else(exceeded)
 }
 
 /// Results that do not fit whole, and the budget they must fit.
 struct Cut {
-    /// The result to fill, already partial.
+    /// The result to fill, without its hits.
     data: SearchResult,
+    /// The hits kept so far, in rank order, with their excerpts whole.
     hits: Vec<SearchHit>,
+    /// Hits left out because they do not fit.
+    dropped: usize,
     max_bytes: usize,
 }
 
 impl Cut {
-    /// The first `kept` hits with excerpts of at most `cap` bytes, if they fit.
-    fn attempt(&self, cap: usize, kept: usize) -> Result<Option<Output<SearchResult>>, ToolError> {
+    /// The kept hits with excerpts of at most `cap` bytes, if they fit. Each
+    /// excerpt is cut as it is copied, so a long one is never copied whole.
+    fn attempt(&self, cap: usize) -> Result<Option<Output<SearchResult>>, ToolError> {
         let mut candidate = self.data.clone();
-        candidate.omitted_results += self.hits.len() - kept;
-        let mut shown: Vec<SearchHit> = self.hits.iter().take(kept).cloned().collect();
-        for hit in &mut shown {
-            clip(hit, cap)?;
+        let mut cut_any = self.dropped > 0;
+        let mut results = Vec::with_capacity(self.hits.len());
+        for hit in &self.hits {
+            let (shown, cut) = clipped(hit, cap)?;
+            cut_any |= cut;
+            results.push(shown);
         }
-        candidate.payload = SearchPayload::Results { results: shown };
+        candidate.omitted_results += self.dropped;
+        candidate.partial |= cut_any;
+        candidate.payload = SearchPayload::Results { results };
         let output = output(candidate)?;
         Ok((size(&output)? <= self.max_bytes).then_some(output))
     }
 
-    /// Every hit, with the longest common excerpt length that fits, if any.
-    /// The output grows with that length, so it is searched by halves, below
-    /// the longest excerpt, which did not fit.
+    /// Leave out, in rank order, each hit that does not fit beside the ones
+    /// kept before it once every excerpt is empty. While a hit is weighed,
+    /// those not yet weighed count as omitted, so the count the final output
+    /// shows is never longer than the one measured.
+    fn drop_misfits(&mut self) -> Result<(), ToolError> {
+        if self.attempt(0)?.is_some() {
+            return Ok(());
+        }
+        let hits = std::mem::take(&mut self.hits);
+        let mut unweighed = hits.len();
+        for hit in hits {
+            unweighed -= 1;
+            self.hits.push(hit);
+            let dropped = self.dropped;
+            self.dropped += unweighed;
+            let fits = self.attempt(0)?.is_some();
+            self.dropped = dropped;
+            if !fits {
+                self.hits.pop();
+                self.dropped += 1;
+            }
+        }
+        Ok(())
+    }
+
+    /// The kept hits with the longest common excerpt length that fits, if
+    /// any. The output grows with that length, so it is searched by halves.
     fn widest_excerpts(&self) -> Result<Option<Output<SearchResult>>, ToolError> {
         let longest = self
             .hits
@@ -77,10 +104,10 @@ impl Cut {
             .filter_map(|hit| hit.content.as_ref().map(String::len))
             .max()
             .unwrap_or(0);
-        let (mut low, mut high, mut best) = (0, longest, None);
+        let (mut low, mut high, mut best) = (0, longest + 1, None);
         while low < high {
             let cap = low + (high - low) / 2;
-            match self.attempt(cap, self.hits.len())? {
+            match self.attempt(cap)? {
                 Some(output) => {
                     best = Some(output);
                     low = cap + 1;
@@ -92,20 +119,37 @@ impl Cut {
     }
 }
 
+/// A copy of `hit` with at most `cap` bytes of its excerpt, and whether any
+/// were cut.
+fn clipped(hit: &SearchHit, cap: usize) -> Result<(SearchHit, bool), ToolError> {
+    let (content, cut) = match hit.content.as_deref() {
+        Some(content) => {
+            let end = boundary(content, cap);
+            let kept = content.get(..end).unwrap_or_default();
+            (Some(kept.to_owned()), content.len() - end)
+        }
+        None => (None, 0),
+    };
+    let omitted_bytes = hit
+        .omitted_bytes
+        .checked_add(cut)
+        .ok_or_else(|| ToolError::LimitExceeded("excerpt byte count overflow".into()))?;
+    let shown = SearchHit {
+        url: hit.url.clone(),
+        title: hit.title.clone(),
+        content,
+        omitted_bytes,
+    };
+    Ok((shown, cut > 0))
+}
+
 /// Keep at most `cap` bytes of a hit's excerpt, on a character boundary,
 /// and count the bytes cut.
 ///
 /// # Errors
 /// An omitted-byte count past `usize`.
 pub(crate) fn clip(hit: &mut SearchHit, cap: usize) -> Result<(), ToolError> {
-    if let Some(content) = &mut hit.content {
-        let end = boundary(content, cap);
-        hit.omitted_bytes = hit
-            .omitted_bytes
-            .checked_add(content.len() - end)
-            .ok_or_else(|| ToolError::LimitExceeded("excerpt byte count overflow".into()))?;
-        content.truncate(end);
-    }
+    *hit = clipped(hit, cap)?.0;
     Ok(())
 }
 
@@ -117,10 +161,21 @@ fn output(data: SearchResult) -> Result<Output<SearchResult>, ToolError> {
     Ok(Output::new(data, text))
 }
 
+/// The serialized size of `output`, counted without keeping the bytes.
 fn size(output: &Output<SearchResult>) -> Result<usize, ToolError> {
-    serde_json::to_vec(output)
-        .map(|bytes| bytes.len())
-        .map_err(|_| ToolError::UnsupportedResource("invalid search output".into()))
+    struct Counter(usize);
+    impl std::io::Write for Counter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 += bytes.len();
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counter = Counter(0);
+    serde_json::to_writer(&mut counter, output).map_err(|_| invalid())?;
+    Ok(counter.0)
 }
 
 fn exceeded() -> ToolError {
@@ -134,7 +189,11 @@ fn render(data: &SearchResult, results: &[SearchHit]) -> Result<String, ToolErro
         "provider={}, partial={}, omitted_results={}\n\n",
         data.provider, data.partial, data.omitted_results
     );
-    if results.is_empty() {
+    // A limit is at least 1, so results left out with none shown were left
+    // out for the budget, not the count.
+    if results.is_empty() && data.omitted_results > 0 {
+        text.push_str("No results shown: none fits the output budget.\n");
+    } else if results.is_empty() {
         text.push_str("No results.\n");
     }
     for (index, hit) in results.iter().enumerate() {
