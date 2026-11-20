@@ -379,11 +379,15 @@ class BackgroundDemo:
         token = object()
         self.reserve(token)
         try:
-            return await self.kit.start_task(ROOM, "assistant", TASK)
+            task = await self.kit.start_task(ROOM, "assistant", TASK)
         except BaseException:
             if self.reservation is token:
                 self.reservation = None
             raise
+        # RoomKit runs ON_TASK_DELEGATED in the background: the task is
+        # this host's once that hook has recorded it.
+        await self.until(lambda: task.id in self.tasks, "task start not observed")
+        return task
 
     async def say(self, text):
         # A bounded host wait; model/tool deadlines are configured separately.
@@ -740,6 +744,9 @@ class TerminalCommands:
                     print(f"Host: {task_id} already {task['end']}; nothing to cancel.")
                 else:
                     cancelled = await demo.kit.cancel_task(task_id)
+                    if cancelled:
+                        # ON_TASK_COMPLETED runs in the background too.
+                        await demo.until(lambda: task["end"], "cancellation not observed")
                     print(f"Host: {task_id}: {demo.state(task)}; cancelled={cancelled}.")
             elif command == "/release":
                 if task["end"]:
