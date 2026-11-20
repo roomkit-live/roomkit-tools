@@ -138,6 +138,71 @@ async fn cancellation_interrupts_a_body_read_and_another_call_still_works() {
     );
 }
 
+#[tokio::test]
+async fn common_text_types_an_untyped_body_and_ascii_latin1_are_read() {
+    let server = web::Server::start().await;
+    let tool = local(&server);
+    for (path, content) in [
+        ("/script.js", "export const fee = 0;\n"),
+        ("/config.yaml", "fee: 0\n"),
+        ("/config.toml", "fee = 0\n"),
+        ("/install.sh", "echo ready\n"),
+        ("/events.ndjson", "{\"fee\":0}\n{\"fee\":1}\n"),
+        ("/untyped", "plain text without a content type\n"),
+        ("/encoding", "plain"),
+    ] {
+        let url = format!("{}{path}", server.origin);
+        match tool
+            .fetch(WebFetchInput::new(url), &CancellationToken::new())
+            .await
+        {
+            Ok(result) => assert_eq!(result.data.content, content, "{path}"),
+            Err(error) => panic!("{path}: {error}"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_refused_response_names_its_content_type_and_status() {
+    let server = web::Server::start().await;
+    let tool = local(&server);
+    for (path, message) in [
+        (
+            "/missing-binary",
+            "response type is not supported text (Content-Type: application/octet-stream, HTTP 404)",
+        ),
+        (
+            "/binary",
+            "response type is not supported text (Content-Type: application/pdf, HTTP 200)",
+        ),
+        (
+            "/shift-jis",
+            "response charset is not UTF-8, ASCII or Latin-1 (Content-Type: text/plain; charset=shift_jis, HTTP 200)",
+        ),
+        (
+            "/latin1-accents",
+            "Latin-1 response holds non-ASCII bytes; only UTF-8 is decoded (Content-Type: text/plain; charset=ISO-8859-1, HTTP 200)",
+        ),
+        (
+            "/untyped-binary",
+            "response is not UTF-8 text (no Content-Type, HTTP 200)",
+        ),
+        (
+            "/nul",
+            "response contains NUL bytes (Content-Type: text/plain, HTTP 200)",
+        ),
+    ] {
+        let url = format!("{}{path}", server.origin);
+        match tool
+            .fetch(WebFetchInput::new(url), &CancellationToken::new())
+            .await
+        {
+            Err(ToolError::UnsupportedResource(error)) => assert_eq!(error, message, "{path}"),
+            other => panic!("{path}: {other:?}"),
+        }
+    }
+}
+
 #[test]
 fn configuration_and_schemas_have_no_model_access_controls() {
     let schema = WebFetchTool::definition().input_schema;

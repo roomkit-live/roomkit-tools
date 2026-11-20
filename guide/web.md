@@ -10,8 +10,12 @@ text with `format="text"`, or the source with `format="html"`. HTML conversion
 preserves code and resolves links against the final URL. Script/style/hidden
 subtrees are omitted from Markdown/text. There is no JavaScript execution,
 browser session or web search. Non-HTML text is preserved in every format.
-The implementation supports UTF-8/ASCII textual MIME types and gzip. Other
-encodings and binary resources produce an explicit unsupported-content error.
+It reads `text/*`, JSON, XML, JavaScript, YAML, TOML, shell scripts,
+newline-delimited JSON and `+json`, `+xml` or `+yaml` types, in UTF-8 or
+ASCII, and gzip. A body declared Latin-1 or windows-1252 is read when it is
+ASCII, and a body without a Content-Type when it is UTF-8 without NUL. Other
+encodings and binary resources produce an explicit unsupported-content error
+that names the Content-Type and the HTTP status.
 
 ```python
 from roomkit import AIChannel

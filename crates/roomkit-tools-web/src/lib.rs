@@ -5,6 +5,7 @@
 
 #![forbid(unsafe_code)]
 
+mod content;
 mod convert;
 mod network;
 mod types;
@@ -123,28 +124,13 @@ impl WebFetchTool {
         cancel: &CancellationToken,
     ) -> Result<Output<WebFetchResult>, ToolError> {
         let (mut response, final_url, redirects) = self.response(url.clone()).await?;
-        let status = response.status().as_u16();
-        let content_type = response
-            .headers()
-            .get(header::CONTENT_TYPE)
-            .and_then(|h| h.to_str().ok())
-            .unwrap_or("")
-            .to_owned();
-        let html = check_type(&content_type, status)?;
+        let head = content::Head::of(&response)?;
+        let text = head.text()?;
         let bytes =
             roomkit_tools_http::read_body(&mut response, self.limits.max_response_bytes).await?;
         let response_bytes = bytes.len();
-        let source = String::from_utf8(bytes)
-            .map_err(|_| ToolError::UnsupportedResource("response is not UTF-8 text".into()))?;
-        if source.contains('\0') {
-            return Err(ToolError::UnsupportedResource(
-                "response contains NUL bytes".into(),
-            ));
-        }
-        let source = source
-            .strip_prefix('\u{feff}')
-            .unwrap_or(&source)
-            .to_owned();
+        let source = head.decode(bytes, &text)?;
+        let html = text.html;
         let slot = Arc::clone(&self.conversions)
             .acquire_owned()
             .await
@@ -172,13 +158,14 @@ impl WebFetchTool {
             end -= 1;
         }
         content.truncate(end);
+        let status = head.status;
         let data = WebFetchResult {
             url: url.into(),
             final_url: final_url.into(),
             redirects,
             status,
             http_ok: (200..300).contains(&status),
-            content_type,
+            content_type: head.content_type.unwrap_or_default(),
             format,
             response_bytes,
             content_bytes,
@@ -224,43 +211,6 @@ impl WebFetchTool {
             redirects += 1;
         }
     }
-}
-
-fn check_type(value: &str, status: u16) -> Result<bool, ToolError> {
-    let mut parts = value.split(';');
-    let mime = parts.next().unwrap_or("").trim().to_ascii_lowercase();
-    if mime.is_empty() && matches!(status, 204 | 304) {
-        return Ok(false);
-    }
-    if !(mime.starts_with("text/")
-        || matches!(
-            mime.as_str(),
-            "application/json" | "application/xml" | "application/xhtml+xml"
-        )
-        || (mime.starts_with("application/")
-            && (mime.ends_with("+json") || mime.ends_with("+xml"))))
-    {
-        return Err(ToolError::UnsupportedResource(
-            "response content type is not supported text".into(),
-        ));
-    }
-    for part in parts {
-        if let Some((key, val)) = part.trim().split_once('=')
-            && key.trim().eq_ignore_ascii_case("charset")
-            && !matches!(
-                val.trim().trim_matches('"').to_ascii_lowercase().as_str(),
-                "utf-8" | "utf8" | "us-ascii"
-            )
-        {
-            return Err(ToolError::UnsupportedResource(
-                "only UTF-8 or ASCII response charsets are supported".into(),
-            ));
-        }
-    }
-    Ok(matches!(
-        mime.as_str(),
-        "text/html" | "application/xhtml+xml"
-    ))
 }
 
 fn render(data: WebFetchResult) -> Output<WebFetchResult> {
