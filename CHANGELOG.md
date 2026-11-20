@@ -4,263 +4,271 @@ User-visible changes by Python package version. Rust crates are versioned
 separately. Entries under **Unreleased** describe the source tree and are not
 part of an existing published preview.
 
-## Unreleased
+## 0.2.0
 
-- The schema descriptions of shell's `timeout_ms` and `run_in_background`
-  and of process_read's `wait_ms` no longer break a sentence with a line
-  break, which came from doc comments wrapped over two lines.
+### Breaking changes
 
-- `process_start`, a shell command started with `run_in_background`, and one
-  moved to the background at its timeout say how long the process may run,
-  counted from its start: `p1 started; stopped after 300000 ms unless it ends
-  first; use process_read for output`. Nothing told a model that its server
-  would be stopped after five minutes.
-
-- With `background_on_timeout`, a shell `timeout_ms` above the host maximum
-  is capped to it rather than refused, and the result's text says so
-  (`timeout_ms 300000 capped to the host maximum of 120000 ms`): the
-  command runs until the maximum, then moves to the background. Without it,
-  the refusal of a shell that has a process session now adds `; for a longer
-  job, set run_in_background`.
-
-- Two refusals of the shell and process tools give the bound and the way
-  out. A command above `max_command_bytes` reads `command is 20034 bytes,
-  over the host limit of 16384: write the script to a file, then run it`,
-  for shell and process_start alike. A `process_read` offset past its
-  stream's end names that stream and its end: `stderr_offset 5 is past
-  stderr's end 2; each stream has its own next_offset`, where it read
-  "output cursor is past the observed stream end".
-
-- A shell command moved to the background closes its shell archives at the
-  move as complete: every byte until then is stored, where the archive said
-  `complete=false, error="capture_incomplete"`. The result's text now says
-  that `process_read` reads what the command writes after the move, each
-  stream from offset 0, so a model no longer passes the shell's
-  `total_bytes` as an offset and meets "output cursor is past the observed
-  stream end".
-
-- At a process quota, a new process, or a shell command moved to the
-  background, first releases the record of its owner that finished first,
-  as the output store does for archives: the record's archives stay, and
-  the latest end, which the model was just told to read, is kept. Finished
-  records filled the quota (8 per owner by default) until
-  `process_stop(forget=true)`, so after eight moved builds the ninth long
-  command was killed (`signal=9`) instead of moved, and `process_start` was
-  refused. A start is refused only when every job of the owner still runs, or
-  the session is full of running jobs and other owners', in words that say
-  which. A record released at a quota or forgotten is refused to its owner
-  as such, `p1 was released: a finished process makes room at the quota or
-  when forgotten; its archives, if any, remain readable with output_read`,
-  where it read as an unknown process; another owner still reads it as
-  unknown.
-
-- With `keep_background_jobs`, a shell command moved to the background at
-  its timeout keeps its background jobs as in the foreground: once its shell
-  exits on its own, they run on, and the shell's `ends()`, `close()` and
-  `detach()` tell their end, stop them and let them go. They were killed
-  with the moved command's shell, so `cargo build && (./server > log 2>&1 &)`
-  lost its server whenever the build outlived the timeout. A moved command
-  still running when the shell closes keeps no job: those it leaves once its
-  shell exits are stopped, untold; after `detach()` they run on.
-
-- `plan_create`'s `text` gives the plan's ID and revision and its steps' IDs
-  with their statuses, `plan-1 (revision 1) created` then
-  `1. inspect [in_progress]`, rather than echoing the title, objective and
-  descriptions the model just wrote (5.5 KB for a 17-step plan). `data` is
-  still the whole plan.
-
-- The `text` of `delegate_task`, `task_status`, `cancel_task`,
-  `agent_followup`, `agent_send` and `ask_user` is lines rather than the JSON
-  of `data`, which is unchanged: a task's quoted IDs and states on one line
-  and its result, up to 8 KiB, on its own indented lines instead of one
-  escaped string, a lone `\r`, U+2028 and U+2029 breaking lines as `\n`
-  does; a message's outcome; one line per answer.
-
-- Clearer argument descriptions: `plan_create`'s `title` is the short name
-  `plan_list` shows, a few words (a model took `objective` for the whole
-  plan and sent `objective_title` for the title); `ask_user`'s `header`
-  aims at 12 characters and gives the 64 bytes the check enforces, where it
-  announced a 12-character limit; `plan_update`'s `step_changes`
-  description holds no line break.
-
-- The input schemas give the bounds the tools enforce: `minimum: 1` for
-  `plan_update`'s and `plan_delete`'s `expected_revision`, which offered 0,
-  a refused revision, and `minimum: 1` with `maximum` 100, 50 and 500 for
-  the `limit` of `docs_list`, `docs_search` and `docs_read`.
-
-- A `plan_update` by `step_changes` that changes a step's status alone
-  lists that step as `3. s3 [completed]`, without the description the model
-  just left unchanged.
-
-- A plan step's description over 2,048 bytes is refused naming the step and
-  both sizes, `step agent-par-conversation: description is 2071 bytes, at
-  most 2048`, where "step description exceeds 2048 UTF-8 bytes" left the
-  model to guess which of its steps to shorten.
-
-- `docs_list` and `docs_search` lines leave a document's revision to `data`
-  and show its source only when it is not the document ID: the two took
-  about half of a list's `text`. `docs_read` still names both, and the
-  descriptions say so: `docs_list` lists IDs, titles and versions, and
-  `docs_read`'s `expected_revision` comes from a previous `docs_read`.
-
-- A `FileDocs` document's title is its first `# ` heading outside fenced
-  code: a `# fetch the sources` comment in a ```` ```sh ```` block above the
-  heading became the title. A fence closes as Markdown closes it, on a run
-  of its character at least as long with nothing after it, and a run
-  indented four spaces is no fence.
-
-- `code_outline`'s `text` gives one line per symbol, its index, range,
-  parent and signature with whitespace collapsed and comments left out, so
-  that no line comment swallows what follows it
-  (`2 [2-3] ^1 def calculate_fee(self, subtotal):`), where each symbol took
-  a heading line and its header as written, over several lines for a long
-  one. A clipped signature, which may end before the declaration behind a
-  long decorator or attribute, is followed by the kind and name:
-  `[signature_truncated: function "test_conversion"]`. `data` is unchanged.
-
-- `code_outline` on a file of another extension answers
-  `code_outline reads .rs, .py and .pyi files; use read for Makefile`, where
-  it told the model to set `language`, which only parses the file as Rust or
-  Python; on a directory it answers that it accepts regular files only,
-  whatever the directory's name. The `language` description says to omit it
-  for `.rs`, `.py` and `.pyi` files.
-
-- `code_outline`'s range of a Rust item covers its outer doc comments
-  (`///`, `/** */`) and the attributes written before or among them: a
-  derive written before the item's doc comment, and the doc comment itself,
-  fell outside `[start_line, end_line]`. Plain comments stay outside; the
-  signature is unchanged.
-
-- `ocr`'s `max_output_bytes` bounds the returned text, each kept block's text
-  counted once with the newlines joining them, rather than the whole JSON
-  envelope, which repeats that text three times and adds every block's
-  geometry: a dense page of 200 blocks and 20 KB of text, which filled the
-  default 64 KiB and lost 42 blocks, now returns them all. Blocks past it are
-  still omitted whole; `max_blocks` bounds the geometry. A host that hands the
-  whole envelope to a model gets more than before: about three times the text
-  as JSON escapes it, plus about 150 bytes per block, up to about 235 KB at
-  the defaults for plain text and 430 KB for text full of quotes, where the
-  envelope was at most 64 KiB.
-
-- `view_image` previews an ordinary 4K photograph instead of refusing it: a
-  PNG preview over `max_image_bytes` is made again with an edge three
-  quarters as long until it fits, and `resized` is set; at the defaults, a
-  detailed 3840×2160 photo gets, for example, 1536×864. An image whose preview fits at no size
-  fails with `the image's PNG preview exceeds the host's N-byte limit at every
-  size`, which no longer tells the model to change host settings.
-
-- `web_search` refuses a query or limit naming the field and what it
-  accepts, such as `limit must be between 1 and 10` (the host's
-  `max_results`, or the backend's ceiling when lower) or `query must not be
-  empty`, where it said `query or limit exceeds search constraints`. Its input
-  schema gives `limit` a `minimum` of 1.
-
-- `web_search`'s direct results fit the host's output budget: past it, each
-  result that does not fit even without its excerpt (such as one with a huge
-  title) is left out, then every excerpt is shortened to the longest common
-  length that fits, each cut counted in `omitted_bytes` or `omitted_results`
-  and the result marked `partial`. With roomkit-code's 48 KiB budget, a search for 6 results
-  or more used to fail outright. The `text` lists the results as lines,
-  `N. Title — URL`, then about 600 bytes of excerpt, rather than the JSON of
-  `data`, which keeps every excerpt; an answer's `text` is unchanged.
-
-- `web_fetch` reads JavaScript, YAML, TOML, shell scripts and
-  newline-delimited JSON served under `application/` (and `+yaml` types), a
-  body without a media type when it is UTF-8 without NUL (as plain text,
-  never converted from HTML, and refused when it declares another charset),
-  and an ASCII body declared Latin-1 or windows-1252; it refused all of them.
-  A response refused for its Content-Type, charset, content encoding or
-  bytes, or for a body over `max_response_bytes`, now names its Content-Type
-  and HTTP status, such as `response type is not supported text
-  (Content-Type: application/octet-stream, HTTP 404)`, so a 404 no longer
-  loses its status.
-
-- `web_fetch` and the search backends reach the public addresses of
-  192.0.0.0/16, such as WordPress.com's 192.0.78.0/24: only its
-  special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
-  non-public, where the whole /16 was.
-
-- The descriptions of `grep`'s `include` and `edit`'s `old_text` no longer
-  hold a line break from a wrapped doc comment.
-
-- Three refusals say what to do: `read` past the end gives the file's line
-  count (`offset 9 is beyond the end of the file, which has 3 lines`);
-  `write` with `expected_revision` on a missing file says `the file does not
-  exist; omit expected_revision` instead of that the file changed; and `edit`
-  whose `old_text` starts with `read`'s line number (`12: `) names it.
-
-- `grep` caps `context_before` and `context_after` at `max_context_lines`
-  (20 by default), as `diff` caps its context, and the facts line states the
-  context used, `[context_before=20, context_after=20]`: asking for 30 lines
-  failed the search with `LimitExceededError`.
-
-- A `patch` preview never refuses the patch for its size: adding or deleting
-  a 60 KiB file with `dry_run=False` failed with "diff exceeds
-  max_output_bytes", where `write` of the same text worked. The preview that
-  reaches `max_output_bytes` is cut at a line and ends
-  `[clipped=true, additions=N, deletions=M]`, and past `max_comparison_cells`
-  a preview shows the changed lines replaced whole and says so,
-  `[compared=whole]`. A preview's `text` starts
-  `preview only: nothing written; call again with dry_run: false` instead of
-  `completed=true`, and an applied patch's `text` lists its effects, and
-  after a failure the changes never applied, without repeating the diffs,
-  which `data.previews` still holds.
-
-- `diff` and `patch` compare lines with a Myers diff instead of a full
-  longest-common-subsequence table, so two changes far apart no longer fail:
-  in a 1,500-line file, changing lines 3 and 1,498 failed `diff` and an
-  applied `patch` with "diff exceeds max_comparison_cells". The script is
-  still a shortest one. `max_comparison_cells` keeps its name and default and
-  now bounds the comparison's work: each line between the common first and
-  last lines, then each step of the search, which grows with the number of
-  changed lines rather than with the files' length. Reordered lines cost
-  more than they did: at the default bound, 707 to 999 lines in reverse
-  order, which the table compared, are now refused. An empty side costs
-  nothing.
-
-- A `glob` pattern, or a `grep` `include` with `/`, is scanned from its
-  leading directories without glob syntax: `src/**/*.rs` scans `src` only,
-  where a 10,001-file `data/` beside it used up `max_scan_entries`, though
-  `**/*.rs` with `path="src"` worked. The matches are those a scan from
-  `path` gives.
-
+- Through RoomKit, a host's model reads a tool's `text` alone, where it read
+  the whole `{data, text}` envelope again on every later request: a
+  `plan_update` gave it 1,245 bytes, of which the text was 94. The `data` goes
+  to the host as the call's structured content, `{"data": ...}`: an
+  `ON_TOOL_CALL` hook reads it as `event.structured_content`, and the call's
+  end event carries it. Python's and Rust's adapters do so for every tool, the
+  shell included, but `view_image`, whose text and image parts are unchanged. A
+  handler called outside a RoomKit tool call returns the text alone, but the
+  plan, process and output adapters, Python's agent adapters and a shell with
+  archives still refuse such a call. Refusals, failures and cancellation are
+  unchanged.
+- With the model reading the text alone, a host that read the data from the
+  result reads it from the structured content; a hook that already split the
+  envelope, as roomkit-code's does, finds the text alone and leaves it. An
+  `ON_TOOL_CALL` hook that inspects or redacts `event.result` alone no longer
+  sees the data: it is in the call's structured copy, which the end event keeps
+  and transports receive, so a redacting hook must handle `structured_content`
+  too. Python's plans, docs and agents adapters set the whole `{data, text}` as
+  structured content; it is now `{"data": ...}`, so a host that read
+  `structured_content["text"]` reads the result instead. A Rust handler answers
+  `ToolResult::Text` where it answered a `ToolResult::Json` object, so a
+  wrapper or hook that matched that object no longer finds it: roomkit-code's
+  `Scoped` instructions wrapper, which adds `project_instructions` as a field
+  of such an object, now appends the rules to the text instead.
+- A tool's `input_schema` lists its variants under `anyOf` rather than `oneOf`,
+  with the same variants: Kimi K2.7 refused the `$ref` to a `oneOf` in
+  `code_outline`'s, `patch`'s and `web_fetch`'s schemas.
+- A path inside the workspace that names nothing is invalid input naming it,
+  `Invalid input: no such file or directory: src/absent.rs`, for read, list,
+  grep, glob, diff, edit, patch, view_image, code_outline, and the `cwd` of
+  shell and process_start, which no longer reveal what exists outside the root
+  (an empty `cwd` stays the root): Python raises `InvalidInputError`, RoomKit
+  refuses the call in those words, and the model reads which path to correct.
+  It was `ToolIOError`, which the model read as "Tool 'read' failed
+  (ToolIOError)", like a permission failure. Other I/O failures keep their
+  class and fixed words.
 - `list`, `glob` and `grep` no longer fail at `max_scan_entries` or
-  `max_depth`: they return what they found, sorted, with `truncated: true`,
-  and the facts line names the bound and the path where the scan stopped,
-  `[truncated_by=max_scan_entries, stopped_at="data"]`. Glob and grep walk
-  directories in path order: the first ones whole, then, in the directory
-  where the bound is reached, the entries read until then in the
-  filesystem's order. A directory below `max_depth` is listed but not
-  entered. A flat directory over the bound, which failed every unrestricted
-  search, now lists the entries read. `next_offset` pages through what was
-  found, so `truncated` no longer implies a `next_offset`: a host that pages
-  while `truncated` must stop when `next_offset` is null. When the walk and
-  `max_total_bytes` both stop `grep`, the facts name the stop first in path
-  order.
-
-- `grep` and `glob` also leave out what a Git repository's
-  `.git/info/exclude` excludes (a worktree's is its repository's) and, when
-  the workspace is a directory below the repository's root, what the ignore
-  files of the directories between them exclude: a `target/` named there
-  made the scan exceed `max_scan_entries`. An ignore file over its bounds is
-  named in the error, as is one above the workspace (`../.gitignore`). A
-  `.git` file is followed only to a directory holding a regular `HEAD`, only
-  regular files are opened, and a store that cannot be read adds no rules.
-
+  `max_depth`: they return what they found, sorted, with `truncated: true`, and
+  the facts line names the bound and the path where the scan stopped,
+  `[truncated_by=max_scan_entries, stopped_at="data"]`. `next_offset` pages
+  through what was found, so `truncated` no longer implies a `next_offset`: a
+  host that pages while `truncated` must stop when `next_offset` is null. Glob
+  and grep walk directories in path order: the first ones whole, then, in the
+  directory where the bound is reached, the entries read until then in the
+  filesystem's order. A directory below `max_depth` is listed but not entered.
+  A flat directory over the bound, which failed every unrestricted search, now
+  lists the entries read. When the walk and `max_total_bytes` both stop `grep`,
+  the facts name the stop first in path order.
+- `grep` and `glob` leave out what the workspace's `.gitignore` and `.ignore`
+  files exclude, from the root down to each directory, and `.git`, without
+  entering them: at the root of a built project they answer instead of
+  exceeding `max_scan_entries` on `target/`. They also leave out what a Git
+  repository's `.git/info/exclude` excludes (a worktree's is its repository's)
+  and, when the workspace is a directory below the repository's root, what the
+  ignore files of the directories between them exclude: a `target/` named there
+  made the scan exceed `max_scan_entries`. `include_ignored=True` scans
+  everything, and a `path` searched explicitly is searched even when ignored.
+  Hidden files are still included, and `list` is unchanged. The rules are read
+  with the `ignore` crate's gitignore matcher, from ignore files of at most
+  256 KiB each and 2 MiB per scan, compiled off the async executor; as in
+  ripgrep, `.ignore` rules decide before `.gitignore` ones at every level. An
+  ignore file the scan cannot read fails it naming the file; one over its
+  bounds is named in the error, as is one above the workspace
+  (`../.gitignore`). A `.git` file is followed only to a directory holding a
+  regular `HEAD`, only regular files are opened, and a store that cannot be
+  read adds no rules.
 - Once `grep` has read `max_total_bytes` (32 MiB by default), it returns the
   matches found so far with `truncated: true` and no `next_offset`, and its
   facts line names the file it stopped at,
   `[truncated_by=max_total_bytes, stopped_at="logs/32.txt"]`, instead of
   failing: every page reads from the first file, so in a tree over 32 MiB of
   text a deep page or a rare pattern failed.
+- `grep` skips a file over `max_file_bytes` and counts it in `skipped_files`,
+  as it does a binary file, instead of failing the whole search: a 9 MiB PDF
+  beside the sources made every search fail. A file is known as binary from its
+  first 8 KiB; the rest of it is neither read nor counted toward
+  `max_total_bytes`. The facts line names the first file skipped,
+  `first_skipped_file="scan.pdf"`.
+- `grep` caps `context_before` and `context_after` at `max_context_lines` (20
+  by default), as `diff` caps its context, and the facts line states the
+  context used, `[context_before=20, context_after=20]`: asking for 30 lines
+  failed the search with `LimitExceededError`.
+- `diff` and `patch` compare lines with a Myers diff (see Fixed), and
+  `max_comparison_cells`, which keeps its name and default, now bounds the
+  comparison's work: each line between the common first and last lines, then
+  each step of the search, which grows with the number of changed lines rather
+  than with the files' length. Reordered lines cost more than they did: at the
+  default bound, 707 to 999 lines in reverse order, which the table compared,
+  are now refused. An empty side costs nothing.
+- A `patch` preview never refuses the patch for its size: adding or deleting a
+  60 KiB file with `dry_run=False` failed with "diff exceeds max_output_bytes",
+  where `write` of the same text worked. The preview that reaches
+  `max_output_bytes` is cut at a line and ends
+  `[clipped=true, additions=N, deletions=M]`, and past `max_comparison_cells` a
+  preview shows the changed lines replaced whole and says so,
+  `[compared=whole]`. A preview's `text` starts
+  `preview only: nothing written; call again with dry_run: false` instead of
+  `completed=true`, and an applied patch's `text` lists its effects, and after
+  a failure the changes never applied, without repeating the diffs, which
+  `data.previews` still holds.
+- A shell stream cut short keeps its most recent bytes, where a command reports
+  how it ended, instead of its first and last ones, after an
+  `[... N earlier bytes omitted ...]` marker. With an output store, only such a
+  stream keeps an archive, holding its output up to the store's bounds (8 MiB
+  per stream by default); one kept whole needs none and is released as the call
+  ends, and a result without an archive id no longer says to use `output_read`.
+- `web_search`'s direct results fit the host's output budget: past it, each
+  result that does not fit even without its excerpt (such as one with a huge
+  title) is left out, then every excerpt is shortened to the longest common
+  length that fits, each cut counted in `omitted_bytes` or `omitted_results`
+  and the result marked `partial`. With roomkit-code's 48 KiB budget, a search
+  for 6 results or more used to fail outright. The `text` lists the results as
+  lines, `N. Title — URL`, then about 600 bytes of excerpt, rather than the
+  JSON of `data`, which keeps every excerpt; an answer's `text` is unchanged.
+- `view_image` previews an ordinary 4K photograph instead of refusing it: a PNG
+  preview over `max_image_bytes` is made again with an edge three quarters as
+  long until it fits, and `resized` is set; at the defaults, a detailed
+  3840×2160 photo gets, for example, 1536×864. An image whose preview fits at
+  no size fails with `the image's PNG preview exceeds the host's N-byte limit
+  at every size`, which no longer tells the model to change host settings.
+- `ocr`'s `max_output_bytes` bounds the returned text, each kept block's text
+  counted once with the newlines joining them, rather than the whole JSON
+  envelope, which repeats that text three times and adds every block's
+  geometry: a dense page of 200 blocks and 20 KB of text, which filled the
+  default 64 KiB and lost 42 blocks, now returns them all. Blocks past it are
+  still omitted whole; `max_blocks` bounds the geometry. RoomKit's adapters
+  give the model the text alone; a host that hands the whole envelope to a
+  model gets more than before: about three times the text as JSON escapes it,
+  plus about 150 bytes per block, up to about 235 KB at the defaults for plain
+  text and 430 KB for text full of quotes, where the envelope was at most
+  64 KiB.
+- The `text` of every documentation result is now lines a model reads (a
+  document's numbered lines) rather than the JSON of `data`, which is
+  unchanged. `docs_list` and `docs_search` lines leave a document's revision to
+  `data` and show its source only when it is not the document ID: the two took
+  about half of a list's `text`. `docs_read` still names both, and the
+  descriptions say so: `docs_list` lists IDs, titles and versions, and
+  `docs_read`'s `expected_revision` comes from a previous `docs_read`.
+- The `text` of every plan result is now lines a model reads (a plan's numbered
+  steps) rather than the JSON of `data`, which is unchanged. `plan_create`'s
+  `text` gives the plan's ID and revision and its steps' IDs with their
+  statuses, `plan-1 (revision 1) created` then `1. inspect [in_progress]`,
+  rather than echoing the title, objective and descriptions the model just
+  wrote (5.5 KB for a 17-step plan). `data` is still the whole plan.
+- The `text` of `delegate_task`, `task_status`, `cancel_task`,
+  `agent_followup`, `agent_send` and `ask_user` is lines rather than the JSON
+  of `data`, which is unchanged: a task's quoted IDs and states on one line and
+  its result, up to 8 KiB, on its own indented lines instead of one escaped
+  string, a lone `\r`, U+2028 and U+2029 breaking lines as `\n` does; a
+  message's outcome; one line per answer.
 
-- `grep` skips a file over `max_file_bytes` and counts it in
-  `skipped_files`, as it does a binary file, instead of failing the whole
-  search: a 9 MiB PDF beside the sources made every search fail. A file is
-  known as binary from its first 8 KiB; the rest of it is neither read nor
-  counted toward `max_total_bytes`. The facts line names the first file
-  skipped, `first_skipped_file="scan.pdf"`.
+### Changed
 
+- A tool's `text` says more of what a model needs to go on. `read`, `list`,
+  `glob`, `grep` and `code_outline` end with a line of facts such as
+  `[next_offset=4, revision=sha256:...]`, not counted in `max_output_bytes`;
+  `write` and `edit` give the new `revision`, `ocr` the image's. An empty
+  result says so (`no matches`, `no entries`, `no differences`,
+  `no processes`). A command reads `exit_code=0`, with `signal`, `timed_out`
+  and `output_complete` only when they say something, and leaves out its empty
+  streams. Processes and archives name their state as the structured result
+  does (`state=finished, end=exited`, `has_more=true`), with no `Some(...)`. An
+  archive's line comes before what the command wrote, and is left out when it
+  holds nothing and nothing went wrong.
+- A tool's `input_schema` says only what a model needs to write a valid call.
+  It no longer carries `$schema`, the input type's `title` and `description`
+  (the tool's own description covers them), integer and float width formats
+  such as `uint64`, or `"default": null`. Types, bounds, required names,
+  argument descriptions and other defaults are unchanged, and an optional
+  argument stays nullable. `output_schema` is unchanged.
+- Tool and parameter descriptions are about 45% shorter and keep every rule a
+  call needs. Names, types, defaults and behaviour are unchanged.
+- Three refusals say what to do: `read` past the end gives the file's line
+  count (`offset 9 is beyond the end of the file, which has 3 lines`); `write`
+  with `expected_revision` on a missing file says
+  `the file does not exist; omit expected_revision` instead of that the file
+  changed; and `edit` whose `old_text` starts with `read`'s line number
+  (`12: `) names it.
+- `grep`'s `include` without `/` filters file names at any depth, as `rg -g`
+  does: `include="*.rs"` finds the Rust files of every directory below `path`,
+  where it used to read only `path` itself and answer "no matches". An
+  `include` with `/` still matches the path relative to `path`.
+- `process_start`, a shell command started with `run_in_background`, and one
+  moved to the background at its timeout say how long the process may run,
+  counted from its start: `p1 started; stopped after 300000 ms unless it ends
+  first; use process_read for output`. Nothing told a model that its server
+  would be stopped after five minutes.
+- Two refusals of the shell and process tools give the bound and the way out. A
+  command above `max_command_bytes` reads `command is 20034 bytes, over the
+  host limit of 16384: write the script to a file, then run it`, for shell and
+  process_start alike. A `process_read` offset past its stream's end names that
+  stream and its end: `stderr_offset 5 is past stderr's end 2; each stream has
+  its own next_offset`, where it read "output cursor is past the observed
+  stream end".
+- At a process quota, a new process, or a shell command moved to the
+  background, first releases the record of its owner that finished first, as
+  the output store does for archives: the record's archives stay, and the
+  latest end, which the model was just told to read, is kept. Finished records
+  filled the quota (8 per owner by default) until `process_stop(forget=true)`,
+  so after eight moved builds the ninth long command was killed (`signal=9`)
+  instead of moved, and `process_start` was refused. A start is refused only
+  when every job of the owner still runs, or the session is full of running
+  jobs and other owners', in words that say which. A record released at a quota
+  or forgotten is refused to its owner as such, `p1 was released: a finished
+  process makes room at the quota or when forgotten; its archives, if any,
+  remain readable with output_read`, where it read as an unknown process;
+  another owner still reads it as unknown. At a record quota of the output
+  store, a new archive releases its owner's oldest finished one, never one a
+  running job or call still writes, rather than failing with `archive_limit`.
+- `web_search` refuses a query or limit naming the field and what it accepts,
+  such as `limit must be between 1 and 10` (the host's `max_results`, or the
+  backend's ceiling when lower) or `query must not be empty`, where it said
+  `query or limit exceeds search constraints`. Its input schema gives `limit` a
+  `minimum` of 1.
+- `web_fetch` reads JavaScript, YAML, TOML, shell scripts and newline-delimited
+  JSON served under `application/` (and `+yaml` types), a body without a media
+  type when it is UTF-8 without NUL (as plain text, never converted from HTML,
+  and refused when it declares another charset), and an ASCII body declared
+  Latin-1 or windows-1252; it refused all of them. A response refused for its
+  Content-Type, charset, content encoding or bytes, or for a body over
+  `max_response_bytes`, now names its Content-Type and HTTP status, such as
+  `response type is not supported text (Content-Type: application/octet-stream,
+  HTTP 404)`, so a 404 no longer loses its status.
+- `code_outline`'s `text` gives one line per symbol, its index, range, parent
+  and signature with whitespace collapsed and comments left out, so that no
+  line comment swallows what follows it
+  (`2 [2-3] ^1 def calculate_fee(self, subtotal):`), where each symbol took a
+  heading line and its header as written, over several lines for a long one. A
+  clipped signature, which may end before the declaration behind a long
+  decorator or attribute, is followed by the kind and name:
+  `[signature_truncated: function "test_conversion"]`. `data` is unchanged.
+- `code_outline` on a file of another extension answers
+  `code_outline reads .rs, .py and .pyi files; use read for Makefile`, where it
+  told the model to set `language`, which only parses the file as Rust or
+  Python; on a directory it answers that it accepts regular files only,
+  whatever the directory's name. The `language` description says to omit it for
+  `.rs`, `.py` and `.pyi` files.
+- A plan step's description over 2,048 bytes is refused naming the step and
+  both sizes,
+  `step agent-par-conversation: description is 2071 bytes, at most 2048`, where
+  "step description exceeds 2048 UTF-8 bytes" left the model to guess which of
+  its steps to shorten.
+- A clearer argument description: `plan_create`'s `title` is the short name
+  `plan_list` shows, a few words (a model took `objective` for the whole plan
+  and sent `objective_title` for the title).
+
+### Added
+
+- Through RoomKit, `write`, `edit` and `patch` declare `changes_state`: once
+  one is served, the agent's repeat counts start again, so a test rerun after
+  an edit is no longer refused as a loop. It takes effect with a RoomKit that
+  has the option, and on no other tool: a shell command may change files too,
+  but two commands alternating in a loop would then go unnoticed.
+- `notify_job_ends(kit, ends)` tells each RoomKit agent the end of a job it
+  started, read from a session's or shell's `ends()` (below), as an instruction
+  that gives it a turn or is read by its running turn; a stop is not told. The
+  `Shell` adapter files a call's jobs under its caller even without an output
+  store.
+- The RoomKit Rust adapter adds `ViewImage`, behind its optional `image` Cargo
+  feature: the text and image parts of Python's adapter, on that engine's image
+  results.
 - A shell command can run on in the background as a process. With
   `ShellTool.create(processes=session)` (Rust: `ShellTool::with_processes`),
   `shell(..., run_in_background=True)` starts it as one of the session's
@@ -270,35 +278,41 @@ part of an existing published preview.
   with no byte lost. The result's new `process_id` names it; the session's
   process tools read, stop and tell it. The tool description steers models to
   `run_in_background` rather than `&`.
-
+- With `background_on_timeout`, a shell `timeout_ms` above the host maximum is
+  capped to it rather than refused, and the result's text says so
+  (`timeout_ms 300000 capped to the host maximum of 120000 ms`): the command
+  runs until the maximum, then moves to the background. Without it, the refusal
+  of a shell that has a process session now adds
+  `; for a longer job, set run_in_background`.
+- A shell command moved to the background closes its shell archives at the move
+  as complete: every byte until then is stored, where the archive said
+  `complete=false, error="capture_incomplete"`. The result's text now says that
+  `process_read` reads what the command writes after the move, each stream from
+  offset 0, so a model no longer passes the shell's `total_bytes` as an offset
+  and meets "output cursor is past the observed stream end".
+- `ProcessSession.detach()` closes a session but leaves its running processes
+  running, for a host that exits while one must outlive it, such as a server
+  started for a later check: their records are released and their pipes handed
+  to drainers that discard what the jobs write and outlive the host.
+  `ShellTool.create(keep_background_jobs=True)` (Rust:
+  `ShellLimits::keep_background_jobs`) leaves the background jobs of a command
+  that exits on its own running, its pipes handed to such drainers when a job
+  still holds them; a timeout or a cancellation still stops them.
 - A host is told when a background job ends, without polling it:
   `ProcessSession.ends()` and `ShellTool.ends()` are async iterators (Rust
   `Stream`s) of dicts (`JobEnd`: owner, tool, process_id, command, cwd, end,
-  exit_code, signal, elapsed_ms). `ShellTool` follows the jobs a command
-  leaves running with `keep_background_jobs` until their process group is
-  empty, and gains `close()`, which stops them, and `detach()`, which lets
-  them go; dropping it leaves them running, as before.
-  `notify_job_ends(kit, ends)` tells each RoomKit agent the end of a job it
-  started, as an instruction that gives it a turn or is read by its running
-  turn; a stop is not told. The `Shell` adapter files a call's jobs under its
-  caller even without an output store.
-
-- A tool's `input_schema` lists its variants under `anyOf` rather than
-  `oneOf`, with the same variants: Kimi K2.7 refused the `$ref` to a `oneOf`
-  in `code_outline`'s, `patch`'s and `web_fetch`'s schemas.
-
-- `plan_update` also takes `step_changes`, `[{step_id, status?, description?}]`:
-  only those steps change, the others and their order are kept, and the
-  result's `text` gives the new revision and the changed steps alone: changing
-  one status of an 18-step plan no longer sends the whole list, and no longer
-  returns it to a model that reads the `text` alone, as RoomKit's adapters now
-  give it. `steps` still replaces the whole list; a call gives one or the
-  other. `PlanUpdateTool` applies them to the plan its backend reads, so a
-  backend receives the complete `steps` as before; `MemoryPlanBackend.update`
-  also takes `step_changes`. The `text` of every plan and documentation
-  result is now lines a model reads (a plan's numbered steps, a document's
-  numbered lines) rather than the JSON of `data`, which is unchanged.
-
+  exit_code, signal, elapsed_ms). `ShellTool` follows the jobs a command leaves
+  running with `keep_background_jobs` until their process group is empty, and
+  gains `close()`, which stops them, and `detach()`, which lets them go;
+  dropping it leaves them running, as before.
+- With `keep_background_jobs`, a shell command moved to the background at its
+  timeout keeps its background jobs as in the foreground: once its shell exits
+  on its own, they run on, and the shell's `ends()`, `close()` and `detach()`
+  tell their end, stop them and let them go. They were killed with the moved
+  command's shell, so `cargo build && (./server > log 2>&1 &)` lost its server
+  whenever the build outlived the timeout. A moved command still running when
+  the shell closes keeps no job: those it leaves once its shell exits are
+  stopped, untold; after `detach()` they run on.
 - `process_read` takes `wait_ms`: the read first waits, up to that many
   milliseconds, until the process ends or writes past the given offsets, so an
   agent awaits a build in one call instead of polling it one tool round at a
@@ -306,114 +320,70 @@ part of an existing published preview.
   30 s tool-call timeout; Python `ProcessSession(max_wait_ms=...)`); a longer
   wait is capped, and the page says whether the process still runs. Without
   `wait_ms`, a read is unchanged.
-
-- `grep` and `glob` leave out what the workspace's `.gitignore` and `.ignore`
-  files exclude, from the root down to each directory, and `.git`, without
-  entering them: at the root of a built project they answer instead of
-  exceeding `max_scan_entries` on `target/`. `include_ignored=True` scans
-  everything, and a `path` searched explicitly is searched even when ignored.
-  Hidden files are still included, and `list` is unchanged. The rules are read
-  with the `ignore` crate's gitignore matcher, from ignore files of at most
-  256 KiB each and 2 MiB per scan, compiled off the async executor; as in
-  ripgrep, `.ignore` rules decide before `.gitignore` ones at every level, and
-  an ignore file the scan cannot read fails it naming the file.
-
-- A path inside the workspace that names nothing is invalid input naming it,
-  `Invalid input: no such file or directory: src/absent.rs`, for read, list,
-  grep, glob, diff, edit, patch, view_image, code_outline, and the `cwd` of
-  shell and process_start, which no longer reveal what exists outside the
-  root (an empty `cwd` stays the root): Python raises
-  `InvalidInputError`, RoomKit refuses the call in those words, and the model
-  reads which path to correct. It was `ToolIOError`, which the model read as
-  "Tool 'read' failed (ToolIOError)", like a permission failure. Other I/O
-  failures keep their class and fixed words.
-
-- `grep`'s `include` without `/` filters file names at any depth, as `rg -g`
-  does: `include="*.rs"` finds the Rust files of every directory below `path`,
-  where it used to read only `path` itself and answer "no matches". An
-  `include` with `/` still matches the path relative to `path`.
-
+- `plan_update` also takes `step_changes`,
+  `[{step_id, status?, description?}]`: only those steps change, the others and
+  their order are kept, and the result's `text` gives the new revision and the
+  changed steps alone: changing one status of an 18-step plan no longer sends
+  the whole list, and no longer returns it to a model that reads the `text`
+  alone, as RoomKit's adapters now give it. A step whose status alone changes
+  is listed as `3. s3 [completed]`, without the description the model just left
+  unchanged. `steps` still replaces the whole list; a call gives one or the
+  other. `PlanUpdateTool` applies them to the plan its backend reads, so a
+  backend receives the complete `steps` as before; `MemoryPlanBackend.update`
+  also takes `step_changes`.
 - `ask_user`: the agent asks the person one to four questions, with up to four
   options each, and waits for the answers. `AskUserTool` checks the call before
   the backend's new `ask` method answers it; through RoomKit,
   `ask_user_handler(timeout)` (Rust too) serves it with the kit's human input,
-  and the host's hook reads the questions with `AskUserTool.read`.
+  and the host's hook reads the questions with `AskUserTool.read`. Its `header`
+  description aims at 12 characters and gives the 64 bytes the check enforces,
+  where it announced a 12-character limit.
 
-- Through RoomKit, `write`, `edit` and `patch` declare `changes_state`: once one
-  is served, the agent's repeat counts start again, so a test rerun after an
-  edit is no longer refused as a loop. It takes effect with a RoomKit that has
-  the option, and on no other tool: a shell command may change files too, but
-  two commands alternating in a loop would then go unnoticed.
+### Fixed
 
-- A tool's `input_schema` says only what a model needs to write a valid call. It
-  no longer carries `$schema`, the input type's `title` and `description` (the
-  tool's own description covers them), integer and float width formats such as
-  `uint64`, or `"default": null`. Types, bounds, required names, argument
-  descriptions and other defaults are unchanged, and an optional argument stays
-  nullable. `output_schema` is unchanged.
-- `ProcessSession.detach()` closes a session but leaves its running processes
-  running, for a host that exits while one must outlive it, such as a server
-  started for a later check: their records are released and their pipes
-  handed to drainers that discard what the jobs write and outlive the host.
-  `ShellTool.create(keep_background_jobs=True)` (Rust:
-  `ShellLimits::keep_background_jobs`) leaves the background jobs of a command
-  that exits on its own running, its pipes handed to such drainers when a job
-  still holds them; a timeout or a cancellation still stops them.
-- A shell stream cut short keeps its most recent bytes, where a command reports
-  how it ended, instead of its first and last ones, after an
-  `[... N earlier bytes omitted ...]` marker. With an output store, only such a
-  stream keeps an archive, holding its output up to the store's bounds (8 MiB
-  per stream by default); one kept whole needs none and is released as the
-  call ends. At a record quota, a new archive releases its owner's oldest
-  finished one, never one a running job or call still writes, rather than
-  failing with `archive_limit`; a result without an archive id no longer says
-  to use `output_read`.
-- A tool's `text` says more of what a model needs to go on. `read`, `list`,
-  `glob`, `grep` and `code_outline` end with a line of facts such as
-  `[next_offset=4, revision=sha256:...]`, not counted in `max_output_bytes`;
-  `write` and `edit` give the new `revision`, `ocr` the image's.
-  An empty result says so (`no matches`, `no entries`, `no differences`,
-  `no processes`). A command reads `exit_code=0`, with `signal`, `timed_out` and
-  `output_complete` only when they say something, and leaves out its empty
-  streams. Processes and archives name their state as the structured result
-  does (`state=finished, end=exited`, `has_more=true`), with no `Some(...)`. An
-  archive's line comes before what the command wrote, and is left out when it
-  holds nothing and nothing went wrong.
-- Through RoomKit, a host's model reads a tool's `text` alone, where it read
-  the whole `{data, text}` envelope again on every later request: a
-  `plan_update` gave it 1,245 bytes, of which the text was 94. The `data` goes
-  to the host as the call's structured content, `{"data": ...}`: an
-  `ON_TOOL_CALL` hook reads it as `event.structured_content`, and the call's
-  end event carries it; a handler called outside a RoomKit tool call returns
-  the text alone, but the plan, process and output adapters, Python's agent
-  adapters and a shell with archives still refuse such a call. Python's and Rust's adapters do so for every tool, the shell
-  included, which gave its `data` alone, but `view_image`, whose text and image
-  parts are unchanged. Refusals, failures and cancellation are unchanged. A
-  host that read the data from the result reads it from the structured
-  content; a hook that already split the envelope, as roomkit-code's does,
-  finds the text alone and leaves it. An `ON_TOOL_CALL` hook that inspects or
-  redacts `event.result` alone no longer sees the data: it is in the call's
-  structured copy, which the end event keeps and transports receive, so a
-  redacting hook must handle `structured_content` too. Python's plans, docs
-  and agents adapters set the whole `{data, text}` as structured content; it
-  is now `{"data": ...}`, so a host that read `structured_content["text"]`
-  reads the result instead. A Rust handler answers
-  `ToolResult::Text` where it answered a `ToolResult::Json` object, so a
-  wrapper or hook that matched that object no longer finds it: roomkit-code's
-  `Scoped` instructions wrapper, which adds `project_instructions` as a field
-  of such an object, now appends the rules to the text instead.
-- The RoomKit Rust adapter follows roomkit-rs v0.2.0 (4f271c6), which changes no
-  existing adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
-  requests also declare the kit's `read_stored_result`, which pages through an
-  outcome past `evict_threshold_tokens` that the kit stored.
-- The RoomKit Rust adapter adds `ViewImage`, behind its optional `image` Cargo
-  feature: the text and image parts of Python's adapter, on that engine's image
-  results.
 - A RoomKit Rust adapter's I/O failure reads as Python's: the model reads
-  `Tool 'x' failed (ToolIOError)` and observers its public words, without the OS
-  detail.
-- Tool and parameter descriptions are about 45% shorter and keep every rule a
-  call needs. Names, types, defaults and behaviour are unchanged.
+  `Tool 'x' failed (ToolIOError)` and observers its public words, without the
+  OS detail.
+- Argument descriptions no longer break a sentence with a line break, which
+  came from doc comments wrapped over two lines: `grep`'s `include`, `edit`'s
+  `old_text`, shell's `timeout_ms` and `run_in_background`, process_read's
+  `wait_ms` and `plan_update`'s `step_changes`.
+- A `glob` pattern, or a `grep` `include` with `/`, is scanned from its leading
+  directories without glob syntax: `src/**/*.rs` scans `src` only, where a
+  10,001-file `data/` beside it used up `max_scan_entries`, though `**/*.rs`
+  with `path="src"` worked. The matches are those a scan from `path` gives.
+- `diff` and `patch` compare lines with a Myers diff instead of a full
+  longest-common-subsequence table, so two changes far apart no longer fail: in
+  a 1,500-line file, changing lines 3 and 1,498 failed `diff` and an applied
+  `patch` with "diff exceeds max_comparison_cells". The script is still a
+  shortest one. How `max_comparison_cells` now bounds its work is under
+  Breaking changes.
+- `web_fetch` and the search backends reach the public addresses of
+  192.0.0.0/16, such as WordPress.com's 192.0.78.0/24: only its special-use
+  blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as non-public, where the
+  whole /16 was.
+- `code_outline`'s range of a Rust item covers its outer doc comments (`///`,
+  `/** */`) and the attributes written before or among them: a derive written
+  before the item's doc comment, and the doc comment itself, fell outside
+  `[start_line, end_line]`. Plain comments stay outside; the signature is
+  unchanged.
+- A `FileDocs` document's title is its first `# ` heading outside fenced code:
+  a `# fetch the sources` comment in a ```` ```sh ```` block above the heading
+  became the title. A fence closes as Markdown closes it, on a run of its
+  character at least as long with nothing after it, and a run indented four
+  spaces is no fence.
+- The input schemas give the bounds the tools enforce: `minimum: 1` with
+  `maximum` 100, 50 and 500 for the `limit` of `docs_list`, `docs_search` and
+  `docs_read`, and `minimum: 1` for `plan_update`'s and `plan_delete`'s
+  `expected_revision`, which offered 0, a refused revision.
+
+### Packaging and documentation
+
+- The RoomKit Rust adapter follows roomkit-rs v0.2.0 (4f271c6), which changes
+  no existing adapter's API. A tool it declares names no `tags` for Tool
+  Search. An agent's requests also declare the kit's `read_stored_result`,
+  which pages through an outcome past `evict_threshold_tokens` that the kit
+  stored.
 
 ## 0.1.0a16
 
