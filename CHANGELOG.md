@@ -131,6 +131,13 @@ part of an existing published preview.
   fell outside `[start_line, end_line]`. Plain comments stay outside; the
   signature is unchanged.
 
+- `ocr`'s `max_output_bytes` bounds the returned text, each kept block's text
+  counted once with the newlines joining them, rather than the whole JSON
+  envelope, which repeats that text three times and adds every block's
+  geometry: a dense page of 200 blocks and 20 KB of text, which filled the
+  default 64 KiB and lost 42 blocks, now returns them all. Blocks past it are
+  still omitted whole; `max_blocks` bounds the geometry.
+
 - `view_image` previews an ordinary 4K photograph instead of refusing it: a
   PNG preview over `max_image_bytes` is made again with an edge three
   quarters as long until it fits (a 3840×2160 photo gets 1536×864 at the

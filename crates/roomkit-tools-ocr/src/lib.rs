@@ -279,69 +279,58 @@ fn render(result: OcrResult) -> Output<OcrResult> {
     Output::new(result, text)
 }
 
-fn encoded_len(output: &Output<OcrResult>) -> Result<usize, ToolError> {
-    serde_json::to_vec(output)
-        .map(|v| v.len())
-        .map_err(|_| ToolError::UnsupportedResource("invalid OCR output".into()))
-}
-
+/// Keep whole blocks in reading order while the returned text, each block's
+/// text once and a newline between blocks, fits `max_output_bytes` and the
+/// count fits `max_blocks`. Only the text counts: `data.text` and the rendered
+/// `text` repeat it, and `max_blocks` bounds the geometry, so counting those
+/// spent most of the budget on copies.
 fn bounded_result(
     mut result: OcrResult,
     blocks: Vec<OcrBlock>,
     limits: OcrLimits,
     check: impl Fn() -> Result<(), ToolError>,
 ) -> Result<Output<OcrResult>, ToolError> {
-    if encoded_len(&render(result.clone()))? > limits.max_output_bytes {
-        return Err(ToolError::LimitExceeded(
-            "OCR metadata exceeds max_output_bytes".into(),
-        ));
-    }
+    let mut text_bytes = 0;
     for block in blocks {
         check()?;
-        if block
-            .score
-            .is_some_and(|s| !s.is_finite() || !(0.0..=1.0).contains(&s))
-            || block.polygon.iter().any(|p| {
-                !p.x.is_finite()
-                    || !p.y.is_finite()
-                    || p.x < 0.0
-                    || p.y < 0.0
-                    || f64::from(p.x) > f64::from(result.width)
-                    || f64::from(p.y) > f64::from(result.height)
-            })
-        {
+        if !valid(&block, result.width, result.height) {
             return Err(ToolError::UnsupportedResource(
                 "OCR backend returned invalid geometry or scores".into(),
             ));
         }
-        // Do not copy a single oversized block into multiple envelopes.
-        if result.blocks.len() >= limits.max_blocks || block.text.len() > limits.max_output_bytes {
+        let separator = usize::from(!result.blocks.is_empty());
+        let joined = text_bytes + separator + block.text.len();
+        if result.blocks.len() >= limits.max_blocks || joined > limits.max_output_bytes {
             break;
         }
+        text_bytes = joined;
         result.blocks.push(block);
         result.omitted_blocks -= 1;
-        result.truncated = result.omitted_blocks != 0;
-        result.text = result
-            .blocks
-            .iter()
-            .map(|b| b.text.as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
-        if encoded_len(&render(result.clone()))? > limits.max_output_bytes {
-            result.blocks.pop();
-            result.omitted_blocks += 1;
-            result.truncated = true;
-            result.text = result
-                .blocks
-                .iter()
-                .map(|b| b.text.as_str())
-                .collect::<Vec<_>>()
-                .join("\n");
-            break;
-        }
     }
+    result.truncated = result.omitted_blocks != 0;
+    result.text = result
+        .blocks
+        .iter()
+        .map(|b| b.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
     check()?;
     Ok(render(result))
+}
+
+/// A finite score in 0..=1, if any, and corners inside the oriented image.
+fn valid(block: &OcrBlock, width: u32, height: u32) -> bool {
+    !block
+        .score
+        .is_some_and(|s| !s.is_finite() || !(0.0..=1.0).contains(&s))
+        && block.polygon.iter().all(|p| {
+            p.x.is_finite()
+                && p.y.is_finite()
+                && p.x >= 0.0
+                && p.y >= 0.0
+                && f64::from(p.x) <= f64::from(width)
+                && f64::from(p.y) <= f64::from(height)
+        })
 }
 
 // The README's example is compiled and run as a doctest.

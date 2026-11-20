@@ -117,8 +117,11 @@ orientation and the explicit rotation**. Original dimensions are also returned.
 Pixels are not preview-resized before recognition; the detector has its own
 bounded resolution. Transparency is composited onto white.
 
-`truncated` and `omitted_blocks` report omitted whole blocks. The byte limit
-covers the full JSON envelope, including the readable `text` representation.
+`truncated` and `omitted_blocks` report omitted whole blocks. The byte limit,
+`max_output_bytes`, bounds the returned text: each kept block's text counted
+once, with the newlines that join them, as `data.text` holds it. The envelope
+repeats that text in each block and in the readable `text`, and adds each
+block's polygon and score, which the block limit bounds.
 An oversized single block may result in an empty, explicitly truncated result.
 A blank image can instead return empty text without truncation.
 
@@ -130,7 +133,7 @@ Default host limits:
 | Maximum source dimension | 8192 pixels |
 | Source pixels | 16 million |
 | Decoder allocation limit | 128 MiB |
-| Complete result envelope | 64 KiB |
+| Returned text | 64 KiB |
 | Retained blocks | 256 |
 | Call deadline / maximum allowed deadline | 30 s / 120 s |
 | RustO detector maximum edge | 960 pixels |

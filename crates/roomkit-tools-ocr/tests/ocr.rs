@@ -22,6 +22,7 @@ struct Fixture {
     entered: Option<Arc<tokio::sync::Notify>>,
     release: Option<mpsc::Receiver<()>>,
     invalid_score: bool,
+    count: usize,
 }
 
 impl OcrBackend for Fixture {
@@ -54,7 +55,7 @@ impl OcrBackend for Fixture {
                 score: Some(if self.invalid_score { f32::NAN } else { 0.9 }),
                 polygon: [OcrPoint { x: 0.0, y: 0.0 }; 4]
             };
-            2
+            self.count
         ])
     }
 }
@@ -66,6 +67,7 @@ fn fixture() -> Fixture {
         entered: None,
         release: None,
         invalid_score: false,
+        count: 2,
     }
 }
 fn input(path: &str) -> OcrInput {
@@ -175,7 +177,7 @@ async fn path_input_and_backend_failures_remain_explicit() {
 }
 
 #[tokio::test]
-async fn complete_envelope_is_bounded_even_for_one_huge_block() {
+async fn returned_text_is_bounded_even_for_one_huge_block() {
     let root = fixture_root();
     let mut backend = fixture();
     backend.text = "a".repeat(10_000);
@@ -191,9 +193,46 @@ async fn complete_envelope_is_bounded_even_for_one_huge_block() {
         .ocr(input("image.png"), &CancellationToken::new())
         .await
         .unwrap();
-    assert!(serde_json::to_vec(&result).unwrap().len() <= 2048);
     assert_eq!(result.data.omitted_blocks, 2);
     assert!(result.data.blocks.is_empty() && result.data.truncated);
+    assert_eq!(result.data.text, "");
+}
+
+#[tokio::test]
+async fn the_output_budget_counts_each_block_s_text_once() {
+    // A dense page: 200 blocks of 99 bytes, 20 KB of text with newlines.
+    // Counted three times with its geometry, it filled 64 KiB and lost blocks.
+    let root = fixture_root();
+    let mut backend = fixture();
+    backend.text = "x".repeat(99);
+    backend.count = 200;
+    let tool = OcrTool::new(root.path(), OcrEngine::new(backend).unwrap())
+        .await
+        .unwrap();
+    let cancel = CancellationToken::new();
+    let result = tool.ocr(input("image.png"), &cancel).await.unwrap();
+    assert_eq!(result.data.blocks.len(), 200);
+    assert!(!result.data.truncated);
+    assert_eq!(result.data.omitted_blocks, 0);
+    let whole = 200 * 100 - 1;
+    assert_eq!(result.data.text.len(), whole);
+    // The budget is the returned text: a byte short drops the last block whole.
+    for (max_output_bytes, kept) in [(whole, 200), (whole - 1, 199)] {
+        let result = tool
+            .clone()
+            .with_limits(OcrLimits {
+                max_output_bytes,
+                ..Default::default()
+            })
+            .unwrap()
+            .ocr(input("image.png"), &cancel)
+            .await
+            .unwrap();
+        assert_eq!(result.data.blocks.len(), kept);
+        assert_eq!(result.data.omitted_blocks, 200 - kept);
+        assert_eq!(result.data.truncated, kept < 200);
+        assert_eq!(result.data.text.len(), kept * 100 - 1);
+    }
 }
 
 #[tokio::test]

@@ -42,7 +42,10 @@ pub struct OcrLimits {
     pub max_pixels: usize,
     /// Decoder/conversion allocation bound, not total native heap.
     pub max_decode_bytes: usize,
-    /// Complete serialized Output envelope budget.
+    /// Maximum bytes of returned text: each kept block's text once, joined by
+    /// newlines, as in `text`. Blocks past it are omitted whole. The envelope
+    /// repeats that text in `data.text` and the rendered `text`, and adds each
+    /// block's geometry, which `max_blocks` bounds.
     pub max_output_bytes: usize,
     /// Maximum complete returned blocks.
     pub max_blocks: usize,
