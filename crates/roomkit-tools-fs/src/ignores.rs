@@ -116,10 +116,15 @@ impl Ignores {
     }
 
     /// The rules of the repository's `info/exclude`, relative to its root.
+    /// A store that cannot be read holds none: unlike an ignore file in the
+    /// workspace, it never fails the scan.
     async fn exclude_rules(&self, repository: &Path) -> Result<Option<Arc<Gitignore>>, ToolError> {
-        match git_directory(repository).await {
-            Some(git) => self.rules(repository, &git.join("info/exclude")).await,
-            None => Ok(None),
+        let Some(git) = git_directory(repository).await else {
+            return Ok(None);
+        };
+        match self.rules(repository, &git.join("info/exclude")).await {
+            Err(ToolError::UnsupportedResource(_)) => Ok(None),
+            other => other,
         }
     }
 
@@ -232,6 +237,10 @@ async fn repository(root: &Path) -> Option<PathBuf> {
 /// The directory holding `repository`'s shared files, `info/exclude` among
 /// them: its `.git` directory, or for a worktree, the directory its `.git`
 /// file points to, or that one's `commondir`. `None` when it cannot be read.
+///
+/// A `.git` file in the workspace is the model's to write, so a pointer is
+/// followed only to a Git directory, one holding a regular `HEAD`: files
+/// named `commondir` and `info/exclude` elsewhere on the host are not read.
 async fn git_directory(repository: &Path) -> Option<PathBuf> {
     let git = repository.join(".git");
     if fs::symlink_metadata(&git).await.ok()?.is_dir() {
@@ -239,14 +248,32 @@ async fn git_directory(repository: &Path) -> Option<PathBuf> {
     }
     let pointer = small_file(&git).await?;
     let own = repository.join(pointer.strip_prefix("gitdir:")?.trim());
-    match small_file(&own.join("commondir")).await {
-        Some(common) => Some(own.join(common.trim())),
-        None => Some(own),
+    if !holds_head(&own).await {
+        return None;
     }
+    if let Some(common) = small_file(&own.join("commondir")).await {
+        let common = own.join(common.trim());
+        if holds_head(&common).await {
+            return Some(common);
+        }
+    }
+    Some(own)
 }
 
-/// The text of a small file Git writes, or `None`.
+/// Whether `directory` looks like a Git directory: it holds a regular `HEAD`.
+async fn holds_head(directory: &Path) -> bool {
+    fs::symlink_metadata(directory.join("HEAD"))
+        .await
+        .is_ok_and(|info| info.is_file())
+}
+
+/// The text of a small file Git writes, or `None`. Only a regular file is
+/// opened: opening a FIFO blocks until a writer comes, and would hold a
+/// blocking thread for good.
 async fn small_file(path: &Path) -> Option<String> {
+    if !fs::symlink_metadata(path).await.ok()?.is_file() {
+        return None;
+    }
     let mut text = String::new();
     fs::File::open(path)
         .await

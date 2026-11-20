@@ -65,20 +65,94 @@ async fn ignore_files_above_the_workspace_apply_up_to_its_repository() {
     );
 }
 
+/// A worktree whose `.git` file says `gitdir: <pointer>`, beside notes
+/// `notes.tmp` and `notes.txt`.
+fn worktree(outer: &Path, pointer: &Path) -> std::path::PathBuf {
+    let worktree = outer.join("feature");
+    write(
+        &worktree.join(".git"),
+        &format!("gitdir: {}\n", pointer.display()),
+    );
+    for note in ["notes.tmp", "notes.txt"] {
+        write(&worktree.join(note), "x\n");
+    }
+    worktree
+}
+
 /// A worktree's `.git` is a file naming its directory in the repository's
 /// store, whose `commondir` holds the shared `info/exclude`.
 #[tokio::test]
 async fn a_worktree_reads_its_repository_s_info_exclude() {
     let outer = tempfile::tempdir().unwrap();
     let store = outer.path().join("main/.git");
+    write(&store.join("HEAD"), "ref: refs/heads/main\n");
     write(&store.join("info/exclude"), "*.tmp\n");
-    write(&store.join("worktrees/feature/commondir"), "../..\n");
-    let worktree = outer.path().join("feature");
     write(
-        &worktree.join(".git"),
-        &format!("gitdir: {}\n", store.join("worktrees/feature").display()),
+        &store.join("worktrees/feature/HEAD"),
+        "ref: refs/heads/feature\n",
     );
-    write(&worktree.join("notes.tmp"), "x\n");
-    write(&worktree.join("notes.txt"), "x\n");
+    write(&store.join("worktrees/feature/commondir"), "../..\n");
+    let worktree = worktree(outer.path(), &store.join("worktrees/feature"));
     assert_eq!(globbed(&worktree, "notes.*").await, ["notes.txt"]);
+}
+
+/// A `.git` file the model can write may point anywhere: a directory with
+/// no `HEAD` is no repository, and its files are not read.
+#[tokio::test]
+async fn a_pointer_to_a_directory_that_is_no_repository_is_ignored() {
+    let outer = tempfile::tempdir().unwrap();
+    let elsewhere = outer.path().join("elsewhere");
+    write(&elsewhere.join("info/exclude"), "*.txt\n");
+    let worktree = worktree(outer.path(), &elsewhere);
+    assert_eq!(
+        globbed(&worktree, "notes.*").await,
+        ["notes.tmp", "notes.txt"]
+    );
+    // Nor is a common directory with no `HEAD`.
+    std::fs::remove_file(elsewhere.join("info/exclude")).unwrap();
+    write(&elsewhere.join("HEAD"), "ref: refs/heads/main\n");
+    write(&elsewhere.join("commondir"), "../store\n");
+    write(&outer.path().join("store/info/exclude"), "*.tmp\n");
+    assert_eq!(
+        globbed(&worktree, "notes.*").await,
+        ["notes.tmp", "notes.txt"]
+    );
+}
+
+/// A pointer through a regular file reaches no store: the scan goes on
+/// without its rules instead of failing.
+#[tokio::test]
+async fn a_pointer_through_a_regular_file_does_not_fail_the_scan() {
+    let outer = tempfile::tempdir().unwrap();
+    write(&outer.path().join("plain"), "x\n");
+    let worktree = worktree(outer.path(), &outer.path().join("plain/store"));
+    assert_eq!(
+        globbed(&worktree, "notes.*").await,
+        ["notes.tmp", "notes.txt"]
+    );
+}
+
+/// A `.git` that is a FIFO is never opened: opening one blocks until a
+/// writer comes, which would hold a blocking thread for good.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_git_fifo_is_never_opened() {
+    let root = tempfile::tempdir().unwrap();
+    write(&root.path().join("notes.txt"), "x\n");
+    let fifo = root.path().join(".git");
+    let made = std::process::Command::new("mkfifo")
+        .arg(&fifo)
+        .status()
+        .unwrap();
+    assert!(made.success());
+    let found = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        globbed(root.path(), "*.txt"),
+    )
+    .await;
+    if found.is_err() {
+        // Free the reader stuck on the FIFO, so that the runtime can stop.
+        drop(std::fs::OpenOptions::new().write(true).open(&fifo));
+    }
+    assert_eq!(found.unwrap(), ["notes.txt"]);
 }

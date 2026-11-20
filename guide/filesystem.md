@@ -81,7 +81,9 @@ directory, and `.git`, without entering them; `include_ignored=True` scans
 everything. In a Git repository they also apply its `.git/info/exclude`
 (a worktree's is its repository's) and, when the workspace is a directory
 below the repository's root, the ignore files of the directories between
-them; Git's global excludes file is not read. A `path` searched explicitly is searched even when ignored. As in
+them; Git's global excludes file is not read. A `.git` file is followed
+only to a directory holding a regular `HEAD`, and a store that cannot be read
+adds no rules rather than failing the call. A `path` searched explicitly is searched even when ignored. As in
 ripgrep, the `.ignore` rules of every level decide before any `.gitignore`
 rule, the deepest matching rule of each kind first. An ignore file over
 256 KiB, or more than 2 MiB of them in one scan, fails the call as a limit,
