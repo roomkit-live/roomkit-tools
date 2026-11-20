@@ -4,9 +4,9 @@
 //! The work counted is what the comparison costs once the common first and
 //! last lines are set aside: each remaining line examined, then each
 //! furthest-reaching path the Myers search computes and each pair of equal
-//! lines it follows. It grows with the number of changed lines, not with the
-//! length of the files; the trace kept to recover the edit script holds at
-//! most one entry per step.
+//! lines it follows; against an empty side there is no search. It grows
+//! with the number of changed lines, not with the length of the files; the
+//! trace kept to recover the edit script holds at most one entry per step.
 
 use std::collections::HashSet;
 
@@ -91,6 +91,10 @@ fn common_lines(
     maximum: usize,
     cancel: &CancellationToken,
 ) -> Result<Option<Vec<(usize, usize)>>, ToolError> {
+    // Against an empty side every line is removed or added: nothing to search.
+    if a.is_empty() || b.is_empty() {
+        return Ok(Some(Vec::new()));
+    }
     let Some(left) = maximum.checked_sub(a.len() + b.len()) else {
         return Ok(None);
     };

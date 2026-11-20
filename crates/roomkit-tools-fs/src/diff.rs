@@ -47,8 +47,9 @@ pub struct DiffLimits {
     /// Maximum work of the line comparison, a Myers diff: once the common
     /// first and last lines are set aside, each remaining line examined, each
     /// furthest-reaching path computed and each pair of equal lines followed.
-    /// It grows with the number of changed lines, about their count squared,
-    /// not with the files' length; memory follows it. Default: 1,000,000.
+    /// It grows with the number of changed lines, about twice their count
+    /// squared, not with the files' length; memory follows it. An empty side
+    /// needs no comparison. Default: 1,000,000.
     pub max_comparison_cells: usize,
     /// Maximum rendered diff bytes; exceeding this fails without clipping. Default: 50 KiB.
     pub max_output_bytes: usize,

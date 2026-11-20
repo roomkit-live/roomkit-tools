@@ -261,10 +261,11 @@ modifying files. Its two reads are not a transactional snapshot. Defaults:
 and 100 context lines/side. The comparison is a Myers diff, which finds as few
 removed and added lines as any alignment allows; `max_comparison_cells` bounds
 its work once the common first and last lines are set aside: each remaining
-line examined, then each step of the search. That work grows with the number
-of changed lines, about their count squared, not with the files' length: two
-changes at both ends of a 20,000-line file compare well within the default,
-while 1,000 lines put in reverse order exceed it. Constructor keywords `max_file_bytes`, `max_lines`,
+line examined, then each step of the search; against an empty side there is
+no search. That work grows with the number of changed lines, about twice their
+count squared, not with the files' length: two changes at both ends of a
+20,000-line file compare well within the default, while 707 lines put in
+reverse order exceed it. Constructor keywords `max_file_bytes`, `max_lines`,
 `max_comparison_cells`, `max_output_bytes` and `max_context_lines` set those
 bounds; context may be zero. An oversized comparison fails `diff` instead of
 clipping; a patch's preview is clipped instead (see below).

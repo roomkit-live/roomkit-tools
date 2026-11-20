@@ -211,7 +211,10 @@ part of an existing published preview.
   still a shortest one. `max_comparison_cells` keeps its name and default and
   now bounds the comparison's work: each line between the common first and
   last lines, then each step of the search, which grows with the number of
-  changed lines rather than with the files' length.
+  changed lines rather than with the files' length. Reordered lines cost
+  more than they did: at the default bound, 707 to 999 lines in reverse
+  order, which the table compared, are now refused. An empty side costs
+  nothing.
 
 - A `glob` pattern, or a `grep` `include` with `/`, is scanned from its
   leading directories without glob syntax: `src/**/*.rs` scans `src` only,

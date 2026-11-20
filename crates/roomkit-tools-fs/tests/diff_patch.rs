@@ -87,6 +87,30 @@ async fn changes_far_apart_in_a_long_file_are_compared() {
     );
 }
 
+/// An empty side needs no comparison: its lines are all added or removed,
+/// whatever `max_comparison_cells`.
+#[tokio::test]
+async fn an_empty_side_needs_no_comparison_work() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("empty"), "").unwrap();
+    std::fs::write(root.path().join("full"), "line\n".repeat(20)).unwrap();
+    let tool = DiffTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(DiffLimits {
+            max_comparison_cells: 10,
+            ..DiffLimits::default()
+        })
+        .unwrap();
+    for (old, new) in [("empty", "full"), ("full", "empty")] {
+        let result = tool
+            .diff(DiffInput::new(old, new), &CancellationToken::new())
+            .await
+            .unwrap();
+        assert_eq!(result.data.additions + result.data.deletions, 20);
+    }
+}
+
 #[tokio::test]
 async fn diff_handles_empty_versions_and_context_zero() {
     let added = comparison("", "a\nb\n", 0).await;
