@@ -63,6 +63,10 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- A `FileDocs` document's title is its first `# ` heading outside fenced
+  code: a `# fetch the sources` comment in a ```` ```sh ```` block above the
+  heading became the title.
+
 - `code_outline`'s `text` gives one line per symbol, its index, range,
   parent and signature with whitespace collapsed
   (`2 [2-3] ^1 def calculate_fee(self, subtotal):`), where each symbol took

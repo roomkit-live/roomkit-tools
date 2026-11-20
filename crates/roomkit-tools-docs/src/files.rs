@@ -423,13 +423,7 @@ fn load(inner: &Inner, cancel: &CancellationToken) -> Result<Snapshot, ToolError
                 "documentation catalogue line budget exceeded".into(),
             ));
         }
-        let title = clipped(
-            text.lines()
-                .find_map(|l| l.strip_prefix("# ").map(str::trim))
-                .filter(|s| !s.is_empty())
-                .unwrap_or(&id),
-            256,
-        );
+        let title = clipped(crate::title::heading(text).unwrap_or(&id), 256);
         let info = DocumentInfo {
             document_id: id.clone(),
             title: title.clone(),

@@ -25,6 +25,48 @@ fn inputs_built_in_rust_default_as_their_json_and_python() {
     assert_eq!(json_of(DocsReadInput::new("a.md")), json_of(read));
 }
 
+/// A `# ` line inside fenced code is a shell comment or the like, not the
+/// document's title.
+#[tokio::test]
+async fn a_title_is_never_taken_from_fenced_code() {
+    let root = tempfile::tempdir().unwrap();
+    let documents = [
+        (
+            "install.md",
+            "Install the tool.\n\n```sh\n# fetch the sources\ngit clone x\n```\n\n# Installation\n",
+        ),
+        (
+            "tilde.md",
+            "~~~\n# not a title\n```\n# still code\n~~~\n# Tilde\n",
+        ),
+        (
+            "indented.md",
+            "  ```python\n# comment\n  ```\nNo heading here.\n",
+        ),
+    ];
+    for (name, text) in documents {
+        std::fs::write(root.path().join(name), text).unwrap();
+    }
+    let backend = FileDocs::new(root.path(), FileDocsLimits::default()).unwrap();
+    let page = backend
+        .list(&DocsListInput::default(), &CancellationToken::new())
+        .await
+        .unwrap();
+    let titles: Vec<_> = page
+        .documents
+        .iter()
+        .map(|d| (d.document_id.as_str(), d.title.as_str()))
+        .collect();
+    assert_eq!(
+        titles,
+        [
+            ("indented.md", "indented.md"),
+            ("install.md", "Installation"),
+            ("tilde.md", "Tilde"),
+        ]
+    );
+}
+
 #[tokio::test]
 async fn snapshot_refresh_and_revision_checked_pages() {
     let root = tempfile::tempdir().unwrap();

@@ -5,6 +5,8 @@
 #[cfg(feature = "files")]
 mod files;
 mod text;
+#[cfg(feature = "files")]
+mod title;
 mod types;
 mod validation;
 #[cfg(feature = "files")]
