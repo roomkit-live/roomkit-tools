@@ -63,6 +63,12 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- The `text` of `delegate_task`, `task_status`, `cancel_task`,
+  `agent_followup`, `agent_send` and `ask_user` is lines rather than the JSON
+  of `data`, which is unchanged: a task's quoted IDs and states on one line
+  and its result, up to 8 KiB, on its own indented lines instead of one
+  escaped string; a message's outcome; one line per answer.
+
 - Clearer argument descriptions: `plan_create`'s `title` is the short name
   `plan_list` shows, a few words (a model took `objective` for the whole
   plan and sent `objective_title` for the title); `ask_user`'s `header`

@@ -257,13 +257,7 @@ async fn the_backend_answers_checked_questions() {
         .unwrap();
     assert_eq!(output.data.answers[0].selected, ["SQLite"]);
     assert_eq!(output.data.answers[1].other.as_deref(), Some("Blue"));
-    assert_eq!(
-        serde_json::from_str::<Value>(&output.text).unwrap(),
-        json!({"answers": [
-            {"selected": ["SQLite"], "other": null},
-            {"selected": [], "other": "Blue"}
-        ]})
-    );
+    assert_eq!(output.text, "1. selected \"SQLite\"\n2. wrote: Blue\n");
     assert_eq!(
         *person.0.lock().unwrap(),
         ["Which database?", "Favourite colour?", "assistant"]
@@ -277,6 +271,28 @@ async fn the_backend_answers_checked_questions() {
         3,
         "never reached the backend"
     );
+}
+
+/// Each answer on its line: the labels picked, quoted, and what the person
+/// wrote, its further lines indented under it.
+#[test]
+fn answers_read_as_lines() {
+    let answers = AskUserResult {
+        answers: vec![
+            AskUserAnswer {
+                selected: vec!["SQLite".into(), "Postgres".into()],
+                other: Some("Both, for now.\nSQLite in tests.".into()),
+            },
+            AskUserAnswer::default(),
+        ],
+    };
+    assert_eq!(
+        render(answers).unwrap().text,
+        "1. selected \"SQLite\", \"Postgres\"; wrote: Both, for now.\n   SQLite in tests.\n\
+         2. no answer\n"
+    );
+    let none = AskUserResult { answers: vec![] };
+    assert_eq!(render(none).unwrap().text, "no answers\n");
 }
 
 #[test]

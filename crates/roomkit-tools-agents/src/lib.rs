@@ -8,6 +8,8 @@
 
 #![forbid(unsafe_code)]
 
+mod text;
+
 use std::{fmt::Debug, future::Future, pin::Pin, sync::Arc};
 
 use roomkit_tools_core::{Definition, Output, ToolError};
@@ -249,6 +251,11 @@ pub trait AgentContract: Serialize + for<'de> Deserialize<'de> + JsonSchema {
     /// # Errors
     /// Returns invalid-input or limit errors for unusable values.
     fn validate(&self) -> Result<(), ToolError>;
+    /// The lines a model reads of this value as a result, or `None` for a
+    /// type rendered as its JSON.
+    fn text(&self) -> Option<String> {
+        None
+    }
 }
 
 fn bounded(value: &str, name: &str, max: usize) -> Result<(), ToolError> {
@@ -305,6 +312,9 @@ impl AgentContract for AgentSendInput {
     }
 }
 impl AgentContract for SendResult {
+    fn text(&self) -> Option<String> {
+        Some(text::send(self))
+    }
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.agent_id, "agent_id", 256)?;
         if let Some(id) = &self.task_id {
@@ -326,6 +336,9 @@ impl AgentContract for SendResult {
     }
 }
 impl AgentContract for TaskInfo {
+    fn text(&self) -> Option<String> {
+        Some(text::task_info(self))
+    }
     fn validate(&self) -> Result<(), ToolError> {
         bounded(&self.task_id, "task_id", 256)?;
         bounded(&self.agent_id, "agent_id", 256)?;
@@ -344,6 +357,9 @@ impl AgentContract for TaskInfo {
     }
 }
 impl AgentContract for TaskList {
+    fn text(&self) -> Option<String> {
+        Some(text::task_list(self))
+    }
     fn validate(&self) -> Result<(), ToolError> {
         if self.pending_launches > 64 || self.tasks.len() > 64 - self.pending_launches {
             return Err(ToolError::LimitExceeded("at most 64 retained tasks".into()));
@@ -359,6 +375,9 @@ impl AgentContract for TaskList {
     }
 }
 impl AgentContract for CancelResult {
+    fn text(&self) -> Option<String> {
+        Some(text::cancel(self))
+    }
     fn validate(&self) -> Result<(), ToolError> {
         self.task.validate()?;
         if self.cancelled && self.task.status != TaskState::Cancelled {
@@ -404,13 +423,17 @@ fn clipped(message: String) -> String {
     format!("{}…{}", start.unwrap_or_default(), end.unwrap_or_default())
 }
 
-/// Render normalized bounded data without a second, divergent text contract.
+/// Render normalized bounded data: the data, and the lines a model reads of
+/// it.
 /// # Errors
 /// Rejects malformed backend results or serialization failures.
 #[doc(hidden)]
 pub fn render<T: AgentContract>(data: T) -> Result<Output<T>, ToolError> {
     data.validate()?;
-    let text = serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?;
+    let text = match data.text() {
+        Some(text) => text,
+        None => serde_json::to_string(&data).map_err(|e| ToolError::InvalidInput(e.to_string()))?,
+    };
     Ok(Output::new(data, text))
 }
 

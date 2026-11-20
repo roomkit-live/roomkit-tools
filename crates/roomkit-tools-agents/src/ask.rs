@@ -158,6 +158,9 @@ impl AgentContract for AskUserInput {
 }
 
 impl AgentContract for AskUserResult {
+    fn text(&self) -> Option<String> {
+        Some(crate::text::answers(self))
+    }
     fn validate(&self) -> Result<(), ToolError> {
         if self.answers.len() > MAX_QUESTIONS {
             return Err(ToolError::LimitExceeded(format!(

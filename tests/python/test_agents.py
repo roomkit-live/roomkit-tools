@@ -55,11 +55,16 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             {"profile": "reader", "task": "Read a file"}, scope=scope
         )
         self.assertEqual(receipt["data"], RECEIPT)
+        # The model reads lines, as Rust renders them, not the JSON of data.
+        line = 'task "t1": running, delivery pending; agent "a1" (profile "reader"), available\n'
+        self.assertEqual(receipt["text"], line)
         result = await TaskStatusTool(backend).call({}, scope=scope)
         self.assertEqual(result["data"]["tasks"], [RECEIPT])
+        self.assertEqual(result["text"], f"1 task\n1. {line}")
         self.assertEqual(backend.calls[-1], (scope, {"task_id": None}))
         cancelled = await CancelTaskTool(backend).call({"task_id": "t1"}, scope=scope)
         self.assertTrue(cancelled["data"]["cancelled"])
+        self.assertTrue(cancelled["text"].startswith("cancelled by this call\n"))
 
     async def test_rust_contract_rejects_input_before_backend(self):
         backend = Backend()
@@ -227,6 +232,7 @@ class AskUserTests(unittest.IsolatedAsyncioTestCase):
             {"questions": [question("Which database?", "SQLite", "Postgres")]}, scope=scope
         )
         self.assertEqual(result["data"], {"answers": [{"selected": ["SQLite"], "other": None}]})
+        self.assertEqual(result["text"], '1. selected "SQLite"\n')
         self.assertEqual(person.asked[0][0], scope)
         self.assertEqual(person.asked[0][1][0]["question"], "Which database?")
         with self.assertRaises(InvalidInputError):

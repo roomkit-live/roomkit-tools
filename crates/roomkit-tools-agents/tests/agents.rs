@@ -266,3 +266,98 @@ async fn extensions_fail_explicitly_for_older_backends() {
     sent.message_id = None;
     assert!(sent.validate().is_ok());
 }
+
+/// What a model reads of each agent tool: lines naming the IDs to copy and
+/// the states, and a task's result in its own lines, not the JSON of data.
+#[test]
+fn each_result_reads_as_lines() {
+    let report = "Found the bug.\nshipping.py:3 uses > where >= is meant.";
+    let done = TaskInfo {
+        status: TaskState::Completed,
+        delivery: DeliveryState::Delivered,
+        result: Some(report.into()),
+        ..receipt()
+    };
+    assert_eq!(
+        render(receipt()).unwrap().text,
+        "task \"t1\": running, delivery pending; agent \"a1\" (profile \"reader\"), available\n"
+    );
+    let list = TaskList {
+        tasks: vec![
+            done.clone(),
+            TaskInfo {
+                task_id: "t2".into(),
+                agent_available: false,
+                ..receipt()
+            },
+        ],
+        pending_launches: 1,
+    };
+    assert_eq!(
+        render(list).unwrap().text,
+        "2 tasks, 1 launch pending\n\
+         1. task \"t1\": completed, delivery delivered; agent \"a1\" (profile \"reader\"), available\n   \
+         result:\n   Found the bug.\n   shipping.py:3 uses > where >= is meant.\n\
+         2. task \"t2\": running, delivery pending; agent \"a1\" (profile \"reader\"), not available\n"
+    );
+    let empty = TaskList {
+        tasks: vec![],
+        pending_launches: 0,
+    };
+    assert_eq!(render(empty).unwrap().text, "0 tasks\n");
+    let ended = CancelResult {
+        task: TaskInfo {
+            result_truncated: true,
+            ..done
+        },
+        cancelled: false,
+    };
+    assert_eq!(
+        render(ended).unwrap().text,
+        "not cancelled by this call\n\
+         task \"t1\": completed, delivery delivered; agent \"a1\" (profile \"reader\"), available\n   \
+         result (truncated):\n   Found the bug.\n   shipping.py:3 uses > where >= is meant.\n"
+    );
+    let queued = SendResult {
+        agent_id: "a1".into(),
+        task_id: Some("t1".into()),
+        message_id: Some("m1".into()),
+        status: SendState::Queued,
+        history_recorded: true,
+    };
+    assert_eq!(
+        render(queued).unwrap().text,
+        "agent \"a1\": queued, task \"t1\", message \"m1\"; history recorded\n"
+    );
+    let idle = SendResult {
+        agent_id: "a1".into(),
+        task_id: None,
+        message_id: None,
+        status: SendState::NotRunning,
+        history_recorded: false,
+    };
+    assert_eq!(
+        render(idle).unwrap().text,
+        "agent \"a1\": not_running; history not recorded\n"
+    );
+}
+
+/// A result of 8 KiB, the bound, stays lines a model reads, not one escaped
+/// string.
+#[test]
+fn a_long_result_keeps_its_lines() {
+    let line = "x".repeat(63);
+    let report = vec![line.as_str(); 128].join("\n");
+    assert_eq!(report.len(), 8191);
+    let text = render(TaskInfo {
+        status: TaskState::Completed,
+        delivery: DeliveryState::Delivered,
+        result: Some(report),
+        ..receipt()
+    })
+    .unwrap()
+    .text;
+    assert_eq!(text.lines().count(), 2 + 128);
+    assert!(text.lines().skip(2).all(|l| l == format!("   {line}")));
+    assert!(!text.contains("\\n"));
+}

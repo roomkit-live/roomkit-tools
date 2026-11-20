@@ -30,6 +30,14 @@ return an explicit unsupported error when those tools are selected.
 protocol. Inputs and normalized outputs are checked
 by Rust, including unknown fields, UTF-8 byte limits and terminal states.
 
+A call returns `{data, text}`. `text` is what a model reads, in lines rather
+than the JSON of `data`: a task as
+`task "t1": completed, delivery delivered; agent "a1" (profile "reader"), available`
+with its result, if any, on indented lines under `result:`; `task_status`
+numbers its tasks; `agent_send` gives `agent "a1": queued, task "t1",
+message "m1"; history recorded`; `ask_user` gives one numbered line per answer,
+`1. selected "SQLite"`. IDs and profiles are quoted, to be copied exactly.
+
 ## RoomKit backend
 
 The optional `RoomKitAgentBackend` uses RoomKit's existing delegation runner,
