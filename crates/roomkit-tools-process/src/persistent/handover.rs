@@ -86,7 +86,7 @@ impl ProcessSession {
             crate::persistent_unix::adopt(spawned, (owner, command), status, host);
         reserved.registry.next_id = reserved.next;
         for id in &reserved.releasing {
-            reserved.registry.entries.remove(id);
+            reserved.registry.release(id);
         }
         let done = entry.done.clone();
         reserved

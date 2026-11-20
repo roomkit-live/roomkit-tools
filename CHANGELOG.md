@@ -47,7 +47,11 @@ part of an existing published preview.
   command was killed (`signal=9`) instead of moved, and `process_start` was
   refused. A start is refused only when every job of the owner still runs, or
   the session is full of running jobs and other owners', in words that say
-  which.
+  which. A record released at a quota or forgotten is refused to its owner
+  as such, `p1 was released: a finished process makes room at the quota or
+  when forgotten; its archives, if any, remain readable with output_read`,
+  where it read as an unknown process; another owner still reads it as
+  unknown.
 
 - With `keep_background_jobs`, a shell command moved to the background at
   its timeout keeps its background jobs as in the foreground: once its shell

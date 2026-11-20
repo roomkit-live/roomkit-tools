@@ -265,7 +265,7 @@ impl ProcessSession {
             .get(id)
             .filter(|entry| entry.owner.as_deref() == owner)
             .map(Arc::clone)
-            .ok_or_else(|| ToolError::AccessRefused("unknown process in this owner scope".into()))
+            .ok_or_else(|| registry.missing(owner, id))
     }
 
     /// Check a start request and resolve its initial directory inside the root.
@@ -435,8 +435,7 @@ impl ProcessSession {
                 .registry
                 .lock()
                 .await
-                .entries
-                .remove(&input.process_id)
+                .release(&input.process_id)
                 .is_some()
         } else {
             false
@@ -456,7 +455,8 @@ impl ProcessSession {
     /// Stop and release one owner's records; future calls may establish a new scope.
     /// Returns whether cleanup finished within the collective two-second wait.
     pub async fn close_owner(&self, owner: Option<&str>) -> bool {
-        let registry = self.inner.registry.lock().await;
+        let mut registry = self.inner.registry.lock().await;
+        registry.close_owner(owner);
         let entries = registry
             .entries
             .iter()

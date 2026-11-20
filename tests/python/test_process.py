@@ -291,7 +291,11 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
             # At the quota, the finished record is released for the new job.
             second = (await session.start("sleep 30"))["data"]["process_id"]
             self.assertNotEqual(second, first)
-            with self.assertRaises(AccessRefusedError):
+            with self.assertRaisesRegex(
+                AccessRefusedError,
+                f"{first} was released: a finished process makes room at the quota or when "
+                "forgotten; its archives, if any, remain readable with output_read",
+            ):
                 await session.read(first)
             with self.assertRaisesRegex(
                 LimitExceededError,

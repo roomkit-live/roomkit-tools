@@ -557,6 +557,62 @@ async fn at_its_quota_the_process_that_finished_first_makes_room() {
     assert!(manager.close().await);
 }
 
+/// The refusal of a read of `id` by `owner`.
+#[expect(
+    clippy::panic,
+    reason = "a read that is not refused must fail the test"
+)]
+async fn refusal(manager: &ProcessSession, owner: &str, id: &str) -> String {
+    let token = CancellationToken::new();
+    let read = manager
+        .read(Some(owner), ProcessReadInput::new(id), &token)
+        .await;
+    let Err(ToolError::AccessRefused(message)) = read else {
+        panic!("{read:?}");
+    };
+    message
+}
+
+#[tokio::test]
+async fn a_released_or_forgotten_process_is_named_so_to_its_owner_alone() {
+    let root = tempfile::tempdir().unwrap();
+    let manager = holding_two(root.path()).await;
+    let token = CancellationToken::new();
+    let start =
+        |command: &'static str| manager.start(Some("a"), ProcessStartInput::new(command), &token);
+    for _ in 0..2 {
+        let id = start("true").await.unwrap().data.process_id;
+        finished(&manager, "a", &id).await;
+    }
+    // p1 makes room for p3; p2 is forgotten.
+    start("sleep 30").await.unwrap();
+    let forget = ProcessStopInput {
+        forget: true,
+        ..ProcessStopInput::new("p2")
+    };
+    assert!(
+        manager
+            .stop(Some("a"), forget, &token)
+            .await
+            .unwrap()
+            .data
+            .forgotten
+    );
+    let released = |id: &str| {
+        format!(
+            "{id} was released: a finished process makes room at the quota or when forgotten; \
+             its archives, if any, remain readable with output_read"
+        )
+    };
+    assert_eq!(refusal(&manager, "a", "p1").await, released("p1"));
+    assert_eq!(refusal(&manager, "a", "p2").await, released("p2"));
+    // Another owner's identifier, or one never issued, stays unknown.
+    let unknown = "unknown process in this owner scope";
+    assert_eq!(refusal(&manager, "b", "p1").await, unknown);
+    assert_eq!(refusal(&manager, "a", "p9").await, unknown);
+    assert!(manager.close().await);
+}
+
 #[tokio::test]
 async fn a_start_that_fails_to_spawn_releases_no_finished_process() {
     let root = tempfile::tempdir().unwrap();

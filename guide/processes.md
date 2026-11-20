@@ -199,6 +199,10 @@ room: at a quota, a new job first releases the record of its owner that
 finished first, never a running one nor another owner's, and its archives stay
 in the output store. Only when every job of the owner still runs, or the session is full of
 running jobs and other owners', is a start refused, in words that say which.
+A record released at a quota or forgotten is refused to its owner as such
+(`p1 was released: a finished process makes room at the quota or when
+forgotten; its archives, if any, remain readable with output_read`); to any
+other owner, and after `close_owner`, its ID reads as unknown.
 `stop` sends SIGKILL to the Unix process group at once,
 without a graceful phase, waits up to two seconds and reports `forgotten=False`
 if cleanup is still pending. Lifetime expiry and `close()` stop jobs the same way.

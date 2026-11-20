@@ -1,6 +1,6 @@
 //! Retained job records and the registry that owns them.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -75,9 +75,55 @@ impl Entry {
 pub(super) struct Registry {
     pub(super) next_id: u64,
     pub(super) entries: BTreeMap<String, Arc<Entry>>,
+    /// The numbers of the identifiers each owner's records were released
+    /// under, at a quota or forgotten: a later call names them as such, to
+    /// that owner alone. Kept until the owner closes: a closed session
+    /// refuses every call first.
+    released: BTreeMap<Option<String>, BTreeSet<u64>>,
+}
+
+/// The number of a process identifier, `p<n>` as the session writes it.
+fn number(id: &str) -> Option<u64> {
+    let number = id.strip_prefix('p')?.parse().ok()?;
+    (format!("p{number}") == id).then_some(number)
 }
 
 impl Registry {
+    /// Release the record `id`, as at a quota or by `forget`: it is gone,
+    /// and its owner is told so if it names it again.
+    pub(super) fn release(&mut self, id: &str) -> Option<Arc<Entry>> {
+        let entry = self.entries.remove(id)?;
+        if let Some(number) = number(id) {
+            let owner = entry.owner.clone();
+            self.released.entry(owner).or_default().insert(number);
+        }
+        Some(entry)
+    }
+
+    /// Forget which identifiers `owner`'s released records had.
+    pub(super) fn close_owner(&mut self, owner: Option<&str>) {
+        self.released.remove(&owner.map(str::to_owned));
+    }
+
+    /// The refusal of `id`, which `owner` has no record under: released, if
+    /// its record was, otherwise unknown. Another owner's identifier, past
+    /// or present, is unknown.
+    pub(super) fn missing(&self, owner: Option<&str>, id: &str) -> ToolError {
+        let released = number(id).is_some_and(|number| {
+            self.released
+                .get(&owner.map(str::to_owned))
+                .is_some_and(|numbers| numbers.contains(&number))
+        });
+        ToolError::AccessRefused(if released {
+            format!(
+                "{id} was released: a finished process makes room at the quota or when \
+                 forgotten; its archives, if any, remain readable with output_read"
+            )
+        } else {
+            "unknown process in this owner scope".into()
+        })
+    }
+
     fn held(&self, owner: Option<&str>) -> usize {
         self.entries
             .values()
