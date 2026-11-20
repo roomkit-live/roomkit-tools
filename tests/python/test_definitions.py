@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import unittest
+from pathlib import Path
 
 from roomkit_tools import OutputStore, ProcessSession, ShellTool
 from roomkit_tools.agents import (
     AgentFollowupTool,
     AgentSendTool,
+    AskUserTool,
     CancelTaskTool,
     DelegateTaskTool,
     TaskStatusTool,
@@ -61,6 +64,7 @@ def definitions() -> list[dict]:
     tools = (
         AgentFollowupTool,
         AgentSendTool,
+        AskUserTool,
         CancelTaskTool,
         CodeOutlineTool,
         DelegateTaskTool,
@@ -111,6 +115,11 @@ def schemas_in(schema):
 
 
 class ModelSchemaTest(unittest.TestCase):
+    def test_every_tool_of_the_contract_snapshot_is_checked(self):
+        snapshot = Path(__file__).resolve().parent / "public_api_contracts.json"
+        tools = json.loads(snapshot.read_text(encoding="utf-8"))["tools"]
+        self.assertEqual(sorted(d["name"] for d in definitions()), sorted(tools))
+
     def test_no_schema_carries_what_only_describes_the_rust_type(self):
         for definition in definitions():
             with self.subTest(definition["name"]):
