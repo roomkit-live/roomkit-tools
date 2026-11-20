@@ -194,6 +194,41 @@ async fn a_rust_range_covers_its_doc_comments_and_attributes() {
     assert_eq!(page.data.symbols[1].signature, "#[inline]\nfn first()");
 }
 
+/// Only outer doc comments join a range: an inner doc comment (`//!`), four
+/// slashes, three stars and an empty block comment are plain comments to
+/// Rust. An outer doc comment joins across blank lines, as Rust attaches it.
+#[tokio::test]
+async fn only_outer_doc_comments_join_a_rust_range() {
+    let root = tempfile::tempdir().unwrap();
+    let source = "//! Crate doc.\nfn inner_doc() {}\n\n\
+        //// Not a doc comment.\nfn four_slashes() {}\n\n\
+        /*** Not a doc comment. */\nfn three_stars() {}\n\n\
+        /**/\nfn empty_block() {}\n\n\
+        /// Separated by a blank line.\n\nfn separated() {}\n";
+    std::fs::write(root.path().join("lib.rs"), source).unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let page = tool
+        .outline(CodeOutlineInput::new("lib.rs"), &CancellationToken::new())
+        .await
+        .unwrap();
+    let ranges: Vec<_> = page
+        .data
+        .symbols
+        .iter()
+        .map(|s| (s.name.as_str(), s.start_line, s.end_line))
+        .collect();
+    assert_eq!(
+        ranges,
+        [
+            ("inner_doc", 2, 2),
+            ("four_slashes", 5, 5),
+            ("three_stars", 8, 8),
+            ("empty_block", 11, 11),
+            ("separated", 13, 15),
+        ]
+    );
+}
+
 #[tokio::test]
 async fn revisions_detect_changes_and_output_is_bounded_without_losing_symbols() {
     let root = tempfile::tempdir().unwrap();
