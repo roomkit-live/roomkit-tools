@@ -211,9 +211,12 @@ fn existing(
 fn occurrences(source: &str, old_text: &str, replace_all: bool) -> Result<usize, ToolError> {
     let count = source.matches(old_text).count();
     if count == 0 {
-        return Err(ToolError::InvalidInput(
-            "old_text was not found; read the file again".into(),
-        ));
+        return Err(ToolError::InvalidInput(match line_number(old_text) {
+            Some(number) => format!(
+                "old_text was not found: it starts with {number:?}, the line number read shows; give the text after it"
+            ),
+            None => "old_text was not found; read the file again".into(),
+        }));
     }
     if count > 1 && !replace_all {
         return Err(ToolError::InvalidInput(format!(
@@ -221,6 +224,14 @@ fn occurrences(source: &str, old_text: &str, replace_all: bool) -> Result<usize,
         )));
     }
     Ok(count)
+}
+
+/// The `N: ` that `read` shows before each line, when `old_text` starts
+/// with it.
+fn line_number(old_text: &str) -> Option<&str> {
+    let (number, _) = old_text.split_once(": ")?;
+    let digits = !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit());
+    digits.then(|| old_text.get(..number.len() + 2)).flatten()
 }
 
 /// Size of the edited file, refused above the file bound.

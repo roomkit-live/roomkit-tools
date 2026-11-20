@@ -180,6 +180,12 @@ part of an existing published preview.
   special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
   non-public, where the whole /16 was.
 
+- Three refusals say what to do: `read` past the end gives the file's line
+  count (`offset 9 is beyond the end of the file, which has 3 lines`);
+  `write` with `expected_revision` on a missing file says `the file does not
+  exist; omit expected_revision` instead of that the file changed; and `edit`
+  whose `old_text` starts with `read`'s line number (`12: `) names it.
+
 - `grep` caps `context_before` and `context_after` at `max_context_lines`
   (20 by default), as `diff` caps its context, and the facts line states the
   context used, `[context_before=20, context_after=20]`: asking for 30 lines

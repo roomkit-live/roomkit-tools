@@ -71,6 +71,40 @@ async fn the_host_caps_a_models_requested_line_count() {
     assert_eq!(output.data.next_offset, Some(2));
 }
 
+/// An offset past the end is refused with the file's line count, so the
+/// model knows where the file ends.
+#[tokio::test]
+async fn an_offset_past_the_end_gives_the_file_s_line_count() {
+    let (_directory, tool) = fixture(b"one\ntwo\nthree\n").await;
+    for (offset, message) in [
+        (
+            9,
+            "offset 9 is beyond the end of the file, which has 3 lines",
+        ),
+        (
+            4,
+            "offset 4 is beyond the end of the file, which has 3 lines",
+        ),
+    ] {
+        let mut input = ReadInput::new("source.txt");
+        input.offset = NonZeroUsize::new(offset).unwrap();
+        let refused = tool.read(input, &CancellationToken::new()).await;
+        assert!(
+            matches!(&refused, Err(ToolError::InvalidInput(text)) if text == message),
+            "{refused:?}"
+        );
+    }
+    let (_directory, tool) = fixture(b"one").await;
+    let mut input = ReadInput::new("source.txt");
+    input.offset = NonZeroUsize::new(2).unwrap();
+    let refused = tool.read(input, &CancellationToken::new()).await;
+    assert!(
+        matches!(&refused, Err(ToolError::InvalidInput(text))
+            if text == "offset 2 is beyond the end of the file, which has 1 line"),
+        "{refused:?}"
+    );
+}
+
 #[tokio::test]
 async fn an_empty_file_has_an_empty_first_page() {
     let (_directory, tool) = fixture(b"").await;

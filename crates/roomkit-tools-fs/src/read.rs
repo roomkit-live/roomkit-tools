@@ -361,9 +361,11 @@ impl Page {
             self.end_line()?;
         }
         if self.offset > self.total && !(self.offset == 1 && self.total == 0) {
-            return Err(ToolError::InvalidInput(
-                "offset is beyond the end of the file".into(),
-            ));
+            let lines = if self.total == 1 { "line" } else { "lines" };
+            return Err(ToolError::InvalidInput(format!(
+                "offset {} is beyond the end of the file, which has {} {lines}",
+                self.offset, self.total
+            )));
         }
         let mut text = self.text;
         append_facts(

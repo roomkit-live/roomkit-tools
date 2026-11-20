@@ -25,10 +25,13 @@ pub(crate) fn check(expected: Option<&str>, bytes: Option<&[u8]>) -> Result<(), 
             "expected_revision must be a sha256 revision returned by read, write or edit".into(),
         ));
     }
-    if bytes.is_none_or(|bytes| of(bytes) != expected) {
-        return Err(ToolError::AccessRefused(
+    match bytes {
+        None => Err(ToolError::AccessRefused(
+            "the file does not exist; omit expected_revision".into(),
+        )),
+        Some(bytes) if of(bytes) != expected => Err(ToolError::AccessRefused(
             "file does not match expected_revision; read it again before changing it".into(),
-        ));
+        )),
+        Some(_) => Ok(()),
     }
-    Ok(())
 }

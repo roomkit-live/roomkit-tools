@@ -211,3 +211,48 @@ async fn shared_mutation_lock_covers_the_revision_check() {
         "count=2\nowner=Alex\n" | "count=1\nowner=Drew\n"
     ));
 }
+
+/// A revision for a file that does not exist says what to do: there is no
+/// revision to check, so leave it out to create the file.
+#[tokio::test]
+async fn a_revision_for_a_missing_file_says_to_omit_it() {
+    let root = tempfile::tempdir().unwrap();
+    let mut input = WriteInput::new("absent.txt", "x\n");
+    input.expected_revision = Some(format!("sha256:{}", "0".repeat(64)));
+    let refused = WriteTool::new(root.path())
+        .await
+        .unwrap()
+        .write(input, &CancellationToken::new())
+        .await;
+    assert!(
+        matches!(&refused, Err(ToolError::AccessRefused(message))
+            if message == "the file does not exist; omit expected_revision"),
+        "{refused:?}"
+    );
+    assert!(!root.path().join("absent.txt").exists());
+}
+
+/// `old_text` copied with the line number `read` shows is named as such.
+#[tokio::test]
+async fn old_text_with_read_s_line_number_says_so() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("notes"), "new\nsecond\n").unwrap();
+    let edit = EditTool::new(root.path()).await.unwrap();
+    let cancel = CancellationToken::new();
+    let refused = edit
+        .edit(EditInput::new("notes", "12: second", "x"), &cancel)
+        .await;
+    assert!(
+        matches!(&refused, Err(ToolError::InvalidInput(message))
+            if message == "old_text was not found: it starts with \"12: \", the line number read shows; give the text after it"),
+        "{refused:?}"
+    );
+    let refused = edit
+        .edit(EditInput::new("notes", "absent", "x"), &cancel)
+        .await;
+    assert!(
+        matches!(&refused, Err(ToolError::InvalidInput(message))
+            if message == "old_text was not found; read the file again"),
+        "{refused:?}"
+    );
+}
