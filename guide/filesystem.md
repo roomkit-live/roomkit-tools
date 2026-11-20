@@ -85,7 +85,11 @@ rule, the deepest matching rule of each kind first. An ignore file over
 one the scan cannot read fails it naming the file.
 Child symlinks are not traversed. Grep supports Rust regex syntax, `literal=True`,
 `ignore_case=True`, `include`, `context_before` and `context_after`.
-It skips binary/non-UTF-8 files and reports `data.skipped_files`. All three
+It skips binary and non-UTF-8 files, and files over `max_file_bytes`, and
+reports them in `data.skipped_files`; the facts line names the first one, as
+`first_skipped_file="scan.pdf"`. A file whose first 8 KiB hold a NUL or bytes
+that are not UTF-8 is binary: the rest of it is not read, nor counted toward
+`max_total_bytes`. All three
 tools skip entries whose names are not UTF-8, without searching a skipped
 directory, and report them in `data.skipped_entries`. A grep `include` without
 `/` filters file names at any depth, as `rg -g` does: `*.rs` keeps every Rust
@@ -116,8 +120,9 @@ Host bounds are explicit constructor keywords for both APIs:
 | `Grep` / `GrepTool` | Same glob bounds, plus `max_file_bytes=8388608`, `max_total_bytes=33554432`, `max_context_lines=20` per side, `max_line_bytes=65536` |
 
 Omitted bounds retain Rust defaults. Bounds must be positive, except
-`max_context_lines=0` disables context. Traversal or ingestion limits fail the
-call; output pagination is reported explicitly. Run the standalone
+`max_context_lines=0` disables context. Traversal limits and
+`max_total_bytes` fail the call; a file over `max_file_bytes` is skipped and
+counted, and output pagination is reported explicitly. Run the standalone
 [discovery example](../examples/discover_files.py) with
 `.venv/bin/python examples/discover_files.py`; it needs no RoomKit or model.
 

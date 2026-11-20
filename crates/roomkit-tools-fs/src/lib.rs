@@ -12,6 +12,7 @@ mod edit;
 mod glob;
 mod grep;
 mod grep_include;
+mod grep_read;
 mod grep_scan;
 mod ignores;
 mod line_endings;

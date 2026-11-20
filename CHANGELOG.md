@@ -180,6 +180,13 @@ part of an existing published preview.
   special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
   non-public, where the whole /16 was.
 
+- `grep` skips a file over `max_file_bytes` and counts it in
+  `skipped_files`, as it does a binary file, instead of failing the whole
+  search: a 9 MiB PDF beside the sources made every search fail. A file is
+  known as binary from its first 8 KiB; the rest of it is neither read nor
+  counted toward `max_total_bytes`. The facts line names the first file
+  skipped, `first_skipped_file="scan.pdf"`.
+
 - A shell command can run on in the background as a process. With
   `ShellTool.create(processes=session)` (Rust: `ShellTool::with_processes`),
   `shell(..., run_in_background=True)` starts it as one of the session's

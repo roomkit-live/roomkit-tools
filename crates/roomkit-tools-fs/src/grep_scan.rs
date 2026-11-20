@@ -5,10 +5,7 @@
 //! and hands the regex at most `max_line_bytes` at a time.
 
 use std::collections::VecDeque;
-use std::fs::File;
-use std::io::Read;
 use std::num::NonZeroUsize;
-use std::path::Path;
 
 use regex::Regex;
 use roomkit_tools_core::{Output, ToolError};
@@ -17,6 +14,7 @@ use tokio_util::sync::CancellationToken;
 use crate::ReadLine;
 use crate::grep::{GrepInput, GrepLimits, GrepMatch, GrepPage};
 use crate::grep_include::Include;
+use crate::grep_read::{self, Content};
 use crate::paths::{PathEntry, PathKind, Root};
 use crate::worker::check;
 
@@ -59,10 +57,22 @@ pub(crate) fn run(
         }
         let resolved = root.resolve_blocking(&file.path)?;
         let remaining = limits.max_total_bytes - ingested;
-        let bytes = read_bounded(&resolved, limits.max_file_bytes.min(remaining))?;
+        let bytes = match grep_read::read(&resolved, limits.max_file_bytes, remaining)? {
+            Content::Read(bytes) => bytes,
+            Content::Skipped { read } => {
+                ingested += read;
+                page.skip(&file.path);
+                continue;
+            }
+            Content::OverBudget => {
+                return Err(ToolError::LimitExceeded(
+                    "grep exceeds max_total_bytes".into(),
+                ));
+            }
+        };
         ingested += bytes.len();
         let Some(source) = text(&bytes) else {
-            page.data.skipped_files += 1;
+            page.skip(&file.path);
             continue;
         };
         let lines = Lines {
@@ -85,40 +95,6 @@ fn text(bytes: &[u8]) -> Option<&str> {
     std::str::from_utf8(source)
         .ok()
         .filter(|source| !source.contains('\0'))
-}
-
-fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>, ToolError> {
-    let exceeded =
-        || ToolError::LimitExceeded("grep exceeds max_file_bytes or max_total_bytes".into());
-    let info = std::fs::metadata(path).map_err(|source| ToolError::Io {
-        operation: "inspect the search file",
-        source,
-    })?;
-    if !info.is_file() {
-        return Err(ToolError::UnsupportedResource(
-            "grep accepts regular files only".into(),
-        ));
-    }
-    let maximum = u64::try_from(maximum)
-        .map_err(|_| ToolError::InvalidInput("ingestion limit is too large".into()))?;
-    if info.len() > maximum {
-        return Err(exceeded());
-    }
-    let file = File::open(path).map_err(|source| ToolError::Io {
-        operation: "open the search file",
-        source,
-    })?;
-    let mut bytes = Vec::new();
-    file.take(maximum + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|source| ToolError::Io {
-            operation: "read the search file",
-            source,
-        })?;
-    if u64::try_from(bytes.len()).map_or(true, |len| len > maximum) {
-        return Err(exceeded());
-    }
-    Ok(bytes)
 }
 
 /// The lines of one file and what to look for in them.
@@ -163,6 +139,8 @@ impl Lines<'_> {
 /// A page of matches being filled within the output budget.
 pub(crate) struct Matches {
     pub(crate) data: GrepPage,
+    /// The first file skipped, named in the facts.
+    first_skipped: Option<String>,
     text: String,
     seen: usize,
     offset: usize,
@@ -182,6 +160,7 @@ impl Matches {
                 skipped_entries: 0,
                 skipped_lines: 0,
             },
+            first_skipped: None,
             text: String::new(),
             seen: 0,
             offset: input.offset.get(),
@@ -221,6 +200,13 @@ impl Matches {
         Ok(true)
     }
 
+    /// Count a file skipped as binary, non-UTF-8 or over `max_file_bytes`.
+    fn skip(&mut self, path: &str) {
+        self.data.skipped_files += 1;
+        self.first_skipped
+            .get_or_insert_with(|| format!("{path:?}"));
+    }
+
     fn end_page(&mut self) -> bool {
         self.data.truncated = true;
         self.data.next_offset = Some(self.seen);
@@ -254,6 +240,7 @@ impl Matches {
                 ),
                 ("clipped", clipped),
                 ("skipped_files", count(self.data.skipped_files)),
+                ("first_skipped_file", self.first_skipped),
                 ("skipped_entries", count(self.data.skipped_entries)),
                 ("skipped_lines", count(self.data.skipped_lines)),
             ],

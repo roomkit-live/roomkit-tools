@@ -101,7 +101,8 @@ pub struct GrepPage {
     pub truncated: bool,
     /// One-based match offset for the next page, or `None` at the end.
     pub next_offset: Option<usize>,
-    /// Files skipped as binary or non-UTF-8 before this page ended.
+    /// Files skipped as binary, non-UTF-8 or larger than `max_file_bytes`
+    /// before this page ended; the text names the first.
     pub skipped_files: usize,
     /// Entries left out of the whole scan because their names are not UTF-8;
     /// a skipped directory is not searched.
@@ -121,7 +122,8 @@ pub struct GrepLimits {
     pub max_scan_entries: usize,
     /// Maximum directory levels scanned; starting directory is level one. Default: 32.
     pub max_depth: usize,
-    /// Maximum bytes ingested from one file. Default: 8 MiB.
+    /// Largest file searched, in bytes; a larger one is skipped and counted
+    /// in `skipped_files`. Default: 8 MiB.
     pub max_file_bytes: usize,
     /// Maximum bytes ingested across all scanned files in one call. Default: 32 MiB.
     pub max_total_bytes: usize,
@@ -153,9 +155,12 @@ impl Default for GrepLimits {
 ///
 /// Hidden files are included. Unless `include_ignored`, what the
 /// `.gitignore` and `.ignore` files of the workspace exclude, and `.git`, are
-/// not searched. Binary and non-UTF-8 files are skipped and counted. Other read failures and ingestion
-/// limits fail the call. A fresh scan is made for every page. Reading and
-/// matching run on a blocking worker, never on the async executor.
+/// not searched. Binary and non-UTF-8 files, and files over
+/// `max_file_bytes`, are skipped and counted; binary content is told from a
+/// file's first 8 KiB, and the rest of it is not read. Other read failures
+/// and ingestion limits fail the call. A fresh scan is made for every page.
+/// Reading and matching run on a blocking worker, never on the async
+/// executor.
 #[derive(Clone, Debug)]
 pub struct GrepTool {
     root: Root,
@@ -203,7 +208,7 @@ impl GrepTool {
     pub fn definition() -> Definition {
         Definition::new::<GrepInput, GrepPage>(
             "grep",
-            "Search UTF-8 file contents, one match per line. Hidden files are searched; what .gitignore or .ignore excludes, and .git, are skipped unless include_ignored; child symlinks are not followed; binary files and lines over the host's bound are skipped and counted (skipped_lines). clipped: true marks a match cut to fit, shown without context. Continue with next_offset.",
+            "Search UTF-8 file contents, one match per line. Hidden files are searched; what .gitignore or .ignore excludes, and .git, are skipped unless include_ignored; child symlinks are not followed; binary files and files over the host's size bound are skipped and counted (skipped_files), as are lines over its line bound (skipped_lines). clipped: true marks a match cut to fit, shown without context. Continue with next_offset.",
         )
     }
 

@@ -382,23 +382,34 @@ async fn grep_caps_file_bytes_total_bytes_matches_and_rendered_bytes() {
     for file in ["a", "b"] {
         std::fs::write(root.path().join(file), "hit\n").unwrap();
     }
-    for (file_limit, total_limit) in [(3, 100), (100, 7)] {
-        let limits = GrepLimits {
-            max_file_bytes: file_limit,
-            max_total_bytes: total_limit,
+    let small_files = GrepTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(GrepLimits {
+            max_file_bytes: 3,
             ..GrepLimits::default()
-        };
-        let tool = GrepTool::new(root.path())
-            .await
-            .unwrap()
-            .with_limits(limits)
-            .unwrap();
-        assert!(matches!(
-            tool.grep(GrepInput::new("hit"), &CancellationToken::new())
-                .await,
-            Err(ToolError::LimitExceeded(_))
-        ));
-    }
+        })
+        .unwrap();
+    let skipped = small_files
+        .grep(GrepInput::new("hit"), &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(skipped.data.matches, []);
+    assert_eq!(skipped.data.skipped_files, 2);
+    let small_total = GrepTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(GrepLimits {
+            max_total_bytes: 7,
+            ..GrepLimits::default()
+        })
+        .unwrap();
+    assert!(matches!(
+        small_total
+            .grep(GrepInput::new("hit"), &CancellationToken::new())
+            .await,
+        Err(ToolError::LimitExceeded(_))
+    ));
     let mut limits = GrepLimits {
         max_matches: 1,
         ..GrepLimits::default()
