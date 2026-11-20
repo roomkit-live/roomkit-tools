@@ -151,7 +151,10 @@ two-second wait and `True`/`False` result as `close()`, while the session
 stays open for every owner, that one included.
 `status()` lists retained jobs, including completed ones, under `processes`
 (`{"processes": [...]}`, one entry for a named job). `start` returns an ID
-with open stdin, not proof of command completion. Commands use `/bin/sh -c`
+with open stdin, not proof of command completion; its text says how long the
+job may run (`p1 started; stopped after 300000 ms unless it ends first; use
+process_read for output`), as does that of a shell command started with
+`run_in_background`. Commands use `/bin/sh -c`
 with the same host permissions, environment options, initial-cwd boundary and
 new session without a terminal as shell.
 

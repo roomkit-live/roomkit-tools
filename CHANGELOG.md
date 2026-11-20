@@ -6,6 +6,11 @@ part of an existing published preview.
 
 ## Unreleased
 
+- `process_start` and a shell command started with `run_in_background` say
+  how long the process may run: `p1 started; stopped after 300000 ms unless
+  it ends first; use process_read for output`. Nothing told a model that its
+  server would be stopped after five minutes.
+
 - With `background_on_timeout`, a shell `timeout_ms` above the host maximum
   is capped to it rather than refused, and the result's text says so
   (`timeout_ms 300000 capped to the host maximum of 120000 ms`): the

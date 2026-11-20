@@ -119,9 +119,11 @@ async fn a_background_command_returns_at_once_as_a_process_of_its_owner() {
         result.timeout_ms,
         ProcessLimits::default().default_timeout_ms
     );
-    assert!(
-        text.contains("p1") && text.contains("process_read"),
-        "{text}"
+    // How long it may run, said when it starts.
+    assert_eq!(
+        text,
+        "p1 started in the background; stopped after 300000 ms unless it ends first; \
+         read its output with process_read\n"
     );
     // The owner's process, which another owner does not reach.
     let foreign = processes

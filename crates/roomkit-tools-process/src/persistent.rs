@@ -323,8 +323,9 @@ impl ProcessSession {
             // No await after spawn: ownership and the recoverable ID are committed together.
             let status = self.commit(reserved, (owner, &input.command), status, spawned, None);
             let mut text = format!(
-                "{} started; use process_read for output\n",
-                status.process_id
+                "{} started; {}; use process_read for output\n",
+                status.process_id,
+                lifetime(&status)
             );
             crate::output::append_metadata(
                 &mut text,
@@ -595,6 +596,15 @@ fn status_line(status: &ProcessStatus) -> String {
         let _written = write!(line, ", error={error:?}");
     }
     line
+}
+
+/// How long a process that just started may run, as its start says it.
+#[cfg(unix)]
+pub(crate) fn lifetime(status: &ProcessStatus) -> String {
+    format!(
+        "stopped after {} ms unless it ends first",
+        status.timeout_ms
+    )
 }
 
 /// How a process ended, under its name in the structured result.

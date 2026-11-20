@@ -71,8 +71,9 @@ pub(crate) async fn moved(
 /// The result of a command started in the background as `status`'s process.
 pub(crate) fn started(status: ProcessStatus) -> Output<ShellResult> {
     let text = format!(
-        "{} started in the background; read its output with process_read\n",
-        status.process_id
+        "{} started in the background; {}; read its output with process_read\n",
+        status.process_id,
+        crate::persistent::lifetime(&status)
     );
     let none = || CapturedOutput {
         text: String::new(),

@@ -251,10 +251,14 @@ async fn a_process_reads_under_the_names_its_tools_describe() {
         .await
         .unwrap();
     let id = started.data.process_id.clone();
-    // A stream with nothing stored has nothing to read back.
+    // A stream with nothing stored has nothing to read back. How long the
+    // process may run is said when it starts.
     assert_eq!(
         started.text,
-        format!("{id} started; use process_read for output\n")
+        format!(
+            "{id} started; stopped after 300000 ms unless it ends first; use process_read for \
+             output\n"
+        )
     );
 
     let mut read = session
