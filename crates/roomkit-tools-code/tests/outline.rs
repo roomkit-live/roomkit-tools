@@ -73,10 +73,46 @@ async fn each_symbol_is_one_line_with_its_signature_collapsed() {
     assert!(
         clipped
             .text
-            .contains("\n2 [2-8] ^1 #[inline] pub fn add( [signature_truncated]\n"),
+            .contains("\n2 [2-8] ^1 #[inline] pub fn add( [signature_truncated: method \"add\"]\n"),
         "{}",
         clipped.text
     );
+}
+
+/// A signature clipped before the declaration, behind a long decorator or
+/// attribute, still names the symbol and its kind.
+#[tokio::test]
+async fn a_signature_clipped_before_its_declaration_still_names_the_symbol() {
+    let root = tempfile::tempdir().unwrap();
+    let rows: Vec<String> = (0..60).map(|n| format!("    ({n}, \"{n}\"),")).collect();
+    let python = format!(
+        "@pytest.mark.parametrize(\n    \"value, expected\",\n    [\n{}\n    ],\n)\n\
+         def test_conversion(value, expected):\n    assert str(value) == expected\n",
+        rows.join("\n")
+    );
+    let rust = format!(
+        "#[doc = \"{}\"]\npub struct Documented;\n",
+        "x".repeat(1100)
+    );
+    std::fs::write(root.path().join("test_table.py"), python).unwrap();
+    std::fs::write(root.path().join("lib.rs"), rust).unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    for (path, named) in [
+        (
+            "test_table.py",
+            " [signature_truncated: function \"test_conversion\"]\n",
+        ),
+        ("lib.rs", " [signature_truncated: struct \"Documented\"]\n"),
+    ] {
+        let page = tool
+            .outline(CodeOutlineInput::new(path), &token)
+            .await
+            .unwrap();
+        assert!(page.data.symbols[0].signature_truncated, "{path}");
+        let line = page.text.lines().nth(1).unwrap();
+        assert!(format!("{line}\n").ends_with(named), "{path}: {line}");
+    }
 }
 
 /// A Rust symbol's range covers the attributes and outer doc comments

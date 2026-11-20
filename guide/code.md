@@ -54,7 +54,9 @@ and is compatible with the filesystem tools' revisions.
 The `text` a model reads gives one line per symbol: its index, line range,
 `^` and its parent's index, and its signature with whitespace collapsed, as in
 `2 [2-3] ^1 def calculate_fee(self, subtotal):`; `data` keeps each header as
-written.
+written. A clipped signature may end before the declaration, behind a long
+decorator or attribute, so its line ends with the kind and name:
+`[signature_truncated: function "test_conversion"]`.
 
 Inspect `syntax_errors` for parser recovery, `signature_truncated` for shortened
 headers, and `truncated` / `next_offset` for further symbols. Invalid source can

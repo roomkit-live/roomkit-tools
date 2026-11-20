@@ -3,7 +3,9 @@ use std::fmt::Write as _;
 use roomkit_tools_core::{Output, ToolError};
 
 use crate::extract::{Control, SourceOutline};
-use crate::{CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage, CodeSymbol};
+use crate::{
+    CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage, CodeSymbol, SymbolKind,
+};
 
 pub(crate) fn render(
     path: String,
@@ -78,9 +80,11 @@ pub(crate) fn render(
 }
 
 /// One line per symbol, `24 [158-475] ^3 impl Profiles`: its index, range,
-/// parent and signature. The signature names the kind and the symbol; its
-/// whitespace is collapsed, since a header spread over lines took most of
-/// the text. `data` keeps the source header.
+/// parent and signature. A whole signature names the kind and the symbol;
+/// its whitespace is collapsed, since a header spread over lines took most
+/// of the text. A clipped one may end before the declaration, behind a long
+/// decorator or attribute, so the line then names both after it. `data`
+/// keeps the source header.
 fn symbol_line(text: &mut String, symbol: &CodeSymbol) {
     let _ = write!(
         text,
@@ -95,9 +99,22 @@ fn symbol_line(text: &mut String, symbol: &CodeSymbol) {
         text.push_str(word);
     }
     if symbol.signature_truncated {
-        text.push_str(" [signature_truncated]");
+        let _ = write!(
+            text,
+            " [signature_truncated: {} {:?}]",
+            kind(symbol.kind),
+            symbol.name
+        );
     }
     text.push('\n');
+}
+
+/// A kind as the schema spells it.
+fn kind(value: SymbolKind) -> String {
+    serde_json::to_value(value)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default()
 }
 
 fn size(output: &Output<CodeOutlinePage>) -> Result<usize, ToolError> {

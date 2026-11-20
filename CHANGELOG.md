@@ -102,7 +102,9 @@ part of an existing published preview.
   parent and signature with whitespace collapsed
   (`2 [2-3] ^1 def calculate_fee(self, subtotal):`), where each symbol took
   a heading line and its header as written, over several lines for a long
-  one. `data` is unchanged.
+  one. A clipped signature, which may end before the declaration behind a
+  long decorator or attribute, is followed by the kind and name:
+  `[signature_truncated: function "test_conversion"]`. `data` is unchanged.
 
 - `code_outline` on a file of another extension answers
   `code_outline reads .rs, .py and .pyi files; use read for Makefile`, where
