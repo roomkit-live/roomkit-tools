@@ -11,7 +11,8 @@ use roomkit_tools_core::ToolError;
 /// binary file is neither read nor charged.
 const HEAD_BYTES: usize = 8 * 1024;
 
-/// What reading one file gave the search.
+/// What reading one file gave the search. No content holds or charges more
+/// bytes than the call could still read.
 pub(crate) enum Content {
     /// The file's bytes, to be checked as UTF-8 text.
     Read(Vec<u8>),
@@ -43,42 +44,54 @@ pub(crate) fn read(
     if size > max_file_bytes {
         return Ok(Content::Skipped { read: 0 });
     }
-    if size.min(HEAD_BYTES) > remaining {
-        return Ok(Content::OverBudget);
-    }
-    let mut file = File::open(path).map_err(|source| ToolError::Io {
+    let file = File::open(path).map_err(|source| ToolError::Io {
         operation: "open the search file",
         source,
     })?;
+    read_from(file, size, max_file_bytes, remaining)
+}
+
+/// What `reader`, inspected as `size` bytes, gives the search. A file can
+/// grow after it was inspected, so every read is bounded by what may still
+/// be read, and a read past it is over budget whatever it holds.
+fn read_from(
+    mut reader: impl Read,
+    size: usize,
+    max_file_bytes: usize,
+    remaining: usize,
+) -> Result<Content, ToolError> {
+    if size.min(HEAD_BYTES) > remaining {
+        return Ok(Content::OverBudget);
+    }
+    // One byte past a bound tells that the file exceeds it.
+    let head = HEAD_BYTES.min(remaining.saturating_add(1));
     let mut bytes = Vec::new();
-    read_up_to(&mut file, HEAD_BYTES, &mut bytes)?;
-    if binary(&bytes, bytes.len() < HEAD_BYTES) {
+    read_up_to(&mut reader, head, &mut bytes)?;
+    if bytes.len() > remaining {
+        return Ok(Content::OverBudget);
+    }
+    if binary(&bytes, bytes.len() < head) {
         return Ok(Content::Skipped { read: bytes.len() });
     }
     if size > remaining {
         return Ok(Content::OverBudget);
     }
-    // The file may have grown since it was inspected: one byte past what may
-    // be read tells it.
-    let maximum = max_file_bytes.min(remaining);
-    read_up_to(
-        &mut file,
-        maximum.saturating_sub(bytes.len()) + 1,
-        &mut bytes,
-    )?;
-    Ok(if bytes.len() > max_file_bytes {
-        Content::Skipped { read: bytes.len() }
-    } else if bytes.len() > remaining {
+    let maximum = max_file_bytes.min(remaining).saturating_add(1);
+    read_up_to(&mut reader, maximum.saturating_sub(bytes.len()), &mut bytes)?;
+    Ok(if bytes.len() > remaining {
         Content::OverBudget
+    } else if bytes.len() > max_file_bytes {
+        Content::Skipped { read: bytes.len() }
     } else {
         Content::Read(bytes)
     })
 }
 
-/// Append at most `limit` more bytes of `file` to `bytes`.
-fn read_up_to(file: &mut File, limit: usize, bytes: &mut Vec<u8>) -> Result<(), ToolError> {
+/// Append at most `limit` more bytes of `reader` to `bytes`.
+fn read_up_to(reader: impl Read, limit: usize, bytes: &mut Vec<u8>) -> Result<(), ToolError> {
     let limit = u64::try_from(limit).unwrap_or(u64::MAX);
-    file.take(limit)
+    reader
+        .take(limit)
         .read_to_end(bytes)
         .map(|_read| ())
         .map_err(|source| ToolError::Io {
@@ -112,5 +125,47 @@ mod tests {
         assert!(binary(b"\xff", false));
         assert!(binary(b"a\0b", false));
         assert!(!binary("text π".as_bytes(), true));
+    }
+
+    /// The bytes a content charges to the call's budget.
+    fn charged(content: &Content) -> usize {
+        match content {
+            Content::Read(bytes) => bytes.len(),
+            Content::Skipped { read } => *read,
+            Content::OverBudget => 0,
+        }
+    }
+
+    /// A file longer than when it was inspected never makes a read charge
+    /// more than the call may still read: text or binary, head or rest.
+    #[test]
+    fn a_file_grown_since_inspected_never_exceeds_the_remaining_bytes() {
+        for first in [b'a', 0] {
+            for length in [
+                1,
+                9,
+                HEAD_BYTES - 1,
+                HEAD_BYTES,
+                HEAD_BYTES + 9,
+                3 * HEAD_BYTES,
+            ] {
+                let mut file = vec![b'a'; length];
+                file[0] = first;
+                for size in [0, 1, length / 2, length] {
+                    for remaining in [0, 1, 8, HEAD_BYTES, 2 * HEAD_BYTES, 4 * HEAD_BYTES] {
+                        for max_file_bytes in [size.max(1), 2 * HEAD_BYTES, usize::MAX] {
+                            let content =
+                                read_from(file.as_slice(), size, max_file_bytes, remaining)
+                                    .unwrap();
+                            let case = (first, length, size, remaining, max_file_bytes);
+                            assert!(charged(&content) <= remaining, "{case:?}");
+                            if let Content::Read(bytes) = &content {
+                                assert!(bytes.len() <= max_file_bytes, "{case:?}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

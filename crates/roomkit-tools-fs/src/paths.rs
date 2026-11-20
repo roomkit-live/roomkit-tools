@@ -148,6 +148,25 @@ impl Root {
     }
 }
 
+/// Where a host bound left a scan incomplete.
+#[derive(Clone, Debug)]
+pub(crate) struct Stop {
+    /// The bound's name, as the host sets it: `max_total_bytes`, for one.
+    pub(crate) bound: &'static str,
+    /// Workspace-relative path where the scan stopped.
+    pub(crate) path: String,
+}
+
+impl Stop {
+    /// The facts that tell a model the result is incomplete, and where.
+    pub(crate) fn facts(stop: Option<&Self>) -> [(&'static str, Option<String>); 2] {
+        [
+            ("truncated_by", stop.map(|stop| stop.bound.to_owned())),
+            ("stopped_at", stop.map(|stop| format!("{:?}", stop.path))),
+        ]
+    }
+}
+
 pub(crate) fn workspace_path() -> String {
     ".".into()
 }

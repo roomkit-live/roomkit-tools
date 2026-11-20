@@ -404,12 +404,13 @@ async fn grep_caps_file_bytes_total_bytes_matches_and_rendered_bytes() {
             ..GrepLimits::default()
         })
         .unwrap();
-    assert!(matches!(
-        small_total
-            .grep(GrepInput::new("hit"), &CancellationToken::new())
-            .await,
-        Err(ToolError::LimitExceeded(_))
-    ));
+    let stopped = small_total
+        .grep(GrepInput::new("hit"), &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(stopped.data.matches.len(), 1);
+    assert!(stopped.data.truncated);
+    assert_eq!(stopped.data.next_offset, None);
     let mut limits = GrepLimits {
         max_matches: 1,
         ..GrepLimits::default()

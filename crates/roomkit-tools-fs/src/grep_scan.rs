@@ -15,7 +15,7 @@ use crate::ReadLine;
 use crate::grep::{GrepInput, GrepLimits, GrepMatch, GrepPage};
 use crate::grep_include::Include;
 use crate::grep_read::{self, Content};
-use crate::paths::{PathEntry, PathKind, Root};
+use crate::paths::{PathEntry, PathKind, Root, Stop};
 use crate::worker::check;
 
 /// One prepared search, moved onto a blocking worker.
@@ -56,7 +56,7 @@ pub(crate) fn run(
             continue;
         }
         let resolved = root.resolve_blocking(&file.path)?;
-        let remaining = limits.max_total_bytes - ingested;
+        let remaining = limits.max_total_bytes.saturating_sub(ingested);
         let bytes = match grep_read::read(&resolved, limits.max_file_bytes, remaining)? {
             Content::Read(bytes) => bytes,
             Content::Skipped { read } => {
@@ -65,9 +65,11 @@ pub(crate) fn run(
                 continue;
             }
             Content::OverBudget => {
-                return Err(ToolError::LimitExceeded(
-                    "grep exceeds max_total_bytes".into(),
-                ));
+                page.stop(Stop {
+                    bound: "max_total_bytes",
+                    path: file.path.clone(),
+                });
+                break;
             }
         };
         ingested += bytes.len();
@@ -141,6 +143,8 @@ pub(crate) struct Matches {
     pub(crate) data: GrepPage,
     /// The first file skipped, named in the facts.
     first_skipped: Option<String>,
+    /// Where a host bound stopped the search before the page was full.
+    stopped: Option<Stop>,
     text: String,
     seen: usize,
     offset: usize,
@@ -161,6 +165,7 @@ impl Matches {
                 skipped_lines: 0,
             },
             first_skipped: None,
+            stopped: None,
             text: String::new(),
             seen: 0,
             offset: input.offset.get(),
@@ -207,6 +212,13 @@ impl Matches {
             .get_or_insert_with(|| format!("{path:?}"));
     }
 
+    /// End the search at a host bound: the matches found so far are the
+    /// last ones this call can return.
+    fn stop(&mut self, stop: Stop) {
+        self.data.truncated = true;
+        self.stopped = Some(stop);
+    }
+
     fn end_page(&mut self) -> bool {
         self.data.truncated = true;
         self.data.next_offset = Some(self.seen);
@@ -214,7 +226,11 @@ impl Matches {
     }
 
     fn finish(self) -> Result<Output<GrepPage>, ToolError> {
-        if self.offset > self.seen && !(self.offset == 1 && self.seen == 0) {
+        // A stopped search cannot tell whether matches lie past the offset.
+        if self.stopped.is_none()
+            && self.offset > self.seen
+            && !(self.offset == 1 && self.seen == 0)
+        {
             return Err(ToolError::InvalidInput(
                 "offset is beyond the last match".into(),
             ));
@@ -231,6 +247,7 @@ impl Matches {
             .iter()
             .any(|found| found.clipped)
             .then(|| "true".to_owned());
+        let [truncated_by, stopped_at] = Stop::facts(self.stopped.as_ref());
         roomkit_tools_core::append_facts(
             &mut text,
             [
@@ -238,6 +255,8 @@ impl Matches {
                     "next_offset",
                     self.data.next_offset.map(|next| next.to_string()),
                 ),
+                truncated_by,
+                stopped_at,
                 ("clipped", clipped),
                 ("skipped_files", count(self.data.skipped_files)),
                 ("first_skipped_file", self.first_skipped),

@@ -97,9 +97,12 @@ pub struct GrepPage {
     pub path: String,
     /// Matching lines, ordered by path then line number.
     pub matches: Vec<GrepMatch>,
-    /// Whether another matching line exists.
+    /// Whether the search is incomplete: another matching line exists, or a
+    /// host bound stopped the search, which the text names (`truncated_by`,
+    /// `stopped_at`).
     pub truncated: bool,
-    /// One-based match offset for the next page, or `None` at the end.
+    /// One-based match offset for the next page, or `None` at the end or
+    /// when a host bound stopped the search.
     pub next_offset: Option<usize>,
     /// Files skipped as binary, non-UTF-8 or larger than `max_file_bytes`
     /// before this page ended; the text names the first.
@@ -125,7 +128,9 @@ pub struct GrepLimits {
     /// Largest file searched, in bytes; a larger one is skipped and counted
     /// in `skipped_files`. Default: 8 MiB.
     pub max_file_bytes: usize,
-    /// Maximum bytes ingested across all scanned files in one call. Default: 32 MiB.
+    /// Maximum bytes read across all files in one call. Once it runs out, the
+    /// search returns the matches found so far, truncated, and names the file
+    /// it stopped at. Default: 32 MiB.
     pub max_total_bytes: usize,
     /// Maximum requested context lines on either side of a match. Default: 20.
     /// Zero disables context without disabling ordinary matching.
@@ -157,8 +162,10 @@ impl Default for GrepLimits {
 /// `.gitignore` and `.ignore` files of the workspace exclude, and `.git`, are
 /// not searched. Binary and non-UTF-8 files, and files over
 /// `max_file_bytes`, are skipped and counted; binary content is told from a
-/// file's first 8 KiB, and the rest of it is not read. Other read failures
-/// and ingestion limits fail the call. A fresh scan is made for every page.
+/// file's first 8 KiB, and the rest of it is not read. Once
+/// `max_total_bytes` runs out, the search returns the matches found so far,
+/// truncated. Other read failures fail the call. A fresh scan is made for
+/// every page, from the first file.
 /// Reading and matching run on a blocking worker, never on the async
 /// executor.
 #[derive(Clone, Debug)]
@@ -208,7 +215,7 @@ impl GrepTool {
     pub fn definition() -> Definition {
         Definition::new::<GrepInput, GrepPage>(
             "grep",
-            "Search UTF-8 file contents, one match per line. Hidden files are searched; what .gitignore or .ignore excludes, and .git, are skipped unless include_ignored; child symlinks are not followed; binary files and files over the host's size bound are skipped and counted (skipped_files), as are lines over its line bound (skipped_lines). clipped: true marks a match cut to fit, shown without context. Continue with next_offset.",
+            "Search UTF-8 file contents, one match per line. Hidden files are searched; what .gitignore or .ignore excludes, and .git, are skipped unless include_ignored; child symlinks are not followed; binary files and files over the host's size bound are skipped and counted (skipped_files), as are lines over its line bound (skipped_lines). clipped: true marks a match cut to fit, shown without context. A host bound reached mid-search returns the matches found, naming where it stopped (truncated_by, stopped_at); narrow path or include to search past it. Continue with next_offset.",
         )
     }
 
@@ -220,8 +227,8 @@ impl GrepTool {
     ///
     /// # Errors
     /// Returns invalid patterns/offsets, refusal outside the root, I/O errors,
-    /// unsupported entries, a budget too small for one match reference, or
-    /// traversal/ingestion limit failures.
+    /// unsupported entries, a budget too small for one match reference,
+    /// traversal limit failures, or an ignore file over its bounds.
     pub async fn grep(
         &self,
         input: GrepInput,

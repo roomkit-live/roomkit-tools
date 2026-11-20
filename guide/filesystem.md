@@ -120,9 +120,14 @@ Host bounds are explicit constructor keywords for both APIs:
 | `Grep` / `GrepTool` | Same glob bounds, plus `max_file_bytes=8388608`, `max_total_bytes=33554432`, `max_context_lines=20` per side, `max_line_bytes=65536` |
 
 Omitted bounds retain Rust defaults. Bounds must be positive, except
-`max_context_lines=0` disables context. Traversal limits and
-`max_total_bytes` fail the call; a file over `max_file_bytes` is skipped and
-counted, and output pagination is reported explicitly. Run the standalone
+`max_context_lines=0` disables context. Traversal limits fail the call. A
+file over `max_file_bytes` is skipped and counted. Once `max_total_bytes` runs
+out, grep returns the matches found so far with `truncated: true` and no
+`next_offset`, and its facts line names the bound and the file where it
+stopped, `[truncated_by=max_total_bytes, stopped_at="logs/32.txt"]`: every page
+reads from the first file, so a deep page or a rare pattern can meet it; narrow
+`path` or `include` to search further. Output pagination is reported
+explicitly. Run the standalone
 [discovery example](../examples/discover_files.py) with
 `.venv/bin/python examples/discover_files.py`; it needs no RoomKit or model.
 

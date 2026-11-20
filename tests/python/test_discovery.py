@@ -251,7 +251,7 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
                         self.assertRaises(InvalidInputError),
                     ):
                         await cls.create(self.root, **{field: value})
-                if field not in {"max_entries", "max_matches", "max_file_bytes"}:
+                if field not in {"max_entries", "max_matches", "max_file_bytes", "max_total_bytes"}:
                     tool = await cls.create(self.root, **{field: 1})
                     with (
                         self.subTest(tool=cls.__name__, field=field),
@@ -263,6 +263,11 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(page["data"]["matches"], [])
         self.assertGreater(page["data"]["skipped_files"], 0)
         self.assertIn('first_skipped_file="', page["text"])
+        # Once max_total_bytes runs out, the matches found so far are returned.
+        page = await (await GrepTool.create(self.root, max_total_bytes=1)).grep("blue")
+        self.assertTrue(page["data"]["truncated"])
+        self.assertIsNone(page["data"]["next_offset"])
+        self.assertIn("truncated_by=max_total_bytes, stopped_at=", page["text"])
         tool = await GrepTool.create(self.root, max_context_lines=0)
         self.assertEqual(len((await tool.grep("Tags:"))["data"]["matches"]), 2)
         for context in [{"context_before": 1}, {"context_after": 1}]:

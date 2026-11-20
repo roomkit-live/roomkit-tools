@@ -180,6 +180,13 @@ part of an existing published preview.
   special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
   non-public, where the whole /16 was.
 
+- Once `grep` has read `max_total_bytes` (32 MiB by default), it returns the
+  matches found so far with `truncated: true` and no `next_offset`, and its
+  facts line names the file it stopped at,
+  `[truncated_by=max_total_bytes, stopped_at="logs/32.txt"]`, instead of
+  failing: every page reads from the first file, so in a tree over 32 MiB of
+  text a deep page or a rare pattern failed.
+
 - `grep` skips a file over `max_file_bytes` and counts it in
   `skipped_files`, as it does a binary file, instead of failing the whole
   search: a 9 MiB PDF beside the sources made every search fail. A file is
