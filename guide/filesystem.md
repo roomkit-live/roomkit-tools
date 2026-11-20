@@ -286,7 +286,7 @@ Preview context is three lines capped by `max_context_lines`. A preview never
 refuses the patch for its size, whether it previews or applies:
 `max_output_bytes` caps the combined diffs, and the preview that reaches it is
 cut at a line and ends `[clipped=true, additions=N, deletions=M]`, later ones
-keeping their heading line only; past `max_comparison_cells`, a preview shows
+keeping their heading and that line; past `max_comparison_cells`, a preview shows
 the lines between the common first and last ones replaced whole. A preview's
 `text` starts `preview only: nothing written; call again with dry_run: false`.
 An applied patch's `text` lists its effects and any failure, not the diffs;

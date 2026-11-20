@@ -95,7 +95,7 @@ pub struct PatchLimits {
     pub max_comparison_cells: usize,
     /// Maximum rendered bytes of all previews' diffs together. A preview past
     /// it is cut at a line and ends `[clipped=true, additions=N,
-    /// deletions=M]`; later ones keep their heading only. It never refuses
+    /// deletions=M]`; later ones keep their heading and that line. It never refuses
     /// the patch. Default: 50 KiB.
     pub max_output_bytes: usize,
     /// Maximum context lines on each side of a change. Default: 100.
