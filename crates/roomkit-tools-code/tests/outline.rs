@@ -18,7 +18,7 @@ async fn a_model_reads_the_symbols_where_to_continue_and_the_revision() {
     assert_eq!(
         first.text,
         format!(
-            "Python outline\n1: Class \"Service\" [1-3]\nclass Service:\n[next_offset=2, revision={}]\n",
+            "Python outline\n1 [1-3] class Service:\n[next_offset=2, revision={}]\n",
             first.data.revision
         )
     );
@@ -27,9 +27,55 @@ async fn a_model_reads_the_symbols_where_to_continue_and_the_revision() {
     assert_eq!(
         rest.text,
         format!(
-            "Python outline\n2: Method \"one\" [2-3] parent=1\ndef one(self):\n[revision={}]\n",
+            "Python outline\n2 [2-3] ^1 def one(self):\n[revision={}]\n",
             rest.data.revision
         )
+    );
+}
+
+/// One line per symbol: its index, range, parent and signature, the
+/// signature's whitespace collapsed; `data` keeps the source header.
+#[tokio::test]
+async fn each_symbol_is_one_line_with_its_signature_collapsed() {
+    let root = tempfile::tempdir().unwrap();
+    let source = "impl Totals {\n    #[inline]\n    pub fn add(\n        a: u32,\n        \
+        b: u32,\n    ) -> u32 {\n        a + b\n    }\n}\n";
+    std::fs::write(root.path().join("lib.rs"), source).unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let page = tool
+        .outline(CodeOutlineInput::new("lib.rs"), &token)
+        .await
+        .unwrap();
+    assert_eq!(
+        page.text,
+        format!(
+            "Rust outline\n1 [1-9] impl Totals\n\
+             2 [2-8] ^1 #[inline] pub fn add( a: u32, b: u32, ) -> u32\n\
+             [revision={}]\n",
+            page.data.revision
+        )
+    );
+    assert_eq!(
+        page.data.symbols[1].signature,
+        "#[inline]\n    pub fn add(\n        a: u32,\n        b: u32,\n    ) -> u32"
+    );
+    let limits = CodeOutlineLimits {
+        max_signature_bytes: 25,
+        ..CodeOutlineLimits::default()
+    };
+    let clipped = tool
+        .with_limits(limits)
+        .unwrap()
+        .outline(CodeOutlineInput::new("lib.rs"), &token)
+        .await
+        .unwrap();
+    assert!(
+        clipped
+            .text
+            .contains("\n2 [2-8] ^1 #[inline] pub fn add( [signature_truncated]\n"),
+        "{}",
+        clipped.text
     );
 }
 

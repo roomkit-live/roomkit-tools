@@ -63,6 +63,12 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- `code_outline`'s `text` gives one line per symbol, its index, range,
+  parent and signature with whitespace collapsed
+  (`2 [2-3] ^1 def calculate_fee(self, subtotal):`), where each symbol took
+  a heading line and its header as written, over several lines for a long
+  one. `data` is unchanged.
+
 - `code_outline` on a file of another extension answers
   `code_outline reads .rs, .py and .pyi files; use read for Makefile`, where
   it told the model to set `language`, which only parses the file as Rust or

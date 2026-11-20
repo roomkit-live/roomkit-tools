@@ -3,7 +3,7 @@ use std::fmt::Write as _;
 use roomkit_tools_core::{Output, ToolError};
 
 use crate::extract::{Control, SourceOutline};
-use crate::{CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage};
+use crate::{CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage, CodeSymbol};
 
 pub(crate) fn render(
     path: String,
@@ -44,18 +44,7 @@ pub(crate) fn render(
         control.check()?;
         let index = symbol.index;
         let text_len = output.text.len();
-        let _ = write!(
-            output.text,
-            "{}: {:?} {:?} [{}-{}]",
-            symbol.index, symbol.kind, symbol.name, symbol.start_line, symbol.end_line
-        );
-        if let Some(parent) = symbol.parent {
-            let _ = write!(output.text, " parent={parent}");
-        }
-        if symbol.signature_truncated {
-            output.text.push_str(" signature_truncated=true");
-        }
-        let _ = writeln!(output.text, "\n{}", symbol.signature);
+        symbol_line(&mut output.text, &symbol);
         output.data.symbols.push(symbol);
         output.data.truncated = index < total;
         output.data.next_offset = (index < total).then_some(index + 1);
@@ -86,6 +75,29 @@ pub(crate) fn render(
         [("next_offset", next_offset), ("revision", revision)],
     );
     Ok(output)
+}
+
+/// One line per symbol, `24 [158-475] ^3 impl Profiles`: its index, range,
+/// parent and signature. The signature names the kind and the symbol; its
+/// whitespace is collapsed, since a header spread over lines took most of
+/// the text. `data` keeps the source header.
+fn symbol_line(text: &mut String, symbol: &CodeSymbol) {
+    let _ = write!(
+        text,
+        "{} [{}-{}]",
+        symbol.index, symbol.start_line, symbol.end_line
+    );
+    if let Some(parent) = symbol.parent {
+        let _ = write!(text, " ^{parent}");
+    }
+    for word in symbol.signature.split_whitespace() {
+        text.push(' ');
+        text.push_str(word);
+    }
+    if symbol.signature_truncated {
+        text.push_str(" [signature_truncated]");
+    }
+    text.push('\n');
 }
 
 fn size(output: &Output<CodeOutlinePage>) -> Result<usize, ToolError> {

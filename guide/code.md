@@ -51,6 +51,11 @@ Each call reparses the file. Carry `data.revision` as `expected_revision` when
 paging to refuse changes; this SHA-256 covers raw bytes, including BOM and CRLF,
 and is compatible with the filesystem tools' revisions.
 
+The `text` a model reads gives one line per symbol: its index, line range,
+`^` and its parent's index, and its signature with whitespace collapsed, as in
+`2 [2-3] ^1 def calculate_fee(self, subtotal):`; `data` keeps each header as
+written.
+
 Inspect `syntax_errors` for parser recovery, `signature_truncated` for shortened
 headers, and `truncated` / `next_offset` for further symbols. Invalid source can
 still yield useful definitions; it is never reported as syntax-error-free.
