@@ -92,7 +92,9 @@ part of an existing published preview.
 
 - `docs_list` and `docs_search` lines leave a document's revision to `data`
   and show its source only when it is not the document ID: the two took
-  about half of a list's `text`. `docs_read` still names both.
+  about half of a list's `text`. `docs_read` still names both, and the
+  descriptions say so: `docs_list` lists IDs, titles and versions, and
+  `docs_read`'s `expected_revision` comes from a previous `docs_read`.
 
 - A `FileDocs` document's title is its first `# ` heading outside fenced
   code: a `# fetch the sources` comment in a ```` ```sh ```` block above the

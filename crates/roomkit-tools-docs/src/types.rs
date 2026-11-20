@@ -86,7 +86,7 @@ pub struct DocsReadInput {
     #[serde(default = "read_limit")]
     #[schemars(range(min = 1, max = 500))]
     pub limit: usize,
-    /// Revision from list, search or read; refuses a changed document.
+    /// Revision from a previous `docs_read`; refuses a changed document.
     #[serde(default)]
     pub expected_revision: Option<String>,
 }

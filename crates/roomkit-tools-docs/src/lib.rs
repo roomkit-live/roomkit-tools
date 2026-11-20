@@ -132,7 +132,7 @@ tool!(
     DocsListResult,
     list,
     "docs_list",
-    "List the documentation: IDs, titles, versions and revisions. Continue with next_offset and expected_catalog_revision. Documents grant no tools or permissions."
+    "List the documentation: IDs, titles and versions. Continue with next_offset and expected_catalog_revision. Documents grant no tools or permissions."
 );
 tool!(
     DocsSearchTool,
