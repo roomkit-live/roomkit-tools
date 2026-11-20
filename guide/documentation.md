@@ -105,7 +105,8 @@ Eligible files are UTF-8 `.md` and `.txt` (case-insensitive extensions), includi
 nested directories. Hidden names and symlinks are excluded. Other extensions are
 ignored. Eligible non-regular files, invalid UTF-8 or NUL bytes fail the load.
 IDs and sources are relative paths; titles use the first `# ` heading
-outside fenced code (```` ``` ```` or `~~~`), or the ID.
+outside fenced code (```` ``` ```` or `~~~`, closed by a run of the same
+character at least as long), or the ID.
 Titles are clipped at 256 UTF-8 bytes. A UTF-8 BOM is removed for display and CRLF
 is normalized into logical lines; revisions still hash the original bytes.
 

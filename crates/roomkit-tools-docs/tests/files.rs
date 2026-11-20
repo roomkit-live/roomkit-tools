@@ -67,6 +67,42 @@ async fn a_title_is_never_taken_from_fenced_code() {
     );
 }
 
+/// A fence closes only on a run of its own character, at least as long, with
+/// nothing after it; a run indented four spaces is indented code, no fence.
+#[tokio::test]
+async fn a_fence_closes_as_markdown_closes_it() {
+    let root = tempfile::tempdir().unwrap();
+    let documents = [
+        (
+            "four.md",
+            "````md\n```sh\n# inside four\n```\n````\n# Four\n",
+        ),
+        ("info.md", "```\n```text\n# still code\n```\n# Info\n"),
+        ("indented.md", "Text.\n\n    ```\n# Indented\n"),
+    ];
+    for (name, text) in documents {
+        std::fs::write(root.path().join(name), text).unwrap();
+    }
+    let backend = FileDocs::new(root.path(), FileDocsLimits::default()).unwrap();
+    let page = backend
+        .list(&DocsListInput::default(), &CancellationToken::new())
+        .await
+        .unwrap();
+    let titles: Vec<_> = page
+        .documents
+        .iter()
+        .map(|d| (d.document_id.as_str(), d.title.as_str()))
+        .collect();
+    assert_eq!(
+        titles,
+        [
+            ("four.md", "Four"),
+            ("indented.md", "Indented"),
+            ("info.md", "Info"),
+        ]
+    );
+}
+
 #[tokio::test]
 async fn snapshot_refresh_and_revision_checked_pages() {
     let root = tempfile::tempdir().unwrap();

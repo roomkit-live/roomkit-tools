@@ -98,7 +98,9 @@ part of an existing published preview.
 
 - A `FileDocs` document's title is its first `# ` heading outside fenced
   code: a `# fetch the sources` comment in a ```` ```sh ```` block above the
-  heading became the title.
+  heading became the title. A fence closes as Markdown closes it, on a run
+  of its character at least as long with nothing after it, and a run
+  indented four spaces is no fence.
 
 - `code_outline`'s `text` gives one line per symbol, its index, range,
   parent and signature with whitespace collapsed and comments left out, so
