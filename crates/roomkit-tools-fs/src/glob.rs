@@ -77,8 +77,11 @@ impl Default for GlobLimits {
 /// Hidden entries are included. Unless `include_ignored`, what the
 /// `.gitignore` and `.ignore` files of the workspace exclude, and `.git`, are
 /// left out, unentered; in a Git repository, so is what its `info/exclude`
-/// and the ignore files between its root and the workspace's exclude. Files, directories and symlinks can match. Each call
-/// performs a fresh bounded scan. Pattern matching runs on a blocking worker, never on the async executor.
+/// and the ignore files between its root and the workspace's exclude.
+/// Files, directories and symlinks can match. Each call performs a fresh
+/// bounded scan; at `max_scan_entries` or `max_depth` it returns what it
+/// found, truncated. Pattern matching runs on a blocking worker, never on
+/// the async executor.
 #[derive(Clone, Debug)]
 pub struct GlobTool {
     root: Root,

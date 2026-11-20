@@ -102,8 +102,9 @@ pub struct GrepPage {
     /// host bound stopped the search, which the text names (`truncated_by`,
     /// `stopped_at`).
     pub truncated: bool,
-    /// One-based match offset for the next page, or `None` at the end or
-    /// when a host bound stopped the search.
+    /// One-based match offset for the next page, or `None` once the matches
+    /// found end: at the end, or where a host bound stopped the search. A
+    /// page filled before a stop still gives one.
     pub next_offset: Option<usize>,
     /// Files skipped as binary, non-UTF-8 or larger than `max_file_bytes`
     /// before this page ended; the text names the first.
@@ -165,14 +166,14 @@ impl Default for GrepLimits {
 /// Hidden files are included. Unless `include_ignored`, what the
 /// `.gitignore` and `.ignore` files of the workspace exclude, and `.git`, are
 /// not searched; in a Git repository, nor is what its `info/exclude` and the
-/// ignore files between its root and the workspace's exclude. Binary and non-UTF-8 files, and files over
-/// `max_file_bytes`, are skipped and counted; binary content is told from a
-/// file's first 8 KiB, and the rest of it is not read. At a traversal bound,
-/// or once `max_total_bytes` runs out, the search returns the matches found
-/// so far, truncated. Other read failures fail the call. A fresh scan is made for
-/// every page, from the first file.
-/// Reading and matching run on a blocking worker, never on the async
-/// executor.
+/// ignore files between its root and the workspace's exclude. Binary and
+/// non-UTF-8 files, and files over `max_file_bytes`, are skipped and
+/// counted; binary content is told from a file's first 8 KiB, and the rest
+/// of it is not read. At a traversal bound, or once `max_total_bytes` runs
+/// out, the search returns the matches found so far, truncated. Other read
+/// failures fail the call. A fresh scan is made for every page, from the
+/// first file. Reading and matching run on a blocking worker, never on the
+/// async executor.
 #[derive(Clone, Debug)]
 pub struct GrepTool {
     root: Root,

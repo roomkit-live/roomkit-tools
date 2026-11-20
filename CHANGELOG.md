@@ -228,12 +228,15 @@ part of an existing published preview.
   `max_depth`: they return what they found, sorted, with `truncated: true`,
   and the facts line names the bound and the path where the scan stopped,
   `[truncated_by=max_scan_entries, stopped_at="data"]`. Glob and grep walk
-  directories in path order, so what they return is the first part of the
-  tree; a directory below `max_depth` is listed but not entered. A flat
-  directory over the bound, which failed every unrestricted search, now
-  lists the entries read. `next_offset` pages through what was found. When
-  the walk and `max_total_bytes` both stop `grep`, the facts name the stop
-  first in path order.
+  directories in path order: the first ones whole, then, in the directory
+  where the bound is reached, the entries read until then in the
+  filesystem's order. A directory below `max_depth` is listed but not
+  entered. A flat directory over the bound, which failed every unrestricted
+  search, now lists the entries read. `next_offset` pages through what was
+  found, so `truncated` no longer implies a `next_offset`: a host that pages
+  while `truncated` must stop when `next_offset` is null. When the walk and
+  `max_total_bytes` both stop `grep`, the facts name the stop first in path
+  order.
 
 - `grep` and `glob` also leave out what a Git repository's
   `.git/info/exclude` excludes (a worktree's is its repository's) and, when
