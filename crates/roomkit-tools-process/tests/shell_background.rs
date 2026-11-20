@@ -606,6 +606,59 @@ async fn a_moved_command_s_kept_jobs_stop_with_the_shell_or_outlive_it_detached(
     }
 }
 
+/// Whether `pid` stops running within two seconds.
+#[cfg(target_os = "linux")]
+async fn stops(pid: &str) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while alive(pid) {
+        if Instant::now() > deadline {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    true
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_shell_closed_while_its_moved_command_runs_stops_the_jobs_it_leaves() {
+    for detach in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let processes = session(root.path(), ProcessLimits::default()).await;
+        let mut process_ends = processes.ends();
+        let shell = moving_and_keeping(root.path(), processes.clone()).await;
+        let mut shell_ends = shell.ends();
+        let command = "sleep 0.5; sleep 60 > /dev/null 2>&1 & echo $! > pid; exit 0";
+        let (result, _) = run(&shell, "a", ShellInput::new(command)).await;
+        assert!(result.process_id.is_some());
+        // Closed while the moved command still runs, before it leaves its job.
+        if detach {
+            assert!(shell.detach().await);
+        } else {
+            assert!(shell.close().await);
+        }
+        assert_eq!(
+            next(&mut process_ends).await.unwrap().end,
+            ProcessEnd::Exited
+        );
+        let pid = written(&root.path().join("pid")).await;
+        let pid = pid.trim();
+        let stopped = if detach {
+            !alive(pid)
+        } else {
+            stops(pid).await
+        };
+        // The job is the test's to stop, whatever the assertions say.
+        std::process::Command::new("kill")
+            .args(["-KILL", pid])
+            .status()
+            .unwrap();
+        assert_eq!(stopped, !detach, "close stops it once the shell exits");
+        assert_eq!(next(&mut shell_ends).await, None, "no end is told");
+        assert!(processes.close().await);
+    }
+}
+
 #[tokio::test]
 async fn a_move_closes_the_shell_s_copies_whole_and_says_where_reads_start() {
     let root = tempfile::tempdir().unwrap();

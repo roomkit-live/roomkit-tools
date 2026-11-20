@@ -264,6 +264,9 @@ its background jobs as in the foreground: once its shell exits on its own,
 the session's process ends `exited` and its jobs run on, followed by the
 shell, whose `ends()` tells their end, `close()` stops them and `detach()`
 lets them go; a job still holding the command's pipes writes to a drainer.
+A moved command still running when the shell closes keeps no job: those it
+leaves once its shell exits are stopped, and no end is told; after `detach()`
+they run on.
 `run_in_background` without a session, and
 `background_on_timeout` without one, raise `InvalidInputError`. The shell
 keeps its session alive; closing the shell leaves these processes to it. See

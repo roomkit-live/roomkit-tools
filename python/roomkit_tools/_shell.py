@@ -99,7 +99,9 @@ class ShellTool:
         moves there. They take its identifiers, quotas, lifetimes, output
         retention and ends(), under the caller's owner, so its process tools
         read and stop them; they keep this tool's environment, and stdin stays
-        closed. Closing this tool leaves them to the session.
+        closed. Closing this tool leaves them to the session; the jobs such a
+        command leaves with keep_background_jobs once its shell exits after
+        close() are stopped, untold, and after detach() run on.
         background_on_timeout moves a command still running at its timeout to
         the background instead of stopping it: it runs on until the session's
         maximum lifetime counted from its start, and the result names it in
@@ -166,7 +168,9 @@ class ShellTool:
         Their ends are told, then ends() stops; later commands raise
         AccessRefusedError. True means every job stopped within two seconds.
         Dropping the tool instead leaves its jobs running, as before the tool
-        followed them.
+        followed them. A command moved to the background that still runs
+        keeps no job: those it leaves once its shell exits are stopped, and no
+        end is told; after detach() they run on.
         """
         return await self._native.close()
 

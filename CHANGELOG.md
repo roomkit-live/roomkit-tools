@@ -59,7 +59,9 @@ part of an existing published preview.
   exits on its own, they run on, and the shell's `ends()`, `close()` and
   `detach()` tell their end, stop them and let them go. They were killed
   with the moved command's shell, so `cargo build && (./server > log 2>&1 &)`
-  lost its server whenever the build outlived the timeout.
+  lost its server whenever the build outlived the timeout. A moved command
+  still running when the shell closes keeps no job: those it leaves once its
+  shell exits are stopped, untold; after `detach()` they run on.
 
 - A shell command can run on in the background as a process. With
   `ShellTool.create(processes=session)` (Rust: `ShellTool::with_processes`),

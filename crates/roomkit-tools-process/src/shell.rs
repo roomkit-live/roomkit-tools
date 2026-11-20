@@ -202,7 +202,10 @@ impl ShellTool {
     /// moves there. They take its identifiers, quotas, lifetimes, output
     /// retention and ends, under the caller's owner, so its process tools read
     /// and stop them; they keep this tool's environment, and stdin stays
-    /// closed. Closing this tool leaves them to the session.
+    /// closed. Closing this tool leaves them to the session; the jobs such a
+    /// command leaves with [`ShellLimits::keep_background_jobs`] once its
+    /// shell exits after [`Self::close`] are stopped, untold, and after
+    /// [`Self::detach`] run on.
     #[must_use]
     pub fn with_processes(mut self, processes: crate::ProcessSession) -> Self {
         self.processes = Some(processes);
@@ -257,7 +260,9 @@ impl ShellTool {
     /// their ends, then end [`Self::ends`]. Every clone shares this state;
     /// later commands are refused. Returns whether every job stopped within
     /// two seconds. Dropping the tool instead leaves its jobs running, as
-    /// before the tool followed them.
+    /// before the tool followed them. A command moved to the background that
+    /// still runs keeps no job: those it leaves once its shell exits are
+    /// stopped, and no end is told; after [`Self::detach`] they run on.
     pub async fn close(&self) -> bool {
         self.jobs.close(false).await
     }
