@@ -242,10 +242,12 @@ impl GrepTool {
     }
 
     /// Files to search and the prefix that `include` patterns are relative to.
-    /// `include_depth` stops the walk where the include glob cannot match.
+    /// The walk starts at the include glob's literal `directories` and stops
+    /// at `include_depth`, where it cannot match.
     async fn files(
         &self,
         path: &Path,
+        directories: &[&str],
         include_depth: Option<usize>,
         include_ignored: bool,
     ) -> Result<(Scan, String), ToolError> {
@@ -266,7 +268,10 @@ impl GrepTool {
             max_scan_entries: self.limits.max_scan_entries,
             max_depth: self.limits.max_depth,
         };
-        let scan = walk::walk(&self.root, start, bounds, include_depth).await?;
+        let scan = match walk::descend(&self.root, start, directories, bounds.max_depth).await? {
+            Some(start) => walk::walk(&self.root, start, bounds, include_depth).await?,
+            None => Scan::default(),
+        };
         Ok((scan, prefix))
     }
 
@@ -303,8 +308,12 @@ impl GrepTool {
         let include = input.include.as_deref().map(Include::new).transpose()?;
         let path = self.root.resolve(&input.path).await?;
         let include_depth = include.as_ref().and_then(Include::depth);
+        let directories = match (&include, input.include.as_deref()) {
+            (Some(include), Some(pattern)) => include.directories(pattern),
+            _ => Vec::new(),
+        };
         let (files, prefix) = self
-            .files(&path, include_depth, input.include_ignored)
+            .files(&path, &directories, include_depth, input.include_ignored)
             .await?;
         let mut page = Matches::new(self.root.relative(&path)?, &input, self.limits);
         page.data.skipped_entries = files.skipped;

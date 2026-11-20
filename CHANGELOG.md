@@ -180,6 +180,12 @@ part of an existing published preview.
   special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
   non-public, where the whole /16 was.
 
+- A `glob` pattern, or a `grep` `include` with `/`, is scanned from its
+  leading directories without glob syntax: `src/**/*.rs` scans `src` only,
+  where a 10,001-file `data/` beside it used up `max_scan_entries`, though
+  `**/*.rs` with `path="src"` worked. The matches are those a scan from
+  `path` gives.
+
 - `list`, `glob` and `grep` no longer fail at `max_scan_entries` or
   `max_depth`: they return what they found, sorted, with `truncated: true`,
   and the facts line names the bound and the path where the scan stopped,

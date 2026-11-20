@@ -155,16 +155,7 @@ impl GlobTool {
         let matcher = paths::pattern(&input.pattern)?;
         let path = self.root.resolve(&input.path).await?;
         let prefix = self.root.prefix(&path)?;
-        let start = Start {
-            ignores: Ignores::for_scan(&self.root, &path, input.include_ignored).await?,
-            directory: path.clone(),
-            depth: 1,
-        };
-        let bounds = Bounds {
-            max_scan_entries: self.limits.max_scan_entries,
-            max_depth: self.limits.max_depth,
-        };
-        let scan = walk::walk(&self.root, start, bounds, walk::match_depth(&input.pattern)).await?;
+        let scan = self.scan(&path, &input).await?;
         let searched = self.root.relative(&path)?;
         let limit = input
             .limit
@@ -176,6 +167,29 @@ impl GlobTool {
             paths::page(searched, scan, input.offset, limit, bytes)
         })
         .await
+    }
+}
+
+impl GlobTool {
+    /// The entries below `path` that can match: the walk starts at the
+    /// pattern's literal directories and stops at the levels it can reach.
+    async fn scan(&self, path: &Path, input: &GlobInput) -> Result<Scan, ToolError> {
+        let start = Start {
+            ignores: Ignores::for_scan(&self.root, path, input.include_ignored).await?,
+            directory: path.to_path_buf(),
+            depth: 1,
+        };
+        let bounds = Bounds {
+            max_scan_entries: self.limits.max_scan_entries,
+            max_depth: self.limits.max_depth,
+        };
+        let directories = walk::literal_directories(&input.pattern);
+        match walk::descend(&self.root, start, &directories, bounds.max_depth).await? {
+            Some(start) => {
+                walk::walk(&self.root, start, bounds, walk::match_depth(&input.pattern)).await
+            }
+            None => Ok(Scan::default()),
+        }
     }
 }
 

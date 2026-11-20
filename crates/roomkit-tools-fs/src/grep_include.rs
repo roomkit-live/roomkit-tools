@@ -31,6 +31,16 @@ impl Include {
         })
     }
 
+    /// The directories below the search path that every matching file lies
+    /// in; none for a filter on names.
+    pub(crate) fn directories<'a>(&self, pattern: &'a str) -> Vec<&'a str> {
+        if self.by_name {
+            Vec::new()
+        } else {
+            walk::literal_directories(pattern)
+        }
+    }
+
     /// Deepest level a matching file can be at, or `None` when unbounded.
     pub(crate) fn depth(&self) -> Option<usize> {
         self.depth

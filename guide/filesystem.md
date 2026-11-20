@@ -101,7 +101,9 @@ file below the searched `path`. With a `/`, it matches the path relative to
 `path`, like a glob pattern. A glob pattern, or an `include` with `/`, without
 `**` or a `[...]` class only scans as many directory levels as it has
 components: glob's `*.rs` reads only the search directory, so unrelated large or
-deep subtrees do not exhaust the scan bounds.
+deep subtrees do not exhaust the scan bounds. The scan of such a pattern starts
+at its leading directories without glob syntax: `src/**/*.rs` scans `src` only,
+however large its siblings.
 
 Glob matches paths, and grep reads and matches files, on a blocking worker,
 never on the async executor. Cancellation, or dropping the call, returns at

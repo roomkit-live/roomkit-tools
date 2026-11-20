@@ -192,6 +192,68 @@ pub(crate) async fn walk(
     Ok(scan)
 }
 
+/// The directories a glob's matches all lie in: its leading components that
+/// are plain names, its last one apart. `src/**/*.rs` gives `["src"]`.
+pub(crate) fn literal_directories(pattern: &str) -> Vec<&str> {
+    let mut components: Vec<&str> = pattern.split('/').collect();
+    components.pop();
+    components
+        .into_iter()
+        .take_while(|component| {
+            !matches!(*component, "" | "." | "..")
+                && !component.contains(['*', '?', '[', ']', '{', '}', '\\'])
+        })
+        .collect()
+}
+
+/// Move `start` down `directories`, as the walk would reach them, so that it
+/// lists only where matches can lie; at most to `max_depth`, where the walk
+/// takes over. `None` when one of them cannot hold a match: missing, no
+/// directory, a symbolic link, or left out by the ignore rules.
+pub(crate) async fn descend(
+    root: &Root,
+    mut start: Start,
+    directories: &[&str],
+    max_depth: usize,
+) -> Result<Option<Start>, ToolError> {
+    if !directories.is_empty()
+        && !fs::metadata(&start.directory)
+            .await
+            .is_ok_and(|info| info.is_dir())
+    {
+        return Err(ToolError::UnsupportedResource(
+            "expected a directory".into(),
+        ));
+    }
+    for name in directories
+        .iter()
+        .take(max_depth.saturating_sub(start.depth))
+    {
+        let directory = start.directory.join(name);
+        if !fs::symlink_metadata(&directory)
+            .await
+            .is_ok_and(|info| info.is_dir())
+        {
+            return Ok(None);
+        }
+        let rules = Ignores::within(start.ignores, &start.directory).await?;
+        let entry = PathEntry {
+            name: (*name).to_owned(),
+            path: root.relative(&directory)?,
+            kind: PathKind::Directory,
+        };
+        if rules.as_ref().is_some_and(|rules| rules.ignores(&entry)) {
+            return Ok(None);
+        }
+        start = Start {
+            directory,
+            depth: start.depth + 1,
+            ignores: rules,
+        };
+    }
+    Ok(Some(start))
+}
+
 /// Deepest relative path, in components, that a glob can match, or `None`
 /// when unbounded. With literal separators, `*`, `?` and literals never match
 /// `/`, but `**` crosses directories and a class such as `[!a]` can match it.
