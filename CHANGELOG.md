@@ -287,12 +287,13 @@ part of an existing published preview.
   `oneOf`, with the same variants: Kimi K2.7 refused the `$ref` to a `oneOf`
   in `code_outline`'s, `patch`'s and `web_fetch`'s schemas.
 
-- `plan_update` takes `step_changes`, `[{step_id, status?, description?}]`,
-  instead of `steps`: only those steps change, and the result's `text` gives
-  the new revision and the changed steps alone: changing one status of an
-  18-step plan no longer sends the whole list, and no longer returns it to a
-  model that reads the `text` alone, as roomkit-code's does (RoomKit's own
-  adapters still hand it the whole envelope). `PlanUpdateTool`
+- `plan_update` also takes `step_changes`, `[{step_id, status?, description?}]`:
+  only those steps change, the others and their order are kept, and the
+  result's `text` gives the new revision and the changed steps alone: changing
+  one status of an 18-step plan no longer sends the whole list, and no longer
+  returns it to a model that reads the `text` alone, as roomkit-code's does
+  (RoomKit's own adapters still hand it the whole envelope). `steps` still
+  replaces the whole list; a call gives one or the other. `PlanUpdateTool`
   applies them to the plan its backend reads, so a backend receives the
   complete `steps` as before; `MemoryPlanBackend.update` also takes
   `step_changes`. The `text` of every plan and documentation result is now
@@ -382,8 +383,8 @@ part of an existing published preview.
 - Through RoomKit, the shell gives `{data, text}` like every other tool, so a
   host can show the model the text alone and keep the data for its display: an
   `ON_TOOL_CALL` hook replaces the result and leaves the structured copy.
-- The RoomKit Rust adapter follows roomkit-rs ee5d724, which changes no existing
-  adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
+- The RoomKit Rust adapter follows roomkit-rs v0.2.0 (4f271c6), which changes no
+  existing adapter's API. A tool it declares names no `tags` for Tool Search. An agent's
   requests also declare the kit's `read_stored_result`, which pages through an
   outcome past `evict_threshold_tokens` that the kit stored.
 - The RoomKit Rust adapter adds `ViewImage`, behind its optional `image` Cargo
