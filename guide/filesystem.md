@@ -252,8 +252,14 @@ print(result["data"]["completed"], result["data"]["applied"], result["data"]["fa
 `DiffTool` returns complete structured hunks and unified-style text. It compares
 exact UTF-8 bytes, including BOM and line endings, without consulting Git or
 modifying files. Its two reads are not a transactional snapshot. Defaults:
-8 MiB/file, 20,000 lines/file, 1,000,000 comparison cells, 50 KiB rendered output
-and 100 context lines/side. Constructor keywords `max_file_bytes`, `max_lines`,
+8 MiB/file, 20,000 lines/file, 1,000,000 comparison steps, 50 KiB rendered output
+and 100 context lines/side. The comparison is a Myers diff, which finds as few
+removed and added lines as any alignment allows; `max_comparison_cells` bounds
+its work once the common first and last lines are set aside: each remaining
+line examined, then each step of the search. That work grows with the number
+of changed lines, about their count squared, not with the files' length: two
+changes at both ends of a 20,000-line file compare well within the default,
+while 1,000 lines put in reverse order exceed it. Constructor keywords `max_file_bytes`, `max_lines`,
 `max_comparison_cells`, `max_output_bytes` and `max_context_lines` set those
 bounds; context may be zero. Oversized comparisons fail instead of clipping.
 

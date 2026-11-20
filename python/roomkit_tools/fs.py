@@ -435,8 +435,10 @@ class DiffTool(_DiscoveryTool):
     ) -> Self:
         """Resolve the root; omitted limits retain Rust defaults.
 
-        Defaults: 8 MiB/file, 20,000 lines/file, 1,000,000 comparison cells,
-        50 KiB rendered output and 100 context lines/side. Zero context is valid.
+        Defaults: 8 MiB/file, 20,000 lines/file, 1,000,000 comparison steps
+        (max_comparison_cells bounds the Myers diff's work, which grows with
+        the changed lines), 50 KiB rendered output and 100 context lines/side.
+        Zero context is valid.
         """
         return await cls._create(
             root,

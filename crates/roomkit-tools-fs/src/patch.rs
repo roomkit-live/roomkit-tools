@@ -88,7 +88,8 @@ pub struct PatchLimits {
     pub max_file_bytes: usize,
     /// Maximum LF-delimited lines per file. Default: 20,000.
     pub max_lines: usize,
-    /// Maximum LCS matrix cells per file after removing common ends. Default: 1,000,000.
+    /// Maximum work of each file's comparison, as
+    /// [`DiffLimits::max_comparison_cells`]. Default: 1,000,000.
     pub max_comparison_cells: usize,
     /// Maximum rendered bytes of all previews together; exceeding this fails
     /// without clipping. Default: 50 KiB.

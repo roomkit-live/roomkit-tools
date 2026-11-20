@@ -180,6 +180,15 @@ part of an existing published preview.
   special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
   non-public, where the whole /16 was.
 
+- `diff` and `patch` compare lines with a Myers diff instead of a full
+  longest-common-subsequence table, so two changes far apart no longer fail:
+  in a 1,500-line file, changing lines 3 and 1,498 failed `diff` and an
+  applied `patch` with "diff exceeds max_comparison_cells". The script is
+  still a shortest one. `max_comparison_cells` keeps its name and default and
+  now bounds the comparison's work: each line between the common first and
+  last lines, then each step of the search, which grows with the number of
+  changed lines rather than with the files' length.
+
 - A `glob` pattern, or a `grep` `include` with `/`, is scanned from its
   leading directories without glob syntax: `src/**/*.rs` scans `src` only,
   where a 10,001-file `data/` beside it used up `max_scan_entries`, though

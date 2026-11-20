@@ -56,6 +56,37 @@ async fn diff_reports_actual_changes_and_disjoint_hunks_without_writing() {
     assert_eq!(equal.text, "no differences\n");
 }
 
+/// Two one-line changes 1,495 lines apart: the comparison's work follows
+/// the changed lines, not the file's length, and so does a patch's preview.
+#[tokio::test]
+async fn changes_far_apart_in_a_long_file_are_compared() {
+    let old: Vec<String> = (0..1500).map(|line| format!("line {line}\n")).collect();
+    let mut new = old.clone();
+    new[2] = "changed 2\n".into();
+    new[1497] = "changed 1497\n".into();
+    let (old, new) = (old.concat(), new.concat());
+    let result = comparison(&old, &new, 3).await;
+    assert_eq!((result.data.additions, result.data.deletions), (2, 2));
+    assert_eq!(result.data.hunks.len(), 2);
+    assert_eq!(result.data.hunks[1].old_start, 1495);
+    assert!(result.text.contains("-line 1497\n+changed 1497\n"));
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("long"), &old).unwrap();
+    let mut input = PatchInput::new(vec![update("long", &old, &new)]);
+    input.dry_run = false;
+    let applied = PatchTool::new(root.path())
+        .await
+        .unwrap()
+        .patch(input, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(applied.data.completed);
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("long")).unwrap(),
+        new
+    );
+}
+
 #[tokio::test]
 async fn diff_handles_empty_versions_and_context_zero() {
     let added = comparison("", "a\nb\n", 0).await;
@@ -96,8 +127,9 @@ async fn diff_enforces_file_line_complexity_and_complete_output_bounds() {
             max_lines: 2,
             ..DiffLimits::default()
         },
+        // Six differing lines to examine, before any search.
         DiffLimits {
-            max_comparison_cells: 8,
+            max_comparison_cells: 5,
             ..DiffLimits::default()
         },
         DiffLimits {

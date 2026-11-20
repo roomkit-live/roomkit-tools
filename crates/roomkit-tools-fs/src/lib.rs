@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 mod diff;
+mod diff_align;
 mod edit;
 mod glob;
 mod grep;

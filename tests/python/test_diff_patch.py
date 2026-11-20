@@ -315,7 +315,9 @@ class DiffPatchTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await tool.call(json.dumps(args), cancel)
         self.assertEqual(list(self.root.iterdir()), [])
-        old, new = "a\n" * 4000, "b\n" * 4000
+        # The same lines in reverse order: a costly comparison to cancel.
+        lines = [f"{index}\n" for index in range(4000)]
+        old, new = "".join(lines), "".join(reversed(lines))
         (self.root / "old").write_text(old)
         (self.root / "new").write_text(new)
         diff = await DiffTool.create(self.workspace, max_comparison_cells=20_000_000)
@@ -347,8 +349,10 @@ class DiffPatchTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(list(self.root.glob(".roomkit-write-*")), [])
 
     async def test_comparison_does_not_block_the_python_event_loop(self) -> None:
-        (self.root / "old").write_text("a\n" * 4000)
-        (self.root / "new").write_text("b\n" * 4000)
+        # The same lines in reverse order: about 8 million comparison steps.
+        lines = [f"{index}\n" for index in range(2000)]
+        (self.root / "old").write_text("".join(lines))
+        (self.root / "new").write_text("".join(reversed(lines)))
         tool = await DiffTool.create(self.workspace, max_comparison_cells=20_000_000)
         task = asyncio.create_task(tool.diff("old", "new"))
         ticks = 0
