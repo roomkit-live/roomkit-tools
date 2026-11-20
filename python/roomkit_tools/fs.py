@@ -131,7 +131,9 @@ class ListTool(_DiscoveryTool):
     """List sorted immediate directory entries, including hidden entries.
 
     Child symlinks are listed without following them. Each call rescans the
-    directory; pagination is not a snapshot across external mutations."""
+    directory; pagination is not a snapshot across external mutations. A
+    directory over max_scan_entries lists the entries read until then, with
+    truncated set."""
 
     _native_type = _native._ListTool
 

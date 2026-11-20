@@ -213,8 +213,9 @@ impl Matches {
     }
 
     /// End the search at a host bound: the matches found so far are the
-    /// last ones this call can return.
-    fn stop(&mut self, stop: Stop) {
+    /// last ones this call can return. A later stop replaces an earlier
+    /// one: the scan's file list ends after the search's own stop.
+    pub(crate) fn stop(&mut self, stop: Stop) {
         self.data.truncated = true;
         self.stopped = Some(stop);
     }

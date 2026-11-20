@@ -168,7 +168,7 @@ async fn names_are_escaped_in_rendering_and_utf8_bytes_count_toward_the_budget()
 }
 
 #[tokio::test]
-async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
+async fn scan_bounds_return_an_incomplete_inventory_flagged_truncated() {
     let root = fixture();
     let list_limits = ListLimits {
         max_scan_entries: 2,
@@ -179,11 +179,12 @@ async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
         .unwrap()
         .with_limits(list_limits)
         .unwrap();
-    assert!(matches!(
-        list.list(ListInput::default(), &CancellationToken::new())
-            .await,
-        Err(ToolError::LimitExceeded(_))
-    ));
+    let listed = list
+        .list(ListInput::default(), &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(listed.data.entries.len(), 2);
+    assert!(listed.data.truncated);
     let mut glob_limits = GlobLimits {
         max_scan_entries: 5,
         ..GlobLimits::default()
@@ -193,11 +194,17 @@ async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
         .unwrap()
         .with_limits(glob_limits)
         .unwrap();
-    assert!(matches!(
-        glob.glob(GlobInput::new("**"), &CancellationToken::new())
-            .await,
-        Err(ToolError::LimitExceeded(_))
-    ));
+    let found = glob
+        .glob(GlobInput::new("**"), &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(found.data.entries.len(), 5);
+    assert!(found.data.truncated);
+    assert!(
+        found
+            .text
+            .ends_with("[truncated_by=max_scan_entries, stopped_at=\"menus\"]\n")
+    );
     glob_limits.max_scan_entries = 100;
     glob_limits.max_depth = 1;
     let glob = GlobTool::new(root.path())
@@ -205,11 +212,17 @@ async fn scan_limit_fails_instead_of_returning_an_incomplete_inventory() {
         .unwrap()
         .with_limits(glob_limits)
         .unwrap();
-    assert!(matches!(
-        glob.glob(GlobInput::new("**/*.txt"), &CancellationToken::new())
-            .await,
-        Err(ToolError::LimitExceeded(_))
-    ));
+    let found = glob
+        .glob(GlobInput::new("**/*.txt"), &CancellationToken::new())
+        .await
+        .unwrap();
+    let paths: Vec<_> = found.data.entries.iter().map(|e| e.path.as_str()).collect();
+    assert_eq!(paths, [".hidden.txt", "opening-hours.txt"]);
+    assert!(
+        found
+            .text
+            .ends_with("[truncated_by=max_depth, stopped_at=\"empty\"]\n")
+    );
 }
 
 #[tokio::test]
@@ -599,6 +612,7 @@ async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
         .unwrap();
     let shallow = glob.glob(GlobInput::new("*.rs"), &cancel).await.unwrap();
     assert_eq!(shallow.data.entries.len(), 1);
+    assert!(!shallow.data.truncated);
     assert_eq!(
         glob.glob(GlobInput::new("deep/*.rs"), &cancel)
             .await
@@ -608,14 +622,11 @@ async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
             .len(),
         4
     );
+    // A pattern that can match deeper meets the bounds: what it found is
+    // returned, flagged truncated.
     for unbounded in ["**/*.rs", "deep/*/*.rs", "[d]eep/*.rs"] {
-        assert!(
-            matches!(
-                glob.glob(GlobInput::new(unbounded), &cancel).await,
-                Err(ToolError::LimitExceeded(_))
-            ),
-            "{unbounded}"
-        );
+        let found = glob.glob(GlobInput::new(unbounded), &cancel).await.unwrap();
+        assert!(found.data.truncated, "{unbounded}");
     }
     let grep_limits = GrepLimits {
         max_scan_entries: 8,
@@ -631,16 +642,12 @@ async fn patterns_that_cannot_match_deeper_do_not_scan_deeper_directories() {
     input.include = Some("deep/*.rs".into());
     let matches = grep.grep(input.clone(), &cancel).await.unwrap();
     assert_eq!(matches.data.matches.len(), 4);
+    assert!(!matches.data.truncated);
     // Without a `/`, an include filters names at any depth, so it scans them all.
     for unbounded in ["*.rs", "**/*.rs"] {
         input.include = Some(unbounded.into());
-        assert!(
-            matches!(
-                grep.grep(input.clone(), &cancel).await,
-                Err(ToolError::LimitExceeded(_))
-            ),
-            "{unbounded}"
-        );
+        let found = grep.grep(input.clone(), &cancel).await.unwrap();
+        assert!(found.data.truncated, "{unbounded}");
     }
 }
 

@@ -23,6 +23,7 @@ mod patch_prepare;
 mod paths;
 mod read;
 mod revision;
+mod walk;
 mod worker;
 mod write;
 

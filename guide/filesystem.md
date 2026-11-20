@@ -124,14 +124,25 @@ Host bounds are explicit constructor keywords for both APIs:
 | `Grep` / `GrepTool` | Same glob bounds, plus `max_file_bytes=8388608`, `max_total_bytes=33554432`, `max_context_lines=20` per side, `max_line_bytes=65536` |
 
 Omitted bounds retain Rust defaults. Bounds must be positive, except
-`max_context_lines=0` disables context. Traversal limits fail the call. A
-file over `max_file_bytes` is skipped and counted. Once `max_total_bytes` runs
-out, grep returns the matches found so far with `truncated: true` and no
-`next_offset`, and its facts line names the bound and the file where it
-stopped, `[truncated_by=max_total_bytes, stopped_at="logs/32.txt"]`: every page
-reads from the first file, so a deep page or a rare pattern can meet it; narrow
-`path` or `include` to search further. Output pagination is reported
-explicitly. Run the standalone
+`max_context_lines=0` disables context. A host bound reached mid-scan never
+fails the call: it returns what was found, sorted, with `truncated: true`, and
+the facts line names the bound and the path where the scan stopped, as
+`[truncated_by=max_scan_entries, stopped_at="data"]`; `next_offset` pages
+through what was found. Narrow `path`, the pattern or `include` to see past
+it:
+
+- `max_scan_entries`: glob and grep visit directories in path order, the
+  first ones whole, and stop in the directory where the bound is reached;
+  `list` of a larger directory returns the entries read until then, in no
+  particular selection. Ignored entries count toward the bound.
+- `max_depth`: a directory below it is listed but not entered, and the first
+  one is named.
+- `max_total_bytes`: grep returns the matches found so far, with no
+  `next_offset`, and names the file it stopped at. Every page reads from the
+  first file, so a deep page or a rare pattern can meet it.
+
+A file over `max_file_bytes` is skipped and counted. Output pagination is
+reported explicitly. Run the standalone
 [discovery example](../examples/discover_files.py) with
 `.venv/bin/python examples/discover_files.py`; it needs no RoomKit or model.
 

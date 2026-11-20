@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 use crate::paths::{self, PathPage, Root, first_entry, workspace_path};
+use crate::walk;
 
 /// A page of a directory listing.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -43,7 +44,8 @@ pub struct ListLimits {
     /// Maximum rendered bytes, including numbering and escaped paths, the
     /// closing line of facts apart. Default: 50 KiB.
     pub max_output_bytes: usize,
-    /// Maximum entries scanned before sorting. A larger directory fails. Default: 10,000.
+    /// Maximum entries scanned before sorting. A larger directory lists the
+    /// entries read until then, flagged truncated. Default: 10,000.
     pub max_scan_entries: usize,
 }
 
@@ -98,7 +100,7 @@ impl ListTool {
     pub fn definition() -> Definition {
         Definition::new::<ListInput, PathPage>(
             "list",
-            "List one directory, not recursively, hidden entries included. Paths are workspace-relative. Continue with next_offset.",
+            "List one directory, not recursively, hidden entries included. Paths are workspace-relative. A directory over the host's scan bound lists the entries read, naming the bound (truncated_by, stopped_at). Continue with next_offset.",
         )
     }
 
@@ -108,7 +110,7 @@ impl ListTool {
     ///
     /// # Errors
     /// Returns refusal outside the root, unsupported for a file, an I/O
-    /// failure, invalid offset, or a scan/output limit failure.
+    /// failure, invalid offset, or an output limit failure.
     pub async fn list(
         &self,
         input: ListInput,
@@ -123,7 +125,7 @@ impl ListTool {
     async fn list_directory(&self, input: ListInput) -> Result<Output<PathPage>, ToolError> {
         let path = self.root.resolve(&input.path).await?;
         let mut scan =
-            paths::directory_entries(&self.root, &path, self.limits.max_scan_entries).await?;
+            walk::directory_entries(&self.root, &path, self.limits.max_scan_entries).await?;
         scan.entries.sort_unstable_by(|a, b| a.path.cmp(&b.path));
         paths::page(
             self.root.relative(&path)?,

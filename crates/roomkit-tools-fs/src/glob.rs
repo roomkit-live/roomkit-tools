@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 use crate::ignores::Ignores;
-use crate::paths::{self, PathPage, Root, Scan, first_entry, workspace_path};
+use crate::paths::{self, PathPage, Root, first_entry, workspace_path};
+use crate::walk::{self, Bounds, Scan, Start};
 use crate::worker;
 
 /// A glob search under a directory.
@@ -44,16 +45,19 @@ impl GlobInput {
     }
 }
 
-/// Host bounds for path discovery; exceeding a traversal bound fails the search.
+/// Host bounds for path discovery. At a traversal bound the search returns
+/// what it found, flagged truncated, and names where it stopped.
 #[derive(Clone, Copy, Debug)]
 pub struct GlobLimits {
     /// Maximum matches per page. Default: 200.
     pub max_matches: usize,
     /// Maximum rendered bytes, the closing line of facts apart. Default: 50 KiB.
     pub max_output_bytes: usize,
-    /// Maximum entries visited, including nonmatches. Default: 10,000.
+    /// Maximum entries visited, including nonmatches and ignored entries;
+    /// directories are visited in path order. Default: 10,000.
     pub max_scan_entries: usize,
-    /// Maximum directory levels scanned; the starting directory is level one. Default: 32.
+    /// Maximum directory levels scanned; the starting directory is level
+    /// one. A deeper directory is listed but not entered. Default: 32.
     pub max_depth: usize,
 }
 
@@ -118,7 +122,7 @@ impl GlobTool {
     pub fn definition() -> Definition {
         Definition::new::<GlobInput, PathPage>(
             "glob",
-            "Find paths matching a glob, e.g. **/*.rs. Files, directories and symlinks match; hidden entries are included; what .gitignore or .ignore excludes, and .git, are left out unless include_ignored; child symlinks are not followed. Continue with next_offset.",
+            "Find paths matching a glob, e.g. **/*.rs. Files, directories and symlinks match; hidden entries are included; what .gitignore or .ignore excludes, and .git, are left out unless include_ignored; child symlinks are not followed. A host bound reached mid-scan returns what was found, naming where it stopped (truncated_by, stopped_at); narrow path or pattern to see past it. Continue with next_offset.",
         )
     }
 
@@ -131,7 +135,8 @@ impl GlobTool {
     ///
     /// # Errors
     /// Returns invalid patterns or offsets, refusal outside the root,
-    /// unsupported non-directories, I/O failures, or limits.
+    /// unsupported non-directories, I/O failures, an output limit failure,
+    /// or an ignore file over its bounds.
     pub async fn glob(
         &self,
         input: GlobInput,
@@ -150,16 +155,16 @@ impl GlobTool {
         let matcher = paths::pattern(&input.pattern)?;
         let path = self.root.resolve(&input.path).await?;
         let prefix = self.root.prefix(&path)?;
-        let ignores = Ignores::for_scan(&self.root, &path, input.include_ignored).await?;
-        let scan = paths::walk(
-            &self.root,
-            &path,
-            self.limits.max_scan_entries,
-            self.limits.max_depth,
-            paths::match_depth(&input.pattern),
-            ignores,
-        )
-        .await?;
+        let start = Start {
+            ignores: Ignores::for_scan(&self.root, &path, input.include_ignored).await?,
+            directory: path.clone(),
+            depth: 1,
+        };
+        let bounds = Bounds {
+            max_scan_entries: self.limits.max_scan_entries,
+            max_depth: self.limits.max_depth,
+        };
+        let scan = walk::walk(&self.root, start, bounds, walk::match_depth(&input.pattern)).await?;
         let searched = self.root.relative(&path)?;
         let limit = input
             .limit
@@ -186,6 +191,7 @@ fn matching(
         entries,
         skipped,
         ignored,
+        stopped,
     } = scan;
     let mut kept = Vec::new();
     for entry in entries {
@@ -202,5 +208,6 @@ fn matching(
         entries: kept,
         skipped,
         ignored,
+        stopped,
     })
 }

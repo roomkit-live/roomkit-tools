@@ -4,6 +4,7 @@ use globset::GlobSet;
 use roomkit_tools_core::ToolError;
 
 use crate::paths::{self, PathEntry};
+use crate::walk;
 
 /// Which files grep reads. A glob without `/` filters file names at any
 /// depth, as `rg -g` does: `*.rs` keeps every Rust file under the search
@@ -25,7 +26,7 @@ impl Include {
             depth: if by_name {
                 None
             } else {
-                paths::match_depth(pattern)
+                walk::match_depth(pattern)
             },
         })
     }

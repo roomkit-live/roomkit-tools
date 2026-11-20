@@ -251,13 +251,18 @@ class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
                         self.assertRaises(InvalidInputError),
                     ):
                         await cls.create(self.root, **{field: value})
-                if field not in {"max_entries", "max_matches", "max_file_bytes", "max_total_bytes"}:
-                    tool = await cls.create(self.root, **{field: 1})
+                tool = await cls.create(self.root, **{field: 1})
+                if field == "max_output_bytes":
                     with (
                         self.subTest(tool=cls.__name__, field=field),
                         self.assertRaises(LimitExceededError),
                     ):
                         await tool.call(arguments)
+                elif field in {"max_scan_entries", "max_depth"}:
+                    # A traversal bound returns what was found, and says where.
+                    result = await tool.call(arguments)
+                    self.assertTrue(result["data"]["truncated"], (cls.__name__, field))
+                    self.assertIn(f"truncated_by={field}, stopped_at=", result["text"])
         # A file over max_file_bytes is skipped and named, not a failure.
         page = await (await GrepTool.create(self.root, max_file_bytes=1)).grep("blue")
         self.assertEqual(page["data"]["matches"], [])

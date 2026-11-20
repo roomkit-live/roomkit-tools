@@ -12,7 +12,8 @@ use crate::ReadLine;
 use crate::grep_include::Include;
 use crate::grep_scan::{self, Matches, Search};
 use crate::ignores::Ignores;
-use crate::paths::{self, PathEntry, PathKind, Root, Scan, first_entry, workspace_path};
+use crate::paths::{PathEntry, PathKind, Root, first_entry, workspace_path};
+use crate::walk::{self, Bounds, Scan, Start};
 use crate::worker;
 
 /// A search of file contents.
@@ -121,9 +122,11 @@ pub struct GrepLimits {
     pub max_matches: usize,
     /// Maximum rendered bytes, the closing line of facts apart. Default: 50 KiB.
     pub max_output_bytes: usize,
-    /// Maximum directory entries visited, including nonmatches. Default: 10,000.
+    /// Maximum directory entries visited, including nonmatches and ignored
+    /// entries; directories are visited in path order. Default: 10,000.
     pub max_scan_entries: usize,
-    /// Maximum directory levels scanned; starting directory is level one. Default: 32.
+    /// Maximum directory levels scanned; starting directory is level one. A
+    /// deeper directory is not entered. Default: 32.
     pub max_depth: usize,
     /// Largest file searched, in bytes; a larger one is skipped and counted
     /// in `skipped_files`. Default: 8 MiB.
@@ -163,9 +166,9 @@ impl Default for GrepLimits {
 /// not searched; in a Git repository, nor is what its `info/exclude` and the
 /// ignore files between its root and the workspace's exclude. Binary and non-UTF-8 files, and files over
 /// `max_file_bytes`, are skipped and counted; binary content is told from a
-/// file's first 8 KiB, and the rest of it is not read. Once
-/// `max_total_bytes` runs out, the search returns the matches found so far,
-/// truncated. Other read failures fail the call. A fresh scan is made for
+/// file's first 8 KiB, and the rest of it is not read. At a traversal bound,
+/// or once `max_total_bytes` runs out, the search returns the matches found
+/// so far, truncated. Other read failures fail the call. A fresh scan is made for
 /// every page, from the first file.
 /// Reading and matching run on a blocking worker, never on the async
 /// executor.
@@ -228,8 +231,8 @@ impl GrepTool {
     ///
     /// # Errors
     /// Returns invalid patterns/offsets, refusal outside the root, I/O errors,
-    /// unsupported entries, a budget too small for one match reference,
-    /// traversal limit failures, or an ignore file over its bounds.
+    /// unsupported entries, a budget too small for one match reference, or
+    /// an ignore file over its bounds.
     pub async fn grep(
         &self,
         input: GrepInput,
@@ -254,16 +257,16 @@ impl GrepTool {
             return self.one_file(path);
         }
         let prefix = self.root.prefix(path)?;
-        let ignores = Ignores::for_scan(&self.root, path, include_ignored).await?;
-        let scan = paths::walk(
-            &self.root,
-            path,
-            self.limits.max_scan_entries,
-            self.limits.max_depth,
-            include_depth,
-            ignores,
-        )
-        .await?;
+        let start = Start {
+            ignores: Ignores::for_scan(&self.root, path, include_ignored).await?,
+            directory: path.to_path_buf(),
+            depth: 1,
+        };
+        let bounds = Bounds {
+            max_scan_entries: self.limits.max_scan_entries,
+            max_depth: self.limits.max_depth,
+        };
+        let scan = walk::walk(&self.root, start, bounds, include_depth).await?;
         Ok((scan, prefix))
     }
 
@@ -305,6 +308,9 @@ impl GrepTool {
             .await?;
         let mut page = Matches::new(self.root.relative(&path)?, &input, self.limits);
         page.data.skipped_entries = files.skipped;
+        if let Some(stop) = files.stopped {
+            page.stop(stop);
+        }
         let search = Search {
             root: self.root.clone(),
             files: files.entries,

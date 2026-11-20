@@ -180,6 +180,15 @@ part of an existing published preview.
   special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
   non-public, where the whole /16 was.
 
+- `list`, `glob` and `grep` no longer fail at `max_scan_entries` or
+  `max_depth`: they return what they found, sorted, with `truncated: true`,
+  and the facts line names the bound and the path where the scan stopped,
+  `[truncated_by=max_scan_entries, stopped_at="data"]`. Glob and grep walk
+  directories in path order, so what they return is the first part of the
+  tree; a directory below `max_depth` is listed but not entered. A flat
+  directory over the bound, which failed every unrestricted search, now
+  lists the entries read. `next_offset` pages through what was found.
+
 - `grep` and `glob` also leave out what a Git repository's
   `.git/info/exclude` excludes (a worktree's is its repository's) and, when
   the workspace is a directory below the repository's root, what the ignore
