@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::capture::Capture;
 use crate::persistent_unix::Spawned;
-use crate::unix::{Foreground, render};
+use crate::unix::{Foreground, Notes, render};
 use crate::{CapturedOutput, ProcessSession, ProcessStatus, ShellResult};
 
 /// Hand `command`, `foreground`'s command at its timeout, to `processes`,
@@ -50,6 +50,11 @@ pub(crate) async fn moved(
     foreground: &Foreground,
 ) -> Output<ShellResult> {
     tokio::join!(out.finish_archive_at_move(), err.finish_archive_at_move());
+    let notes = Notes {
+        capped_from: foreground.capped_from,
+        lifetime_ms: Some(status.timeout_ms),
+        ..Notes::default()
+    };
     if let Some((store, _)) = &foreground.outputs {
         out.discard_whole_archive(store);
         err.discard_whole_archive(store);
@@ -65,7 +70,7 @@ pub(crate) async fn moved(
         stderr: err.finish(),
         process_id: Some(status.process_id),
     };
-    render(result, None, foreground.capped_from)
+    render(result, &notes)
 }
 
 /// The result of a command started in the background as `status`'s process.
@@ -73,7 +78,7 @@ pub(crate) fn started(status: ProcessStatus) -> Output<ShellResult> {
     let text = format!(
         "{} started in the background; {}; read its output with process_read\n",
         status.process_id,
-        crate::persistent::lifetime(&status)
+        crate::persistent::lifetime(status.timeout_ms)
     );
     let none = || CapturedOutput {
         text: String::new(),

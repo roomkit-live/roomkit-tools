@@ -10,10 +10,11 @@ part of an existing published preview.
   and of process_read's `wait_ms` no longer break a sentence with a line
   break, which came from doc comments wrapped over two lines.
 
-- `process_start` and a shell command started with `run_in_background` say
-  how long the process may run: `p1 started; stopped after 300000 ms unless
-  it ends first; use process_read for output`. Nothing told a model that its
-  server would be stopped after five minutes.
+- `process_start`, a shell command started with `run_in_background`, and one
+  moved to the background at its timeout say how long the process may run,
+  counted from its start: `p1 started; stopped after 300000 ms unless it ends
+  first; use process_read for output`. Nothing told a model that its server
+  would be stopped after five minutes.
 
 - With `background_on_timeout`, a shell `timeout_ms` above the host maximum
   is capped to it rather than refused, and the result's text says so

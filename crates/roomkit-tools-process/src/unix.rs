@@ -270,7 +270,12 @@ async fn supervise(
         }
     }
     let result = stop(command, (out, err), waited, &foreground, cancel).await?;
-    Ok(render(result, refused.as_ref(), foreground.capped_from))
+    let notes = Notes {
+        refused: refused.as_ref(),
+        capped_from: foreground.capped_from,
+        ..Notes::default()
+    };
+    Ok(render(result, &notes))
 }
 
 /// Stop the group of a command that ended its wait, unless it exited on its
@@ -419,36 +424,29 @@ async fn drain_rest(
     }
 }
 
-/// The text of `data`, with why a command was not moved to the background
-/// and the `timeout_ms` it asked for, if the host maximum capped it.
-pub(crate) fn render(
-    data: ShellResult,
-    refused: Option<&ToolError>,
-    capped_from: Option<u64>,
-) -> Output<ShellResult> {
-    let mut text = match &data.process_id {
-        Some(_) => format!("still running after {} ms", data.timeout_ms),
-        None => outcome(&data),
-    };
-    if data.stdout.text.is_empty() && data.stderr.text.is_empty() {
-        text.push_str(" (no output)");
-    }
-    // Its process's offsets count from the move, not from the command's start.
-    if let Some(id) = &data.process_id {
-        let _written = write!(
-            text,
-            ": moved to the background as {id}; process_read reads what it writes after the move, each stream from offset 0"
-        );
-    }
+/// What a shell result's text says besides its data.
+#[derive(Default)]
+pub(crate) struct Notes<'a> {
+    /// Why the command was not moved to the background.
+    pub(crate) refused: Option<&'a ToolError>,
+    /// The `timeout_ms` the call asked for, when the host maximum capped it.
+    pub(crate) capped_from: Option<u64>,
+    /// The lifetime of the process the command moved to, from its start.
+    pub(crate) lifetime_ms: Option<u64>,
+}
+
+/// The text of `data`, with what `notes` adds.
+pub(crate) fn render(data: ShellResult, notes: &Notes<'_>) -> Output<ShellResult> {
+    let mut text = head(&data, notes.lifetime_ms);
     text.push('\n');
-    if let Some(asked) = capped_from {
+    if let Some(asked) = notes.capped_from {
         let _written = writeln!(
             text,
             "timeout_ms {asked} capped to the host maximum of {} ms",
             data.timeout_ms
         );
     }
-    if let Some(error) = refused {
+    if let Some(error) = notes.refused {
         let _written = writeln!(text, "not moved to the background: {error}");
     }
     // Before what the command wrote, which could imitate these lines.
@@ -460,6 +458,29 @@ pub(crate) fn render(
     crate::output::push_stream(&mut text, "stdout:", &data.stdout.text);
     crate::output::push_stream(&mut text, "stderr:", &data.stderr.text);
     Output::new(data, text)
+}
+
+/// The first line of `data`'s text: how the command ended, or where it
+/// moved and how long it may run there.
+fn head(data: &ShellResult, lifetime_ms: Option<u64>) -> String {
+    let mut text = match &data.process_id {
+        Some(_) => format!("still running after {} ms", data.timeout_ms),
+        None => outcome(data),
+    };
+    if data.stdout.text.is_empty() && data.stderr.text.is_empty() {
+        text.push_str(" (no output)");
+    }
+    if let Some(id) = &data.process_id {
+        let _written = write!(text, ": moved to the background as {id}");
+        if let Some(lifetime_ms) = lifetime_ms {
+            let _written = write!(text, "; {}", crate::persistent::lifetime(lifetime_ms));
+        }
+        // Its process's offsets count from the move, not from the command's start.
+        text.push_str(
+            "; process_read reads what it writes after the move, each stream from offset 0",
+        );
+    }
+    text
 }
 
 /// How a command ended, under the names of its result.

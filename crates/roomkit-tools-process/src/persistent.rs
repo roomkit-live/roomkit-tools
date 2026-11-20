@@ -325,7 +325,7 @@ impl ProcessSession {
             let mut text = format!(
                 "{} started; {}; use process_read for output\n",
                 status.process_id,
-                lifetime(&status)
+                lifetime(status.timeout_ms)
             );
             crate::output::append_metadata(
                 &mut text,
@@ -598,13 +598,11 @@ fn status_line(status: &ProcessStatus) -> String {
     line
 }
 
-/// How long a process that just started may run, as its start says it.
+/// How long a process may run, `timeout_ms` from its start, as its start
+/// or a shell command's move says it.
 #[cfg(unix)]
-pub(crate) fn lifetime(status: &ProcessStatus) -> String {
-    format!(
-        "stopped after {} ms unless it ends first",
-        status.timeout_ms
-    )
+pub(crate) fn lifetime(timeout_ms: u64) -> String {
+    format!("stopped after {timeout_ms} ms unless it ends first")
 }
 
 /// How a process ended, under its name in the structured result.

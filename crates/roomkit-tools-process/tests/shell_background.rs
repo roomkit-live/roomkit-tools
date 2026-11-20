@@ -607,8 +607,9 @@ async fn a_move_closes_the_shell_s_copies_whole_and_says_where_reads_start() {
     assert_eq!((archive.complete, archive.error), (true, None));
     let archive_id = archive.archive_id.unwrap();
     let moved = format!(
-        "still running after 300 ms: moved to the background as {id}; process_read reads \
-         what it writes after the move, each stream from offset 0\n\
+        "still running after 300 ms: moved to the background as {id}; stopped after 3600000 \
+         ms unless it ends first; process_read reads what it writes after the move, each \
+         stream from offset 0\n\
          [stdout archive {archive_id}: 201 of 201 bytes stored; output_read reads it]\n"
     );
     assert!(text.starts_with(&moved), "{text}");

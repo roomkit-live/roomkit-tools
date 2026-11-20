@@ -254,8 +254,9 @@ repeating a byte: the result has what it wrote until then, `process_id`, null
 `exit_code` and `signal`, and `timed_out` false; `process_read` gives the rest,
 each stream from offset 0, as the result's text says. With an output store, a
 stream the result cut short keeps its archive, closed `complete` at the move;
-the process's own archives hold the rest. It runs on until the session's maximum lifetime, counted from
-its start. A move the session refuses, its quota held by running processes,
+the process's own archives hold the rest. It runs on until the session's
+maximum lifetime, counted from its start, which the result's text gives
+(`stopped after 3600000 ms unless it ends first`). A move the session refuses, its quota held by running processes,
 stops the command as before, and the result's text says why. Either way the command keeps the
 shell's environment and directory, its stdin stays closed, and the session's
 `ends()` tells its end. With `keep_background_jobs`, a moved command keeps
