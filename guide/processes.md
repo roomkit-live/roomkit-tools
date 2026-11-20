@@ -54,7 +54,9 @@ otherwise `InvalidInputError`. Rust hosts pass a `CommandEnv` with the same
 
 Host constructor bounds are `max_command_bytes` (16 KiB), `max_output_bytes`
 (32 KiB raw bytes per stream), `default_timeout_ms` (10,000) and `max_timeout_ms`
-(120,000). All must be positive; default timeout cannot exceed the maximum,
+(120,000). A longer command is refused with its size, the limit and the way
+out: `command is 20034 bytes, over the host limit of 16384: write the script to
+a file, then run it`. All must be positive; default timeout cannot exceed the maximum,
 and the maximum cannot exceed 24 hours. `keep_background_jobs` (default false)
 leaves the background jobs of a command whose shell exits on its own running,
 for a host whose agent starts a server that must outlive the call; a job still
@@ -151,7 +153,9 @@ with the same host permissions, environment options, initial-cwd boundary and
 new session without a terminal as shell.
 
 `read` observes available output without consuming it or sending
-EOF. Use each stream's `next_offset` separately. Empty output while running
+EOF. Use each stream's `next_offset` separately: an offset past its stream's
+end is refused with that end (`stderr_offset 5 is past stderr's end 2; each
+stream has its own next_offset`). Empty output while running
 means nothing new is available yet. The journal retains the most recent bytes;
 `omitted_bytes` reports data already evicted. With `wait_ms`, a read first
 waits, up to that many milliseconds capped by `max_wait_ms`, until the job ends

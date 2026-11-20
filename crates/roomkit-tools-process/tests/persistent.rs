@@ -150,6 +150,48 @@ async fn stdin_eof_output_cursors_and_nonzero_exit() {
 }
 
 #[tokio::test]
+async fn a_cursor_past_its_stream_s_end_names_the_stream_and_that_end() {
+    let root = tempfile::tempdir().unwrap();
+    let manager = ProcessSession::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let input = ProcessStartInput::new("printf 12345; printf ab >&2");
+    let id = manager
+        .start(Some("a"), input, &token)
+        .await
+        .unwrap()
+        .data
+        .process_id;
+    finished(&manager, "a", &id).await;
+    // A model passing stdout's next_offset as both offsets.
+    let both = ProcessReadInput {
+        stdout_offset: 5,
+        stderr_offset: 5,
+        ..ProcessReadInput::new(&id)
+    };
+    let refused = manager.read(Some("a"), both, &token).await;
+    let Err(ToolError::InvalidInput(message)) = refused else {
+        panic!("{refused:?}");
+    };
+    assert_eq!(
+        message,
+        "stderr_offset 5 is past stderr's end 2; each stream has its own next_offset"
+    );
+    let past = ProcessReadInput {
+        stdout_offset: 6,
+        ..ProcessReadInput::new(&id)
+    };
+    let refused = manager.read(Some("a"), past, &token).await;
+    let Err(ToolError::InvalidInput(message)) = refused else {
+        panic!("{refused:?}");
+    };
+    assert_eq!(
+        message,
+        "stdout_offset 6 is past stdout's end 5; each stream has its own next_offset"
+    );
+    assert!(manager.close().await);
+}
+
+#[tokio::test]
 async fn output_is_visible_before_exit_and_polling_does_not_duplicate_it() {
     let root = tempfile::tempdir().unwrap();
     let manager = ProcessSession::new(root.path()).await.unwrap();
@@ -842,6 +884,28 @@ async fn pre_cancel_invalid_input_and_root_checks_prevent_spawn() {
         manager.start(Some("a"), input, &token).await,
         Err(ToolError::AccessRefused(_))
     ));
+    let bounded = ProcessSession::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(ProcessLimits {
+            max_command_bytes: 2,
+            ..ProcessLimits::default()
+        })
+        .unwrap();
+    let refused = bounded
+        .start(
+            Some("a"),
+            ProcessStartInput::new("touch unexpected"),
+            &token,
+        )
+        .await;
+    let Err(ToolError::LimitExceeded(message)) = refused else {
+        panic!("{refused:?}");
+    };
+    assert_eq!(
+        message,
+        "command is 16 bytes, over the host limit of 2: write the script to a file, then run it"
+    );
     assert!(!outside.path().join("unexpected").exists());
     assert!(!root.path().join("unexpected").exists());
     assert!(

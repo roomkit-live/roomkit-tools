@@ -43,11 +43,20 @@ impl Journal {
         Ok(())
     }
 
-    pub(crate) fn page(&self, requested: u64, limit: usize) -> Result<ProcessChunk, ToolError> {
+    /// A page of the stream `name` from `requested` on; a cursor past its
+    /// end is refused with that end, which differs from the other stream's.
+    pub(crate) fn page(
+        &self,
+        name: &str,
+        requested: u64,
+        limit: usize,
+    ) -> Result<ProcessChunk, ToolError> {
         if requested > self.total {
-            return Err(ToolError::InvalidInput(
-                "output cursor is past the observed stream end".into(),
-            ));
+            return Err(ToolError::InvalidInput(format!(
+                "{name}_offset {requested} is past {name}'s end {}; each stream has its own \
+                 next_offset",
+                self.total
+            )));
         }
         let offset = requested.max(self.first());
         // offset - first is within the retained buffer's usize-sized length.

@@ -95,10 +95,14 @@ async fn validates_inputs_limits_and_initial_cwd_before_spawning() {
         ..ShellLimits::default()
     };
     let bounded = tool.clone().with_limits(limits).unwrap();
-    assert!(matches!(
-        bounded.shell(ShellInput::new("touch x"), &token).await,
-        Err(ToolError::LimitExceeded(_))
-    ));
+    let refused = bounded.shell(ShellInput::new("touch x"), &token).await;
+    let Err(ToolError::LimitExceeded(message)) = refused else {
+        panic!("{refused:?}");
+    };
+    assert_eq!(
+        message,
+        "command is 7 bytes, over the host limit of 2: write the script to a file, then run it"
+    );
     limits.max_output_bytes = 0;
     assert!(tool.with_limits(limits).is_err());
     assert!(serde_json::from_str::<ShellInput>(r#"{"command":"pwd","timeout_ms":0}"#).is_err());

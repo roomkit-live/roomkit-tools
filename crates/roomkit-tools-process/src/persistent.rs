@@ -279,11 +279,7 @@ impl ProcessSession {
                 "command must be nonempty without NUL".into(),
             ));
         }
-        if input.command.len() > self.inner.limits.max_command_bytes {
-            return Err(ToolError::LimitExceeded(
-                "process command exceeds host limit".into(),
-            ));
-        }
+        crate::check_command_size(&input.command, self.inner.limits.max_command_bytes)?;
         crate::working_directory(
             &self.inner.workspace,
             input.cwd.as_deref(),
@@ -410,8 +406,8 @@ impl ProcessSession {
             .min(self.inner.limits.max_read_bytes);
         let data = ProcessReadResult {
             status: record.status(),
-            stdout: record.stdout.page(input.stdout_offset, limit)?,
-            stderr: record.stderr.page(input.stderr_offset, limit)?,
+            stdout: record.stdout.page("stdout", input.stdout_offset, limit)?,
+            stderr: record.stderr.page("stderr", input.stderr_offset, limit)?,
         };
         let text = read::read_text(&data);
         Ok(Output::new(data, text))

@@ -155,7 +155,14 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
             byte = (await session.read(pid, stderr_offset=0, max_bytes=1))["data"]["stderr"]
             self.assertEqual(byte["bytes"], [207])
             self.assertEqual(byte["text"], "\ufffd")
-            with self.assertRaises(InvalidInputError):
+            with self.assertRaisesRegex(
+                InvalidInputError,
+                "stderr_offset 6 is past stderr's end 5; each stream has its own next_offset",
+            ):
+                await session.read(pid, stdout_offset=16, stderr_offset=6)
+            with self.assertRaisesRegex(
+                InvalidInputError, "stdout_offset 17 is past stdout's end 16"
+            ):
                 await session.read(pid, stdout_offset=17)
 
     async def test_separate_sessions_cannot_resolve_each_others_records(self) -> None:
@@ -345,7 +352,11 @@ class ProcessTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_command_write_limits_and_cwd_boundaries(self) -> None:
         async with ProcessSession(self.root, max_command_bytes=3, max_write_bytes=2) as session:
-            with self.assertRaises(LimitExceededError):
+            with self.assertRaisesRegex(
+                LimitExceededError,
+                "command is 16 bytes, over the host limit of 3: write the script to a file, "
+                "then run it",
+            ):
                 await session.start("touch unexpected")
             pid = (await session.start("cat"))["data"]["process_id"]
             with self.assertRaises(LimitExceededError):

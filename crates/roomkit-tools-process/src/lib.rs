@@ -100,6 +100,19 @@ async fn working_directory(
     }
 }
 
+/// Refuse a command above the host's `max` bytes with its size, that limit
+/// and what to do instead.
+fn check_command_size(command: &str, max: usize) -> Result<(), roomkit_tools_core::ToolError> {
+    if command.len() > max {
+        return Err(roomkit_tools_core::ToolError::LimitExceeded(format!(
+            "command is {} bytes, over the host limit of {max}: write the script to a file, \
+             then run it",
+            command.len()
+        )));
+    }
+    Ok(())
+}
+
 /// The runtime a call asks for, or the host default. A request above the
 /// host maximum is refused with that maximum, so the model can correct it.
 fn requested_timeout(

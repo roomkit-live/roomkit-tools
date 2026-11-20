@@ -125,7 +125,11 @@ class ShellTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(InvalidInputError):
                 await ShellTool.create(self.root, **options)
         limited = await ShellTool.create(self.root, max_command_bytes=2)
-        with self.assertRaises(LimitExceededError):
+        with self.assertRaisesRegex(
+            LimitExceededError,
+            "command is 16 bytes, over the host limit of 2: write the script to a file, "
+            "then run it",
+        ):
             await limited.shell("touch unexpected")
         self.assertFalse((self.root / "unexpected").exists())
 

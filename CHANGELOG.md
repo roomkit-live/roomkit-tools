@@ -6,6 +6,14 @@ part of an existing published preview.
 
 ## Unreleased
 
+- Two refusals of the shell and process tools give the bound and the way
+  out. A command above `max_command_bytes` reads `command is 20034 bytes,
+  over the host limit of 16384: write the script to a file, then run it`,
+  for shell and process_start alike. A `process_read` offset past its
+  stream's end names that stream and its end: `stderr_offset 5 is past
+  stderr's end 2; each stream has its own next_offset`, where it read
+  "output cursor is past the observed stream end".
+
 - A shell command moved to the background closes its shell archives at the
   move as complete: every byte until then is stored, where the archive said
   `complete=false, error="capture_incomplete"`. The result's text now says

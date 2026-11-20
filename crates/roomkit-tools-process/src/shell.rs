@@ -324,11 +324,7 @@ impl ShellTool {
                 "command must be nonempty and contain no NUL".into(),
             ));
         }
-        if input.command.len() > self.limits.max_command_bytes {
-            return Err(ToolError::LimitExceeded(
-                "shell command exceeds the host limit".into(),
-            ));
-        }
+        crate::check_command_size(&input.command, self.limits.max_command_bytes)?;
         if input.run_in_background {
             return self.background(owner, input, cancel).await;
         }
