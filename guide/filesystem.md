@@ -146,7 +146,9 @@ it:
   one is named.
 - `max_total_bytes`: grep returns the matches found so far, with no
   `next_offset`, and names the file it stopped at. Every page reads from the
-  first file, so a deep page or a rare pattern can meet it.
+  first file, so a deep page or a rare pattern can meet it. When the scan
+  bound stopped the walk too, the facts name the stop first in path order,
+  where the search began to miss files.
 
 A file over `max_file_bytes` is skipped and counted. Output pagination is
 reported explicitly. Run the standalone

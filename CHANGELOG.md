@@ -229,7 +229,9 @@ part of an existing published preview.
   directories in path order, so what they return is the first part of the
   tree; a directory below `max_depth` is listed but not entered. A flat
   directory over the bound, which failed every unrestricted search, now
-  lists the entries read. `next_offset` pages through what was found.
+  lists the entries read. `next_offset` pages through what was found. When
+  the walk and `max_total_bytes` both stop `grep`, the facts name the stop
+  first in path order.
 
 - `grep` and `glob` also leave out what a Git repository's
   `.git/info/exclude` excludes (a worktree's is its repository's) and, when

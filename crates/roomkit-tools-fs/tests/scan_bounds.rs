@@ -100,6 +100,43 @@ async fn a_walk_at_the_scan_bound_returns_what_it_found_in_path_order() {
     );
 }
 
+/// When the walk and the byte budget both stop a search, the stop named is
+/// the first in path order, where the search began to miss files.
+#[tokio::test]
+async fn grep_names_the_first_of_its_stops_in_path_order() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("a")).unwrap();
+    for file in 0..10 {
+        std::fs::write(root.path().join(format!("a/{file}")), "hit\n").unwrap();
+    }
+    std::fs::write(
+        root.path().join("b.txt"),
+        format!("hit {}\n", "x".repeat(15)),
+    )
+    .unwrap();
+    let grep = GrepTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(GrepLimits {
+            max_scan_entries: 6,
+            max_total_bytes: 26,
+            ..GrepLimits::default()
+        })
+        .unwrap();
+    let found = grep
+        .grep(GrepInput::new("hit"), &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(found.data.matches.len(), 4);
+    assert!(
+        found
+            .text
+            .ends_with("[truncated_by=max_scan_entries, stopped_at=\"a\"]\n"),
+        "{}",
+        found.text
+    );
+}
+
 /// A directory past `max_depth` is listed but not entered, and named.
 #[tokio::test]
 async fn a_directory_past_max_depth_is_listed_but_not_entered() {

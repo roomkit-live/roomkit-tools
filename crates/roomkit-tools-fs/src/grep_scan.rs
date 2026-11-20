@@ -222,11 +222,18 @@ impl Matches {
     }
 
     /// End the search at a host bound: the matches found so far are the
-    /// last ones this call can return. A later stop replaces an earlier
-    /// one: the scan's file list ends after the search's own stop.
+    /// last ones this call can return. Of the walk's stop and the byte
+    /// budget's, the one named is the first in path order, where the search
+    /// began to miss files.
     pub(crate) fn stop(&mut self, stop: Stop) {
         self.data.truncated = true;
-        self.stopped = Some(stop);
+        if self
+            .stopped
+            .as_ref()
+            .is_none_or(|earlier| stop.path < earlier.path)
+        {
+            self.stopped = Some(stop);
+        }
     }
 
     fn end_page(&mut self) -> bool {
