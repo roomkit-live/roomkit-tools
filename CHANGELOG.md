@@ -390,7 +390,13 @@ part of an existing published preview.
   parts are unchanged. Refusals, failures and cancellation are unchanged. A
   host that read the data from the result reads it from the structured
   content; a hook that already split the envelope, as roomkit-code's does,
-  finds the text alone and leaves it. A Rust handler answers
+  finds the text alone and leaves it. An `ON_TOOL_CALL` hook that inspects or
+  redacts `event.result` alone no longer sees the data: it is in the call's
+  structured copy, which the end event keeps and transports receive, so a
+  redacting hook must handle `structured_content` too. Python's plans, docs
+  and agents adapters set the whole `{data, text}` as structured content; it
+  is now `{"data": ...}`, so a host that read `structured_content["text"]`
+  reads the result instead. A Rust handler answers
   `ToolResult::Text` where it answered a `ToolResult::Json` object, so a
   wrapper or hook that matched that object no longer finds it: roomkit-code's
   `Scoped` instructions wrapper, which adds `project_instructions` as a field
