@@ -331,17 +331,11 @@ async fn stop(
 /// Follow the group `pgid` that `foreground` left running, if any job is left
 /// in it, so that its end is told.
 fn follow(foreground: &Foreground, pgid: Pid) {
-    let end = crate::JobEnd {
-        owner: foreground.owner.clone(),
-        tool: crate::JobTool::Shell,
-        process_id: None,
-        command: foreground.command.clone(),
-        cwd: foreground.shown_cwd.clone(),
-        end: crate::ProcessEnd::Exited,
-        exit_code: None,
-        signal: None,
-        elapsed_ms: 0,
-    };
+    let end = crate::shell_jobs::left_running(
+        foreground.owner.clone(),
+        foreground.command.clone(),
+        foreground.shown_cwd.clone(),
+    );
     foreground.jobs.follow(pgid, end, foreground.started);
 }
 

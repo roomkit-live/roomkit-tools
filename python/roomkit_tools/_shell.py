@@ -91,7 +91,8 @@ class ShellTool:
         drainer that discards its output and outlives the host. A timeout or
         cancellation still stops every member (default False). The tool
         follows the jobs it keeps: ends() tells when they ended, close() stops
-        them and detach() lets them go.
+        them and detach() lets them go. It keeps those of a command moved to
+        the background alike, once its shell exits.
 
         processes runs background commands as processes of that ProcessSession:
         those started with run_in_background, and those background_on_timeout

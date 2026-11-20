@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::journal::Journal;
 use crate::persistent::{Entry, Record};
+use crate::shell_jobs::ShellJobs;
 use crate::unix::Group;
 use crate::{CommandEnv, ProcessEnd, ProcessLimits, ProcessState, ProcessStatus};
 
@@ -34,6 +35,9 @@ pub(crate) struct Host<'a> {
     pub(crate) ends: &'a Arc<crate::ends::Ends>,
     pub(crate) stop: CancellationToken,
     pub(crate) detach: CancellationToken,
+    /// Who follows the jobs a shell command leaves running once its shell
+    /// exits on its own; `None` stops them with it.
+    pub(crate) kept: Option<Arc<ShellJobs>>,
 }
 
 /// Spawn `command` in `cwd` with `env`, its stdin piped for the process
@@ -63,19 +67,12 @@ pub(crate) fn launch(
 /// Record `owner`'s spawned `command`, then capture and stop it in its own
 /// task. Its stdin is the child's, if piped; a closed one shows as such.
 pub(crate) fn adopt(
-    spawned: Spawned,
+    mut spawned: Spawned,
     (owner, command): (Option<&str>, &str),
     mut status: ProcessStatus,
     host: Host<'_>,
 ) -> (Arc<Entry>, ProcessStatus) {
-    let Spawned {
-        mut child,
-        group,
-        stdout,
-        stderr,
-        started,
-    } = spawned;
-    let stdin = child.stdin.take();
+    let stdin = spawned.child.stdin.take();
     status.stdin_closed = stdin.is_none();
     let (done, receiver) = watch::channel(false);
     let outputs = host.outputs;
@@ -88,7 +85,7 @@ pub(crate) fn adopt(
     let entry = Arc::new(Entry {
         owner: owner.map(Into::into),
         command: command.into(),
-        started,
+        started: spawned.started,
         finished: std::sync::OnceLock::new(),
         record: Arc::new(Mutex::new(Record {
             status: status.clone(),
@@ -104,12 +101,9 @@ pub(crate) fn adopt(
         done: receiver,
     });
     tokio::spawn(run(
-        child,
-        group,
-        stdout,
-        stderr,
+        spawned,
         Arc::clone(&entry),
-        (done, Arc::clone(host.ends)),
+        (done, Arc::clone(host.ends), host.kept),
         (stdout_archive, stderr_archive, archive_timeout),
     ));
     (entry, status)
@@ -159,18 +153,26 @@ async fn drain(
 }
 
 async fn run(
-    mut child: Child,
-    mut group: Group,
-    stdout: ChildStdout,
-    stderr: ChildStderr,
+    spawned: Spawned,
     entry: Arc<Entry>,
-    (done, ends): (watch::Sender<bool>, Arc<crate::ends::Ends>),
+    (done, ends, kept): (
+        watch::Sender<bool>,
+        Arc<crate::ends::Ends>,
+        Option<Arc<ShellJobs>>,
+    ),
     archives: (
         Option<crate::output::Sink>,
         Option<crate::output::Sink>,
         u64,
     ),
 ) {
+    let Spawned {
+        mut child,
+        group,
+        stdout,
+        stderr,
+        ..
+    } = spawned;
     let (stdout_archive, stderr_archive, archive_timeout) = archives;
     let timeout = entry.record.lock().await.status.timeout_ms;
     // From the command's start, which a shell command moved here preceded.
@@ -189,18 +191,44 @@ async fn run(
         status = child.wait() => (ProcessEnd::Exited, status.map(|_| ())),
         () = capture_failed.cancelled() => (ProcessEnd::Failed, Err(std::io::Error::other("capture failed"))),
     };
-    // Release any pending stdin writer and clean background children on every exit.
-    entry.stop.cancel();
-    let stopped = group.stop();
-    entry.stdin.lock().await.take();
-    let reaped = group.reap_shell(&mut child).await;
-    let drained = finish_capture(capture).await;
+    // A shell command's jobs outlive a shell that exits on its own when kept.
+    let kept = kept.filter(|_| end == ProcessEnd::Exited && execution.is_ok());
+    let (stopped, reaped, drained) =
+        clean_up(&entry, (&mut child, group), (capture, release), kept).await;
     settle_archives(&entry, archive_timeout).await;
     let error = failure(&execution, &stopped, reaped.as_ref(), drained);
     publish(&entry, end, reaped, drained, error).await;
     // Told before `done`: a close that waited for the job has told its end.
     ends.send(&job_end(&entry).await);
     done.send_replace(true);
+}
+
+/// Stop the job's group and reap its shell, then drain what its pipes still
+/// hold. A shell that exited on its own leaves the jobs `kept` follows
+/// running instead, as in the foreground: pipes a job still holds once the
+/// drain ends go to drainers that outlive the host.
+async fn clean_up(
+    entry: &Entry,
+    (child, mut group): (&mut Child, Group),
+    capture: (JoinHandle<Captured>, CancellationToken),
+    kept: Option<Arc<ShellJobs>>,
+) -> (
+    std::io::Result<()>,
+    Option<std::io::Result<ExitStatus>>,
+    Drained,
+) {
+    // Release any pending stdin writer.
+    entry.stop.cancel();
+    let stopped = if kept.is_some() { Ok(()) } else { group.stop() };
+    entry.stdin.lock().await.take();
+    let reaped = group.reap_shell(child).await;
+    let drained = finish_capture(capture, kept.is_some()).await;
+    if let (Some(jobs), Some(pgid)) = (kept, group.release()) {
+        let cwd = entry.record.lock().await.status.cwd.clone();
+        let end = crate::shell_jobs::left_running(entry.owner.clone(), entry.command.clone(), cwd);
+        jobs.follow(pgid, end, entry.started);
+    }
+    (stopped, reaped, drained)
 }
 
 /// The end of `entry`'s job, which finished.
@@ -295,16 +323,30 @@ enum Drained {
 }
 
 /// Let capture drain what the pipes still hold. Escaped children can keep
-/// inherited pipes open, so this waits at most 250 ms.
-async fn finish_capture(mut capture: JoinHandle<Captured>) -> Drained {
-    match tokio::time::timeout(Duration::from_millis(250), &mut capture).await {
-        Ok(Ok(Captured::Drained(Ok(_)))) => Drained::Complete,
-        Ok(Ok(Captured::Drained(Err(_))) | Err(_)) => Drained::Failed,
-        // Only a detached job's capture gives its pipes back, never here.
-        Ok(Ok(Captured::Released(..))) => Drained::CutShort,
+/// inherited pipes open, so this waits at most 250 ms. Past it, the pipes
+/// close, or, for `kept` jobs still writing to them, go to drainers: closed,
+/// a job's next write would fail or kill it.
+async fn finish_capture(
+    (mut capture, release): (JoinHandle<Captured>, CancellationToken),
+    kept: bool,
+) -> Drained {
+    let captured = match tokio::time::timeout(Duration::from_millis(250), &mut capture).await {
+        Ok(captured) => captured,
+        Err(_) if kept => {
+            release.cancel();
+            capture.await
+        }
         Err(_) => {
             capture.abort();
             let _joined = capture.await;
+            return Drained::CutShort;
+        }
+    };
+    match captured {
+        Ok(Captured::Drained(Ok(_))) => Drained::Complete,
+        Ok(Captured::Drained(Err(_))) | Err(_) => Drained::Failed,
+        Ok(Captured::Released(stdout, stderr)) => {
+            crate::unix::hand_off(stdout, stderr);
             Drained::CutShort
         }
     }
@@ -399,6 +441,7 @@ mod tests {
             ends: &Arc::new(crate::ends::Ends::new()),
             stop: CancellationToken::new(),
             detach: CancellationToken::new(),
+            kept: None,
         };
         let (entry, _) = adopt(spawned, (Some("a"), "sleep 30"), status, host);
         entry.stop.cancel();

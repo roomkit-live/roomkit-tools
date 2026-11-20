@@ -325,7 +325,7 @@ impl ProcessSession {
                 std::process::Stdio::piped(),
             )?;
             // No await after spawn: ownership and the recoverable ID are committed together.
-            let status = self.commit(reserved, (owner, &input.command), status, spawned);
+            let status = self.commit(reserved, (owner, &input.command), status, spawned, None);
             let mut text = format!(
                 "{} started; use process_read for output\n",
                 status.process_id

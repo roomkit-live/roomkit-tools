@@ -388,6 +388,96 @@ async fn a_moved_command_stops_with_the_session_or_outlives_it_detached() {
     }
 }
 
+/// A moving shell that keeps the jobs of a command whose shell exits on its own.
+async fn moving_and_keeping(root: &std::path::Path, processes: ProcessSession) -> ShellTool {
+    ShellTool::new(root)
+        .await
+        .unwrap()
+        .with_processes(processes)
+        .with_limits(ShellLimits {
+            default_timeout_ms: 200,
+            keep_background_jobs: true,
+            background_on_timeout: true,
+            ..ShellLimits::default()
+        })
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_moved_command_keeps_its_background_jobs_as_in_the_foreground() {
+    let root = tempfile::tempdir().unwrap();
+    let processes = session(root.path(), ProcessLimits::default()).await;
+    let mut process_ends = processes.ends();
+    let shell = moving_and_keeping(root.path(), processes.clone()).await;
+    let mut shell_ends = shell.ends();
+    // The job still holds the pipes and writes to them once the shell is
+    // gone: its pipes go to a drainer, it is not killed.
+    let command = "sleep 0.4; (sleep 1; echo late; echo survived > mark) & exit 0";
+    let (result, _) = run(&shell, "a", ShellInput::new(command)).await;
+    let id = result.process_id.clone().unwrap();
+    let end = next(&mut process_ends).await.unwrap();
+    assert_eq!(end.process_id.as_deref(), Some(id.as_str()));
+    assert_eq!((end.end, end.exit_code), (ProcessEnd::Exited, Some(0)));
+    // The shell tool follows the jobs and tells their end, as in the foreground.
+    let kept = next(&mut shell_ends).await.unwrap();
+    assert_eq!(
+        (kept.tool, kept.end, kept.process_id.as_deref()),
+        (JobTool::Shell, ProcessEnd::Exited, None)
+    );
+    assert_eq!(
+        (kept.owner.as_deref(), kept.command.as_str()),
+        (Some("a"), command)
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("mark")).unwrap(),
+        "survived\n"
+    );
+    assert!(processes.close().await);
+    assert!(shell.close().await);
+}
+
+#[tokio::test]
+async fn a_moved_command_s_kept_jobs_stop_with_the_shell_or_outlive_it_detached() {
+    for detach in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let processes = session(root.path(), ProcessLimits::default()).await;
+        let mut process_ends = processes.ends();
+        let shell = moving_and_keeping(root.path(), processes.clone()).await;
+        let mut shell_ends = shell.ends();
+        let command = "echo $$; sleep 0.4; sleep 60 > /dev/null 2>&1 & exit 0";
+        let (result, _) = run(&shell, "a", ShellInput::new(command)).await;
+        assert!(result.process_id.is_some());
+        let pgid: i32 = result.stdout.text.trim().parse().unwrap();
+        assert_eq!(
+            next(&mut process_ends).await.unwrap().end,
+            ProcessEnd::Exited
+        );
+        assert!(
+            running(pgid),
+            "the job runs on once the moved command's shell exits"
+        );
+        if detach {
+            assert!(shell.detach().await);
+            assert_eq!(next(&mut shell_ends).await, None, "let go untold");
+        } else {
+            assert!(shell.close().await);
+            let stopped = next(&mut shell_ends).await.unwrap();
+            assert_eq!(
+                (stopped.tool, stopped.end),
+                (JobTool::Shell, ProcessEnd::Stopped)
+            );
+        }
+        let outlived = running(pgid);
+        // The job is the test's to stop, whatever the assertions say.
+        let _killed = rustix::process::kill_process_group(
+            rustix::process::Pid::from_raw(pgid).unwrap(),
+            rustix::process::Signal::KILL,
+        );
+        assert_eq!(outlived, detach, "close stops it, detach lets it go");
+        assert!(processes.close().await);
+    }
+}
+
 #[tokio::test]
 async fn a_moved_command_keeps_its_archives_within_a_shared_store_s_quota() {
     let root = tempfile::tempdir().unwrap();

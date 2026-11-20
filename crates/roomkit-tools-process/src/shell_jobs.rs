@@ -66,6 +66,23 @@ impl ShellJobs {
     }
 }
 
+/// The end told of the jobs that `command`, run by `owner` in `cwd` (as
+/// results name it), leaves running: they end by themselves.
+#[cfg(unix)]
+pub(crate) fn left_running(owner: Option<String>, command: String, cwd: String) -> crate::JobEnd {
+    crate::JobEnd {
+        owner,
+        tool: crate::JobTool::Shell,
+        process_id: None,
+        command,
+        cwd,
+        end: crate::ProcessEnd::Exited,
+        exit_code: None,
+        signal: None,
+        elapsed_ms: 0,
+    }
+}
+
 #[cfg(unix)]
 mod unix {
     use std::sync::Arc;

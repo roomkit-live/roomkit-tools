@@ -6,6 +6,13 @@ part of an existing published preview.
 
 ## Unreleased
 
+- With `keep_background_jobs`, a shell command moved to the background at
+  its timeout keeps its background jobs as in the foreground: once its shell
+  exits on its own, they run on, and the shell's `ends()`, `close()` and
+  `detach()` tell their end, stop them and let them go. They were killed
+  with the moved command's shell, so `cargo build && (./server > log 2>&1 &)`
+  lost its server whenever the build outlived the timeout.
+
 - A shell command can run on in the background as a process. With
   `ShellTool.create(processes=session)` (Rust: `ShellTool::with_processes`),
   `shell(..., run_in_background=True)` starts it as one of the session's

@@ -3,6 +3,7 @@
 
 use std::num::NonZeroU64;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use roomkit_tools_core::ToolError;
@@ -11,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::{ProcessSession, Registry, initial_status, notify_finished};
 use crate::persistent_unix::{Host, Spawned};
+use crate::shell_jobs::ShellJobs;
 use crate::{CommandEnv, ProcessStatus};
 
 /// An identifier the quota admits, held with the registry until committed.
@@ -35,6 +37,9 @@ pub(crate) struct ShellJob<'a> {
     pub(crate) shown_cwd: &'a str,
     /// The shell tool's environment, which its commands keep.
     pub(crate) env: &'a CommandEnv,
+    /// Who follows the jobs the command leaves running once its shell exits
+    /// on its own, with `keep_background_jobs`; `None` stops them with it.
+    pub(crate) kept: Option<&'a Arc<ShellJobs>>,
 }
 
 impl ProcessSession {
@@ -52,12 +57,15 @@ impl ProcessSession {
     }
 
     /// Adopt `spawned` under the reserved identifier, which `status` carries.
+    /// `kept` follows the jobs it leaves running once its shell exits on its
+    /// own; `None` stops them with it.
     pub(super) fn commit(
         &self,
         mut reserved: Reserved<'_>,
         (owner, command): (Option<&str>, &str),
         status: ProcessStatus,
         spawned: Spawned,
+        kept: Option<Arc<ShellJobs>>,
     ) -> ProcessStatus {
         let host = Host {
             limits: self.inner.limits,
@@ -65,6 +73,7 @@ impl ProcessSession {
             ends: &self.inner.ends,
             stop: self.inner.closed.child_token(),
             detach: self.inner.detached.clone(),
+            kept,
         };
         let (entry, status) =
             crate::persistent_unix::adopt(spawned, (owner, command), status, host);
@@ -99,12 +108,14 @@ impl ProcessSession {
             job.env,
             std::process::Stdio::null(),
         )?;
-        Ok(self.commit(reserved, (job.owner, job.command), status, spawned))
+        let kept = job.kept.cloned();
+        Ok(self.commit(reserved, (job.owner, job.command), status, spawned, kept))
     }
 
     /// Take over `spawned`, `job`'s command still running at its foreground
     /// timeout, as its owner's next process: it runs on until this session's
-    /// maximum lifetime, counted from its start. `admitted` runs once the
+    /// maximum lifetime, counted from its start, and the jobs it leaves once
+    /// its shell exits are kept as `job` says. `admitted` runs once the
     /// session admits it, before its output archives open: the caller
     /// releases what the move leaves needless. A session that refuses it,
     /// closed or its quota reached, gives it back with the reason.
@@ -131,6 +142,7 @@ impl ProcessSession {
         };
         admitted();
         let status = initial_status(reserved.process_id(), job.shown_cwd.into(), lifetime);
-        Ok(self.commit(reserved, (job.owner, job.command), status, spawned))
+        let kept = job.kept.cloned();
+        Ok(self.commit(reserved, (job.owner, job.command), status, spawned, kept))
     }
 }

@@ -235,7 +235,12 @@ from offset 0. It runs on until the session's maximum lifetime, counted from
 its start. A move the session refuses, its quota reached, stops the command as
 before, and the result's text says why. Either way the command keeps the
 shell's environment and directory, its stdin stays closed, and the session's
-`ends()` tells its end. `run_in_background` without a session, and
+`ends()` tells its end. With `keep_background_jobs`, a moved command keeps
+its background jobs as in the foreground: once its shell exits on its own,
+the session's process ends `exited` and its jobs run on, followed by the
+shell, whose `ends()` tells their end, `close()` stops them and `detach()`
+lets them go; a job still holding the command's pipes writes to a drainer.
+`run_in_background` without a session, and
 `background_on_timeout` without one, raise `InvalidInputError`. The shell
 keeps its session alive; closing the shell leaves these processes to it. See
 [the RoomKit example](../examples/roomkit_shell_background.py):

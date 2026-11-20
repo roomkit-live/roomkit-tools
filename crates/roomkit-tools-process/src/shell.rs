@@ -58,7 +58,8 @@ pub struct ShellLimits {
     /// and outlives the host. A timeout or a cancellation still stops every
     /// member. The tool follows the jobs it keeps: [`ShellTool::ends`] tells
     /// when they ended, [`ShellTool::close`] stops them and
-    /// [`ShellTool::detach`] lets them go. Default: false.
+    /// [`ShellTool::detach`] lets them go. It keeps those of a command moved
+    /// to the background alike, once its shell exits. Default: false.
     pub keep_background_jobs: bool,
     /// Move a command still running at its timeout to the background instead
     /// of stopping it: it runs on as a process of the session attached with
@@ -411,6 +412,8 @@ impl ShellTool {
                 cwd: &cwd,
                 shown_cwd: &shown_cwd,
                 env: &self.env,
+                // Started as a process, it stops its jobs as process_start's do.
+                kept: None,
             };
             let status = processes
                 .start_shell(&job, input.timeout_ms, cancel)

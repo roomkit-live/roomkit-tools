@@ -28,6 +28,10 @@ pub(crate) async fn take_over(
         cwd: &foreground.cwd,
         shown_cwd: &foreground.shown_cwd,
         env: &foreground.env,
+        kept: foreground
+            .limits
+            .keep_background_jobs
+            .then_some(&foreground.jobs),
     };
     let release = || {
         if let Some((store, _)) = &foreground.outputs {
