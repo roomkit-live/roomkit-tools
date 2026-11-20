@@ -99,7 +99,8 @@ part of an existing published preview.
   heading became the title.
 
 - `code_outline`'s `text` gives one line per symbol, its index, range,
-  parent and signature with whitespace collapsed
+  parent and signature with whitespace collapsed and comments left out, so
+  that no line comment swallows what follows it
   (`2 [2-3] ^1 def calculate_fee(self, subtotal):`), where each symbol took
   a heading line and its header as written, over several lines for a long
   one. A clipped signature, which may end before the declaration behind a

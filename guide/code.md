@@ -52,9 +52,9 @@ paging to refuse changes; this SHA-256 covers raw bytes, including BOM and CRLF,
 and is compatible with the filesystem tools' revisions.
 
 The `text` a model reads gives one line per symbol: its index, line range,
-`^` and its parent's index, and its signature with whitespace collapsed, as in
-`2 [2-3] ^1 def calculate_fee(self, subtotal):`; `data` keeps each header as
-written. A clipped signature may end before the declaration, behind a long
+`^` and its parent's index, and its signature with whitespace collapsed and
+comments left out, as in `2 [2-3] ^1 def calculate_fee(self, subtotal):`;
+`data` keeps each header as written, comments included. A clipped signature may end before the declaration, behind a long
 decorator or attribute, so its line ends with the kind and name:
 `[signature_truncated: function "test_conversion"]`.
 

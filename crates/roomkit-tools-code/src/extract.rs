@@ -27,8 +27,14 @@ impl Control {
     }
 }
 
+/// A definition, and its signature as the outline's text shows it.
+pub(crate) struct Outlined {
+    pub(crate) symbol: CodeSymbol,
+    pub(crate) line: String,
+}
+
 pub(crate) struct SourceOutline {
-    pub(crate) symbols: Vec<CodeSymbol>,
+    pub(crate) symbols: Vec<Outlined>,
     pub(crate) revision: String,
     pub(crate) syntax_errors: bool,
 }
@@ -111,7 +117,7 @@ fn walk(
     text: &str,
     limits: CodeOutlineLimits,
     control: &Control,
-) -> Result<Vec<CodeSymbol>, ToolError> {
+) -> Result<Vec<Outlined>, ToolError> {
     let mut cursor = root.walk();
     let mut depth = 0;
     let mut visited = 0;
@@ -129,14 +135,15 @@ fn walk(
             scopes.pop();
         }
         let parent = scopes.last().map(|scope| (scope.1, scope.2));
-        if let Some(symbol) = definition(cursor.node(), text, parent, symbols.len() + 1, limits)? {
+        if let Some(outlined) = definition(cursor.node(), text, parent, symbols.len() + 1, limits)?
+        {
             if symbols.len() >= limits.max_scan_symbols {
                 return Err(ToolError::LimitExceeded(
                     "source exceeds max_scan_symbols".into(),
                 ));
             }
-            scopes.push((depth, symbol.index, symbol.kind));
-            symbols.push(symbol);
+            scopes.push((depth, outlined.symbol.index, outlined.symbol.kind));
+            symbols.push(outlined);
         }
         if cursor.goto_first_child() {
             depth += 1;
@@ -158,7 +165,7 @@ fn definition(
     parent: Option<(usize, SymbolKind)>,
     index: usize,
     limits: CodeOutlineLimits,
-) -> Result<Option<CodeSymbol>, ToolError> {
+) -> Result<Option<Outlined>, ToolError> {
     let kind = match node.kind() {
         "function_item" | "function_signature_item" | "function_definition" => {
             if parent.is_some_and(|(_, kind)| {
@@ -206,7 +213,7 @@ fn definition(
     }
     let position = node.end_position();
     let end_line = position.row + usize::from(position.column != 0 || position.row == 0);
-    Ok(Some(CodeSymbol {
+    let symbol = CodeSymbol {
         index,
         parent: parent.map(|(index, _)| index),
         kind,
@@ -215,7 +222,9 @@ fn definition(
         signature_truncated: end < header.len(),
         start_line: range_start(start).start_position().row + 1,
         end_line,
-    }))
+    };
+    let line = crate::line::one_line(text, start, start.start_byte() + end);
+    Ok(Some(Outlined { symbol, line }))
 }
 
 /// Where a definition's header starts: its Python decorators, or the Rust

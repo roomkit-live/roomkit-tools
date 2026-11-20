@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 mod extract;
+mod line;
 mod page;
 mod source;
 #[cfg(test)]

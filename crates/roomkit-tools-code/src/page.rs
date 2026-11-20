@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 
 use roomkit_tools_core::{Output, ToolError};
 
-use crate::extract::{Control, SourceOutline};
+use crate::extract::{Control, Outlined, SourceOutline};
 use crate::{
     CodeLanguage, CodeOutlineInput, CodeOutlineLimits, CodeOutlinePage, CodeSymbol, SymbolKind,
 };
@@ -42,11 +42,11 @@ pub(crate) fn render(
             format!("{language:?} outline\n")
         },
     );
-    for symbol in source.symbols.into_iter().skip(offset - 1) {
+    for Outlined { symbol, line } in source.symbols.into_iter().skip(offset - 1) {
         control.check()?;
         let index = symbol.index;
         let text_len = output.text.len();
-        symbol_line(&mut output.text, &symbol);
+        symbol_line(&mut output.text, &symbol, &line);
         output.data.symbols.push(symbol);
         output.data.truncated = index < total;
         output.data.next_offset = (index < total).then_some(index + 1);
@@ -80,12 +80,12 @@ pub(crate) fn render(
 }
 
 /// One line per symbol, `24 [158-475] ^3 impl Profiles`: its index, range,
-/// parent and signature. A whole signature names the kind and the symbol;
-/// its whitespace is collapsed, since a header spread over lines took most
-/// of the text. A clipped one may end before the declaration, behind a long
-/// decorator or attribute, so the line then names both after it. `data`
-/// keeps the source header.
-fn symbol_line(text: &mut String, symbol: &CodeSymbol) {
+/// parent and `signature`, the header on one line without its comments (see
+/// [`crate::line`]). A whole signature names the kind and the symbol; a
+/// clipped one may end before the declaration, behind a long decorator or
+/// attribute, so the line then names both after it. `data` keeps the source
+/// header.
+fn symbol_line(text: &mut String, symbol: &CodeSymbol, signature: &str) {
     let _ = write!(
         text,
         "{} [{}-{}]",
@@ -94,9 +94,9 @@ fn symbol_line(text: &mut String, symbol: &CodeSymbol) {
     if let Some(parent) = symbol.parent {
         let _ = write!(text, " ^{parent}");
     }
-    for word in symbol.signature.split_whitespace() {
+    if !signature.is_empty() {
         text.push(' ');
-        text.push_str(word);
+        text.push_str(signature);
     }
     if symbol.signature_truncated {
         let _ = write!(

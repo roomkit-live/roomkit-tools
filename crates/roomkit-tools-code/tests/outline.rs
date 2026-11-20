@@ -115,6 +115,49 @@ async fn a_signature_clipped_before_its_declaration_still_names_the_symbol() {
     }
 }
 
+/// On one line, a line comment would swallow what follows it: the line
+/// leaves the header's comments out; `data` keeps them.
+#[tokio::test]
+async fn a_header_s_comments_stay_out_of_its_line() {
+    let root = tempfile::tempdir().unwrap();
+    let rust = "pub fn add(\n    a: u32, // the first\n    b: u32, /* the second */\n) -> u32 {\n    \
+        a + b\n}\n";
+    let python = "def add(\n    a,  # the first\n    b,\n):\n    return a + b\n\n\
+        @decorator  # between\n@other\ndef f():\n    pass\n";
+    std::fs::write(root.path().join("lib.rs"), rust).unwrap();
+    std::fs::write(root.path().join("code.py"), python).unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let token = CancellationToken::new();
+    let lines = |page: &roomkit_tools_core::Output<roomkit_tools_code::CodeOutlinePage>| {
+        page.text
+            .lines()
+            .skip(1)
+            .take(page.data.symbols.len())
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    let page = tool
+        .outline(CodeOutlineInput::new("lib.rs"), &token)
+        .await
+        .unwrap();
+    assert_eq!(
+        lines(&page),
+        ["1 [1-6] pub fn add( a: u32, b: u32, ) -> u32"]
+    );
+    assert!(page.data.symbols[0].signature.contains("// the first"));
+    let page = tool
+        .outline(CodeOutlineInput::new("code.py"), &token)
+        .await
+        .unwrap();
+    assert_eq!(
+        lines(&page),
+        [
+            "1 [1-5] def add( a, b, ):",
+            "2 [7-10] @decorator @other def f():"
+        ]
+    );
+}
+
 /// A Rust symbol's range covers the attributes and outer doc comments
 /// written before it, in any order; a plain comment is not part of it.
 #[tokio::test]
