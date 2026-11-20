@@ -13,8 +13,10 @@ browser session or web search. Non-HTML text is preserved in every format.
 It reads `text/*`, JSON, XML, JavaScript, YAML, TOML, shell scripts,
 newline-delimited JSON and `+json`, `+xml` or `+yaml` types, in UTF-8 or
 ASCII, and gzip. A body declared Latin-1 or windows-1252 is read when it is
-ASCII, and a body without a Content-Type when it is UTF-8 without NUL. Other
-encodings and binary resources produce an explicit unsupported-content error.
+ASCII, and a body without a media type when it is UTF-8 without NUL; such a
+body is returned as plain text, never converted from HTML, even when it looks
+like HTML, and a charset it declares is checked all the same. Other encodings
+and binary resources produce an explicit unsupported-content error.
 A response refused for its Content-Type, charset, content encoding or bytes,
 or for a body over `max_response_bytes`, ends with its Content-Type and HTTP
 status, as in `(Content-Type: application/octet-stream, HTTP 404)`; a

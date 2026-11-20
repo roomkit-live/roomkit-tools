@@ -149,6 +149,8 @@ async fn common_text_types_an_untyped_body_and_ascii_latin1_are_read() {
         ("/install.sh", "echo ready\n"),
         ("/events.ndjson", "{\"fee\":0}\n{\"fee\":1}\n"),
         ("/untyped", "plain text without a content type\n"),
+        // Untyped text is returned as it is, never converted from HTML.
+        ("/untyped-html", "<p>Hi</p>"),
         ("/encoding", "plain"),
     ] {
         let url = format!("{}{path}", server.origin);
@@ -198,6 +200,14 @@ async fn a_refused_response_names_its_content_type_and_status() {
         (
             "/non-ascii-type",
             "response Content-Type is not ASCII (Content-Type: text/plain; charset=\\xc3\\xa9, HTTP 200)",
+        ),
+        (
+            "/untyped-nul",
+            "response contains NUL bytes (no Content-Type, HTTP 200)",
+        ),
+        (
+            "/untyped-utf16",
+            "response charset is not UTF-8, ASCII or Latin-1 (Content-Type: ; charset=utf-16, HTTP 200)",
         ),
     ] {
         let url = format!("{}{path}", server.origin);

@@ -271,6 +271,20 @@
     "/non-ascii-type": {
       "type": "text/plain; charset=\u00e9",
       "body": "plain"
+    },
+    "/untyped-utf16": {
+      "type": "; charset=utf-16",
+      "body": "plain"
+    },
+    "/untyped-nul": {
+      "body": [
+        65,
+        0,
+        66
+      ]
+    },
+    "/untyped-html": {
+      "body": "<p>Hi</p>"
     }
   },
   "cases": [
@@ -530,6 +544,34 @@
       },
       "expect": {
         "/error": "unsupported"
+      }
+    },
+    {
+      "name": "untyped_charset",
+      "input": {
+        "url": "$ORIGIN/untyped-utf16"
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "untyped_nul",
+      "input": {
+        "url": "$ORIGIN/untyped-nul"
+      },
+      "expect": {
+        "/error": "unsupported"
+      }
+    },
+    {
+      "name": "untyped_html",
+      "input": {
+        "url": "$ORIGIN/untyped-html"
+      },
+      "expect": {
+        "/data/content": "<p>Hi</p>",
+        "/data/content_type": ""
       }
     },
     {

@@ -107,18 +107,26 @@ impl Head {
     pub(crate) fn text(&self) -> Result<Text, ToolError> {
         let mut parts = self.content_type.as_deref().unwrap_or("").split(';');
         let mime = parts.next().unwrap_or("").trim().to_ascii_lowercase();
-        if mime.is_empty() {
-            return Ok(Text {
-                html: false,
-                ascii_only: false,
-            });
-        }
-        if !is_text(&mime) {
+        if !mime.is_empty() && !is_text(&mime) {
             return Err(self.refuse("response type is not supported text"));
         }
-        let mut ascii_only = false;
-        for part in parts {
-            let Some((key, value)) = part.trim().split_once('=') else {
+        // A charset is checked even without a media type: `; charset=utf-16`
+        // still declares bytes this tool cannot read.
+        let ascii_only = self.latin1(parts)?;
+        Ok(Text {
+            html: matches!(mime.as_str(), "text/html" | "application/xhtml+xml"),
+            ascii_only,
+        })
+    }
+
+    /// Whether the declared charset is Latin-1, of the ones this tool reads.
+    ///
+    /// # Errors
+    /// Refuses any other charset than UTF-8 and ASCII.
+    fn latin1<'a>(&self, parameters: impl Iterator<Item = &'a str>) -> Result<bool, ToolError> {
+        let mut latin1 = false;
+        for parameter in parameters {
+            let Some((key, value)) = parameter.trim().split_once('=') else {
                 continue;
             };
             if !key.trim().eq_ignore_ascii_case("charset") {
@@ -126,15 +134,12 @@ impl Head {
             }
             let charset = value.trim().trim_matches('"').to_ascii_lowercase();
             if LATIN1_LABELS.contains(&charset.as_str()) {
-                ascii_only = true;
+                latin1 = true;
             } else if !matches!(charset.as_str(), "utf-8" | "utf8" | "us-ascii") {
                 return Err(self.refuse("response charset is not UTF-8, ASCII or Latin-1"));
             }
         }
-        Ok(Text {
-            html: matches!(mime.as_str(), "text/html" | "application/xhtml+xml"),
-            ascii_only,
-        })
+        Ok(latin1)
     }
 
     /// The body as text, without a leading byte order mark.
