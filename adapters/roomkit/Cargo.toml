@@ -1,7 +1,7 @@
 [package]
 name = "roomkit-tools-roomkit"
 description = "Select individual roomkit-tools as RoomKit Rust tools"
-version = "0.1.0-alpha.16"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
@@ -22,19 +22,19 @@ ocr = ["dep:roomkit-tools-ocr"]
 image = ["dep:roomkit-tools-image"]
 
 [dependencies]
-roomkit-tools-docs = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-docs", optional = true }
-roomkit-tools-plans = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-plans", optional = true }
-roomkit-tools-ocr = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-ocr", optional = true }
-roomkit-tools-image = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-image", optional = true }
-roomkit-tools-code = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-code" }
-roomkit-tools-search = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-search" }
-roomkit-tools-web = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-web" }
+roomkit-tools-docs = { version = "0.2.0", path = "../../crates/roomkit-tools-docs", optional = true }
+roomkit-tools-plans = { version = "0.2.0", path = "../../crates/roomkit-tools-plans", optional = true }
+roomkit-tools-ocr = { version = "0.2.0", path = "../../crates/roomkit-tools-ocr", optional = true }
+roomkit-tools-image = { version = "0.2.0", path = "../../crates/roomkit-tools-image", optional = true }
+roomkit-tools-code = { version = "0.2.0", path = "../../crates/roomkit-tools-code" }
+roomkit-tools-search = { version = "0.2.0", path = "../../crates/roomkit-tools-search" }
+roomkit-tools-web = { version = "0.2.0", path = "../../crates/roomkit-tools-web" }
 roomkit = { version = "0.2.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "4f271c660c0531aff760e6f2a60c8d58093153aa" }
 roomkit-ai = { version = "0.2.0", git = "https://github.com/roomkit-live/roomkit-rs", rev = "4f271c660c0531aff760e6f2a60c8d58093153aa" }
-roomkit-tools-agents = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-agents" }
-roomkit-tools-core = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-core" }
-roomkit-tools-fs = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-fs" }
-roomkit-tools-process = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-process" }
+roomkit-tools-agents = { version = "0.2.0", path = "../../crates/roomkit-tools-agents" }
+roomkit-tools-core = { version = "0.2.0", path = "../../crates/roomkit-tools-core" }
+roomkit-tools-fs = { version = "0.2.0", path = "../../crates/roomkit-tools-fs" }
+roomkit-tools-process = { version = "0.2.0", path = "../../crates/roomkit-tools-process" }
 # Reads a session's job ends, a Stream, and logs one the kit refused; both
 # already in the tree through roomkit.
 futures-core = { version = "0.3", default-features = false }
@@ -47,8 +47,8 @@ tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 base64 = "0.23"
-roomkit-tools-docs = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-docs", features = ["files"] }
-roomkit-tools-search = { version = "0.1.0-alpha.16", path = "../../crates/roomkit-tools-search", features = ["openai"] }
+roomkit-tools-docs = { version = "0.2.0", path = "../../crates/roomkit-tools-docs", features = ["files"] }
+roomkit-tools-search = { version = "0.2.0", path = "../../crates/roomkit-tools-search", features = ["openai"] }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "time"] }
 

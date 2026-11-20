@@ -6,12 +6,11 @@ actual input and output types and returns typed errors and structured output.
 
 ## Add a crate
 
-The library crates are published to crates.io as pre-releases. A plain
-`"0.1"` requirement does not match a pre-release, so give the exact version:
+The library crates are published to crates.io:
 
 ```toml
 [dependencies]
-roomkit-tools-fs = "0.1.0-alpha.16"
+roomkit-tools-fs = "0.2"
 tokio = { version = "1", features = ["macros", "rt"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 ```

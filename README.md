@@ -18,11 +18,10 @@ through a native extension, and each tool can be passed directly to a
 [RoomKit](https://github.com/roomkit-live/roomkit) agent. The tools also work on
 their own, without RoomKit or a model.
 
-> **Early development (alpha).** Preview wheels for Linux x86_64 are attached to
+> **Early development.** Wheels for Linux x86_64 are attached to
 > [GitHub releases](https://github.com/roomkit-live/roomkit-tools/releases). The
-> Rust library crates are on crates.io as pre-releases; the Python packages are
-> not on PyPI yet. The APIs will change before 1.0. Feedback and contributions
-> are welcome.
+> Rust library crates are on crates.io; the Python packages are not on PyPI yet.
+> The APIs may still change before 1.0. Feedback and contributions are welcome.
 
 ## Features
 
@@ -80,12 +79,12 @@ documentation tools, and `ask_user`; agent delegation is not available there yet
 ## Quick start
 
 You need CPython 3.12 or later on Linux x86_64 (glibc 2.34+) to install a
-preview wheel:
+release wheel:
 
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install "roomkit-tools[roomkit] @ https://github.com/roomkit-live/roomkit-tools/releases/download/v0.1.0a16/roomkit_tools-0.1.0a16-cp312-abi3-manylinux_2_34_x86_64.whl"
+python -m pip install "roomkit-tools[roomkit] @ https://github.com/roomkit-live/roomkit-tools/releases/download/v0.2.0/roomkit_tools-0.2.0-cp312-abi3-manylinux_2_34_x86_64.whl"
 ```
 
 Omit `[roomkit]` to use the tools without RoomKit: the base package has no
@@ -170,13 +169,11 @@ covers schemas, errors and resource ownership.
 
 ## Use it from Rust
 
-The library crates are on crates.io as pre-releases. Depend on the ones you
-need with their exact version: a plain `"0.1"` requirement does not match a
-pre-release.
+The library crates are on crates.io. Depend on the ones you need:
 
 ```toml
 [dependencies]
-roomkit-tools-fs = "0.1.0-alpha.16"
+roomkit-tools-fs = "0.2"
 tokio = { version = "1", features = ["macros", "rt"] }
 tokio-util = "0.7"
 ```
@@ -272,7 +269,7 @@ permissions:
 | Component | Validated |
 | --- | --- |
 | Python | CPython 3.12 and 3.14; the wheel targets the 3.12+ stable ABI |
-| Preview wheels | Linux x86_64, glibc 2.34+ |
+| Wheels | Linux x86_64, glibc 2.34+ |
 | Rust | 1.94 or later |
 | RoomKit Python | `roomkit>=0.110,<0.112` |
 | Commands and processes | Linux. Other Unix systems run the same code without validation; non-Unix systems return an unsupported error |
@@ -297,9 +294,8 @@ API documentation with `cargo doc --workspace --no-deps --open`.
 
 ## Stability
 
-The Python package follows an alpha sequence (`0.1.0aN`), and the Rust library
-crates a pre-release sequence (`0.1.0-alpha.N`) on crates.io. Until 1.0, any
-preview may change the API, and the
+The Python package and the Rust library crates share one version, `0.2.0` at
+this release. Until 1.0, a minor version may change the API, and the
 [changelog](https://github.com/roomkit-live/roomkit-tools/blob/main/CHANGELOG.md)
 says how.
 

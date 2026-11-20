@@ -379,6 +379,17 @@ part of an existing published preview.
 
 ### Packaging and documentation
 
+- Version 0.2.0 ends the alpha sequence and aligns with roomkit-rs 0.2.0: the
+  Python packages and the Rust library crates all carry `0.2.0`, so a plain
+  `roomkit-tools-fs = "0.2"` requirement now matches the crates on crates.io.
+  The optional OCR backend requires `roomkit-tools>=0.2.0,<0.3`, and the
+  package's classifier reads `Development Status :: 4 - Beta`. The APIs may
+  still change before 1.0, with a new minor version.
+- RoomKit Python 0.111.0, which `roomkit-tools[roomkit]` installs today, was
+  checked with every RoomKit test and example. RoomKit 0.111 runs task hooks
+  in the background, so the background example now waits until its hooks
+  have recorded a task's start or end instead of reading them at once.
+- `roomkit-tools-ocr` keeps `serde_json` for its tests only.
 - The RoomKit Rust adapter follows roomkit-rs v0.2.0 (4f271c6), which changes
   no existing adapter's API. A tool it declares names no `tags` for Tool
   Search. An agent's requests also declare the kit's `read_stored_result`,

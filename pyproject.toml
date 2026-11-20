@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "roomkit-tools"
-version = "0.1.0a17.dev0"
+version = "0.2.0"
 description = "Composable Rust tools for coding agents, Python and RoomKit"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -12,7 +12,7 @@ license = "MIT"
 license-files = ["LICENSE", "python/roomkit_tools/licenses/native_dependencies.txt"]
 keywords = ["agents", "tools", "rust", "asyncio", "roomkit"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: Implementation :: CPython",

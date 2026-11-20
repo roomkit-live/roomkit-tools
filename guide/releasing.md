@@ -7,11 +7,11 @@ before an upload. Building, validating and uploading are separate operations.
 
 ## Current distribution scope
 
-The Python version lives in `pyproject.toml`. Rust crates keep separate
-versions; the library crates are crates.io packages (see
-[Rust crates](#rust-crates)). Continue the existing alpha sequence until the API
-is ready for a stable release. Select the final version before building release
-artifacts; release-specific changes belong in the changelog.
+The Python version lives in `pyproject.toml`; the Rust crates carry the same
+version since 0.2.0, and the library crates are crates.io packages (see
+[Rust crates](#rust-crates)). Until 1.0, a release that changes the API raises
+the minor version. Select the final version before building release artifacts;
+release-specific changes belong in the changelog.
 
 The existing [distribution workflow](../.github/workflows/python-distributions.yml)
 builds optimized, stripped CPython 3.12+ stable-ABI wheels for Linux x86_64
@@ -98,9 +98,8 @@ packaged crate depends on the published version of its siblings; change those
 versions together with `workspace.package.version`. The unpublished packages
 carry the same version: the examples inherit it, and the native modules and the
 adapter, each a separate workspace, set it and their internal requirements in
-their own manifests. A pre-release such as `0.1.0-alpha.16` matches only a
-requirement naming a pre-release, so every internal requirement changes with
-it. Update each workspace's `Cargo.lock` with `cargo update --workspace
+their own manifests. Every internal requirement names the exact version, so
+it changes with each release. Update each workspace's `Cargo.lock` with `cargo update --workspace
 --offline` (`--manifest-path` for the separate workspaces) and check that its
 diff changes only the roomkit-tools packages.
 
@@ -140,8 +139,7 @@ an actual tool call, then publish those same tested files to PyPI when approved.
 
 After publication, verify installation from PyPI in a fresh environment, check
 the project page and links, and change the README's primary installation command
-to the published version. An alpha requires an explicit version or `--pre` where
-appropriate. Do not advertise `pip install roomkit-tools` as available before
+to the published version. Do not advertise `pip install roomkit-tools` as available before
 publication succeeds. PyPI does not allow reusing uploaded distribution filenames;
 fix a released artifact with a new version.
 
