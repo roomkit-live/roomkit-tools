@@ -385,7 +385,8 @@ part of an existing published preview.
   to the host as the call's structured content, `{"data": ...}`: an
   `ON_TOOL_CALL` hook reads it as `event.structured_content`, and the call's
   end event carries it; a handler called outside a RoomKit tool call returns
-  the text alone. Python's and Rust's adapters do so for every tool, the shell
+  the text alone, but the plan, process and output adapters, Python's agent
+  adapters and a shell with archives still refuse such a call. Python's and Rust's adapters do so for every tool, the shell
   included, which gave its `data` alone, but `view_image`, whose text and image
   parts are unchanged. Refusals, failures and cancellation are unchanged. A
   host that read the data from the result reads it from the structured

@@ -120,7 +120,8 @@ A handler returns the tool's `text`, which the model reads again on every later
 request, and leaves its `data` as the call's structured content,
 `{"data": ...}`: an `ON_TOOL_CALL` hook reads it as `event.structured_content`,
 and the model never does. Called outside a RoomKit tool call, it returns the text
-alone. `ViewImage` returns typed text and
+alone, except that the plan, agent, process and output adapters, and a `Shell`
+with an output store, still refuse such a call. `ViewImage` returns typed text and
 image parts instead of embedding pixels in ordinary text. Refusal and resource failure stay
 distinct: every RoomKit adapter raises `ToolRefusedError` for `InvalidInputError` and
 `AccessRefusedError`, `ToolFailedError` for `LimitExceededError` and
