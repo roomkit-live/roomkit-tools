@@ -137,7 +137,8 @@ pub struct CodeSymbol {
     pub signature: String,
     /// Whether signature bytes were omitted; read the source for the full header.
     pub signature_truncated: bool,
-    /// First source line, one-based; Python decorators are included.
+    /// First source line, one-based; Python decorators, and Rust attributes
+    /// and doc comments, are included.
     pub start_line: usize,
     /// Last source line, inclusive. Use `read(offset=start_line, limit=end-start+1)`.
     pub end_line: usize,

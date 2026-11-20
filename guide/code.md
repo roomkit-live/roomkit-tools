@@ -40,7 +40,9 @@ project index or LSP service is implied.
 used a relative or an absolute path. `data.symbols` is flat and ordered by
 source position. Each symbol has a one-based
 `index`, optional enclosing `parent`, `kind`, `name`, `signature`, and inclusive
-`start_line` / `end_line`. Use those lines with `read`; `offset` / `next_offset`
+`start_line` / `end_line`, which cover a Python definition's decorators and a
+Rust item's attributes and outer doc comments (`///`, `/** */`), not plain
+comments. Use those lines with `read`; `offset` / `next_offset`
 on **outline** count symbols instead. Parent indexes may refer to earlier pages.
 Each call reparses the file. Carry `data.revision` as `expected_revision` when
 paging to refuse changes; this SHA-256 covers raw bytes, including BOM and CRLF,

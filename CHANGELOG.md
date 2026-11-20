@@ -63,6 +63,12 @@ part of an existing published preview.
   still running when the shell closes keeps no job: those it leaves once its
   shell exits are stopped, untold; after `detach()` they run on.
 
+- `code_outline`'s range of a Rust item covers its outer doc comments
+  (`///`, `/** */`) and the attributes written before or among them: a
+  derive written before the item's doc comment, and the doc comment itself,
+  fell outside `[start_line, end_line]`. Plain comments stay outside; the
+  signature is unchanged.
+
 - A shell command can run on in the background as a process. With
   `ShellTool.create(processes=session)` (Rust: `ShellTool::with_processes`),
   `shell(..., run_in_background=True)` starts it as one of the session's

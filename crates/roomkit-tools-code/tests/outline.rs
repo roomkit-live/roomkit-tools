@@ -33,6 +33,42 @@ async fn a_model_reads_the_symbols_where_to_continue_and_the_revision() {
     );
 }
 
+/// A Rust symbol's range covers the attributes and outer doc comments
+/// written before it, in any order; a plain comment is not part of it.
+#[tokio::test]
+async fn a_rust_range_covers_its_doc_comments_and_attributes() {
+    let root = tempfile::tempdir().unwrap();
+    let source = "#[derive(Debug)]\n/// A point.\npub struct Point;\n\n\
+        /// Doc first.\n#[inline]\nfn first() {}\n\n\
+        /** A block doc. */\nfn block() {}\n\n\
+        // A plain comment.\nfn plain() {}\n";
+    std::fs::write(root.path().join("lib.rs"), source).unwrap();
+    let tool = CodeOutlineTool::new(root.path()).await.unwrap();
+    let page = tool
+        .outline(CodeOutlineInput::new("lib.rs"), &CancellationToken::new())
+        .await
+        .unwrap();
+    let ranges: Vec<_> = page
+        .data
+        .symbols
+        .iter()
+        .map(|s| (s.name.as_str(), s.start_line, s.end_line))
+        .collect();
+    assert_eq!(
+        ranges,
+        [
+            ("Point", 1, 3),
+            ("first", 5, 7),
+            ("block", 9, 10),
+            ("plain", 13, 13),
+        ]
+    );
+    // The signature stays the header: attributes right before the item,
+    // no doc comment.
+    assert_eq!(page.data.symbols[0].signature, "pub struct Point;");
+    assert_eq!(page.data.symbols[1].signature, "#[inline]\nfn first()");
+}
+
 #[tokio::test]
 async fn revisions_detect_changes_and_output_is_bounded_without_losing_symbols() {
     let root = tempfile::tempdir().unwrap();

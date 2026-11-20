@@ -195,7 +195,7 @@ fn definition(
             "definition name exceeds max_signature_bytes".into(),
         ));
     }
-    let start = definition_start(node);
+    let start = header_start(node);
     let header_end = node
         .child_by_field_name("body")
         .map_or(node.end_byte(), |body| body.start_byte());
@@ -213,22 +213,37 @@ fn definition(
         name: name.into(),
         signature: slice(header, 0, end)?.into(),
         signature_truncated: end < header.len(),
-        start_line: start.start_position().row + 1,
+        start_line: range_start(start).start_position().row + 1,
         end_line,
     }))
 }
 
-fn definition_start(mut node: Node<'_>) -> Node<'_> {
+/// Where a definition's header starts: its Python decorators, or the Rust
+/// attributes written right before it.
+fn header_start(node: Node<'_>) -> Node<'_> {
     if let Some(parent) = node
         .parent()
         .filter(|parent| parent.kind() == "decorated_definition")
     {
         return parent;
     }
-    while let Some(previous) = node
-        .prev_named_sibling()
-        .filter(|n| n.kind() == "attribute_item")
-    {
+    preceding(node, |n| n.kind() == "attribute_item")
+}
+
+/// Where a definition's lines start: before its header, the Rust attributes
+/// and outer doc comments written before it, in any order. Rust attaches
+/// both to the item; a plain comment is not part of it.
+fn range_start(header: Node<'_>) -> Node<'_> {
+    preceding(header, |n| match n.kind() {
+        "attribute_item" => true,
+        "line_comment" | "block_comment" => n.child_by_field_name("outer").is_some(),
+        _ => false,
+    })
+}
+
+/// The first of the siblings right before `node` that `attached` accepts.
+fn preceding<'a>(mut node: Node<'a>, attached: impl Fn(&Node<'a>) -> bool) -> Node<'a> {
+    while let Some(previous) = node.prev_named_sibling().filter(&attached) {
         node = previous;
     }
     node
