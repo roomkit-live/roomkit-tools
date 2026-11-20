@@ -38,9 +38,10 @@ from roomkit_tools import (
 
 ROOM = "plans-demo"
 # What the model reads of a plan: a heading with its ID and revision, then a
-# line per step with its stable ID and status.
+# line per step with its stable ID and status, and its description when the
+# text gives it: a creation or a status-only change leaves it out.
 PLAN_HEADING = re.compile(r"^(\S+) \(revision (\d+)\)", re.M)
-STEP_LINE = re.compile(r"^\d+\. (\S+) \[(\w+)\]: ", re.M)
+STEP_LINE = re.compile(r"^\d+\. (\S+) \[(\w+)\](?:: |$)", re.M)
 
 
 def plan_heading(text):

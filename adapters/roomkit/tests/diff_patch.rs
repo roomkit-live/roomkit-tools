@@ -172,7 +172,7 @@ async fn agent_receives_real_hunks_preview_application_and_final_equality() {
     let (texts, data) = scenario(false).await;
     // The model reads each tool's text alone; the chat gets the data.
     assert!(
-        texts[1].starts_with("patch: dry_run=true, completed=true\n"),
+        texts[1].starts_with("preview only: nothing written; call again with dry_run: false\n"),
         "{}",
         texts[1]
     );

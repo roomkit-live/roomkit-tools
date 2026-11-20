@@ -85,10 +85,13 @@ def results(context, name):
 
 
 def symbol_lines(outline, name):
-    """The first and last line of the symbol `name` in a code_outline text."""
-    found = re.search(rf"^\d+: \w+ {re.escape(json.dumps(name))} \[(\d+)-(\d+)\]", outline, re.M)
-    require(found is not None, f"{name} is not in the outline")
-    return int(found[1]), int(found[2])
+    """The first and last line of the symbol `name` in a code_outline text,
+    whose lines read `index [start-end] ^parent signature`."""
+    for line in outline.splitlines():
+        found = re.match(r"\d+ \[(\d+)-(\d+)\]", line)
+        if found and re.search(rf"\b{re.escape(name)}\b", line[found.end() :]):
+            return int(found[1]), int(found[2])
+    raise RuntimeError(f"Scenario incomplete: {name} is not in the outline")
 
 
 def numbered_lines(text):

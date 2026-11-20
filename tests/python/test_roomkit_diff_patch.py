@@ -194,7 +194,12 @@ class RoomKitDiffPatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             results[0], '--- "old.txt"\n+++ "new.txt"\n@@ -1,1 +1,1 @@\n-count=2\n+count=3\n'
         )
-        self.assertTrue(results[1].startswith("patch: dry_run=true, completed=true\n"))
+        self.assertTrue(
+            results[1].startswith(
+                "preview only: nothing written; call again with dry_run: false\n"
+            ),
+            results[1],
+        )
         self.assertNotIn("applied #", results[1])
         self.assertTrue(
             results[2].startswith(

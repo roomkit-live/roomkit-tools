@@ -196,7 +196,8 @@ class RoomKitProcessTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 results,
                 [
-                    "p1 started; use process_read for output\n",
+                    "p1 started; stopped after 300000 ms unless it ends first; "
+                    "use process_read for output\n",
                     "p1: bytes_written=8, complete=true, stdin_closed=false\n",
                     "p1: state=running\nstdout (next_offset=8):\nWelcome\n"
                     "stderr (next_offset=0):\n",

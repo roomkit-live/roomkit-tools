@@ -137,8 +137,9 @@ class WebSearchTool:
     Sources and notices are untrusted data. Answers are never clipped through
     citations. Full serialized output is bounded: direct results over it lose
     each result that does not fit even without its excerpt, then excerpt
-    bytes, and are marked partial; an oversized answer fails. The text lists direct results as lines with short
-    excerpts; data keeps what was returned whole.
+    bytes, and are marked partial; an oversized answer fails. The text lists
+    direct results as lines with short excerpts; data keeps what was returned
+    whole.
     Cancellation drops network work; bounded decoding may finish later.
     """
 

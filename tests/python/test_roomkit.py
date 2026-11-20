@@ -234,7 +234,7 @@ class RoomKitTests(unittest.IsolatedAsyncioTestCase):
         capped = await Grep(await GrepTool.create(self.root, max_context_lines=0)).handler(
             "grep", {"pattern": "second", "context_before": 1}
         )
-        self.assertIn("context_before=0", json.loads(capped)["text"])
+        self.assertIn("context_before=0", capped)
 
     async def test_discovery_roots_are_independent(self) -> None:
         child = self.root / "later"
