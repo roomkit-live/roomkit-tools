@@ -65,7 +65,7 @@ pub(crate) async fn moved(
         stderr: err.finish(),
         process_id: Some(status.process_id),
     };
-    render(result, None)
+    render(result, None, foreground.capped_from)
 }
 
 /// The result of a command started in the background as `status`'s process.

@@ -63,7 +63,10 @@ for a host whose agent starts a server that must outlive the call; a job still
 holding the command's pipes then writes to a drainer that discards its output
 and outlives the host, so its writes never fail. A requested runtime above the maximum
 is refused with `InvalidInputError`, whose message gives the maximum, before
-anything runs. The runtime starts after spawn, excluding path resolution;
+anything runs; with a process session, it also points to `run_in_background`.
+With `background_on_timeout`, it is capped to the maximum instead, and the
+result's text says so: `timeout_ms 300000 capped to the host maximum of
+120000 ms`. The runtime starts after spawn, excluding path resolution;
 termination/reaping may extend total elapsed time.
 
 The result preserves separate stdout/stderr, exit code or signal, effective

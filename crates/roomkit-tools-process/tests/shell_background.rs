@@ -352,6 +352,72 @@ async fn finished_moved_commands_make_room_for_the_next_move() {
     assert!(processes.close().await);
 }
 
+/// A shell with a process session, a 300 ms maximum, and the option to move.
+async fn bounded_shell(
+    root: &std::path::Path,
+    processes: ProcessSession,
+    moves: bool,
+) -> ShellTool {
+    ShellTool::new(root)
+        .await
+        .unwrap()
+        .with_processes(processes)
+        .with_limits(ShellLimits {
+            default_timeout_ms: 100,
+            max_timeout_ms: 300,
+            background_on_timeout: moves,
+            ..ShellLimits::default()
+        })
+        .unwrap()
+}
+
+fn lasting(command: &str, timeout_ms: u64) -> ShellInput {
+    ShellInput {
+        timeout_ms: NonZeroU64::new(timeout_ms),
+        ..ShellInput::new(command)
+    }
+}
+
+#[tokio::test]
+async fn a_timeout_above_the_maximum_is_capped_when_the_command_may_move() {
+    let root = tempfile::tempdir().unwrap();
+    let processes = session(root.path(), ProcessLimits::default()).await;
+    let shell = bounded_shell(root.path(), processes.clone(), true).await;
+    let (quick, text) = run(&shell, "a", lasting("printf done", 600_000)).await;
+    assert_eq!((quick.exit_code, quick.timeout_ms), (Some(0), 300));
+    assert_eq!(
+        text,
+        "exit_code=0\ntimeout_ms 600000 capped to the host maximum of 300 ms\nstdout:\ndone\n"
+    );
+    // A longer one runs until the maximum, then moves.
+    let (long, text) = run(&shell, "a", lasting("sleep 30", 600_000)).await;
+    assert!(long.process_id.is_some(), "{text}");
+    assert_eq!(long.timeout_ms, 300);
+    assert!(
+        text.contains("\ntimeout_ms 600000 capped to the host maximum of 300 ms\n"),
+        "{text}"
+    );
+    assert!(processes.close().await);
+}
+
+#[tokio::test]
+async fn a_timeout_above_the_maximum_is_refused_naming_run_in_background() {
+    let root = tempfile::tempdir().unwrap();
+    let processes = session(root.path(), ProcessLimits::default()).await;
+    let shell = bounded_shell(root.path(), processes.clone(), false).await;
+    let refused = shell
+        .shell_owned("a", lasting("true", 301), &CancellationToken::new())
+        .await;
+    let Err(ToolError::InvalidInput(message)) = refused else {
+        panic!("{refused:?}");
+    };
+    assert_eq!(
+        message,
+        "timeout_ms exceeds the host maximum of 300 ms; for a longer job, set run_in_background"
+    );
+    assert!(processes.close().await);
+}
+
 #[tokio::test]
 async fn a_cancelled_command_is_never_moved() {
     let root = tempfile::tempdir().unwrap();

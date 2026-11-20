@@ -152,6 +152,8 @@ pub(crate) struct Foreground {
     pub(crate) env: Arc<CommandEnv>,
     pub(crate) limits: ShellLimits,
     pub(crate) timeout_ms: u64,
+    /// The `timeout_ms` the call asked for, when the host maximum capped it.
+    pub(crate) capped_from: Option<u64>,
     /// The store and the archives' owner, `None` for the standalone one.
     pub(crate) outputs: Option<(crate::OutputStore, Option<String>)>,
     /// The caller's trusted owner, `None` for the standalone one.
@@ -268,7 +270,7 @@ async fn supervise(
         }
     }
     let result = stop(command, (out, err), waited, &foreground, cancel).await?;
-    Ok(render(result, refused.as_ref()))
+    Ok(render(result, refused.as_ref(), foreground.capped_from))
 }
 
 /// Stop the group of a command that ended its wait, unless it exited on its
@@ -417,8 +419,13 @@ async fn drain_rest(
     }
 }
 
-/// The text of `data`, with why a command was not moved to the background.
-pub(crate) fn render(data: ShellResult, refused: Option<&ToolError>) -> Output<ShellResult> {
+/// The text of `data`, with why a command was not moved to the background
+/// and the `timeout_ms` it asked for, if the host maximum capped it.
+pub(crate) fn render(
+    data: ShellResult,
+    refused: Option<&ToolError>,
+    capped_from: Option<u64>,
+) -> Output<ShellResult> {
     let mut text = match &data.process_id {
         Some(_) => format!("still running after {} ms", data.timeout_ms),
         None => outcome(&data),
@@ -434,6 +441,13 @@ pub(crate) fn render(data: ShellResult, refused: Option<&ToolError>) -> Output<S
         );
     }
     text.push('\n');
+    if let Some(asked) = capped_from {
+        let _written = writeln!(
+            text,
+            "timeout_ms {asked} capped to the host maximum of {} ms",
+            data.timeout_ms
+        );
+    }
     if let Some(error) = refused {
         let _written = writeln!(text, "not moved to the background: {error}");
     }
@@ -496,6 +510,7 @@ mod tests {
             env: Arc::default(),
             limits: ShellLimits::default(),
             timeout_ms: 10_000,
+            capped_from: None,
             outputs: None,
             owner: None,
             jobs: Arc::default(),
@@ -536,6 +551,7 @@ mod tests {
             env: Arc::default(),
             limits: ShellLimits::default(),
             timeout_ms,
+            capped_from: None,
             outputs: None,
             owner: None,
             jobs: Arc::default(),

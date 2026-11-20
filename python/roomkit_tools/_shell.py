@@ -104,7 +104,9 @@ class ShellTool:
         the background instead of stopping it: it runs on until the session's
         maximum lifetime counted from its start, and the result names it in
         process_id. A move the session refuses, its quota held by running
-        processes, stops the command as without it. It needs processes (InvalidInputError
+        processes, stops the command as without it. A timeout_ms above
+        max_timeout_ms is then capped to it rather than refused, and the
+        result's text says so. It needs processes (InvalidInputError
         otherwise; default False).
         """
         from .process import ProcessSession
@@ -185,6 +187,11 @@ class ShellTool:
         run_in_background: bool = False,
     ) -> dict[str, Any]:
         """Run with a per-call cwd and a runtime within the host maximum.
+
+        A timeout_ms above it raises InvalidInputError, which names
+        run_in_background when the tool has a ProcessSession; with
+        background_on_timeout it is capped to the maximum instead, as the
+        result's text says.
 
         Nonzero exits and timeouts are results, not tool exceptions. Streams
         retain their most recent bytes, with omission metadata and lossy UTF-8

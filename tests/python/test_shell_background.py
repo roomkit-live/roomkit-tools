@@ -143,6 +143,26 @@ class ShellBackgroundTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["stdout"]["text"], "before")
         self.assertIn("not moved to the background", result["text"])
 
+    async def test_a_timeout_above_the_maximum_is_capped_or_points_to_the_background(self):
+        session = await self.session()
+        limits = {"default_timeout_ms": 100, "max_timeout_ms": 300}
+        moving = await ShellTool.create(
+            self.root, processes=session, background_on_timeout=True, **limits
+        )
+        result = await moving.shell("printf done", timeout_ms=600_000)
+        self.assertEqual(result["data"]["timeout_ms"], 300)
+        self.assertEqual(
+            result["text"],
+            "exit_code=0\ntimeout_ms 600000 capped to the host maximum of 300 ms\nstdout:\ndone\n",
+        )
+        refusing = await ShellTool.create(self.root, processes=session, **limits)
+        with self.assertRaisesRegex(
+            InvalidInputError,
+            "timeout_ms exceeds the host maximum of 300 ms; for a longer job, "
+            "set run_in_background",
+        ):
+            await refusing.shell("true", timeout_ms=301)
+
     async def test_the_shell_keeps_its_session_alive(self):
         session = ProcessSession(self.root)
         shell = await ShellTool.create(self.root, processes=session)

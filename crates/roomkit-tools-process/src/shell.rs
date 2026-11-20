@@ -18,8 +18,7 @@ pub struct ShellInput {
     /// Starting directory in the workspace; defaults to its root.
     #[serde(default)]
     pub cwd: Option<String>,
-    /// Runtime limit in ms, or a background command's lifetime; one above the
-    /// host maximum is refused.
+    /// Runtime limit in ms, or a background command's lifetime; above the host maximum it is refused, or capped when the host moves a command still running at its limit to the background.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
     /// Start it as a background process and return its `process_id` at once,
@@ -66,7 +65,9 @@ pub struct ShellLimits {
     /// [`ShellTool::with_processes`], until that session's maximum lifetime
     /// counted from its start, and the result names it in `process_id`. A
     /// move the session refuses, its quota held by running processes, stops
-    /// the command as without this. Needs that session. Default: false.
+    /// the command as without this. A `timeout_ms` above
+    /// [`Self::max_timeout_ms`] is then capped to it rather than refused, and
+    /// the result's text says so. Needs that session. Default: false.
     pub background_on_timeout: bool,
 }
 
@@ -328,11 +329,7 @@ impl ShellTool {
         if input.run_in_background {
             return self.background(owner, input, cancel).await;
         }
-        let timeout_ms = crate::requested_timeout(
-            input.timeout_ms,
-            self.limits.default_timeout_ms,
-            self.limits.max_timeout_ms,
-        )?;
+        let (timeout_ms, capped_from) = self.foreground_timeout(input.timeout_ms)?;
         let cwd = crate::working_directory(
             &self.workspace,
             input.cwd.as_deref(),
@@ -351,6 +348,7 @@ impl ShellTool {
                 env: Arc::clone(&self.env),
                 limits: self.limits,
                 timeout_ms,
+                capped_from,
                 outputs: self
                     .outputs
                     .as_ref()
@@ -372,10 +370,34 @@ impl ShellTool {
         }
         #[cfg(not(unix))]
         {
-            let _ = (cwd, timeout_ms);
+            let _ = (cwd, timeout_ms, capped_from);
             Err(ToolError::UnsupportedResource(
                 "shell process-group cleanup currently requires Unix".into(),
             ))
+        }
+    }
+
+    /// The runtime a foreground call asks for, or the default, and what it
+    /// asked for when capped. Above the host maximum, a command that moves to
+    /// the background at its timeout runs until the maximum, then moves; any
+    /// other call is refused, pointed to `run_in_background` when it exists.
+    fn foreground_timeout(
+        &self,
+        requested: Option<NonZeroU64>,
+    ) -> Result<(u64, Option<u64>), ToolError> {
+        let max_ms = self.limits.max_timeout_ms;
+        match requested.map(NonZeroU64::get) {
+            Some(asked) if asked > max_ms && self.limits.background_on_timeout => {
+                Ok((max_ms, Some(asked)))
+            }
+            Some(asked) if asked > max_ms && self.processes.is_some() => {
+                Err(ToolError::InvalidInput(format!(
+                    "timeout_ms exceeds the host maximum of {max_ms} ms; for a longer job, set \
+                     run_in_background"
+                )))
+            }
+            _ => crate::requested_timeout(requested, self.limits.default_timeout_ms, max_ms)
+                .map(|timeout_ms| (timeout_ms, None)),
         }
     }
 

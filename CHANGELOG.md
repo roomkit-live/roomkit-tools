@@ -6,6 +6,13 @@ part of an existing published preview.
 
 ## Unreleased
 
+- With `background_on_timeout`, a shell `timeout_ms` above the host maximum
+  is capped to it rather than refused, and the result's text says so
+  (`timeout_ms 300000 capped to the host maximum of 120000 ms`): the
+  command runs until the maximum, then moves to the background. Without it,
+  the refusal of a shell that has a process session now adds `; for a longer
+  job, set run_in_background`.
+
 - Two refusals of the shell and process tools give the bound and the way
   out. A command above `max_command_bytes` reads `command is 20034 bytes,
   over the host limit of 16384: write the script to a file, then run it`,
