@@ -528,6 +528,35 @@ async fn a_moved_command_keeps_its_background_jobs_as_in_the_foreground() {
     assert!(shell.close().await);
 }
 
+/// Whether `pid` runs, neither gone nor a zombie: a killed job can stay in
+/// its group a while, answering a signal test as if it ran.
+#[cfg(target_os = "linux")]
+fn alive(pid: &str) -> bool {
+    std::fs::read_to_string(format!("/proc/{pid}/stat")).is_ok_and(|stat| {
+        !stat
+            .rsplit_once(") ")
+            .is_some_and(|(_, rest)| rest.starts_with(['Z', 'X']))
+    })
+}
+
+/// The text of `path` once a job wrote it, or an empty one after 5 seconds.
+#[cfg(target_os = "linux")]
+async fn written(path: &std::path::Path) -> String {
+    let wait = async {
+        loop {
+            let text = tokio::fs::read_to_string(path).await.unwrap_or_default();
+            if text.ends_with('\n') {
+                return text;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(5), wait)
+        .await
+        .unwrap_or_default()
+}
+
+#[cfg(target_os = "linux")]
 #[tokio::test]
 async fn a_moved_command_s_kept_jobs_stop_with_the_shell_or_outlive_it_detached() {
     for detach in [false, true] {
@@ -536,18 +565,28 @@ async fn a_moved_command_s_kept_jobs_stop_with_the_shell_or_outlive_it_detached(
         let mut process_ends = processes.ends();
         let shell = moving_and_keeping(root.path(), processes.clone()).await;
         let mut shell_ends = shell.ends();
-        let command = "echo $$; sleep 0.4; sleep 60 > /dev/null 2>&1 & exit 0";
+        // The job marks it runs once the shell is gone, then waits.
+        let command = "sleep 0.4; (sleep 0.3; echo survived > mark; exec sleep 60) \
+                       > /dev/null 2>&1 & echo $! > pid; exit 0";
         let (result, _) = run(&shell, "a", ShellInput::new(command)).await;
         assert!(result.process_id.is_some());
-        let pgid: i32 = result.stdout.text.trim().parse().unwrap();
         assert_eq!(
             next(&mut process_ends).await.unwrap().end,
             ProcessEnd::Exited
         );
-        assert!(
-            running(pgid),
-            "the job runs on once the moved command's shell exits"
-        );
+        let pid = written(&root.path().join("pid")).await;
+        let pid = pid.trim();
+        let survived = written(&root.path().join("mark")).await;
+        let kill = || {
+            std::process::Command::new("kill")
+                .args(["-KILL", pid])
+                .status()
+                .unwrap()
+        };
+        if survived.is_empty() {
+            kill();
+        }
+        assert_eq!(survived, "survived\n", "the job runs on after the shell");
         if detach {
             assert!(shell.detach().await);
             assert_eq!(next(&mut shell_ends).await, None, "let go untold");
@@ -559,12 +598,9 @@ async fn a_moved_command_s_kept_jobs_stop_with_the_shell_or_outlive_it_detached(
                 (JobTool::Shell, ProcessEnd::Stopped)
             );
         }
-        let outlived = running(pgid);
+        let outlived = alive(pid);
         // The job is the test's to stop, whatever the assertions say.
-        let _killed = rustix::process::kill_process_group(
-            rustix::process::Pid::from_raw(pgid).unwrap(),
-            rustix::process::Signal::KILL,
-        );
+        kill();
         assert_eq!(outlived, detach, "close stops it, detach lets it go");
         assert!(processes.close().await);
     }
