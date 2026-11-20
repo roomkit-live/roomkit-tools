@@ -18,8 +18,10 @@ print(result["data"]["exit_code"])       # 7: a command result, not a tool error
 ```
 
 `Shell(await ShellTool.create(root))` is the RoomKit form. The standalone method is
-`ShellTool.shell(command, cwd=None, timeout_ms=None)`; `.call(arguments)` accepts
-the Rust schema. The root and per-call cwd select the initial working directory,
+`ShellTool.shell(command, *, cwd=None, timeout_ms=None, run_in_background=False)`,
+its arguments after `command` keyword-only (`run_in_background` is described in
+[Shell commands in the background](#shell-commands-in-the-background));
+`.call(arguments)` accepts the Rust schema. The root and per-call cwd select the initial working directory,
 which results name relative to the root (`.` for the root itself), as a job's
 status does: the model never sees the host's path.
 Commands run with `/bin/sh -c` and the host's permissions, and can access paths

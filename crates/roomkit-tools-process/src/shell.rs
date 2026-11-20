@@ -18,11 +18,12 @@ pub struct ShellInput {
     /// Starting directory in the workspace; defaults to its root.
     #[serde(default)]
     pub cwd: Option<String>,
+    // One line: schemars keeps a doc comment's line breaks in the description.
     /// Runtime limit in ms, or a background command's lifetime; above the host maximum it is refused, or capped when the host moves a command still running at its limit to the background.
     #[serde(default)]
     pub timeout_ms: Option<NonZeroU64>,
-    /// Start it as a background process and return its `process_id` at once,
-    /// for a server or a long job; read its output with `process_read`.
+    // One line: schemars keeps a doc comment's line breaks in the description.
+    /// Start it as a background process and return its `process_id` at once, for a server or a long job; read its output with `process_read`.
     #[serde(default)]
     pub run_in_background: bool,
 }

@@ -52,8 +52,8 @@ pub struct ProcessReadInput {
     /// Bytes per stream, capped by the host.
     #[serde(default)]
     pub max_bytes: Option<NonZeroUsize>,
-    /// Wait up to this many ms, capped by the host, for the process to end
-    /// or to write past the offsets. Omit to read at once.
+    // One line: schemars keeps a doc comment's line breaks in the description.
+    /// Wait up to this many ms, capped by the host, for the process to end or to write past the offsets. Omit to read at once.
     #[serde(default)]
     pub wait_ms: Option<NonZeroU64>,
 }

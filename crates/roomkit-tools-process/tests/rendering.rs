@@ -388,3 +388,17 @@ async fn a_page_of_a_process_says_when_more_remains() {
     );
     session.close().await;
 }
+
+#[test]
+fn field_descriptions_read_as_one_line() {
+    let shell = ShellTool::definition().input_schema;
+    let read = ProcessSession::read_definition().input_schema;
+    for (schema, field) in [
+        (&shell, "timeout_ms"),
+        (&shell, "run_in_background"),
+        (&read, "wait_ms"),
+    ] {
+        let description = schema["properties"][field]["description"].as_str().unwrap();
+        assert!(!description.contains('\n'), "{field}: {description:?}");
+    }
+}

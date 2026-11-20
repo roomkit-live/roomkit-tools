@@ -6,6 +6,10 @@ part of an existing published preview.
 
 ## Unreleased
 
+- The schema descriptions of shell's `timeout_ms` and `run_in_background`
+  and of process_read's `wait_ms` no longer break a sentence with a line
+  break, which came from doc comments wrapped over two lines.
+
 - `process_start` and a shell command started with `run_in_background` say
   how long the process may run: `p1 started; stopped after 300000 ms unless
   it ends first; use process_read for output`. Nothing told a model that its
