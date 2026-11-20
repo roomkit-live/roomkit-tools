@@ -526,6 +526,37 @@ async fn at_its_quota_an_owner_s_oldest_finished_job_makes_room() {
     assert!(outputs.close().await);
 }
 
+/// A session holding two processes per owner.
+#[expect(clippy::unwrap_used, reason = "fixture failure must fail tests")]
+async fn holding_two(root: &Path) -> ProcessSession {
+    let limits = ProcessLimits {
+        max_processes_per_owner: 2,
+        ..ProcessLimits::default()
+    };
+    ProcessSession::new(root)
+        .await
+        .unwrap()
+        .with_limits(limits)
+        .unwrap()
+}
+
+#[tokio::test]
+async fn at_its_quota_the_process_that_finished_first_makes_room() {
+    let root = tempfile::tempdir().unwrap();
+    let manager = holding_two(root.path()).await;
+    let token = CancellationToken::new();
+    let start =
+        |command: &'static str| manager.start(Some("a"), ProcessStartInput::new(command), &token);
+    // Started first, it ends last: the end a model was just told to read.
+    let server = start("sleep 0.4; echo server crashed").await.unwrap().data;
+    let build = start("echo built").await.unwrap().data;
+    finished(&manager, "a", &build.process_id).await;
+    finished(&manager, "a", &server.process_id).await;
+    let next = start("true").await.unwrap().data.process_id;
+    assert_eq!(retained(&manager, "a").await, [server.process_id, next]);
+    assert!(manager.close().await);
+}
+
 #[tokio::test]
 async fn the_standalone_owner_is_apart_from_an_owner_named_default() {
     let root = tempfile::tempdir().unwrap();

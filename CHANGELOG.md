@@ -39,8 +39,9 @@ part of an existing published preview.
   stream end".
 
 - At a process quota, a new process, or a shell command moved to the
-  background, releases its owner's oldest finished record first, as the
-  output store does for archives: the record's archives stay. Finished
+  background, first releases the record of its owner that finished first,
+  as the output store does for archives: the record's archives stay, and
+  the latest end, which the model was just told to read, is kept. Finished
   records filled the quota (8 per owner by default) until
   `process_stop(forget=true)`, so after eight moved builds the ninth long
   command was killed (`signal=9`) instead of moved, and `process_start` was

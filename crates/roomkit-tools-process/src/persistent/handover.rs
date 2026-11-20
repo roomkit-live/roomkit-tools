@@ -44,7 +44,7 @@ pub(crate) struct ShellJob<'a> {
 
 impl ProcessSession {
     /// Reserve `owner`'s next identifier, once the session is open and its
-    /// quota admits one more job, its oldest finished ones released if need be.
+    /// quota admits one more job, those that finished first released if need be.
     pub(super) async fn reserve(
         &self,
         owner: Option<&str>,

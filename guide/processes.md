@@ -195,9 +195,9 @@ the maximum (at most 24 hours). A requested lifetime above the maximum is
 refused with `InvalidInputError`, whose message gives the maximum.
 Completed jobs retain output and count against the quotas until
 `stop(..., forget=True)`, session shutdown, or a new job that needs their
-room: at a quota, a new job releases its owner's oldest finished record first,
-never a running one nor another owner's, and its archives stay in the output
-store. Only when every job of the owner still runs, or the session is full of
+room: at a quota, a new job first releases the record of its owner that
+finished first, never a running one nor another owner's, and its archives stay
+in the output store. Only when every job of the owner still runs, or the session is full of
 running jobs and other owners', is a start refused, in words that say which.
 `stop` sends SIGKILL to the Unix process group at once,
 without a graceful phase, waits up to two seconds and reports `forgotten=False`

@@ -64,6 +64,13 @@ pub(crate) struct Entry {
     pub(crate) done: watch::Receiver<bool>,
 }
 
+impl Entry {
+    /// When the job finished, as its status reads: what `forget` checks.
+    fn finished_at(&self) -> Option<Instant> {
+        self.started.checked_add(*self.finished.get()?)
+    }
+}
+
 #[derive(Debug, Default)]
 pub(super) struct Registry {
     pub(super) next_id: u64,
@@ -83,22 +90,21 @@ impl Registry {
             || self.held(owner) >= limits.max_processes_per_owner
     }
 
-    /// Release `owner`'s oldest finished records while one more job would
-    /// pass a quota, as `forget` would, their archives kept: the most recent
-    /// job is the one a model goes back to. A job still running is never
-    /// released, nor another owner's. Whether any was.
+    /// Release the records of `owner` that finished first while one more
+    /// job would pass a quota, as `forget` would, their archives kept: the
+    /// latest end is the one a model goes back to, told of it. A job still
+    /// running is never released, nor another owner's. Whether any was.
     pub(super) fn make_room(&mut self, owner: Option<&str>, limits: ProcessLimits) -> bool {
         let mut released = false;
         while self.full(owner, limits) {
-            let oldest = self
+            let first = self
                 .entries
                 .iter()
                 .filter(|(_, entry)| entry.owner.as_deref() == owner)
-                // Finished as its status reads: what `forget` checks.
-                .filter(|(_, entry)| entry.finished.get().is_some())
-                .min_by_key(|&(id, _)| roomkit_tools_core::identifiers::creation_order(id))
-                .map(|(id, _)| id.clone());
-            let Some(id) = oldest else { break };
+                .filter_map(|(id, entry)| Some((entry.finished_at()?, id)))
+                .min()
+                .map(|(_, id)| id.clone());
+            let Some(id) = first else { break };
             self.entries.remove(&id);
             released = true;
         }
