@@ -14,7 +14,6 @@ categories = ["computer-vision", "asynchronous"]
 roomkit-tools-core.workspace = true
 roomkit-tools-image.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 schemars.workspace = true
 sha2.workspace = true
 tokio = { workspace = true, features = ["rt", "time", "sync", "macros"] }
@@ -22,6 +21,7 @@ tokio-util.workspace = true
 
 [dev-dependencies]
 image.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]

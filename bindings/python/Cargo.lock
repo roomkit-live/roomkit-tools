@@ -1295,7 +1295,6 @@ dependencies = [
  "roomkit-tools-image",
  "schemars",
  "serde",
- "serde_json",
  "sha2",
  "tokio",
  "tokio-util",
