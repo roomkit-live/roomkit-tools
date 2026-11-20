@@ -10,7 +10,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::ReadLine;
 use crate::grep_include::Include;
-use crate::grep_scan::{self, Matches, Search};
+use crate::grep_page::Matches;
+use crate::grep_scan::{self, Search};
 use crate::ignores::Ignores;
 use crate::paths::{PathEntry, PathKind, Root, first_entry, workspace_path};
 use crate::walk::{self, Bounds, Scan, Start};

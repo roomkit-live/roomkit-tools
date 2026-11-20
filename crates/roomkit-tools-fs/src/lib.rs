@@ -14,6 +14,7 @@ mod edit;
 mod glob;
 mod grep;
 mod grep_include;
+mod grep_page;
 mod grep_read;
 mod grep_scan;
 mod ignores;
