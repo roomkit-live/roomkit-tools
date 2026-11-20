@@ -45,6 +45,18 @@ pub(crate) fn align(
     Ok(Some(kinds))
 }
 
+/// Each line's kind when the lines between the common ends are all
+/// replaced: a valid but not always shortest script, at no search cost.
+pub(crate) fn replace_middle(old: &[&str], new: &[&str]) -> Vec<DiffLineKind> {
+    let (prefix, suffix) = common_ends(old, new);
+    let (a, b) = middle(old, new, prefix, suffix);
+    let mut kinds = vec![DiffLineKind::Context; prefix];
+    kinds.extend(std::iter::repeat_n(DiffLineKind::Removed, a.len()));
+    kinds.extend(std::iter::repeat_n(DiffLineKind::Added, b.len()));
+    kinds.extend(std::iter::repeat_n(DiffLineKind::Context, suffix));
+    kinds
+}
+
 /// The numbers of equal lines at the start and, after them, at the end.
 fn common_ends(old: &[&str], new: &[&str]) -> (usize, usize) {
     let prefix = old.iter().zip(new).take_while(|(a, b)| a == b).count();
@@ -318,5 +330,8 @@ mod tests {
         let new: Vec<&str> = old.iter().rev().copied().collect();
         assert_eq!(align(&old, &new, 5_000, &cancel).unwrap(), None);
         assert!(align(&old, &new, 50_000, &cancel).unwrap().is_some());
+        let replaced = replace_middle(&old, &new);
+        assert_eq!(replaced.len(), 200);
+        assert!(replaced[..100].iter().all(|k| *k == DiffLineKind::Removed));
     }
 }

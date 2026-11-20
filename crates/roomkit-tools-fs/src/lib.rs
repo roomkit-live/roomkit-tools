@@ -9,6 +9,7 @@
 
 mod diff;
 mod diff_align;
+mod diff_render;
 mod edit;
 mod glob;
 mod grep;

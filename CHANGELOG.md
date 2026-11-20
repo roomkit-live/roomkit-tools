@@ -180,6 +180,16 @@ part of an existing published preview.
   special-use blocks, 192.0.0.0/24 and 192.0.2.0/24, are refused as
   non-public, where the whole /16 was.
 
+- A `patch` preview never refuses the patch for its size: adding or deleting
+  a 60 KiB file with `dry_run=False` failed with "diff exceeds
+  max_output_bytes", where `write` of the same text worked. The preview that
+  reaches `max_output_bytes` is cut at a line and ends
+  `[clipped=true, additions=N, deletions=M]`, and past `max_comparison_cells`
+  a preview shows the changed lines replaced whole. A preview's `text` starts
+  `preview only: nothing written; call again with dry_run: false` instead of
+  `completed=true`, and an applied patch's `text` lists its effects without
+  repeating the diffs, which `data.previews` still holds.
+
 - `diff` and `patch` compare lines with a Myers diff instead of a full
   longest-common-subsequence table, so two changes far apart no longer fail:
   in a 1,500-line file, changing lines 3 and 1,498 failed `diff` and an

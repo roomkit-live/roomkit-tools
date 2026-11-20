@@ -495,8 +495,11 @@ class PatchTool(_MutationTool):
         """Share a Workspace with write/edit; plain paths create independent scopes.
 
         Defaults: 32 changes, 16 MiB combined argument bytes, and DiffTool's
-        bounds. max_output_bytes caps combined prepared previews; patch context
-        is three lines capped by max_context_lines. Zero context is valid.
+        bounds. A preview never refuses the patch: past max_output_bytes,
+        combined, it is clipped at a line and flagged, and past
+        max_comparison_cells it shows the changed lines replaced whole. Patch
+        context is three lines capped by max_context_lines. Zero context is
+        valid.
         """
         return await cls._create(
             root,

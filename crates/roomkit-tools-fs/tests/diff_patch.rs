@@ -407,10 +407,6 @@ async fn patch_limits_and_cancellation_prevent_writes() {
             max_file_bytes: 1,
             ..PatchLimits::default()
         },
-        PatchLimits {
-            max_output_bytes: 1,
-            ..PatchLimits::default()
-        },
     ];
     for limits in bounds {
         assert!(matches!(
@@ -504,5 +500,90 @@ async fn diff_allows_internal_symlinks_but_patch_refuses_leaf_symlinks_and_prese
             .mode()
             & 0o777,
         0o750
+    );
+}
+
+/// A preview past `max_output_bytes` is cut at a line and says so; it never
+/// stops the change it previews, which a write of the same text makes.
+#[tokio::test]
+async fn a_large_preview_is_clipped_and_never_blocks_the_change() {
+    let root = tempfile::tempdir().unwrap();
+    let cancel = CancellationToken::new();
+    let content = "a line of about forty bytes of text....\n".repeat(1536);
+    let tool = PatchTool::new(root.path()).await.unwrap();
+    let add = vec![PatchChange::Add {
+        path: "big.txt".into(),
+        content: content.clone(),
+    }];
+    let preview = tool
+        .patch(PatchInput::new(add.clone()), &cancel)
+        .await
+        .unwrap();
+    assert!(preview.text.starts_with(
+        "preview only: nothing written; call again with dry_run: false\n1: add \"big.txt\"\n"
+    ));
+    assert!(
+        preview
+            .text
+            .ends_with("[clipped=true, additions=1536, deletions=0]\n")
+    );
+    let diff = &preview.data.previews[0].diff;
+    assert_eq!(diff.additions, 1536);
+    let shown: usize = diff.hunks.iter().map(|hunk| hunk.lines.len()).sum();
+    assert!(0 < shown && shown < 1536, "{shown}");
+    assert!(preview.text.len() < PatchLimits::default().max_output_bytes + 200);
+    assert!(!root.path().join("big.txt").exists());
+    let mut input = PatchInput::new(add);
+    input.dry_run = false;
+    let added = tool.patch(input, &cancel).await.unwrap();
+    assert!(added.data.completed);
+    assert_eq!(
+        added.text,
+        "patch: dry_run=false, completed=true\napplied #1 add \"big.txt\"\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("big.txt")).unwrap(),
+        content
+    );
+    let mut input = PatchInput::new(vec![PatchChange::Delete {
+        path: "big.txt".into(),
+        old_content: content,
+    }]);
+    input.dry_run = false;
+    assert!(tool.patch(input, &cancel).await.unwrap().data.completed);
+    assert!(!root.path().join("big.txt").exists());
+}
+
+/// Past `max_comparison_cells`, a preview shows the lines between the common
+/// ends replaced whole instead of refusing the patch.
+#[tokio::test]
+async fn a_comparison_past_its_bound_previews_the_changed_lines_whole() {
+    let root = tempfile::tempdir().unwrap();
+    let lines: Vec<String> = (0..100).map(|line| format!("{line}\n")).collect();
+    let old = lines.concat();
+    let new: String = lines.iter().rev().map(String::as_str).collect();
+    std::fs::write(root.path().join("list"), &old).unwrap();
+    let tool = PatchTool::new(root.path())
+        .await
+        .unwrap()
+        .with_limits(PatchLimits {
+            max_comparison_cells: 1_000,
+            ..PatchLimits::default()
+        })
+        .unwrap();
+    let mut input = PatchInput::new(vec![update("list", &old, &new)]);
+    let preview = tool
+        .patch(input.clone(), &CancellationToken::new())
+        .await
+        .unwrap();
+    let diff = &preview.data.previews[0].diff;
+    assert_eq!((diff.additions, diff.deletions), (100, 100));
+    assert_eq!(diff.hunks.len(), 1);
+    input.dry_run = false;
+    let applied = tool.patch(input, &CancellationToken::new()).await.unwrap();
+    assert!(applied.data.completed);
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("list")).unwrap(),
+        new
     );
 }

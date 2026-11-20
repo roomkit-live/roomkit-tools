@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 
+use crate::diff_render::{self, Bound, Labels, Line, Rendered};
 use crate::{diff_align, mutation, paths::Root};
 
 /// Two files to compare.
@@ -138,7 +139,8 @@ pub struct DiffResult {
     pub deletions: usize,
     /// Actual context bound used for this comparison.
     pub context_lines: usize,
-    /// Complete hunks, with exact source text and line numbers.
+    /// Hunks, with exact source text and line numbers; complete, unless a
+    /// patch preview was clipped to its output bound.
     pub hunks: Vec<DiffHunk>,
 }
 
@@ -258,13 +260,8 @@ impl DiffTool {
     }
 }
 
-struct Line<'a> {
-    kind: DiffLineKind,
-    value: &'a str,
-    old: usize,
-    new: usize,
-}
-
+/// Compare two texts for the diff tool: a comparison over a host bound is
+/// refused.
 pub(crate) fn compare(
     old: &str,
     new: &str,
@@ -274,31 +271,80 @@ pub(crate) fn compare(
     limits: DiffLimits,
     cancel: &CancellationToken,
 ) -> Result<Output<DiffResult>, ToolError> {
-    mutation::bounded_text(old, limits.max_file_bytes)?;
-    mutation::bounded_text(new, limits.max_file_bytes)?;
-    mutation::check_cancel(cancel)?;
-    let old_lines: Vec<_> = old
-        .split_inclusive('\n')
-        .take(limits.max_lines + 1)
-        .collect();
-    let new_lines: Vec<_> = new
-        .split_inclusive('\n')
-        .take(limits.max_lines + 1)
-        .collect();
-    if old_lines.len().max(new_lines.len()) > limits.max_lines {
-        return Err(ToolError::LimitExceeded("diff exceeds max_lines".into()));
-    }
-    let kinds = diff_align::align(&old_lines, &new_lines, limits.max_comparison_cells, cancel)?
-        .ok_or_else(|| {
+    let kinds = |old: &[&str], new: &[&str]| {
+        diff_align::align(old, new, limits.max_comparison_cells, cancel)?.ok_or_else(|| {
             ToolError::LimitExceeded(
                 "diff exceeds max_comparison_cells: too many lines differ to compare within the host's bound; compare smaller or closer files".into(),
             )
-        })?;
+        })
+    };
+    let lines = aligned(old, new, limits, cancel, kinds)?;
+    let labels = Labels {
+        old: old_path,
+        new: new_path,
+    };
+    let context = context.min(limits.max_context_lines);
+    let rendered = diff_render::render(
+        &lines,
+        &labels,
+        context,
+        limits.max_output_bytes,
+        Bound::Refuse,
+        cancel,
+    )?;
+    Ok(Output::new(rendered.data, rendered.text))
+}
+
+/// Compare two texts for a patch's preview, which is never refused for its
+/// size: past `max_comparison_cells` the lines between the common ends are
+/// shown replaced whole, and past `budget` bytes the preview is clipped.
+pub(crate) fn preview(
+    old: &str,
+    new: &str,
+    labels: &Labels<'_>,
+    limits: DiffLimits,
+    budget: usize,
+    cancel: &CancellationToken,
+) -> Result<Rendered, ToolError> {
+    let kinds = |old: &[&str], new: &[&str]| {
+        Ok(
+            diff_align::align(old, new, limits.max_comparison_cells, cancel)?
+                .unwrap_or_else(|| diff_align::replace_middle(old, new)),
+        )
+    };
+    let lines = aligned(old, new, limits, cancel, kinds)?;
+    let context = PREVIEW_CONTEXT.min(limits.max_context_lines);
+    diff_render::render(&lines, labels, context, budget, Bound::Clip, cancel)
+}
+
+/// Context lines around a change in a patch's preview.
+const PREVIEW_CONTEXT: usize = 3;
+
+/// The lines of both texts, aligned by `kinds`, within the file bounds.
+fn aligned<'a>(
+    old: &'a str,
+    new: &'a str,
+    limits: DiffLimits,
+    cancel: &CancellationToken,
+    kinds: impl FnOnce(&[&str], &[&str]) -> Result<Vec<DiffLineKind>, ToolError>,
+) -> Result<Vec<Line<'a>>, ToolError> {
+    mutation::bounded_text(old, limits.max_file_bytes)?;
+    mutation::bounded_text(new, limits.max_file_bytes)?;
+    mutation::check_cancel(cancel)?;
+    let split = |text: &'a str| -> Vec<&'a str> {
+        text.split_inclusive('\n')
+            .take(limits.max_lines + 1)
+            .collect()
+    };
+    let (old_lines, new_lines) = (split(old), split(new));
+    if old_lines.len().max(new_lines.len()) > limits.max_lines {
+        return Err(ToolError::LimitExceeded("diff exceeds max_lines".into()));
+    }
+    let kinds = kinds(&old_lines, &new_lines)?;
     let mut lines = Vec::with_capacity(kinds.len());
     let (mut old_iter, mut new_iter) = (old_lines.into_iter(), new_lines.into_iter());
     let (mut old_number, mut new_number) = (0, 0);
     for kind in kinds {
-        mutation::check_cancel(cancel)?;
         let value = match kind {
             DiffLineKind::Context => {
                 new_iter.next();
@@ -317,128 +363,7 @@ pub(crate) fn compare(
         old_number += usize::from(kind != DiffLineKind::Added);
         new_number += usize::from(kind != DiffLineKind::Removed);
     }
-    render(
-        &lines,
-        old_path,
-        new_path,
-        context.min(limits.max_context_lines),
-        limits.max_output_bytes,
-        cancel,
-    )
-}
-
-fn push(text: &mut String, value: &str, maximum: usize) -> Result<(), ToolError> {
-    if value.len() > maximum.saturating_sub(text.len()) {
-        return Err(ToolError::LimitExceeded(
-            "diff exceeds max_output_bytes".into(),
-        ));
-    }
-    text.push_str(value);
-    Ok(())
-}
-
-fn render(
-    lines: &[Line<'_>],
-    old_path: &str,
-    new_path: &str,
-    context: usize,
-    maximum: usize,
-    cancel: &CancellationToken,
-) -> Result<Output<DiffResult>, ToolError> {
-    let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
-    let (mut additions, mut deletions) = (0, 0);
-    for (index, line) in lines.iter().enumerate() {
-        match line.kind {
-            DiffLineKind::Context => continue,
-            DiffLineKind::Added => additions += 1,
-            DiffLineKind::Removed => deletions += 1,
-        }
-        let start = index.saturating_sub(context);
-        let end = index
-            .saturating_add(context)
-            .saturating_add(1)
-            .min(lines.len());
-        if let Some(previous) = ranges.last_mut().filter(|previous| start <= previous.end) {
-            previous.end = end;
-        } else {
-            ranges.push(start..end);
-        }
-    }
-    let mut text = String::new();
-    if !ranges.is_empty() {
-        push(
-            &mut text,
-            &format!("--- {old_path:?}\n+++ {new_path:?}\n"),
-            maximum,
-        )?;
-    }
-    let mut hunks = Vec::new();
-    for range in ranges {
-        mutation::check_cancel(cancel)?;
-        let selected = lines
-            .get(range)
-            .ok_or_else(|| ToolError::InvalidInput("invalid diff range".into()))?;
-        let Some(first) = selected.first() else {
-            continue;
-        };
-        let old_count = selected
-            .iter()
-            .filter(|line| line.kind != DiffLineKind::Added)
-            .count();
-        let new_count = selected
-            .iter()
-            .filter(|line| line.kind != DiffLineKind::Removed)
-            .count();
-        let old_start = first.old + usize::from(old_count != 0);
-        let new_start = first.new + usize::from(new_count != 0);
-        push(
-            &mut text,
-            &format!("@@ -{old_start},{old_count} +{new_start},{new_count} @@\n"),
-            maximum,
-        )?;
-        let mut rendered = Vec::new();
-        for line in selected {
-            mutation::check_cancel(cancel)?;
-            push(
-                &mut text,
-                match line.kind {
-                    DiffLineKind::Context => " ",
-                    DiffLineKind::Added => "+",
-                    DiffLineKind::Removed => "-",
-                },
-                maximum,
-            )?;
-            push(&mut text, line.value, maximum)?;
-            if !line.value.ends_with('\n') {
-                push(&mut text, "\n\\ No newline at end of file\n", maximum)?;
-            }
-            rendered.push(DiffLine {
-                kind: line.kind,
-                old_line: (line.kind != DiffLineKind::Added).then_some(line.old + 1),
-                new_line: (line.kind != DiffLineKind::Removed).then_some(line.new + 1),
-                text: line.value.into(),
-            });
-        }
-        hunks.push(DiffHunk {
-            old_start,
-            old_count,
-            new_start,
-            new_count,
-            lines: rendered,
-        });
-    }
-    Ok(Output::new(
-        DiffResult {
-            old_path: old_path.into(),
-            new_path: new_path.into(),
-            changed: additions != 0 || deletions != 0,
-            additions,
-            deletions,
-            context_lines: context,
-            hunks,
-        },
-        text,
-    ))
+    Ok(lines)
 }
 
 #[cfg(test)]

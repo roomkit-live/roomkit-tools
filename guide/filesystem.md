@@ -261,7 +261,8 @@ of changed lines, about their count squared, not with the files' length: two
 changes at both ends of a 20,000-line file compare well within the default,
 while 1,000 lines put in reverse order exceed it. Constructor keywords `max_file_bytes`, `max_lines`,
 `max_comparison_cells`, `max_output_bytes` and `max_context_lines` set those
-bounds; context may be zero. Oversized comparisons fail instead of clipping.
+bounds; context may be zero. An oversized comparison fails `diff` instead of
+clipping; a patch's preview is clipped instead (see below).
 
 `PatchTool` accepts structured `changes`, not textual Git/Codex patches or the
 text returned by `diff`. Operations are `add` (`path`, `content`), `update`
@@ -277,9 +278,16 @@ add/move destinations must be absent.
 All changes are prepared before writing. An omitted `dry_run` means preview;
 explicit `False` applies a freshly validated batch. Previews do not reserve files.
 Defaults are 32 operations, 16 MiB combined argument bytes, plus the diff bounds
-above; `max_output_bytes` caps the combined prepared previews. Constructor
-keywords also include `max_changes` and `max_input_bytes`. Preview context is
-three lines capped by `max_context_lines`.
+above. Constructor keywords also include `max_changes` and `max_input_bytes`.
+Preview context is three lines capped by `max_context_lines`. A preview never
+refuses the patch for its size, whether it previews or applies:
+`max_output_bytes` caps the combined diffs, and the preview that reaches it is
+cut at a line and ends `[clipped=true, additions=N, deletions=M]`, later ones
+keeping their heading line only; past `max_comparison_cells`, a preview shows
+the lines between the common first and last ones replaced whole. A preview's
+`text` starts `preview only: nothing written; call again with dry_run: false`.
+An applied patch's `text` lists its effects and any failure, not the diffs;
+`data.previews` still holds them.
 
 Inspect `completed`, `applied` and `failure`: batches do not promise multi-file
 rollback. A move records destination creation and source removal separately.

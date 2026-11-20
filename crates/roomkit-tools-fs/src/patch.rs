@@ -89,10 +89,14 @@ pub struct PatchLimits {
     /// Maximum LF-delimited lines per file. Default: 20,000.
     pub max_lines: usize,
     /// Maximum work of each file's comparison, as
-    /// [`DiffLimits::max_comparison_cells`]. Default: 1,000,000.
+    /// [`DiffLimits::max_comparison_cells`]. Past it, the preview shows the
+    /// lines between the common first and last ones replaced whole, rather
+    /// than refusing the patch. Default: 1,000,000.
     pub max_comparison_cells: usize,
-    /// Maximum rendered bytes of all previews together; exceeding this fails
-    /// without clipping. Default: 50 KiB.
+    /// Maximum rendered bytes of all previews' diffs together. A preview past
+    /// it is cut at a line and ends `[clipped=true, additions=N,
+    /// deletions=M]`; later ones keep their heading only. It never refuses
+    /// the patch. Default: 50 KiB.
     pub max_output_bytes: usize,
     /// Maximum context lines on each side of a change. Default: 100.
     pub max_context_lines: usize,
@@ -153,9 +157,11 @@ pub struct PatchPreview {
     pub to: Option<String>,
     /// Whether this operation would change bytes or file existence.
     pub changed: bool,
-    /// Exact comparison of the proposed contents.
+    /// Comparison of the proposed contents, clipped as its `text` says when
+    /// it exceeds the patch's output bound.
     pub diff: DiffResult,
-    /// Unified-style content preview, not a serialized patch input.
+    /// Unified-style content preview, not a serialized patch input; a
+    /// clipped one ends `[clipped=true, additions=N, deletions=M]`.
     pub text: String,
 }
 
@@ -301,10 +307,28 @@ fn apply(
         applied,
         failure,
     };
-    let mut text = format!(
-        "patch: dry_run={}, completed={}\n",
-        data.dry_run, data.completed
-    );
+    let text = if data.dry_run {
+        previewed(&data)
+    } else {
+        applied_text(&data)
+    };
+    Ok(Output::new(data, text))
+}
+
+/// A preview's text: that nothing was written, then each change's diff.
+fn previewed(data: &PatchResult) -> String {
+    let mut text = "preview only: nothing written; call again with dry_run: false\n".to_owned();
+    text.extend(data.previews.iter().map(|p| p.text.as_str()));
+    text
+}
+
+/// An application's text: its effects and its failure, without the diffs
+/// the model wrote itself.
+fn applied_text(data: &PatchResult) -> String {
+    let mut text = format!("patch: dry_run=false, completed={}\n", data.completed);
+    if data.completed && data.applied.is_empty() {
+        text.push_str("no effects: the files already hold this content\n");
+    }
     for done in &data.applied {
         let operation = format!("{:?}", done.operation).to_ascii_lowercase();
         let _written = writeln!(text, "applied #{} {operation} {:?}", done.index, done.path);
@@ -321,9 +345,7 @@ fn apply(
             failure.index, failure.message
         );
     }
-    text.push_str("Prepared previews (not proof of application):\n");
-    text.extend(data.previews.iter().map(|p| p.text.as_str()));
-    Ok(Output::new(data, text))
+    text
 }
 
 fn apply_one(

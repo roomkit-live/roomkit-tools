@@ -209,20 +209,25 @@ async fn a_patch_reads_as_what_it_did() {
             old_content: "gone\n".into(),
         },
     ]);
-    input.dry_run = false;
-    let patched = PatchTool::new(root.path())
-        .await
-        .unwrap()
-        .patch(input, &CancellationToken::new())
+    let tool = PatchTool::new(root.path()).await.unwrap();
+    let preview = tool
+        .patch(input.clone(), &CancellationToken::new())
         .await
         .unwrap();
-    let text = &patched.text;
+    let text = &preview.text;
     assert!(
         text.starts_with(
-            "patch: dry_run=false, completed=true\napplied #1 add \"new\"\napplied #2 delete \"old\"\nPrepared previews (not proof of application):\n1: add \"new\"\n"
+            "preview only: nothing written; call again with dry_run: false\n1: add \"new\"\n"
         ),
         "{text}"
     );
     assert!(text.contains("\n2: delete \"old\"\n"), "{text}");
     assert!(!text.contains("None") && !text.contains("Some("), "{text}");
+    input.dry_run = false;
+    let patched = tool.patch(input, &CancellationToken::new()).await.unwrap();
+    // The effects, without the diffs the model wrote itself.
+    assert_eq!(
+        patched.text,
+        "patch: dry_run=false, completed=true\napplied #1 add \"new\"\napplied #2 delete \"old\"\n"
+    );
 }

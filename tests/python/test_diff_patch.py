@@ -249,22 +249,38 @@ class DiffPatchTests(unittest.IsolatedAsyncioTestCase):
         (self.root / "old").write_text("head\na\nb\ntail\n")
         (self.root / "new").write_text("head\nc\nd\ntail\n")
         changes = [{"op": "add", "path": "added", "content": "a\nb\n"}]
+        # Comparison cells matter for two nonempty, different contents.
+        batch = [
+            {
+                "op": "update",
+                "path": "old",
+                "old_content": "head\na\nb\ntail\n",
+                "new_content": "head\nc\nd\ntail\n",
+            }
+        ]
         for bound in ["max_file_bytes", "max_lines", "max_comparison_cells", "max_output_bytes"]:
             tool = await DiffTool.create(self.workspace, **{bound: 1})
             with self.subTest(bound=bound), self.assertRaises(LimitExceededError):
                 await tool.diff("old", "new")
             tool = await PatchTool.create(self.workspace, **{bound: 1})
-            # Comparison cells matter for two nonempty, different contents.
-            batch = [
-                {
-                    "op": "update",
-                    "path": "old",
-                    "old_content": "head\na\nb\ntail\n",
-                    "new_content": "head\nc\nd\ntail\n",
-                }
-            ]
-            with self.subTest(patch_bound=bound), self.assertRaises(LimitExceededError):
-                await tool.patch(batch, dry_run=False)
+            if bound in {"max_file_bytes", "max_lines"}:
+                with self.subTest(patch_bound=bound), self.assertRaises(LimitExceededError):
+                    await tool.patch(batch, dry_run=False)
+                continue
+            # A preview past a comparison or output bound never refuses the patch.
+            preview = await tool.patch(batch)
+            self.assertEqual(preview["data"]["previews"][0]["diff"]["additions"], 2)
+            if bound == "max_output_bytes":
+                self.assertTrue(
+                    preview["text"].endswith("[clipped=true, additions=2, deletions=2]\n")
+                )
+        tool = await PatchTool.create(self.workspace, max_output_bytes=1)
+        applied = await tool.patch(batch, dry_run=False)
+        self.assertEqual(
+            applied["text"], 'patch: dry_run=false, completed=true\napplied #1 update "old"\n'
+        )
+        self.assertEqual((self.root / "old").read_text(), "head\nc\nd\ntail\n")
+        (self.root / "old").write_text("head\na\nb\ntail\n")
         tool = await PatchTool.create(self.workspace, max_input_bytes=1)
         with self.assertRaises(LimitExceededError):
             await tool.patch(changes, dry_run=False)

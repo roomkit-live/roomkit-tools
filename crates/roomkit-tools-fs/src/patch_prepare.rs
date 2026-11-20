@@ -1,13 +1,15 @@
 //! Patch preparation: every change is checked against its files and the
-//! patch's bounds, and previewed, before anything is written.
+//! patch's bounds, and previewed, before anything is written. A preview is
+//! clipped to the patch's output bound, never refused for its size.
 
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use roomkit_tools_core::ToolError;
+use roomkit_tools_core::{ToolError, append_facts};
 use tokio_util::sync::CancellationToken;
 
+use crate::diff_render::Labels;
 use crate::patch::{PatchChange, PatchLimits, PatchOperation, PatchPreview};
 use crate::paths::Root;
 use crate::{diff, line_endings, mutation};
@@ -130,21 +132,11 @@ impl Totals {
         Ok(())
     }
 
-    fn count_output(
-        &mut self,
-        heading: usize,
-        text: usize,
-        maximum: usize,
-    ) -> Result<(), ToolError> {
-        self.output_bytes = self
-            .output_bytes
-            .checked_add(heading)
-            .and_then(|n| n.checked_add(text))
-            .filter(|n| *n <= maximum)
-            .ok_or_else(|| {
-                ToolError::LimitExceeded("patch previews exceed max_output_bytes".into())
-            })?;
-        Ok(())
+    /// The bytes left for a preview's diff under `maximum`, once its
+    /// `heading` is counted.
+    fn output_left(&mut self, heading: usize, maximum: usize) -> usize {
+        self.output_bytes = self.output_bytes.saturating_add(heading);
+        maximum.saturating_sub(self.output_bytes)
     }
 }
 
@@ -226,8 +218,8 @@ fn check_existing(
     Ok(())
 }
 
-/// Compare a change's contents and count its preview toward the patch's
-/// output bound.
+/// Compare a change's contents within what is left of the patch's output
+/// bound. A preview clipped to fit ends with a line saying so.
 fn render_preview(
     root: &Root,
     change: &Resolved<'_>,
@@ -239,22 +231,38 @@ fn render_preview(
     let to = change.target.map(|path| root.relative(path)).transpose()?;
     let old_label = label(change.existed, &path);
     let new_label = label(change.after.is_some(), to.as_deref().unwrap_or(&path));
-    let compared = diff::compare(
-        change.expected.unwrap_or(""),
-        change.after.unwrap_or(""),
-        old_label,
-        new_label,
-        3,
-        limits.diff(),
-        cancel,
-    )?;
     let operation = change.operation;
     let name = format!("{operation:?}").to_ascii_lowercase();
     let target = to
         .as_deref()
         .map_or_else(String::new, |to| format!(" -> {to:?}"));
     let heading = format!("{}: {name} {path:?}{target}\n", change.index);
-    totals.count_output(heading.len(), compared.text.len(), limits.max_output_bytes)?;
+    let labels = Labels {
+        old: old_label,
+        new: new_label,
+    };
+    let budget = totals.output_left(heading.len(), limits.max_output_bytes);
+    let compared = diff::preview(
+        change.expected.unwrap_or(""),
+        change.after.unwrap_or(""),
+        &labels,
+        limits.diff(),
+        budget,
+        cancel,
+    )?;
+    totals.output_bytes = totals.output_bytes.saturating_add(compared.text.len());
+    let mut text = format!("{heading}{}", compared.text);
+    if compared.clipped {
+        let data = &compared.data;
+        append_facts(
+            &mut text,
+            [
+                ("clipped", Some("true".to_owned())),
+                ("additions", Some(data.additions.to_string())),
+                ("deletions", Some(data.deletions.to_string())),
+            ],
+        );
+    }
     Ok(PatchPreview {
         index: change.index,
         operation,
@@ -262,7 +270,7 @@ fn render_preview(
         to,
         changed: operation != PatchOperation::Update || change.expected != change.after,
         diff: compared.data,
-        text: format!("{heading}{}", compared.text),
+        text,
     })
 }
 
