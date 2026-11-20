@@ -345,6 +345,14 @@ fn applied_text(data: &PatchResult) -> String {
             "failed #{}{cancelled}: {}",
             failure.index, failure.message
         );
+        for left in data.previews.iter().filter(|p| p.index > failure.index) {
+            let operation = format!("{:?}", left.operation).to_ascii_lowercase();
+            let _written = writeln!(
+                text,
+                "not applied #{} {operation} {:?}",
+                left.index, left.path
+            );
+        }
     }
     text
 }
@@ -427,6 +435,10 @@ mod tests {
                     old_content: "original".into(),
                     new_content: "stale".into(),
                 },
+                PatchChange::Add {
+                    path: "third".into(),
+                    content: "never".into(),
+                },
             ],
             PatchLimits::default(),
             &cancel,
@@ -438,6 +450,16 @@ mod tests {
         assert_eq!(result.data.failure.as_ref().unwrap().index, 2);
         assert_eq!(result.data.applied.len(), 1);
         assert_eq!(result.data.applied[0].path, "first");
+        // The text says what was done, what failed, and what was never tried.
+        let text = &result.text;
+        assert!(
+            text.starts_with(
+                "patch: dry_run=false, completed=false\napplied #1 add \"first\"\nfailed #2: "
+            ),
+            "{text}"
+        );
+        assert!(text.ends_with("\nnot applied #3 add \"third\"\n"), "{text}");
+        assert!(!folder.path().join("third").exists());
         assert_eq!(
             std::fs::read_to_string(folder.path().join("first")).unwrap(),
             "committed"

@@ -295,7 +295,9 @@ keeping their heading and that line; past `max_comparison_cells`, a preview show
 the lines between the common first and last ones replaced whole, its counts
 those of that region, and ends `[compared=whole]`. A preview's
 `text` starts `preview only: nothing written; call again with dry_run: false`.
-An applied patch's `text` lists its effects and any failure, not the diffs;
+An applied patch's `text` lists its effects, any failure and the changes
+after it that were never applied (`not applied #3 add "notice"`), not the
+diffs;
 `data.previews` still holds them.
 
 Inspect `completed`, `applied` and `failure`: batches do not promise multi-file

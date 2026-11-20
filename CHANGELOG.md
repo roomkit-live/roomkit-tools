@@ -202,8 +202,9 @@ part of an existing published preview.
   a preview shows the changed lines replaced whole and says so,
   `[compared=whole]`. A preview's `text` starts
   `preview only: nothing written; call again with dry_run: false` instead of
-  `completed=true`, and an applied patch's `text` lists its effects without
-  repeating the diffs, which `data.previews` still holds.
+  `completed=true`, and an applied patch's `text` lists its effects, and
+  after a failure the changes never applied, without repeating the diffs,
+  which `data.previews` still holds.
 
 - `diff` and `patch` compare lines with a Myers diff instead of a full
   longest-common-subsequence table, so two changes far apart no longer fail:
