@@ -103,6 +103,9 @@ As in Python, a handler answers the tool's `text` as `ToolResult::Text`, which
 the model reads, and leaves its `data` as the call's structured content,
 `{"data": ...}`, which an `OnToolCall` hook reads as
 `ToolCallEvent::structured_content`; `ViewImage` answers text and image parts.
+The handler finds its call through RoomKit's task-local `current_tool_call()`:
+a host that runs a handler future in a task of its own spawns it with
+`roomkit::keep_context`, or the data is lost without an error.
 Process/archive owners are derived from the conversation and agent of the
 current RoomKit tool call, and a call made outside one is refused:
 `roomkit_owner(room_id, channel_id)` returns that key, so the host can pass it
