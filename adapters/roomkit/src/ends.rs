@@ -4,8 +4,8 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use futures_core::Stream;
-use roomkit::model::{ChannelId, RoomId};
-use roomkit::{ConversationStore, DeliverOptions, RoomKit, RoomKitError};
+use roomkit::model::{ChannelId, InjectMessage, RoomId};
+use roomkit::{ConversationStore, DeliverOptions, RoomKit, RoomKitError, SteerOptions};
 use roomkit_tools_process::{JobEnd, JobEnds, JobTool, ProcessEnd};
 
 /// The longest command a notice quotes, in characters.
@@ -17,14 +17,19 @@ const COMMAND_CHARS: usize = 200;
 /// `ends` is a [`ProcessSession`](roomkit_tools_process::ProcessSession)'s
 /// or a [`ShellTool`](roomkit_tools_process::ShellTool)'s, taken before the
 /// agents start their jobs; spawn one call per session. Each end of a job the
-/// process or shell adapters started reaches its agent as an instruction
-/// (`deliver()` with `instruction`, addressed to it), which gives the agent a
-/// turn, or is read by the turn it is running. A delivery lasts the turn it
-/// gives, so each runs in a task of its own: one agent's turn never holds back
-/// another's notice. A job stopped, by the agent, the host or a close, is not
-/// told: whoever stopped it knows. An end whose owner is not a RoomKit room
-/// and agent is skipped; one the kit refuses is logged, unless it closed.
-/// Returns once `ends` stopped and every delivery begun has ended.
+/// process or shell adapters started is told to its agent. The turn the agent
+/// is running in the job's room reads it at its next stop (`steer()` with an
+/// `InjectMessage`). With no turn to take it, it is delivered as an
+/// instruction (`deliver()` with `instruction`, addressed to the agent), which
+/// gives the agent a turn. A turn that took a notice and ends before its next
+/// stop (cut, failed, or out of rounds) does not read it, and no later turn
+/// is told: a process's state stays readable with `process_status`, a shell
+/// command's background jobs leave nothing else to read. A delivery lasts the
+/// turn it gives, so each runs in a task of its own: one agent's turn never
+/// holds back another's notice. A job stopped, by the agent, the host or a
+/// close, is not told: whoever stopped it knows. An end whose owner is not a
+/// RoomKit room and agent is skipped; one the kit refuses is logged, unless
+/// it closed. Returns once `ends` stopped and every delivery begun has ended.
 pub async fn notify_job_ends<S>(kit: &RoomKit<S>, mut ends: JobEnds)
 where
     S: ConversationStore + Send + Sync + 'static,
@@ -41,13 +46,29 @@ where
     while delivering.join_next().await.is_some() {}
 }
 
-/// Deliver `notice` to `agent` in `room`, as the application's instruction.
+/// Tell `agent` in `room` of `notice`: the turn it is running there reads it
+/// at its next stop, else it is delivered as the application's instruction.
+///
+/// The delivery alone would wait for the running turn to end: a turn reads
+/// only its own author's next messages, and the application did not write
+/// the message it answers.
 async fn tell<S: ConversationStore>(
     kit: RoomKit<S>,
     room: RoomId,
     agent: ChannelId,
     notice: String,
 ) {
+    let steered = kit
+        .steer(
+            &room,
+            &agent,
+            InjectMessage::new(notice.as_str()),
+            SteerOptions::default(),
+        )
+        .await;
+    if matches!(steered, Ok(reached) if reached > 0) {
+        return;
+    }
     let options = DeliverOptions {
         addressed_to: Some(vec![agent]),
         instruction: true,

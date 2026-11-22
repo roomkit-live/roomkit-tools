@@ -4,6 +4,28 @@ User-visible changes by Python package version. Rust crates are versioned
 separately. Entries under **Unreleased** describe the source tree and are not
 part of an existing published preview.
 
+## Unreleased
+
+- **Breaking (Python):** the `roomkit` extra requires `roomkit>=0.112,<0.113`,
+  where it took `>=0.110,<0.112`, and the automated checks use 0.112.0.
+  `notify_job_ends` now steers, and on RoomKit 0.110 and 0.111 a message
+  steered while the model writes a turn's last answer is counted as taken by
+  a loop that never reads it: the notice would be lost.
+
+- `notify_job_ends` hands a job's end to the turn its agent is running, which
+  reads it at its next stop (`steer()` with an `InjectMessage`), and delivers
+  the instruction only when no turn takes it. With the delivery alone the
+  notice waited for a turn of its own. A turn that took a notice and ends
+  before its next stop (cut, failed, or out of rounds) does not read it, and
+  no later turn is told: a process's state stays readable with
+  `process_status`, a shell command's background jobs leave nothing else to
+  read.
+
+- The RoomKit Rust adapter follows roomkit-rs 4c51283, after 0.2.0, which
+  changes no adapter's API. With it, a running turn that steers its room reads
+  only its own author's next messages, so an application's delivery waits for
+  that turn to end.
+
 ## 0.2.0
 
 ### Breaking changes

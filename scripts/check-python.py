@@ -112,7 +112,7 @@ ROOMKIT_EXAMPLES = [
 ]
 # The minimum supported RoomKit release; vLLM's SDK is used only with a mock
 # HTTP transport in tests.
-ROOMKIT_REQUIREMENT = "roomkit[vllm]==0.110.0"
+ROOMKIT_REQUIREMENT = "roomkit[vllm]==0.112.0"
 
 
 def run(*arguments: str, cwd: Path) -> None:

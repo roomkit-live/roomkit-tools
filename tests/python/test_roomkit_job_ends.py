@@ -20,7 +20,7 @@ from roomkit_tools import (
     notify_job_ends,
     roomkit_owner,
 )
-from roomkit_tools.roomkit.ends import _caller, _duration, _notice, _quoted
+from roomkit_tools.roomkit.ends import _caller, _duration, _notice, _quoted, _tell
 
 
 def end(tool: str, how: str, exit_code: int | None = None, signal: int | None = None) -> dict:
@@ -96,6 +96,16 @@ def call(name: str, arguments: dict, call_id: str = "c1") -> AIResponse:
     return AIResponse(
         content="", tool_calls=[AIToolCall(id=call_id, name=name, arguments=arguments)]
     )
+
+
+class SlowAnswers(MockAIProvider):
+    """A scripted model whose answers take a second to write; its tool calls come at once."""
+
+    async def generate(self, context):
+        response = await super().generate(context)
+        if not response.tool_calls:
+            await asyncio.sleep(1)
+        return response
 
 
 def reading_model(arguments: dict) -> MockAIProvider:
@@ -194,6 +204,66 @@ class NotifyJobEndsTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn(told, requests[2])
                 self.assertIn("built", requests[3])
             await asyncio.wait_for(self.telling, 5)
+
+    async def test_an_end_during_the_agent_s_turn_is_read_by_that_turn(self):
+        with tempfile.TemporaryDirectory() as root:
+            shell = await ShellTool.create(root)
+            async with ProcessSession(root) as session, RoomKit() as kit:
+                # The process ends while the turn's next tool, a second's shell, runs.
+                provider = MockAIProvider(
+                    ai_responses=[
+                        call("process_start", {"command": "exit 4"}),
+                        call("shell", {"command": "sleep 1"}, "c2"),
+                        AIResponse(content="Done."),
+                        AIResponse(content="A turn too many."),
+                    ]
+                )
+                tools = [ProcessStart(session), Shell(shell)]
+                await self.run_turn(kit, tools, provider, session.ends())
+                requests = await asked(provider, 3)
+                told = "Background process p1 (`exit 4`) exited with code 4"
+                self.assertIn(told, requests[2])
+                await asyncio.sleep(0.3)
+                self.assertEqual(
+                    len(provider.calls), 3, "read by the running turn, no turn of its own"
+                )
+            await asyncio.wait_for(self.telling, 5)
+
+    async def test_an_end_while_the_model_writes_its_answer_is_not_lost(self):
+        with tempfile.TemporaryDirectory() as root:
+            async with ProcessSession(root) as session, RoomKit() as kit:
+                # The process ends 0.3 s into the turn's last answer: the loop
+                # that takes the notice asks the model again, its answer before
+                # the notice.
+                provider = SlowAnswers(
+                    ai_responses=[
+                        call("process_start", {"command": "sleep 0.3"}),
+                        AIResponse(content="Started."),
+                        AIResponse(content="It ended."),
+                    ]
+                )
+                await self.run_turn(kit, [ProcessStart(session)], provider, session.ends())
+                requests = await asked(provider, 3)
+                told = "Background process p1 (`sleep 0.3`) exited with code 0 after"
+                self.assertIn(told, requests[2])
+                self.assertIn("Started.", requests[2], "asked again by the same turn")
+            await asyncio.wait_for(self.telling, 5)
+
+    async def test_a_steer_the_kit_refuses_falls_back_to_the_delivery(self):
+        import roomkit
+
+        delivered = []
+
+        class Refusing:
+            async def steer(self, *arguments, **options):
+                raise roomkit.RoomKitError("no turn can be steered")
+
+            async def deliver(self, room_id, content, **options):
+                delivered.append((room_id, content, options))
+
+        await _tell(Refusing(), "room", "agent", "It ended.")
+        told = ("room", "It ended.", {"addressed_to": ["agent"], "instruction": True})
+        self.assertEqual(delivered, [told])
 
     async def test_one_agent_s_turn_does_not_hold_back_another_room_s_notice(self):
         with tempfile.TemporaryDirectory() as root:

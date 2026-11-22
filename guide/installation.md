@@ -44,7 +44,7 @@ uv pip install '.[roomkit]'
 ```
 
 Maturin builds the native extension. The standalone package has no Python
-runtime dependencies. The `roomkit` extra requires `roomkit>=0.110,<0.112`.
+runtime dependencies. The `roomkit` extra requires `roomkit>=0.112,<0.113`.
 Provider-specific extras, such as `roomkit[vllm]`, are installed separately.
 
 ## From an existing GitHub wheel
@@ -79,7 +79,7 @@ the repository, not the installed import package.
 | Python interpreter | Standard CPython 3.12 and 3.14; stable ABI targeting 3.12+ |
 | Published wheel | Linux x86_64, glibc 2.34+ |
 | Rust minimum | 1.94 |
-| RoomKit Python adapter | Dependency range `>=0.110,<0.112`; automated checks use 0.110.0, and 0.111.0 was checked for 0.2.0 |
+| RoomKit Python adapter | Dependency range `>=0.112,<0.113`; automated checks use 0.112.0 |
 | Shell and persistent processes | Linux; Unix process-group implementation |
 | macOS, Windows, ARM64, musl, PyPy, free-threaded Python | No validated distributions in this project yet |
 

@@ -6,7 +6,7 @@ From the repository root:
     .venv/bin/python examples/roomkit_read.py
 
 The default model is scripted; the RoomKit turn and Rust file read are real.
-For vLLM, also install 'roomkit[vllm]>=0.110,<0.112', set OPENAI_BASE_URL and
+For vLLM, also install 'roomkit[vllm]>=0.112,<0.113', set OPENAI_BASE_URL and
 OPENAI_MODEL (optionally OPENAI_API_KEY), then add --live.
 """
 

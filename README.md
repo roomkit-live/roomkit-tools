@@ -271,7 +271,7 @@ permissions:
 | Python | CPython 3.12 and 3.14; the wheel targets the 3.12+ stable ABI |
 | Wheels | Linux x86_64, glibc 2.34+ |
 | Rust | 1.94 or later |
-| RoomKit Python | `roomkit>=0.110,<0.112` |
+| RoomKit Python | `roomkit>=0.112,<0.113` |
 | Commands and processes | Linux. Other Unix systems run the same code without validation; non-Unix systems return an unsupported error |
 
 macOS, Windows, ARM64, musl, PyPy and free-threaded Python have no validated

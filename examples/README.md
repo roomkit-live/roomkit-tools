@@ -35,7 +35,7 @@ For examples exposing `--live`, install the vLLM provider extra and configure an
 OpenAI-compatible server with tool calling enabled:
 
 ```sh
-python -m pip install 'roomkit[vllm]>=0.110,<0.112'
+python -m pip install 'roomkit[vllm]>=0.112,<0.113'
 export OPENAI_BASE_URL=http://localhost:8000/v1
 export OPENAI_MODEL=your-served-model
 # Set OPENAI_API_KEY in your environment if your server requires authentication.

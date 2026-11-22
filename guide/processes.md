@@ -295,8 +295,10 @@ Dropping the tool leaves them running, as before it followed them.
 
 To tell RoomKit agents, run `notify_job_ends(kit, processes.ends())`, and one for
 the shell's ends, in a task of their own. Each end of a job an agent started
-through the process or shell adapters reaches that agent as an instruction,
-which gives it a turn, or is read by the turn it is running:
+through the process or shell adapters is told to that agent: the turn it is
+running reads it at its next stop, and an idle agent gets it as an
+instruction, which gives it a turn. A turn that ends before that stop (cut,
+failed, or out of rounds) does not read the notice it took:
 
 ```text
 Background process p1 (`sleep 0.5`) exited with code 0 after 504ms. Read its output with process_read.

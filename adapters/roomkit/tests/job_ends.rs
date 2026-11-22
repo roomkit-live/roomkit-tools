@@ -5,10 +5,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use roomkit::model::{ChannelId, ChannelType, InboundMessage, RoomId, TextContent};
+use roomkit::model::{Cancel, ChannelId, ChannelType, InboundMessage, RoomId, TextContent};
 use roomkit::testing::{RecordingTransport, RecordingTransportOptions};
 use roomkit::{
     AttachChannelOptions, CreateRoomOptions, ProcessInboundOptions, RoomKit, RoomKitOptions,
+    SteerOptions,
 };
 use roomkit_ai::testing::{ScriptedProvider, ScriptedRound};
 use roomkit_ai::{AiChannel, AiChannelOptions, Tool, ToolEntry};
@@ -316,6 +317,55 @@ async fn a_shell_command_still_running_at_its_timeout_moves_to_its_agent_s_proce
     let told = format!("Background process p1 (`{command}`) exited with code 0 after");
     assert!(asked[2].contains(&told), "{}", asked[2]);
     assert!(asked[3].contains("built"), "{}", asked[3]);
+    assert!(session.close().await);
+    kit.close().await.unwrap();
+}
+
+/// The limit of handing a notice to the running turn: one that ends before
+/// its next stop reads nothing more, and the notice it took is stored
+/// nowhere, so no later turn is told either.
+#[tokio::test]
+async fn an_end_a_turn_took_before_it_was_cut_is_not_read() {
+    let workspace = tempfile::tempdir().unwrap();
+    let session = ProcessSession::new(workspace.path()).await.unwrap();
+    let shell = ShellTool::new(workspace.path()).await.unwrap();
+    let model = ScriptedProvider::new([
+        ScriptedRound::calling("", [("c1", "process_start", r#"{"command":"exit 4"}"#)]),
+        ScriptedRound::calling("", [("c2", "shell", r#"{"command":"sleep 1"}"#)]),
+        ScriptedRound::answering("Not that I know."),
+    ]);
+    let tools: Vec<Arc<dyn Tool>> = vec![
+        Arc::new(ProcessStart::new(session.clone())),
+        Arc::new(Shell::new(shell)),
+    ];
+    let (kit, room) = kit(&model, tools, session.ends());
+    let (asking, in_room) = (kit.clone(), room.clone());
+    let turn = tokio::spawn(async move { ask(&asking, &in_room).await });
+    requests(&model, 2).await;
+    // The process ended at once: the turn takes its notice while its
+    // second's shell runs, and is cut before it reads on.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let agent = ChannelId::new("assistant").unwrap();
+    let cut = kit.steer(&room, &agent, Cancel::default(), SteerOptions::default());
+    assert_eq!(cut.await.unwrap(), 1);
+    turn.await.unwrap();
+    roomkit::testing::idle(&kit).await;
+    let message = InboundMessage::new(
+        ChannelId::new("chat").unwrap(),
+        "alice",
+        TextContent::new("Is it done?"),
+    );
+    let options = ProcessInboundOptions {
+        room_id: Some(room.clone()),
+        ..Default::default()
+    };
+    kit.process_inbound(message, options).await.unwrap();
+    roomkit::testing::idle(&kit).await;
+    let asked = requests(&model, 3).await;
+    assert_eq!(asked.len(), 3, "the notice gave no turn of its own");
+    for request in &asked {
+        assert!(!request.contains("Background process p1"), "{request}");
+    }
     assert!(session.close().await);
     kit.close().await.unwrap();
 }

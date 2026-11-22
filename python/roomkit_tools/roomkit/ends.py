@@ -23,14 +23,20 @@ async def notify_job_ends(kit: RoomKit, ends: AsyncIterator[dict[str, Any]]) -> 
     *ends* is a ProcessSession's or a ShellTool's ``ends()``, taken before the
     agents start their jobs; run one task per session,
     ``asyncio.create_task(notify_job_ends(kit, ends))``. Each end of a job the
-    process or shell adapters started reaches its agent as an instruction
-    (``deliver()`` with ``instruction=True``, addressed to it), which gives the
-    agent a turn, or is read by the turn it is running. A delivery lasts the
-    turn it gives, so each runs in a task of its own: one agent's turn never
-    holds back another's notice. A job stopped, by the agent, the host or a
-    close, is not told: whoever stopped it knows. An end whose owner is not a
-    RoomKit room and agent is skipped; one the kit refuses is logged, unless
-    it closed. Returns once *ends* stopped and every delivery begun has ended.
+    process or shell adapters started is told to its agent. The turn the agent
+    is running in the job's room reads it at its next stop (``steer()`` with an
+    ``InjectMessage``). With no turn to take it, it is delivered as an
+    instruction (``deliver()`` with ``instruction=True``, addressed to the
+    agent), which gives the agent a turn. A turn that took a notice and ends
+    before its next stop (cut, failed, or out of rounds) does not read it, and
+    no later turn is told: a process's state stays readable with
+    ``process_status``, a shell command's background jobs leave nothing else
+    to read. A delivery lasts the turn it gives, so each runs in a task of its
+    own: one agent's turn never holds back another's notice. A job stopped, by
+    the agent, the host or a close, is not told: whoever stopped it knows. An
+    end whose owner is not a RoomKit room and agent is skipped; one the kit
+    refuses is logged, unless it closed. Returns once *ends* stopped and every
+    delivery begun has ended.
     """
     delivering: set[asyncio.Task[None]] = set()
     async for end in ends:
@@ -45,9 +51,22 @@ async def notify_job_ends(kit: RoomKit, ends: AsyncIterator[dict[str, Any]]) -> 
 
 
 async def _tell(kit: RoomKit, room_id: str, channel_id: str, notice: str) -> None:
-    """Deliver *notice* to *channel_id* in *room_id*, as the application's instruction."""
-    import roomkit
+    """Tell *channel_id* in *room_id* of *notice*.
 
+    The turn it is running there reads it at its next stop, else it is
+    delivered as the application's instruction. The delivery alone would have
+    the notice wait for a turn of its own.
+    """
+    import roomkit
+    from roomkit.models.steering import InjectMessage
+
+    try:
+        reached = await kit.steer(InjectMessage(content=notice), channel_id, room_id=room_id)
+    except roomkit.RoomKitError:
+        # A steer the kit refuses hands nothing over: the delivery tells it.
+        reached = 0
+    if reached > 0:
+        return
     try:
         await kit.deliver(room_id, notice, addressed_to=[channel_id], instruction=True)
     except roomkit.RoomKitError as error:

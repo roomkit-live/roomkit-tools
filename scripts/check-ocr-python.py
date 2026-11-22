@@ -156,7 +156,7 @@ def main():
                 str(python),
                 str(base),
                 str(package),
-                "roomkit==0.110.0",
+                "roomkit==0.112.0",
                 cwd=work,
                 # The source archive builds the OCR library: keep it apart too.
                 env=cargo_env("rusto-python"),

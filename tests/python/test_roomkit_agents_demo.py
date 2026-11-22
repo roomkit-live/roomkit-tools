@@ -121,7 +121,7 @@ class AgentExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(limited[-1]["text_chars"], 0)
         self.assertIn('"end_reason": "truncated"', output)
 
-        # RoomKit 0.110 reports partial nonempty text as completed. Its public
+        # RoomKit 0.112 reports partial nonempty text as completed. Its public
         # event does not expose the raw provider finish reason: do not invent it.
         partial, output, _ = await self.observe_turn(
             LimitedAfterTool("An unfinished answer"), [FinishTool()]

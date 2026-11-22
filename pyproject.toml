@@ -29,7 +29,7 @@ Repository = "https://github.com/roomkit-live/roomkit-tools"
 Issues = "https://github.com/roomkit-live/roomkit-tools/issues"
 
 [project.optional-dependencies]
-roomkit = ["roomkit>=0.110,<0.112"]
+roomkit = ["roomkit>=0.112,<0.113"]
 
 [tool.maturin]
 manifest-path = "bindings/python/Cargo.toml"
