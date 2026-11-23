@@ -21,10 +21,12 @@ part of an existing published preview.
   `process_status`, a shell command's background jobs leave nothing else to
   read.
 
-- The RoomKit Rust adapter follows roomkit-rs v0.3.0 (b7db678), which changes
-  no adapter's API. With it, a running turn that steers its room reads only
-  its own author's next messages, so an application's delivery waits for that
-  turn to end.
+- The RoomKit Rust adapter follows roomkit-rs 8f49956, after v0.3.0, which
+  changes no adapter's API. With it, a running turn that steers its room
+  reads only its own author's next messages, so an application's delivery
+  waits for that turn to end, and a model's answer ends in the closed
+  `FinishReason` vocabulary, where it ended in a text: an application built
+  on the adapter pins the same revision.
 
 ## 0.2.0
 

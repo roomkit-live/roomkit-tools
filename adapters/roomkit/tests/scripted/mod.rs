@@ -7,7 +7,8 @@ use roomkit::RoomKit;
 use roomkit::model::{ChannelId, Metadata, RoomId};
 use roomkit_ai::{
     AiChannel, AiChannelOptions, AiContentPart, AiContext, AiMessageContent, AiResponse,
-    AiToolCall, AiToolResultPart, MockAiProvider, MockAiProviderOptions, Tool, ToolEntry,
+    AiToolCall, AiToolResultPart, FinishReason, MockAiProvider, MockAiProviderOptions, Tool,
+    ToolEntry,
 };
 
 /// A model of `vision` that calls the tool `name` with `arguments`, then answers.
@@ -20,7 +21,7 @@ fn model_calling(vision: bool, name: &str, arguments: Metadata) -> MockAiProvide
         vision,
         ai_responses: Some(vec![
             AiResponse {
-                finish_reason: Some("tool_calls".into()),
+                finish_reason: Some(FinishReason::ToolCalls),
                 tool_calls: vec![call],
                 ..AiResponse::new("")
             },
