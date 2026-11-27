@@ -53,6 +53,7 @@ CRATES = (
     "roomkit_tools_search",
     "roomkit_tools_code",
     "roomkit_tools_image",
+    "roomkit_tools_memory",
     "roomkit_tools_ocr",
     "roomkit_tools_ocr_rusto",
     "roomkit_tools_docs",

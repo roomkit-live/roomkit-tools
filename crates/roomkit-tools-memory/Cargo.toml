@@ -1,0 +1,25 @@
+[package]
+name = "roomkit-tools-memory"
+description = "Project notes over a replaceable memory backend"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+roomkit-tools-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+tokio-util.workspace = true
+tempfile.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

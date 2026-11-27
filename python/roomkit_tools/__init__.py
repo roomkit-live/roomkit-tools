@@ -23,6 +23,7 @@ from .code import CodeOutlineTool
 from .docs import DocsBackend, DocsListTool, DocsReadTool, DocsSearchTool, FileDocs
 from .fs import DiffTool, EditTool, GlobTool, GrepTool, ListTool, PatchTool, ReadTool, WriteTool
 from .image import ViewImageTool
+from .memory import FileMemory, MemoryBackend, MemoryTool
 from .ocr import OcrBackend, OcrTool
 from .output import OutputStore
 from .plans import (
@@ -50,6 +51,7 @@ from .roomkit import (
     Glob,
     Grep,
     List,
+    Memory,
     Ocr,
     OutputForget,
     OutputRead,
@@ -80,8 +82,12 @@ from .web import WebFetchTool
 from .workspace import Workspace
 
 __all__ = [
+    "FileMemory",
+    "MemoryBackend",
+    "MemoryTool",
     "DEFAULT_INHERITED_ENV",
     "DocsBackend",
+    "Memory",
     "DocsList",
     "DocsListTool",
     "DocsRead",

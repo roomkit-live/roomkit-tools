@@ -64,6 +64,7 @@ Run `cargo doc --workspace --no-deps --open` for field-level API documentation.
 | `roomkit-tools-http` | Internal: the DNS-pinned transport, origin policy and body limits the web and search crates share |
 | `roomkit-tools-web` | Fetching HTTP text and HTML conversion |
 | `roomkit-tools-search` | Search contracts and optional service backends |
+| `roomkit-tools-memory` | Bounded project notes with pluggable storage and a Markdown backend |
 | `roomkit-tools-docs` | Documentation contracts, injected backend and optional `files` snapshot |
 | `roomkit-tools-plans` | Plan CRUD contracts, injected storage and bounded memory backend |
 | `roomkit-tools-agents` | Agent contracts and facades over an injected `AgentBackend` |

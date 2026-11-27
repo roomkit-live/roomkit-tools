@@ -16,12 +16,14 @@ resolver = "3"
 
 [features]
 default = []
+memory = ["dep:roomkit-tools-memory"]
 docs = ["dep:roomkit-tools-docs"]
 plans = ["dep:roomkit-tools-plans"]
 ocr = ["dep:roomkit-tools-ocr"]
 image = ["dep:roomkit-tools-image"]
 
 [dependencies]
+roomkit-tools-memory = { version = "0.2.0", path = "../../crates/roomkit-tools-memory", optional = true }
 roomkit-tools-docs = { version = "0.2.0", path = "../../crates/roomkit-tools-docs", optional = true }
 roomkit-tools-plans = { version = "0.2.0", path = "../../crates/roomkit-tools-plans", optional = true }
 roomkit-tools-ocr = { version = "0.2.0", path = "../../crates/roomkit-tools-ocr", optional = true }

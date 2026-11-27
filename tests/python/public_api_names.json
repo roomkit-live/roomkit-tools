@@ -27,6 +27,7 @@
     "Edit",
     "EditTool",
     "FileDocs",
+    "FileMemory",
     "ForkedProcessError",
     "Glob",
     "GlobTool",
@@ -36,7 +37,10 @@
     "LimitExceededError",
     "List",
     "ListTool",
+    "Memory",
+    "MemoryBackend",
     "MemoryPlanBackend",
+    "MemoryTool",
     "Ocr",
     "OcrBackend",
     "OcrTool",
@@ -118,6 +122,11 @@
   "roomkit_tools.image": [
     "ViewImageTool"
   ],
+  "roomkit_tools.memory": [
+    "FileMemory",
+    "MemoryBackend",
+    "MemoryTool"
+  ],
   "roomkit_tools.ocr": [
     "BoundOcrBackend",
     "OcrBackend",
@@ -155,6 +164,7 @@
     "Glob",
     "Grep",
     "List",
+    "Memory",
     "Ocr",
     "OutputForget",
     "OutputRead",
@@ -218,6 +228,9 @@
   "roomkit_tools.roomkit.images": [
     "Ocr",
     "ViewImage"
+  ],
+  "roomkit_tools.roomkit.memory": [
+    "Memory"
   ],
   "roomkit_tools.roomkit.mutations": [
     "Edit",

@@ -27,6 +27,10 @@ mod bridge;
 mod plans;
 #[cfg(feature = "plans")]
 pub use plans::{PlanCreate, PlanDelete, PlanList, PlanRead, PlanUpdate};
+#[cfg(feature = "memory")]
+mod memory;
+#[cfg(feature = "memory")]
+pub use memory::Memory;
 #[cfg(feature = "docs")]
 mod docs;
 #[cfg(feature = "docs")]

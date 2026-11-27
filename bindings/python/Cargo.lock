@@ -1288,6 +1288,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "roomkit-tools-memory"
+version = "0.2.0"
+dependencies = [
+ "roomkit-tools-core",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "roomkit-tools-ocr"
 version = "0.2.0"
 dependencies = [
@@ -1338,6 +1352,7 @@ dependencies = [
  "roomkit-tools-docs",
  "roomkit-tools-fs",
  "roomkit-tools-image",
+ "roomkit-tools-memory",
  "roomkit-tools-ocr",
  "roomkit-tools-plans",
  "roomkit-tools-process",

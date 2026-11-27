@@ -1,8 +1,8 @@
 {
  "rustdoc": "1.99.1 (58cf8f9c3 2026-10-13)",
  "counts": {
-  "items": 32,
-  "methods": 29,
+  "items": 33,
+  "methods": 30,
   "associated_constants": 0,
   "trait_methods": 0,
   "fields": 0,
@@ -248,6 +248,34 @@
        {
         "name": "tool",
         "type": "ListTool"
+       }
+      ],
+      "returns": "Self",
+      "where": null
+     }
+    ],
+    "constants": [],
+    "impls": [
+     "Clone",
+     "Debug",
+     "Tool"
+    ],
+    "fields": []
+   },
+   {
+    "path": "roomkit_tools_roomkit::Memory",
+    "kind": "struct",
+    "decl": "pub struct Memory { }",
+    "non_exhaustive": false,
+    "methods": [
+     {
+      "name": "new",
+      "async": false,
+      "receiver": null,
+      "params": [
+       {
+        "name": "tool",
+        "type": "MemoryTool"
        }
       ],
       "returns": "Self",

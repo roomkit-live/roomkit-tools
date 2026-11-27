@@ -18,6 +18,7 @@ mod agents;
 mod docs;
 mod ends;
 mod fork;
+mod memory;
 mod ocr;
 mod plans;
 
@@ -387,6 +388,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<agents::PythonAgentContract>()?;
     module.add_class::<docs::PythonDocsContract>()?;
     module.add_class::<docs::PythonFileDocs>()?;
+    module.add_class::<memory::Contract>()?;
+    module.add_class::<memory::Files>()?;
     module.add_class::<plans::PythonPlanContract>()?;
     module.add_class::<plans::PythonMemoryPlanBackend>()?;
     runtime::install(module)?;

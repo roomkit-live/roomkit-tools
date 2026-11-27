@@ -139,6 +139,10 @@
     "read": ["async def", "*", "document_id", "offset=1", "limit=100", "expected_revision=None"],
     "search": ["async def", "*", "query", "offset=1", "limit=10", "expected_catalog_revision=None"]
   },
+  "roomkit_tools.FileMemory": {
+    "__init__": ["def", "root", "max_bytes"],
+    "execute": ["async def", "arguments"]
+  },
   "roomkit_tools.ForkedProcessError": {
     "__bases__": ["bases", "roomkit_tools.ToolError"]
   },
@@ -187,6 +191,14 @@
     "definition": ["classmethod"],
     "list": ["async def", "path='.'", "*", "offset=1", "limit=None"]
   },
+  "roomkit_tools.Memory": {
+    "__init__": ["def", "tool"],
+    "definition": ["property"],
+    "handler": ["async def", "name", "arguments"]
+  },
+  "roomkit_tools.MemoryBackend": {
+    "execute": ["async def", "arguments"]
+  },
   "roomkit_tools.MemoryPlanBackend": {
     "__init__": ["def", "*", "max_plans=256", "max_plans_per_scope=64"],
     "create": ["async def", "scope", "*", "title", "objective", "steps"],
@@ -194,6 +206,13 @@
     "list": ["async def", "scope"],
     "read": ["async def", "scope", "*", "plan_id"],
     "update": ["async def", "scope", "*", "plan_id", "expected_revision", "title=None", "objective=None", "steps=None", "step_changes=None"]
+  },
+  "roomkit_tools.MemoryTool": {
+    "__init__": ["def", "backend"],
+    "call": ["async def", "arguments"],
+    "definition": ["staticmethod"],
+    "validate_arguments": ["staticmethod", "arguments"],
+    "validate_result": ["staticmethod", "arguments", "result"]
   },
   "roomkit_tools.Ocr": {
     "__init__": ["def", "tool"],

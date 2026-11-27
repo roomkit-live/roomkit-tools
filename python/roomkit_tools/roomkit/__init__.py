@@ -23,6 +23,7 @@ from .docs import DocsList, DocsRead, DocsSearch
 from .ends import notify_job_ends
 from .files import CodeOutline, Diff, Glob, Grep, List, Read
 from .images import Ocr, ViewImage
+from .memory import Memory
 from .mutations import Edit, Patch, Write
 from .plans import PlanCreate, PlanDelete, PlanList, PlanRead, PlanUpdate
 from .web import WebFetch, WebSearch
@@ -34,6 +35,7 @@ __all__ = [
     "CodeOutline",
     "DelegateTask",
     "Diff",
+    "Memory",
     "DocsList",
     "DocsRead",
     "DocsSearch",

@@ -70,6 +70,11 @@
    "input": "ListInput",
    "output": "PathPage"
   },
+  "memory": {
+   "class": "roomkit_tools.MemoryTool",
+   "input": "MemoryInput",
+   "output": "MemoryResult"
+  },
   "ocr": {
    "class": "roomkit_tools.OcrTool",
    "input": "OcrInput",
@@ -177,6 +182,14 @@
   }
  },
  "types": {
+  "Action": {
+   "values": [
+    "search",
+    "read",
+    "save",
+    "forget"
+   ]
+  },
   "AgentFollowupInput": {
    "fields": [
     "agent_id",
@@ -521,6 +534,29 @@
     "limit",
     "offset",
     "path"
+   ]
+  },
+  "MemoryInput": {
+   "fields": [
+    "action",
+    "id",
+    "query",
+    "revision",
+    "text",
+    "title"
+   ]
+  },
+  "MemoryNote": {
+   "fields": [
+    "id",
+    "revision",
+    "text",
+    "title"
+   ]
+  },
+  "MemoryResult": {
+   "fields": [
+    "notes"
    ]
   },
   "OcrBlock": {

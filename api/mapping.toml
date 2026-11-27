@@ -131,6 +131,7 @@ builtin_errors = { "roomkit_tools_core::ToolError::Cancelled" = "asyncio.Cancell
 [rules.packages]
 decision = "roomkit-rs api/mapping.toml [rules.packages]: the Python packages a Rust module's items are looked for in; roomkit_tools_process in the modules defining its Python names only: luge-hitl:c9eeeeb3 Q11"
 roomkit_tools_core = ["roomkit_tools"]
+roomkit_tools_memory = ["roomkit_tools", "roomkit_tools.memory"]
 roomkit_tools_fs = ["roomkit_tools", "roomkit_tools.fs", "roomkit_tools.workspace"]
 # Only where Python defines them: the top-level ProcessStatus is the RoomKit
 # adapter, while Rust's ProcessStatus is a contract type, JSON in Python.

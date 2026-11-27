@@ -6,6 +6,8 @@ part of an existing published preview.
 
 ## Unreleased
 
+- The `memory` tool searches, reads, saves and forgets notes in a host-bound namespace. Rust and Python both support a custom backend or quota-limited Markdown files.
+
 - **Breaking (Python):** the `roomkit` extra requires `roomkit>=0.112,<0.113`,
   where it took `>=0.110,<0.112`, and the automated checks use 0.112.0.
   `notify_job_ends` now steers, and on RoomKit 0.110 and 0.111 a message

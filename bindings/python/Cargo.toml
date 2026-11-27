@@ -17,6 +17,7 @@ name = "_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+roomkit-tools-memory = { version = "0.2.0", path = "../../crates/roomkit-tools-memory" }
 roomkit-tools-docs = { version = "0.2.0", path = "../../crates/roomkit-tools-docs", features = ["files"] }
 roomkit-tools-plans = { version = "0.2.0", path = "../../crates/roomkit-tools-plans" }
 roomkit-tools-ocr = { version = "0.2.0", path = "../../crates/roomkit-tools-ocr" }
