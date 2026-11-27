@@ -14,7 +14,7 @@ fn decode(input: &str) -> PyResult<MemoryInput> {
 }
 
 #[derive(Debug)]
-#[pyclass(name = "_MemoryContract")]
+#[pyclass(module = "roomkit_tools._native", name = "_MemoryContract")]
 pub(crate) struct Contract;
 #[pymethods]
 impl Contract {
@@ -37,7 +37,7 @@ impl Contract {
 }
 
 #[derive(Debug)]
-#[pyclass(name = "_FileMemory")]
+#[pyclass(module = "roomkit_tools._native", name = "_FileMemory")]
 pub(crate) struct Files {
     backend: FileMemory,
 }
