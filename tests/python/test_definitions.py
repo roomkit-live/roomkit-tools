@@ -28,6 +28,7 @@ from roomkit_tools.fs import (
     WriteTool,
 )
 from roomkit_tools.image import ViewImageTool
+from roomkit_tools.memory import MemoryTool
 from roomkit_tools.ocr import OcrTool
 from roomkit_tools.plans import (
     PlanCreateTool,
@@ -72,6 +73,7 @@ def definitions() -> list[dict]:
         DocsListTool,
         DocsReadTool,
         DocsSearchTool,
+        MemoryTool,
         EditTool,
         GlobTool,
         GrepTool,

@@ -62,6 +62,7 @@ REFERENCES = [
 # each one compares with.
 CORE_TESTS = [
     ("test_docs.py", "ROOMKIT_DOCS_RESULTS"),
+    ("test_memory.py", None),
     ("test_read.py", None),
     ("test_ocr.py", None),
     ("test_agents.py", None),
