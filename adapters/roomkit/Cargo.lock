@@ -339,7 +339,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1292,7 +1292,7 @@ dependencies = [
 [[package]]
 name = "roomkit"
 version = "0.3.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=d33e0eed4ca569c03e3b2a7917b7e03331e0db64#d33e0eed4ca569c03e3b2a7917b7e03331e0db64"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=e6f92c6dba1cb158ff2cc8d734038a1100402ceb#e6f92c6dba1cb158ff2cc8d734038a1100402ceb"
 dependencies = [
  "futures-core",
  "getrandom 0.4.3",
@@ -1311,7 +1311,7 @@ dependencies = [
 [[package]]
 name = "roomkit-ai"
 version = "0.3.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=d33e0eed4ca569c03e3b2a7917b7e03331e0db64#d33e0eed4ca569c03e3b2a7917b7e03331e0db64"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=e6f92c6dba1cb158ff2cc8d734038a1100402ceb#e6f92c6dba1cb158ff2cc8d734038a1100402ceb"
 dependencies = [
  "base64",
  "fancy-regex",
@@ -1332,7 +1332,7 @@ dependencies = [
 [[package]]
 name = "roomkit-core"
 version = "0.3.0"
-source = "git+https://github.com/roomkit-live/roomkit-rs?rev=d33e0eed4ca569c03e3b2a7917b7e03331e0db64#d33e0eed4ca569c03e3b2a7917b7e03331e0db64"
+source = "git+https://github.com/roomkit-live/roomkit-rs?rev=e6f92c6dba1cb158ff2cc8d734038a1100402ceb#e6f92c6dba1cb158ff2cc8d734038a1100402ceb"
 dependencies = [
  "jiff",
  "serde",
@@ -1548,7 +1548,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1604,7 +1604,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1967,7 +1967,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2363,7 +2363,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
